@@ -36,6 +36,13 @@ export interface BookAssemblyCandidateRecord {
   readonly manifest: BookAssemblyManifestCandidate | null;
   readonly validation: BookAssemblyValidationResult;
   readonly updatedAt: string;
+  /** Trusted command metadata for a staged unpublished source-strategy migration. */
+  readonly migration?: {
+    readonly kind: 'source-strategy';
+    readonly baseCandidateId: string;
+    readonly fromSourceSetRevision: number;
+    readonly targetSourceSetRevision: number;
+  };
 }
 
 export interface BookAssemblyOperationReceipt {

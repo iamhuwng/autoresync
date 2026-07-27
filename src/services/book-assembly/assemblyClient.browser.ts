@@ -1,4 +1,5 @@
-import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
+import type { BookAssemblyManifestCandidate, SourceSetCandidate } from '../../types/bookAssembly.types';
+import type { SourceStrategyMigrationRemap } from './sourceStrategyMigration.service';
 import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
@@ -37,6 +38,45 @@ export interface CreateAssemblyCandidateInput {
 export interface ReplaceAssemblyCandidateInput extends CreateAssemblyCandidateInput {
   readonly candidateId: string;
   readonly expectedCandidateRevision: number;
+}
+
+export interface MigrateAssemblySourceStrategyInput {
+  readonly operationId: string;
+  readonly bookId: string;
+  readonly unitKey: string;
+  readonly candidateId: string;
+  readonly expectedBookRevision: number;
+  readonly expectedSourceSetRevision: number;
+  readonly expectedCandidateRevision: number;
+  readonly targetSourceSetRevision: number;
+  readonly targetSourceSet: SourceSetCandidate;
+  readonly remaps?: readonly SourceStrategyMigrationRemap[];
+}
+
+export interface ConfirmAssemblySourceStrategyMigrationInput {
+  readonly operationId: string;
+  readonly bookId: string;
+  readonly unitKey: string;
+  readonly migrationCandidateId: string;
+  readonly expectedCurrentCandidateId: string;
+  readonly expectedCurrentCandidateRevision: number;
+  readonly expectedMigrationCandidateRevision: number;
+}
+
+export interface DiscardAssemblySourceStrategyMigrationInput {
+  readonly operationId: string;
+  readonly bookId: string;
+  readonly unitKey: string;
+  readonly migrationCandidateId: string;
+  readonly expectedCurrentCandidateId: string;
+  readonly expectedCurrentCandidateRevision: number;
+  readonly expectedMigrationCandidateRevision: number;
+}
+
+export interface BookAssemblyMigrationClient {
+  migrate(input: MigrateAssemblySourceStrategyInput): Promise<BookAssemblyMutationResult>;
+  confirm(input: ConfirmAssemblySourceStrategyMigrationInput): Promise<BookAssemblyMutationResult>;
+  discardMigration(input: DiscardAssemblySourceStrategyMigrationInput): Promise<BookAssemblyMutationResult>;
 }
 
 const safeId = (value: unknown, label: string): string => {
@@ -139,6 +179,16 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
     safeRevision(input.expectedBookRevision, 'expected_book_revision');
     safeRevision(input.expectedSourceSetRevision, 'expected_source_set_revision');
   };
+  const validateMigrationInput = (input: MigrateAssemblySourceStrategyInput): void => {
+    safeOperationId(input.operationId);
+    safeId(input.bookId, 'book_id');
+    safeId(input.unitKey, 'unit_key');
+    safeId(input.candidateId, 'candidate_id');
+    safeRevision(input.expectedBookRevision, 'expected_book_revision');
+    safeRevision(input.expectedSourceSetRevision, 'expected_source_set_revision');
+    safeRevision(input.expectedCandidateRevision, 'expected_candidate_revision');
+    safeRevision(input.targetSourceSetRevision, 'target_source_set_revision');
+  };
   return {
     create(input: CreateAssemblyCandidateInput) {
       validateCreateInput(input);
@@ -149,6 +199,32 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       safeId(input.candidateId, 'candidate_id');
       safeRevision(input.expectedCandidateRevision, 'expected_candidate_revision');
       return request(`/book-assembly/books/${encodeURIComponent(input.bookId)}/units/${encodeURIComponent(input.unitKey)}/candidates/${encodeURIComponent(input.candidateId)}`, 'PUT', { ...input });
+    },
+    migrate(input: MigrateAssemblySourceStrategyInput) {
+      validateMigrationInput(input);
+      return request(`/book-assembly/books/${encodeURIComponent(input.bookId)}/units/${encodeURIComponent(input.unitKey)}/migrations`, 'POST', { ...input });
+    },
+    confirm(input: ConfirmAssemblySourceStrategyMigrationInput) {
+      safeOperationId(input.operationId);
+      safeId(input.bookId, 'book_id');
+      safeId(input.unitKey, 'unit_key');
+      safeId(input.migrationCandidateId, 'migration_candidate_id');
+      safeId(input.expectedCurrentCandidateId, 'expected_current_candidate_id');
+      safeRevision(input.expectedCurrentCandidateRevision, 'expected_current_candidate_revision');
+      safeRevision(input.expectedMigrationCandidateRevision, 'expected_migration_candidate_revision');
+      const { bookId, unitKey, migrationCandidateId, ...payload } = input;
+      return request(`/book-assembly/books/${encodeURIComponent(bookId)}/units/${encodeURIComponent(unitKey)}/migrations/${encodeURIComponent(migrationCandidateId)}/confirm`, 'POST', payload);
+    },
+    discardMigration(input: DiscardAssemblySourceStrategyMigrationInput) {
+      safeOperationId(input.operationId);
+      safeId(input.bookId, 'book_id');
+      safeId(input.unitKey, 'unit_key');
+      safeId(input.migrationCandidateId, 'migration_candidate_id');
+      safeId(input.expectedCurrentCandidateId, 'expected_current_candidate_id');
+      safeRevision(input.expectedCurrentCandidateRevision, 'expected_current_candidate_revision');
+      safeRevision(input.expectedMigrationCandidateRevision, 'expected_migration_candidate_revision');
+      const { bookId, unitKey, migrationCandidateId, ...payload } = input;
+      return request(`/book-assembly/books/${encodeURIComponent(bookId)}/units/${encodeURIComponent(unitKey)}/migrations/${encodeURIComponent(migrationCandidateId)}`, 'DELETE', payload);
     },
     validate(input: {
       readonly operationId: string;

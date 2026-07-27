@@ -3,6 +3,7 @@ import {
 } from './book-delivery/worker.ts';
 import { createBookActivityAuthoringWorkerHandlers } from './book-activity-authoring/worker.ts';
 import { createBookAssemblyWorkerHandlers } from './book-assembly/worker.ts';
+import { createSourceStrategyMigrationWorkerHandlers } from './book-assembly/source-strategy-migration-worker.ts';
 import {
   createBookAssemblyPublicationRouteHandlers,
   type BookAssemblyPublicationRouteOptions,
@@ -64,6 +65,7 @@ export interface BookRouteHandlersOptions {
   readonly deliveryHandlers?: Record<string, unknown>;
   readonly activityAuthoringHandlers?: Record<string, unknown>;
   readonly assemblyHandlers?: Record<string, unknown>;
+  readonly assemblyMigrationHandlers?: Record<string, unknown>;
   readonly assemblyPublication?: BookAssemblyPublicationRouteOptions;
   readonly runtimeHandlers?: Record<string, unknown>;
   readonly documentHandler?: BookRouteHandler;
@@ -87,6 +89,7 @@ export const createBookRouteHandlers = (
   const activity = options.activityAuthoringHandlers
     ?? createBookActivityAuthoringWorkerHandlers();
   const assembly = options.assemblyHandlers ?? createBookAssemblyWorkerHandlers();
+  const assemblyMigration = options.assemblyMigrationHandlers ?? createSourceStrategyMigrationWorkerHandlers();
   const assemblyPublication = createBookAssemblyPublicationRouteHandlers(options.assemblyPublication);
   const runtime = options.runtimeHandlers ?? createBookRuntimeWorkerHandlers();
 
@@ -99,6 +102,10 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, assembly,
     ['create', 'replace', 'validate', 'discard'], 'bookAssembly', () => []);
   addFactoryHandlers(handlers, assembly, ['load'], 'bookAssembly', () => ['bookId', 'unitKey', 'candidateId']);
+  addFactoryHandlers(handlers, assemblyMigration,
+    ['migrate'], 'bookAssemblyMigration', () => []);
+  addFactoryHandlers(handlers, assemblyMigration,
+    ['confirm', 'discard', 'cancel'], 'bookAssemblyMigration', () => ['bookId', 'unitKey', 'migrationCandidateId']);
   addFactoryHandlers(handlers, assemblyPublication as unknown as Record<string, unknown>,
     ['fullPdfPublish', 'componentPdfPublish'], 'bookAssembly', () => []);
   addFactoryHandlers(handlers, runtime, ['command'], 'bookRuntime', () => []);

@@ -11,15 +11,16 @@ const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(20);
+    expect(contributorRoutes).toHaveLength(23);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#59')).toHaveLength(2);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#70')).toHaveLength(3);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(20);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(23);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -53,6 +54,8 @@ describe('canonical Book route contract catalog', () => {
     expect(new Set(forTicket('#55').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
     expect(new Set(forTicket('#59').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ASSEMBLY_SERVICE_IDENTITY']));
     expect(new Set(forTicket('#59').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
+    expect(new Set(forTicket('#70').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ASSEMBLY_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#70').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
     expect(new Set(forTicket('#74').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_RUNTIME_SERVICE_IDENTITY']));
     expect(new Set(forTicket('#74').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_RUNTIME_GOOGLE_SA_KEY']));
   });
@@ -76,6 +79,38 @@ describe('canonical Book route contract catalog', () => {
         handler: 'bookAssembly.componentPdfPublish',
         gateEnv: 'BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED',
         contributorTicket: '#59',
+      }),
+    ]));
+  });
+
+  it('registers #70 migration prepare/confirm/discard only through disabled routes', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly-migration.migrate',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/migrations',
+        owner: '#70',
+        handler: 'bookAssemblyMigration.migrate',
+        gateEnv: 'BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED',
+        contributorTicket: '#70',
+      }),
+      expect.objectContaining({
+        id: 'book.assembly-migration.confirm',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/migrations/:migrationCandidateId/confirm',
+        owner: '#70',
+        handler: 'bookAssemblyMigration.confirm',
+        gateEnv: 'BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED',
+        contributorTicket: '#70',
+      }),
+      expect.objectContaining({
+        id: 'book.assembly-migration.discard',
+        methods: ['DELETE'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/migrations/:migrationCandidateId',
+        owner: '#70',
+        handler: 'bookAssemblyMigration.discard',
+        gateEnv: 'BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED',
+        contributorTicket: '#70',
       }),
     ]));
   });

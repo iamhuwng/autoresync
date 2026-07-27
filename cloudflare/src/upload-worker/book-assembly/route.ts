@@ -10,6 +10,13 @@ export const bookAssemblyRouteDescriptors = [
   { method: 'GET', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'load' },
 ] as const;
 
+/** Ticket 20B unpublished source-strategy migration. Publication remains a separate owner. */
+export const bookAssemblyMigrationRouteDescriptors = [
+  { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/migrations', handler: 'migrate' },
+  { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/migrations/:migrationCandidateId/confirm', handler: 'confirm' },
+  { method: 'DELETE', path: '/book-assembly/books/:bookId/units/:unitKey/migrations/:migrationCandidateId', handler: 'discard' },
+] as const;
+
 /**
  * Ticket 09D owns canonical route composition. Tickets #65/#66 own the
  * strategy adapters; their positive deployment proof remains with #134.

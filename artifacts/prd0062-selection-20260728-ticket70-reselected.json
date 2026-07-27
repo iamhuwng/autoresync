@@ -1,0 +1,116 @@
+{
+  "generatedAt": "2026-07-28",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket70-proof-transfer.json",
+  "issueHash": "99b7b0564d959da09cf2d7afa944c63e0a9e99b86bea9026982ace1754427921",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 68,
+    "closedCount": 44,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 67, 68, 70, 73, 81, 93, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "teacher-workflow",
+  "selection": {
+    "primaryTicket": 70,
+    "title": "PRD0062 20B — Migrate unpublished Mode 2 source strategy and remap",
+    "status": "reselected-eligible",
+    "directClosedPrerequisites": [32, 57],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 32, 33, 34, 35, 44, 45, 46, 47, 48, 55, 56, 57],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 27,
+    "acceptanceReadiness": "ready-for-local-closure",
+    "requiredAuthority": [
+      "existing scoped Assembly identity and Source Version read authority",
+      "#55 fragment/static RTDB proof and #118 assembled-rules proof remain destination-owned",
+      "#134 owns future deployed/canary migration proof; no #70 deployment authority required"
+    ],
+    "evidence": {
+      "rootFocusedTests": "7 files, 51 tests passed",
+      "cloudflareFocusedTests": "3 files, 25 tests passed",
+      "securityFocusedTests": "2 files, 6 tests passed",
+      "browser": "Playwright 10/10 passed at http://localhost:5173; desktop/mobile, both directions, discard, reload, 200% zoom",
+      "browserArtifacts": "artifacts/prd0062-ticket-70/browser/*.json; 10 JSON records, zero console/page/request errors",
+      "wrangler": "x64 dry-run passed; packaging/config proof only, no deployment claimed",
+      "ownership": "#134 destination contract updated before removing deployed gate from #70; #55/#118 retain rules proof"
+    },
+    "adjacentSharedVerification": {
+      "command": "rtk node ..\\scripts\\harness\\run-tool.mjs vitest . run test/book-router.test.ts --typecheck --reporter=dot",
+      "result": "15 tests passed, typecheck passed; process exit 1 because two existing unhandled book_response_too_large errors were emitted by the streamed-response boundary test",
+      "classification": "independent existing shared book-router boundary failure; cloudflare/src/upload-worker/book-router.ts and cloudflare/test/book-router.test.ts are outside #70 diff and unchanged",
+      "action": "Record for owning router-boundary follow-up; do not alter #70 seam or claim broad Cloudflare suite green."
+    }
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Foundation B2 provisioning; remote private-B2 deployment/billing authority unavailable and outside current scope."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Foundation B2 reconciliation; deployed exact-version cleanup drill requires unavailable remote B2 authority."
+    },
+    {
+      "ticket": 67,
+      "decision": "rejected",
+      "reason": "Teacher workflow publication repair; trusted publication/deployment gates remain disabled."
+    },
+    {
+      "ticket": 68,
+      "decision": "rejected",
+      "reason": "Teacher workflow Activity publication; trusted publication/deployment gates remain disabled."
+    },
+    {
+      "ticket": 70,
+      "decision": "selected",
+      "reason": "Earliest unresolved teacher-workflow root/enabler with all transitive prerequisites closed, retained local acceptance executable, ownership repaired destination-first, and downstream leverage 27."
+    },
+    {
+      "ticket": 73,
+      "decision": "rejected",
+      "reason": "Student workflow descendant; later roadmap phase and assembled runtime proof not yet current-phase work."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected",
+      "reason": "Student workflow homework descendant; later roadmap phase."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected",
+      "reason": "Operations descendant; later roadmap phase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final-closure suite; graph-clear is not acceptance-ready while teacher/runtime/operations scope remains open."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final-closure suite; student runtime/persistence scope remains open."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final-closure suite; student runtime/accessibility scope remains open."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final-closure suite; security matrix must follow implemented authority boundaries."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final-closure suite; legacy/backup/recovery proof remains downstream of unresolved product scope."
+    }
+  ],
+  "nonFrontierRule": "Every other unresolved ticket is ineligible because its live graph record contains open direct/transitive prerequisites; exact chains and open prerequisites are in the source graph artifact."
+}

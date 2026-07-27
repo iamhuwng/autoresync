@@ -45,6 +45,21 @@ Publication primitive boundary:
 - #72 owns server-side Delivery projection and pinned-identity proof; #73 owns
   the assembled Student proof of the current-pointer/student-safe projection.
 
+Source-strategy migration boundary:
+
+- #70 proves only unpublished Mode 2 migration: exact current Source Set and
+  candidate pinning, explicit source-qualified local remaps, target owner/order
+  validation, staged candidate preservation, CAS/idempotent confirmation or
+  discard, reverse-flow safety, and local teacher browser behavior on
+  `http://localhost:5173`. It consumes #55/13A fragment-level denial and
+  #118 assembled-rules proof; it does not duplicate generated rules.
+- #59 owns canonical dispatcher composition for the disabled migration route;
+  #56/#32 supply current Book/Source Version authority; #118 owns assembled
+  generated rules. #134 owns any positive deployed/canary migration execution,
+  identity/config/version/hash readback, assembled-rules readback, pointer and
+  context proof, cleanup, and operational rollback. No #70 proof enables #50A,
+  #03B, trusted actions, private-B2, or deployed positive publication.
+
 Candidate-preview boundary:
 
 - #63 proves candidate-scoped answer-safe projection/approval behavior, shared

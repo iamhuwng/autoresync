@@ -22,6 +22,7 @@ import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from '../../services/book-assembly/unitAssembly.types';
+import type { BookAssemblyMigrationClient } from '../../services/book-assembly/assemblyClient.browser';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import {
   isCurrentBookTeacherAssemblyDocument,
@@ -34,6 +35,7 @@ import BookAssemblyReconciliationPanel from './assembly/BookAssemblyReconciliati
 import BookAssemblyUnitPreview from './assembly/BookAssemblyUnitPreview';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import UnitActivityImportControls from './assembly/UnitActivityImportControls';
+import BookAssemblyStrategyMigrationPanel from './assembly/BookAssemblyStrategyMigrationPanel';
 import './BookAssemblyWorkspace.css';
 
 export interface BookAssemblyWorkspaceProps {
@@ -46,6 +48,7 @@ export interface BookAssemblyWorkspaceProps {
   readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
   readonly initialCandidate?: BookAssemblyCandidateRecord | null;
   readonly repository?: UnitAssemblyRepository;
+  readonly migrationClient?: BookAssemblyMigrationClient | null;
   readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly previewDocuments?: readonly BookTeacherAssemblyDocumentProjection[];
   readonly previewGetIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
@@ -225,6 +228,7 @@ const BookAssemblyWorkspace = ({
   sourceVersions,
   initialCandidate,
   repository,
+  migrationClient,
   activityAuthoring,
   previewDocuments = [],
   previewGetIdToken,
@@ -253,6 +257,7 @@ const BookAssemblyWorkspace = ({
   const [unitImportBusy, setUnitImportBusy] = useState(false);
   const [unitImportCancelable, setUnitImportCancelable] = useState(false);
   const [reconciliationBusy, setReconciliationBusy] = useState(false);
+  const [migrationRequestedStrategy, setMigrationRequestedStrategy] = useState<BookSourceStrategy | null>(null);
   const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
   const [manualCopyFallback, setManualCopyFallback] = useState(false);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
@@ -418,6 +423,7 @@ const BookAssemblyWorkspace = ({
     setNodes(draft.nodes);
     setUnits(draft.units);
     setCandidate(nextCandidate);
+    setMigrationRequestedStrategy(null);
     setSavedSnapshot(draftSnapshot(draft.sourceSet.sourceStrategy, draft.nodes, draft.sourceSet.sources, draft.units));
     setValidationMessage(null);
     setErrorMessage(null);
@@ -459,6 +465,17 @@ const BookAssemblyWorkspace = ({
   }, [selectedNodeKey, visibleTreeItems]);
 
   const selectStrategy = (next: BookSourceStrategy) => {
+    if (migrationClient && candidate?.manifest && next !== candidate.manifest.sourceSet.sourceStrategy) {
+      setMigrationRequestedStrategy(next);
+      setValidationMessage(null);
+      setErrorMessage(null);
+      emit('teacher_materials_book_assembly_strategy_migration_requested', {
+        fromStrategy: candidate.manifest.sourceSet.sourceStrategy,
+        toStrategy: next,
+        candidateId: candidate.candidateId,
+      });
+      return;
+    }
     setStrategy(next);
     setSources([]);
     setMappingSourceKey('');
@@ -975,6 +992,29 @@ const BookAssemblyWorkspace = ({
         ))}
         <p>Only verified, ready Source Versions can be selected. Mode 1 controls are not available.</p>
       </section>
+
+      {migrationClient && candidate?.manifest && migrationRequestedStrategy && (
+        <BookAssemblyStrategyMigrationPanel
+          bookId={bookId}
+          bookRevision={bookRevision}
+          sourceSetRevision={sourceSetRevision}
+          sourceVersions={sourceVersions}
+          currentCandidate={candidate}
+          targetStrategy={migrationRequestedStrategy}
+          migrationClient={migrationClient}
+          onCandidateConfirmed={(nextCandidate) => {
+            if (!nextCandidate.manifest) return;
+            applyDraft({
+              bookId: nextCandidate.manifest.bookId,
+              sourceSet: nextCandidate.manifest.sourceSet,
+              nodes: nextCandidate.manifest.nodes,
+              units: nextCandidate.manifest.units,
+            }, nextCandidate);
+          }}
+          onClosed={() => setMigrationRequestedStrategy(null)}
+          onAction={emit}
+        />
+      )}
 
       <section className="book-assembly-workspace__sources" aria-labelledby="book-assembly-sources-title">
         <h2 id="book-assembly-sources-title">Verified Source Versions</h2>

@@ -3,6 +3,7 @@ import {
 } from '../book-activity-authoring/route.ts';
 import {
   bookAssemblyRouteDescriptors,
+  bookAssemblyMigrationRouteDescriptors,
   bookAssemblyPublicationRouteDescriptors,
 } from '../book-assembly/route.ts';
 import {
@@ -132,6 +133,23 @@ const assemblyRoutes = bookAssemblyRouteDescriptors.map((route) => contributor({
   identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
   credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
   contributorTicket: '#55',
+}));
+
+const assemblyMigrationRoutes = bookAssemblyMigrationRouteDescriptors.map((route) => contributor({
+  id: `book.assembly-migration.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#70',
+  domain: 'assembly',
+  handler: `bookAssemblyMigration.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-teacher',
+  rateClass: 'book-control',
+  gateEnv: 'BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED',
+  requestBodyBytes: MAX_ASSEMBLY_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+  contributorTicket: '#70',
 }));
 
 const assemblyPublicationRoutes = bookAssemblyPublicationRouteDescriptors.map((route) => contributor({
@@ -302,6 +320,7 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...deliveryRoutes,
   ...activityAuthoringRoutes,
   ...assemblyRoutes,
+  ...assemblyMigrationRoutes,
   ...assemblyPublicationRoutes,
   ...runtimeRoutes,
   documentRoute,
@@ -421,7 +440,7 @@ export const validateBookRouteManifest = (manifest: unknown): BookRouteManifest 
       throw new Error(`book_route_contributor_missing:${descriptor.id}`);
     }
     if (descriptor.source === 'contributor'
-      && ['#31', '#35', '#55', '#59', '#74'].includes(descriptor.contributorTicket ?? '')
+      && ['#31', '#35', '#55', '#59', '#70', '#74'].includes(descriptor.contributorTicket ?? '')
       && (!descriptor.identityEnv || !descriptor.credentialEnv)) {
       throw new Error(`book_route_dedicated_credentials_missing:${descriptor.id}`);
     }

@@ -64,6 +64,61 @@ describe('PRD0062 ticket 13A browser client boundary', () => {
     await client.load('book-1', 'unit-1', 'candidate-1').catch(() => undefined);
   });
 
+  it('sends trusted migration commands without accepting a browser-supplied target manifest', async () => {
+    const fetchImpl = vi.fn(async () => ok({
+      status: 'created',
+      receipt: { operationId: op('10'), fingerprint: 'x', status: 'created', createdAt: 'now' },
+    }));
+    const client = createBookAssemblyClient({
+      baseUrl: 'https://assembly.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+    const targetSourceSet = {
+      sourceStrategy: 'component_pdfs' as const,
+      sources: [
+        { sourceKey: 'component-a', sourceVersionId: 'source-a', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+        { sourceKey: 'component-b', sourceVersionId: 'source-b', sourceOrder: 2, ownerNodeKey: 'unit-2' },
+      ] as const,
+    };
+    await client.migrate({
+      operationId: op('10'), bookId: 'book-1', unitKey: 'unit-1', candidateId: 'candidate-1',
+      expectedBookRevision: 4, expectedSourceSetRevision: 2, expectedCandidateRevision: 3,
+      targetSourceSetRevision: 3, targetSourceSet,
+      remaps: [{ pageGroupKey: 'pages-1', pages: [{ from: { sourceKey: 'full', physicalPageNumber: 1 }, to: { sourceKey: 'component-a', physicalPageNumber: 1 } }] }],
+    });
+    await client.confirm({
+      operationId: op('11'), bookId: 'book-1', unitKey: 'unit-1', migrationCandidateId: 'migration-1',
+      expectedCurrentCandidateId: 'candidate-1', expectedCurrentCandidateRevision: 3,
+      expectedMigrationCandidateRevision: 1,
+    });
+    await client.discardMigration({
+      operationId: op('12'), bookId: 'book-1', unitKey: 'unit-1', migrationCandidateId: 'migration-2',
+      expectedCurrentCandidateId: 'candidate-1', expectedCurrentCandidateRevision: 3,
+      expectedMigrationCandidateRevision: 1,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    const [migrateUrl, migrateInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(migrateUrl).toBe('https://assembly.example/book-assembly/books/book-1/units/unit-1/migrations');
+    expect(migrateInit.method).toBe('POST');
+    expect((migrateInit.headers as Record<string, string>)['Idempotency-Key']).toBe(op('10'));
+    expect(String(migrateInit.body)).toContain('targetSourceSet');
+    expect(String(migrateInit.body)).not.toContain('targetManifest');
+
+    const [confirmUrl, confirmInit] = fetchImpl.mock.calls[1] as [string, RequestInit];
+    expect(confirmUrl).toBe('https://assembly.example/book-assembly/books/book-1/units/unit-1/migrations/migration-1/confirm');
+    expect(confirmInit.method).toBe('POST');
+    expect(String(confirmInit.body)).not.toContain('bookId');
+    expect(String(confirmInit.body)).not.toContain('migrationCandidateId');
+
+    const [discardUrl, discardInit] = fetchImpl.mock.calls[2] as [string, RequestInit];
+    expect(discardUrl).toBe('https://assembly.example/book-assembly/books/book-1/units/unit-1/migrations/migration-2');
+    expect(discardInit.method).toBe('DELETE');
+    expect(String(discardInit.body)).toContain('expectedCurrentCandidateId');
+    expect(String(discardInit.body)).not.toContain('unitKey');
+  });
+
   it('fails closed on redirect binding mismatch, empty token, and malformed response', async () => {
     const redirected = vi.fn(async () => ({
       redirected: true,

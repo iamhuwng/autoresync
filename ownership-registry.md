@@ -138,6 +138,23 @@ Moved to #134:
 - active deployed route/config/readback and runtime command rollback drill after
   activation/provisioning authority.
 
+### #70 Unpublished source-strategy migration
+
+Kept in #70:
+
+- trusted source-strategy migration planner and explicit source-qualified local
+  page remap/reconciliation proof;
+- unpublished-only Full-PDF/component-PDF migration command, staged candidate,
+  CAS/idempotency, explicit confirmation/discard, and migration metadata;
+- browser teacher fixture proof for both directions, reload/cancel behavior,
+  source-byte preservation, mobile layout, and 200% zoom.
+
+The canonical migration route remains a disabled #70 contributor seam under
+#59's dispatcher. #56/#32 retain Source Version and Book/Source Set authority;
+#118 retains assembled generated-rules proof. #134 owns any positive deployed
+disposable migration, identity/readback, cleanup, or operational rollback drill;
+#70 does not enable a trusted action, #50A, #03B, or private-B2 capability.
+
 ## Current ownership checks
 
 - #56 owns hierarchy/source workspace behavior and local 13A-client proof.
@@ -162,6 +179,15 @@ Moved to #134:
   #65/#66 retain strategy adapters and local teacher publication proof; #118
   retains generated-rules proof; #134 retains deployed/canary publication,
   identity, cleanup, and rollback drills.
+- #70 owns unpublished source-strategy migration planning, explicit page
+  remapping, staged candidate CAS/confirmation/discard, migration-specific
+  local Worker/browser proof and source-byte preservation. It consumes the
+  #55/13A fragment-level deny boundary and #118 assembled-rules proof. Its
+  route is disabled by default and contributes to #59's dispatcher. #134 owns
+  positive deployed/canary migration execution, identity/config/version/hash
+  readback, assembled-rules readback, pointer/context proof, cleanup, and
+  operational rollback. #70 does not own activated publication, generated
+  rules, private-B2, or deployed canary proof.
 - #63 owns teacher candidate-preview projection/host/input, approval record,
   local Worker/security proof, fixture-safe component/browser proof, and
   preview-control rollback. It consumes the shared frame/registry and viewer

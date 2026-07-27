@@ -15,6 +15,11 @@ import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from '../services/book-assembly/unitAssembly.types';
+import type {
+  BookAssemblyMigrationClient,
+  MigrateAssemblySourceStrategyInput,
+} from '../services/book-assembly/assemblyClient.browser';
+import { planSourceStrategyMigration } from '../services/book-assembly/sourceStrategyMigration.service';
 import type { ActivityAuthoringService } from '../services/book-activity/activityAuthoring.service';
 import type { CandidateUnitPreviewProjection } from '../services/book-assembly/unitPreview.service';
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../types/bookAssembly.types';
@@ -240,6 +245,43 @@ const ticket66Manifest: BookAssemblyManifestCandidate = {
   }],
 };
 
+const ticket70FullManifest: BookAssemblyManifestCandidate = {
+  ...initialManifest,
+  units: [{
+    unitKey: 'unit-fixture',
+    activitySlots: [],
+    pageGroups: [{
+      pageGroupKey: 'pages-ticket70',
+      sourceKey: 'full',
+      pages: [2],
+      defaultPhysicalPageNumber: 2,
+      activityKeys: [],
+      mode: 'reference_only',
+    }],
+  }],
+};
+
+const ticket70ComponentManifest: BookAssemblyManifestCandidate = {
+  ...ticket70FullManifest,
+  sourceSet: {
+    sourceStrategy: 'component_pdfs',
+    sources: [{
+      sourceKey: 'component-a',
+      sourceVersionId: 'source-component-a',
+      sourceOrder: 1,
+      ownerNodeKey: 'section-fixture',
+    }],
+  },
+  units: [{
+    ...ticket70FullManifest.units[0],
+    pageGroups: [{
+      ...ticket70FullManifest.units[0].pageGroups[0],
+      sourceKey: 'component-a',
+      pages: [2],
+    }],
+  }],
+};
+
 const createCandidate = (
   manifest: BookAssemblyManifestCandidate,
   revision: number,
@@ -255,6 +297,16 @@ const createCandidate = (
   unitKey: manifest.nodes.find((node) => node.nodeType === 'unit')?.nodeKey ?? 'unit-fixture',
   updatedAt: NOW,
   validation: { valid: true, errors: [] },
+});
+
+const createTicket70Candidate = (
+  manifest: BookAssemblyManifestCandidate,
+): BookAssemblyCandidateRecord => ({
+  ...createCandidate(manifest, 1),
+  candidateId: manifest.sourceSet.sourceStrategy === 'full_pdf'
+    ? 'candidate-ticket70-full'
+    : 'candidate-ticket70-component',
+  lifecycle: 'validated',
 });
 
 const encodeCandidate = (candidate: BookAssemblyCandidateRecord): string =>
@@ -315,11 +367,11 @@ const decodePublicationSummary = (
     const parsed = JSON.parse(decodeURIComponent(value)) as Partial<Ticket65PublicationSummary>;
     return {
       publicationId: typeof parsed.publicationId === 'string' ? parsed.publicationId : null,
-      versionCount: Number.isSafeInteger(parsed.versionCount) ? parsed.versionCount : 0,
-      activityVersionCount: Number.isSafeInteger(parsed.activityVersionCount) ? parsed.activityVersionCount : 0,
-      placementCount: Number.isSafeInteger(parsed.placementCount) ? parsed.placementCount : 0,
-      unitProjectionCount: Number.isSafeInteger(parsed.unitProjectionCount) ? parsed.unitProjectionCount : 0,
-      deliveryPlanCount: Number.isSafeInteger(parsed.deliveryPlanCount) ? parsed.deliveryPlanCount : 0,
+      versionCount: typeof parsed.versionCount === 'number' && Number.isSafeInteger(parsed.versionCount) ? parsed.versionCount : 0,
+      activityVersionCount: typeof parsed.activityVersionCount === 'number' && Number.isSafeInteger(parsed.activityVersionCount) ? parsed.activityVersionCount : 0,
+      placementCount: typeof parsed.placementCount === 'number' && Number.isSafeInteger(parsed.placementCount) ? parsed.placementCount : 0,
+      unitProjectionCount: typeof parsed.unitProjectionCount === 'number' && Number.isSafeInteger(parsed.unitProjectionCount) ? parsed.unitProjectionCount : 0,
+      deliveryPlanCount: typeof parsed.deliveryPlanCount === 'number' && Number.isSafeInteger(parsed.deliveryPlanCount) ? parsed.deliveryPlanCount : 0,
       laterUnitPublished: parsed.laterUnitPublished === true,
     };
   } catch {
@@ -340,6 +392,10 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const ticket63Fixture = fixture === 'ticket63-preview';
   const ticket65Fixture = fixture === 'ticket65-full-pdf';
   const ticket66Fixture = fixture === 'ticket66-component-pdf';
+  const ticket70Fixture = fixture === 'ticket70-full' || fixture === 'ticket70-component';
+  const ticket70OriginalSourceVersionIds = fixture === 'ticket70-full'
+    ? ['source-full-ready']
+    : ['source-component-a'];
   const ticket58Fixture = fixture.startsWith('ticket58-');
   const candidateFixture = componentFixture
     ? createCandidate(componentMappingManifest, 1)
@@ -355,6 +411,10 @@ export default function BookAssemblyWorkspaceSmokePage() {
         ? createCandidate(ticket65Manifest, 1)
       : ticket66Fixture
         ? createCandidate(ticket66Manifest, 1)
+      : fixture === 'ticket70-full'
+        ? createTicket70Candidate(ticket70FullManifest)
+      : fixture === 'ticket70-component'
+        ? createTicket70Candidate(ticket70ComponentManifest)
       : fixture === 'ticket57-full' || ticket58Fixture
       ? createCandidate(initialManifest, 1)
       : null;
@@ -365,6 +425,8 @@ export default function BookAssemblyWorkspaceSmokePage() {
       : candidateFixture;
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(() =>
     decodeCandidate(searchParams.get('candidate')) ?? defaultCandidate);
+  const [ticket70StagedCandidate, setTicket70StagedCandidate] = useState<BookAssemblyCandidateRecord | null>(() =>
+    ticket70Fixture ? decodeCandidate(searchParams.get('stagedCandidate')) : null);
   const [publicationScope, setPublicationScope] = useState<BookAssemblyPublicationScope<BookAssemblyPublicationResult>>({});
   const [publicationSummary, setPublicationSummary] = useState<Ticket65PublicationSummary>(() =>
     decodePublicationSummary(searchParams.get('publication')));
@@ -373,6 +435,10 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const forceConflictRef = useRef(false);
   const [dirty, setDirty] = useState(false);
   const [stagedActivities, setStagedActivities] = useState<Array<{ activityKey?: string; evidenceRefs?: string[] }>>([]);
+  const ticket70CandidateRef = useRef(candidate);
+  const ticket70StagedCandidateRef = useRef(ticket70StagedCandidate);
+  ticket70CandidateRef.current = candidate;
+  ticket70StagedCandidateRef.current = ticket70StagedCandidate;
   const candidateRuntimePreview = useMemo<CandidateUnitPreviewProjection | null>(() => {
     if (!ticket63Fixture || !candidate) return null;
     return {
@@ -422,6 +488,100 @@ export default function BookAssemblyWorkspaceSmokePage() {
     }
     setSearchParams(nextParams, { replace: true });
   }, [fixture, publicationSummary, setSearchParams]);
+
+  const persistTicket70State = useCallback((
+    nextCandidate: BookAssemblyCandidateRecord,
+    nextStagedCandidate: BookAssemblyCandidateRecord | null,
+  ) => {
+    setCandidate(nextCandidate);
+    setTicket70StagedCandidate(nextStagedCandidate);
+    setSearchParams({
+      fixture,
+      candidate: encodeCandidate(nextCandidate),
+      ...(nextStagedCandidate ? { stagedCandidate: encodeCandidate(nextStagedCandidate) } : {}),
+    }, { replace: true });
+  }, [fixture, setSearchParams]);
+
+  const ticket70MigrationClient = useMemo<BookAssemblyMigrationClient | null>(() => {
+    if (!ticket70Fixture) return null;
+    const mutationResult = (
+      status: BookAssemblyMutationResult['status'],
+      nextCandidate?: BookAssemblyCandidateRecord,
+    ): BookAssemblyMutationResult => ({
+      status,
+      candidate: nextCandidate,
+      receipt: {
+        createdAt: NOW,
+        fingerprint: 'ticket70-local-migration-fingerprint',
+        operationId: 'ticket70-local-migration-operation',
+        status,
+        ...(nextCandidate && {
+          candidateId: nextCandidate.candidateId,
+          candidateRevision: nextCandidate.revision,
+        }),
+      },
+      currentRevision: ticket70CandidateRef.current?.revision,
+    });
+    const sourceVersionAuthority = {
+      getSourceVersion: (sourceVersionId: string) =>
+        sourceVersions.find((source) => source.sourceVersionId === sourceVersionId),
+    };
+
+    return {
+      migrate: async (input: MigrateAssemblySourceStrategyInput) => {
+        const current = ticket70CandidateRef.current;
+        if (!current?.manifest) return mutationResult('not-found');
+        const currentManifest = current.manifest;
+        const plan = planSourceStrategyMigration({
+          bookId: BOOK_ID,
+          bookMode: 'pdf',
+          bookRevision: 7,
+          sourceSetRevision: 4,
+          sourceSet: currentManifest.sourceSet,
+          candidate: {
+            candidateId: current.candidateId,
+            revision: current.revision,
+            bookRevision: current.bookRevision,
+            sourceSetRevision: current.sourceSetRevision,
+            manifest: currentManifest,
+          },
+          target: {
+            sourceSetRevision: input.targetSourceSetRevision,
+            sourceSet: input.targetSourceSet,
+          },
+          remaps: input.remaps,
+          published: false,
+          hasPublication: false,
+          sourceVersionAuthority,
+        });
+        if (!plan.canApply) return mutationResult('invalid');
+        const staged = {
+          ...current,
+          candidateId: `migration-${current.candidateId}`,
+          revision: current.revision + 1,
+          sourceSetRevision: input.targetSourceSetRevision,
+          manifest: plan.targetManifest,
+          lifecycle: 'draft' as const,
+          updatedAt: NOW,
+        };
+        persistTicket70State(current, staged);
+        return mutationResult('replaced', staged);
+      },
+      confirm: async () => {
+        const current = ticket70CandidateRef.current;
+        const staged = ticket70StagedCandidateRef.current;
+        if (!current || !staged) return mutationResult('not-found');
+        persistTicket70State(staged, null);
+        return mutationResult('replaced', staged);
+      },
+      discardMigration: async () => {
+        const current = ticket70CandidateRef.current;
+        const staged = ticket70StagedCandidateRef.current;
+        if (current) persistTicket70State(current, null);
+        return mutationResult('discarded', staged ?? undefined);
+      },
+    };
+  }, [persistTicket70State, ticket70Fixture]);
 
   const persistPublicationScope = useCallback((scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>) => {
     setPublicationScope(scope);
@@ -721,6 +881,47 @@ export default function BookAssemblyWorkspaceSmokePage() {
           <p>Staged Activity evidence: {stagedActivities.flatMap((entry) => entry.evidenceRefs ?? []).join(', ') || 'none'}</p>
         </section>
       )}
+      {ticket70Fixture && candidate?.manifest && (
+        <section aria-label="Ticket 70 local migration proof" style={{ display: 'grid', gap: 8 }}>
+          <h2>Ticket 70 local source-strategy migration proof</h2>
+          <p data-testid="ticket70-current-candidate">
+            Current candidate: {candidate.candidateId} ({candidate.manifest.sourceSet.sourceStrategy})
+          </p>
+          <p data-testid="ticket70-staged-candidate">
+            Staged candidate: {ticket70StagedCandidate?.candidateId ?? 'none'}
+          </p>
+          <p data-testid="ticket70-source-bytes">
+            Source bytes: {ticket70OriginalSourceVersionIds.join(', ') || 'none'} (preserved)
+          </p>
+          <p data-testid="ticket70-publication-state">Publication state: disabled (local proof only)</p>
+          {ticket70StagedCandidate && (
+            <div>
+              <button type="button" onClick={() => void ticket70MigrationClient?.confirm({
+                operationId: '00000000-0000-4000-8000-000000000070',
+                bookId: BOOK_ID,
+                unitKey: candidate.unitKey,
+                migrationCandidateId: ticket70StagedCandidate.candidateId,
+                expectedCurrentCandidateId: candidate.candidateId,
+                expectedCurrentCandidateRevision: candidate.revision,
+                expectedMigrationCandidateRevision: ticket70StagedCandidate.revision,
+              })}>
+                Confirm reloaded migration
+              </button>
+              <button type="button" onClick={() => void ticket70MigrationClient?.discardMigration({
+                operationId: '00000000-0000-4000-8000-000000000070',
+                bookId: BOOK_ID,
+                unitKey: candidate.unitKey,
+                migrationCandidateId: ticket70StagedCandidate.candidateId,
+                expectedCurrentCandidateId: candidate.candidateId,
+                expectedCurrentCandidateRevision: candidate.revision,
+                expectedMigrationCandidateRevision: ticket70StagedCandidate.revision,
+              })}>
+                Discard reloaded migration
+              </button>
+            </div>
+          )}
+        </section>
+      )}
       {ticket65Fixture && (
         <section aria-label="Ticket 65 publication state">
           <h2>Full-PDF publication fixture</h2>
@@ -818,6 +1019,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
         assemblyCandidateRuntimePreview={candidateRuntimePreview}
         assemblyPreviewDocuments={previewDocuments}
         assemblyRepository={repository}
+        assemblyMigrationClient={ticket70MigrationClient}
         assemblySourceSetRevision={4}
         assemblySourceVersions={sourceVersions}
         book={{ ...smokeBook, title: fixtureTitle }}

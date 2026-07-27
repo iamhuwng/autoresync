@@ -17,6 +17,7 @@ import {
   createSourceUploadSessionStatePort,
 } from '../../services/book-source-delivery/sourceUpload.client';
 import { createBookAssemblyClient } from '../../services/book-assembly/assemblyClient.browser';
+import type { BookAssemblyMigrationClient } from '../../services/book-assembly/assemblyClient.browser';
 import { createActivityAuthoringRepository } from '../../services/book-activity/activityAuthoring.repository';
 import { createActivityAuthoringService, type ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import { createActivityAuthoringTransport } from '../../services/book-activity/activityStorage.service';
@@ -45,6 +46,7 @@ interface BookMode2EditorShellProps {
   readonly uploadWorkflow?: SourceUploadBrowserWorkflow | null;
   readonly uploadPresentationEnabled?: boolean;
   readonly assemblyRepository?: UnitAssemblyRepository | null;
+  readonly assemblyMigrationClient?: BookAssemblyMigrationClient | null;
   readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly assemblySourceVersions?: readonly TrustedBookSourceVersionProjection[];
   readonly assemblyInitialCandidate?: BookAssemblyCandidateRecord | null;
@@ -88,6 +90,19 @@ const configuredAssemblyRepository = (): UnitAssemblyRepository | null => {
   });
 };
 
+const configuredAssemblyMigrationClient = (): BookAssemblyMigrationClient | null => {
+  const baseUrl = import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim();
+  if (!baseUrl) return null;
+  return createBookAssemblyClient({
+    baseUrl,
+    getIdToken: async () => {
+      const user = getAuth().currentUser;
+      if (!user) return '';
+      return user.getIdToken(true);
+    },
+  });
+};
+
 const getCurrentFirebaseIdToken = async (): Promise<string> => {
   const user = getAuth().currentUser;
   if (!user) return '';
@@ -115,6 +130,7 @@ const BookMode2EditorShell = ({
   uploadWorkflow,
   uploadPresentationEnabled,
   assemblyRepository,
+  assemblyMigrationClient,
   activityAuthoring,
   assemblySourceVersions = [],
   assemblyInitialCandidate,
@@ -142,6 +158,10 @@ const BookMode2EditorShell = ({
   const resolvedAssemblyRepository = useMemo(
     () => assemblyRepository === undefined ? configuredAssemblyRepository() : assemblyRepository,
     [assemblyRepository],
+  );
+  const resolvedAssemblyMigrationClient = useMemo(
+    () => assemblyMigrationClient === undefined ? configuredAssemblyMigrationClient() : assemblyMigrationClient,
+    [assemblyMigrationClient],
   );
   const resolvedActivityAuthoring = useMemo(
     () => activityAuthoring === undefined ? configuredActivityAuthoring() : activityAuthoring,
@@ -224,6 +244,7 @@ const BookMode2EditorShell = ({
           initialCandidate={assemblyInitialCandidate}
           presentation={presentation}
           repository={resolvedAssemblyRepository ?? undefined}
+          migrationClient={resolvedAssemblyMigrationClient}
           activityAuthoring={resolvedActivityAuthoring}
           previewDocuments={assemblyPreviewDocuments}
           previewGetIdToken={assemblyPreviewGetIdToken}

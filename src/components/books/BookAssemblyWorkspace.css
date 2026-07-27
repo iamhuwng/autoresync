@@ -7,7 +7,7 @@
 .book-assembly-workspace button:hover:not(:disabled), .book-assembly-workspace button:focus-visible { border-color: #1e5d8f; outline: 3px solid #b8d9f2; outline-offset: 1px; }
 .book-assembly-workspace button:disabled { cursor: not-allowed; opacity: .55; }
 .book-assembly-workspace__header > button { background: #1e5d8f; color: #fff; border-color: #1e5d8f; }
-.book-assembly-workspace__strategy, .book-assembly-workspace__sources, .book-assembly-workspace__unit-import, .book-assembly-workspace__reconciliation, .book-assembly-workspace__preview, .book-assembly-unit-preview, .book-assembly-workspace__tree, .book-assembly-workspace__details, .book-assembly-workspace__mapping { border: 1px solid #d4dce3; border-radius: .5rem; padding: 1rem; }
+.book-assembly-workspace__strategy, .book-assembly-workspace__sources, .book-assembly-workspace__unit-import, .book-assembly-workspace__reconciliation, .book-assembly-workspace__migration, .book-assembly-workspace__preview, .book-assembly-unit-preview, .book-assembly-workspace__tree, .book-assembly-workspace__details, .book-assembly-workspace__mapping { border: 1px solid #d4dce3; border-radius: .5rem; padding: 1rem; }
 .book-assembly-workspace__strategy { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: center; }
 .book-assembly-workspace__strategy h2, .book-assembly-workspace__strategy p { flex-basis: 100%; }
 .book-assembly-workspace__strategy p, .book-assembly-workspace__sources span { margin: 0; color: #5d6b78; font-size: .9rem; }
@@ -25,6 +25,23 @@
 .book-assembly-workspace__reconciliation ol { display: grid; gap: .5rem; margin: 0; padding-left: 1.25rem; }
 .book-assembly-workspace__reconciliation li { overflow-wrap: anywhere; }
 .book-assembly-workspace__reconciliation code { overflow-wrap: anywhere; }
+.book-assembly-workspace__migration { display: grid; gap: .85rem; min-width: 0; background: #f8fbfd; }
+.book-assembly-workspace__migration > p { margin: 0; color: #435466; }
+.book-assembly-workspace__migration fieldset { display: grid; gap: .75rem; min-width: 0; border: 1px solid #d4dce3; border-radius: .375rem; padding: .75rem; }
+.book-assembly-workspace__migration legend { padding: 0 .35rem; color: #334155; font-weight: 700; }
+.book-assembly-workspace__migration-source { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .75rem; align-items: end; min-width: 0; }
+.book-assembly-workspace__migration label { display: grid; gap: .25rem; min-width: 0; color: #334155; font-weight: 700; }
+.book-assembly-workspace__migration input, .book-assembly-workspace__migration select { width: 100%; min-height: 2.75rem; border: 1px solid #697786; border-radius: .375rem; background: #fff; color: inherit; }
+.book-assembly-workspace__migration-remaps, .book-assembly-workspace__migration-impact { display: grid; gap: .65rem; min-width: 0; }
+.book-assembly-workspace__migration-remaps h3, .book-assembly-workspace__migration-impact h3 { margin: 0; font-size: .95rem; }
+.book-assembly-workspace__migration-remaps fieldset { background: #fff; }
+.book-assembly-workspace__migration-pages { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .65rem; }
+.book-assembly-workspace__migration-impact dl { display: grid; gap: .45rem; margin: 0; }
+.book-assembly-workspace__migration-impact dl div { display: flex; justify-content: space-between; gap: 1rem; }
+.book-assembly-workspace__migration-impact dt { color: #5d6b78; }
+.book-assembly-workspace__migration-impact dd { margin: 0; font-weight: 700; }
+.book-assembly-workspace__migration-errors { display: grid; gap: .35rem; margin: 0; padding-left: 1.25rem; color: #7c2d12; }
+.book-assembly-workspace__migration-errors code { overflow-wrap: anywhere; }
 .book-assembly-workspace__import-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .book-assembly-workspace__import-editor, .book-assembly-workspace__manual-copy { display: grid; gap: .35rem; color: #334155; font-weight: 700; min-width: 0; }
 .book-assembly-workspace__import-editor textarea, .book-assembly-workspace__manual-copy textarea { width: 100%; min-height: 9rem; border: 1px solid #697786; border-radius: .375rem; padding: .65rem; resize: vertical; color: inherit; background: #fff; font: inherit; }
@@ -78,4 +95,6 @@
   .book-assembly-workspace__mapping-viewer-groups li { display: grid; }
   .book-assembly-workspace__mapping-form { grid-template-columns: minmax(0, 1fr); }
   .book-assembly-workspace__mapping-summary li { display: grid; }
+  .book-assembly-workspace__migration-source { grid-template-columns: minmax(0, 1fr); }
+  .book-assembly-workspace__migration-pages { grid-template-columns: minmax(0, 1fr); }
 }
