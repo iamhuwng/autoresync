@@ -156,7 +156,12 @@ Moved to #134:
   Homework saga behavior and its route-specific teacher/student/deployment/
   rollback proof. #59 also owns canonical #63 preview/approval descriptor
   composition and handler binding; it must preserve generic deny probes and
-  route rollback without making #63 edit the top-level Worker.
+  route rollback without making #63 edit the top-level Worker. #59 also owns
+  the canonical Full-PDF/component-PDF publication descriptors and handler
+  binding, including injection of #64's durable Firebase publication repository.
+  #65/#66 retain strategy adapters and local teacher publication proof; #118
+  retains generated-rules proof; #134 retains deployed/canary publication,
+  identity, cleanup, and rollback drills.
 - #63 owns teacher candidate-preview projection/host/input, approval record,
   local Worker/security proof, fixture-safe component/browser proof, and
   preview-control rollback. It consumes the shared frame/registry and viewer

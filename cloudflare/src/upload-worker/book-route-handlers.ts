@@ -3,6 +3,10 @@ import {
 } from './book-delivery/worker.ts';
 import { createBookActivityAuthoringWorkerHandlers } from './book-activity-authoring/worker.ts';
 import { createBookAssemblyWorkerHandlers } from './book-assembly/worker.ts';
+import {
+  createBookAssemblyPublicationRouteHandlers,
+  type BookAssemblyPublicationRouteOptions,
+} from './book-assembly/publication-route-handlers.ts';
 import { createBookRuntimeWorkerHandlers } from './book-runtime/worker.ts';
 import { createTeacherAssemblyPreviewWorker } from './book-delivery/teacher-assembly-preview-worker.js';
 import type {
@@ -60,6 +64,7 @@ export interface BookRouteHandlersOptions {
   readonly deliveryHandlers?: Record<string, unknown>;
   readonly activityAuthoringHandlers?: Record<string, unknown>;
   readonly assemblyHandlers?: Record<string, unknown>;
+  readonly assemblyPublication?: BookAssemblyPublicationRouteOptions;
   readonly runtimeHandlers?: Record<string, unknown>;
   readonly documentHandler?: BookRouteHandler;
   readonly teacherDocumentHandler?: BookRouteHandler;
@@ -82,6 +87,7 @@ export const createBookRouteHandlers = (
   const activity = options.activityAuthoringHandlers
     ?? createBookActivityAuthoringWorkerHandlers();
   const assembly = options.assemblyHandlers ?? createBookAssemblyWorkerHandlers();
+  const assemblyPublication = createBookAssemblyPublicationRouteHandlers(options.assemblyPublication);
   const runtime = options.runtimeHandlers ?? createBookRuntimeWorkerHandlers();
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
@@ -93,6 +99,8 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, assembly,
     ['create', 'replace', 'validate', 'discard'], 'bookAssembly', () => []);
   addFactoryHandlers(handlers, assembly, ['load'], 'bookAssembly', () => ['bookId', 'unitKey', 'candidateId']);
+  addFactoryHandlers(handlers, assemblyPublication as unknown as Record<string, unknown>,
+    ['fullPdfPublish', 'componentPdfPublish'], 'bookAssembly', () => []);
   addFactoryHandlers(handlers, runtime, ['command'], 'bookRuntime', () => []);
 
   const documentHandler = options.documentHandler ?? unavailableDocumentHandler;

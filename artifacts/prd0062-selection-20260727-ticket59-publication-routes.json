@@ -1,0 +1,49 @@
+{
+  "selectedAt": "2026-07-27T22:33:15+07:00",
+  "governingPolicy": "Mandatory dependency gate and deterministic roadmap: calculate complete transitive prerequisite chains; require live-closed prerequisites, current roadmap phase, executable acceptance gates, available ownership/authority, and strongest closure/downstream-unblock value; select exactly one primary.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket59-reopen-publication-routes.json",
+    "issueHash": "56169fa73c1d555d72fb20d3426e3c9808ad942092900ff36ff8761cfbabf5b7",
+    "issueCount": 112,
+    "openCount": 69,
+    "closedCount": 43,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 59, 67, 68, 70, 129, 130, 131, 132, 133],
+    "transitiveChainAudit": "Every issue record, including every unresolved ticket complete transitivePrerequisites and openTransitivePrerequisites, is stored in referenced graph artifact."
+  },
+  "selectedTicket": {
+    "issue": 59,
+    "ticket": "09D",
+    "title": "Integrate Book Worker route dispatch",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [44, 51, 52, 58],
+    "transitivePrerequisites": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58],
+    "openTransitivePrerequisites": [],
+    "closedPrerequisites": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58],
+    "downstreamLeverage": 59,
+    "acceptanceReadiness": "Executable local route repair: compose exact Full-PDF and component-PDF publication descriptors, bind both through canonical resolver, and construct #64's durable repository at the production Worker seam while all route/publication gates remain disabled. Existing x64 Wrangler dry-run and prior media-account route readback provide the generic route proof surface; positive publication/identity/private-B2/canary proof remains #134.",
+    "requiredAuthority": [
+      "local canonical manifest/dispatcher/handler implementation and focused tests",
+      "local x64 Worker/Wrangler dry-run and route readback",
+      "no #50A, #03B, trusted-action, or private-B2 activation",
+      "no generated-rules proof claim; #118 remains owner"
+    ]
+  },
+  "candidateRejections": [
+    {"issue": 49, "reason": "Graph-clear, but current authority/safety boundary forbids private-B2 provisioning and deployed disposable-object proof; acceptance is not executable."},
+    {"issue": 50, "reason": "Graph-clear, but current authority/safety boundary forbids private-B2 lifecycle mutation and deployed reconciliation proof; acceptance is not executable."},
+    {"issue": 67, "reason": "Graph-clear, but teacher mapping-repair workflow is later roadmap phase; downstream leverage 23 is below #59 leverage 59."},
+    {"issue": 68, "reason": "Graph-clear, but teacher Activity-revision workflow is later roadmap phase; downstream leverage 23 is below #59 leverage 59."},
+    {"issue": 70, "reason": "Graph-clear, but teacher-workflow source-strategy migration is later roadmap phase; downstream leverage 27 is below #59 leverage 59."},
+    {"issues": [129, 130, 131, 132, 133], "reason": "Graph-clear only by live Blocked-by edges; final regression/browser phase is not current Runtime phase and acceptance remains bounded by preserved activation/#50A safety gates."}
+  ],
+  "nonFrontierOpenTickets": {
+    "rule": "Rejected before implementation because at least one direct or transitive prerequisite is OPEN; complete chains and exact open prerequisite IDs are in graph artifact.",
+    "issues": [71, 73, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136]
+  },
+  "selectionDecision": "Select exactly one primary: #59 / Ticket 09D. Repair canonical publication route composition and durable-repository injection before any descendant or positive deployed publication drill."
+}

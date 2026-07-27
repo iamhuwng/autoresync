@@ -14,6 +14,7 @@ export default {
       'test/book-route-manifest.test.ts',
       'test/book-router.test.ts',
       'test/book-worker-integration.test.ts',
+      'test/book-publication-route-handlers.test.ts',
     ],
   },
 };

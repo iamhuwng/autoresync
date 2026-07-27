@@ -73,8 +73,9 @@ export function createUploadWorker({
   listeningUploadSessionHandlers = createListeningUploadSessionHandlers(),
   listeningDeliveryHandlers = createListeningDeliveryWorkerHandlers(),
   bookRouter,
+  bookRouteHandlers,
 } = {}) {
-  const canonicalBookRouter = bookRouter ?? createBookRouter({ firebaseVerifier });
+  const canonicalBookRouter = bookRouter ?? createBookRouter({ firebaseVerifier, routeHandlers: bookRouteHandlers });
   return {
     async fetch(request, env) {
       const bookResponse = await canonicalBookRouter.fetch(request, env);

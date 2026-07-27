@@ -9,3 +9,12 @@ export const bookAssemblyRouteDescriptors = [
   { method: 'DELETE', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'discard' },
   { method: 'GET', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'load' },
 ] as const;
+
+/**
+ * Ticket 09D owns canonical route composition. Tickets #65/#66 own the
+ * strategy adapters; their positive deployment proof remains with #134.
+ */
+export const bookAssemblyPublicationRouteDescriptors = [
+  { method: 'POST', path: '/book-assembly/full-pdf-publications', handler: 'fullPdfPublish' },
+  { method: 'POST', path: '/book-assembly/component-pdf-publications', handler: 'componentPdfPublish' },
+] as const;

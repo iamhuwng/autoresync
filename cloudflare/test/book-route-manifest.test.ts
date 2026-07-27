@@ -11,14 +11,15 @@ const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(18);
+    expect(contributorRoutes).toHaveLength(20);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#59')).toHaveLength(2);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(18);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(20);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -50,8 +51,33 @@ describe('canonical Book route contract catalog', () => {
     expect(new Set(forTicket('#35').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY']));
     expect(new Set(forTicket('#55').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ASSEMBLY_SERVICE_IDENTITY']));
     expect(new Set(forTicket('#55').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
+    expect(new Set(forTicket('#59').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ASSEMBLY_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#59').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
     expect(new Set(forTicket('#74').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_RUNTIME_SERVICE_IDENTITY']));
     expect(new Set(forTicket('#74').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_RUNTIME_GOOGLE_SA_KEY']));
+  });
+
+  it('registers Full-PDF and component-PDF publication only through disabled #59 route seams', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly.fullPdfPublish',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/full-pdf-publications',
+        owner: '#59',
+        handler: 'bookAssembly.fullPdfPublish',
+        gateEnv: 'BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED',
+        contributorTicket: '#59',
+      }),
+      expect.objectContaining({
+        id: 'book.assembly.componentPdfPublish',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/component-pdf-publications',
+        owner: '#59',
+        handler: 'bookAssembly.componentPdfPublish',
+        gateEnv: 'BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED',
+        contributorTicket: '#59',
+      }),
+    ]));
   });
 
   it('registers runtime command route as a disabled student contributor seam', () => {

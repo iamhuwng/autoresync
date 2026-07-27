@@ -12,7 +12,7 @@ claim.
 | Fragment security | Static fragment tests and ticket-owned negative cases |
 | Assembled rules | #118-generated rules artifact and complete emulator suite |
 | Browser behavior | Real role port, required role/session, desktop/mobile or zoom states, visible outcome, console review |
-| Route integration | #59 canonical dispatcher tests and deployed route probe |
+| Route integration | #59 canonical dispatcher/publication-route tests and deployed route probe |
 | Deployment | Preview/dry-run, active version/config/hash readback without secret values |
 | Rollback | Executed disable/revert gate and preserved safe-read/legacy behavior |
 | Deployed drill | Cross-suite deployed canary and pre-pilot decision owned by #134 |
@@ -39,6 +39,9 @@ Publication primitive boundary:
   role-port or assembled-shell closure claim.
 - #65/#66 own teacher-facing adapter publication proof for full-PDF and
   component-PDF strategies.
+- #59 owns Full-PDF/component-PDF route descriptors, canonical handler binding,
+  and injection of #64's durable Firebase publication repository. It does not
+  own strategy behavior or activated positive publication drills.
 - #72 owns server-side Delivery projection and pinned-identity proof; #73 owns
   the assembled Student proof of the current-pointer/student-safe projection.
 

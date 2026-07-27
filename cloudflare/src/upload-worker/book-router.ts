@@ -4,6 +4,7 @@ import { canonicalBookRouteManifest } from './book-routes/manifest.ts';
 import type { CanonicalBookRouteDescriptor } from './book-routes/types.ts';
 import {
   createBookRouteHandlerResolver,
+  type BookRouteHandlersOptions,
   type BookRouteHandler,
   type BookRouteHandlerMap,
 } from './book-route-handlers.ts';
@@ -39,6 +40,7 @@ export interface BookRouterOptions {
     descriptor: CanonicalBookRouteDescriptor,
   ) => BookRouteHandler | undefined;
   readonly firebaseVerifier?: FirebaseVerifier;
+  readonly routeHandlers?: BookRouteHandlersOptions;
 }
 
 export interface MatchedBookRoute {
@@ -409,7 +411,7 @@ export type BookRouter = ((request: Request, env: BookRouterEnv) => Promise<Resp
 
 export const createBookRouter = (options: BookRouterOptions = {}): BookRouter => {
   const manifest = options.manifest ?? canonicalBookRouteManifest;
-  const defaultHandlerResolver = createBookRouteHandlerResolver();
+  const defaultHandlerResolver = createBookRouteHandlerResolver(options.routeHandlers);
   const verifier = options.firebaseVerifier ?? createFirebaseVerifier() as FirebaseVerifier;
   const resolveHandler = options.handlerResolver
     ?? (options.handlers !== undefined
