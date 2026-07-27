@@ -22,6 +22,7 @@ import { handleListeningUploadSessionGrant } from './src/upload-worker/listening
 import { createListeningAuthoringWorkerHandlers } from './src/upload-worker/listening-authoring.ts';
 import { createListeningUploadSessionHandlers } from './src/upload-worker/listening-upload-session.ts';
 import { createListeningDeliveryWorkerHandlers } from './src/upload-worker/listening-delivery.ts';
+import { createBookRouter } from './src/upload-worker/book-router.ts';
 
 /**
  * R2 Upload Worker with Smart Cleanup Support
@@ -71,9 +72,14 @@ export function createUploadWorker({
   listeningAuthoringHandlers = createListeningAuthoringWorkerHandlers(),
   listeningUploadSessionHandlers = createListeningUploadSessionHandlers(),
   listeningDeliveryHandlers = createListeningDeliveryWorkerHandlers(),
+  bookRouter,
 } = {}) {
+  const canonicalBookRouter = bookRouter ?? createBookRouter({ firebaseVerifier });
   return {
     async fetch(request, env) {
+      const bookResponse = await canonicalBookRouter.fetch(request, env);
+      if (bookResponse) return bookResponse;
+
       if (request.method === 'OPTIONS') {
         return handleCorsPreflight(request);
       }

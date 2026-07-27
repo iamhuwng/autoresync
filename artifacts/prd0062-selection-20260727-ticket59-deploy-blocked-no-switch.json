@@ -1,0 +1,104 @@
+{
+  "generatedAt": "2026-07-27T06:35:00Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260727-ticket59-deploy-blocked.json",
+  "issueHash": "bf9d0183391b3d2178fe8954756004587fecd0282f1f37e486ca66156885d863",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 77,
+    "closedCount": 35,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": "112/112",
+    "graphClearFrontier": [49, 50, 59, 60, 61, 65, 66, 70, 129, 130, 131, 132, 133]
+  },
+  "currentPrimary": {
+    "ticket": 59,
+    "roadmapPhase": "foundation/runtime boundary",
+    "status": "blocked-open",
+    "blockerFamily": "deployed positive route identity and disposable live probe authority",
+    "blockerComment": "https://github.com/iamhuwng/autoresync/issues/59#issuecomment-5088054068",
+    "closedPrerequisites": [44, 51, 52, 58],
+    "completedEvidence": [
+      "Focused #59 x64 Vitest suite passed: 3 files, 37 tests.",
+      "Wrangler 4.112.0 with --profile media verified active profile and sentinel kahoot-media.",
+      "Production version 62b5dacb-cc25-452e-ad27-333b915daa2e deployed and read back at 100%.",
+      "All BOOK_* route gates read back disabled.",
+      "Live Book route probes proved exact CORS route reachability and controlled unauthenticated fail-closed behavior.",
+      "Rollback drill deployed previous version 1cb4452a-3efd-4822-9156-2490196a3acf at 100% and restored #59 version at 100%."
+    ],
+    "blockingEvidence": [
+      "Live #59 issue body still requires deployed Worker-to-Firebase identity integration and disposable Assembly/document positive probes.",
+      "Active Worker version readback lacks scoped Book service identity and credential bindings for delivery, activity-authoring, and Assembly.",
+      "All Book gates remain disabled, so positive disposable mutation/document probes are not executable without changing activation/provisioning authority."
+    ],
+    "impact": "Do not close #59, commit, or select descendants that depend on the same deployed-positive identity/probe authority."
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "graphClear": true,
+      "roadmapPhase": "foundation",
+      "rejectionReason": "Acceptance is not executable: requires Backblaze/private B2 bucket policy, scoped B2 application keys, disposable upload/delete object proof, browser direct-upload proof, and billing/capacity evidence. Current shell exposes no B2/BACKBLAZE authority variables."
+    },
+    {
+      "ticket": 50,
+      "title": "PRD0062 07 — Reconcile failed and unfinished direct-B2 uploads",
+      "graphClear": true,
+      "roadmapPhase": "foundation",
+      "rejectionReason": "Acceptance is not executable: requires deployed private B2 lifecycle-cleanup identity, disposable exact-version deletion/reconciliation proof, and browser interrupted-upload workflow. It shares the unresolved private B2 provisioning/proof boundary with #49."
+    },
+    {
+      "ticket": 59,
+      "title": "PRD0062 09D — Integrate Book Worker route dispatch",
+      "graphClear": true,
+      "roadmapPhase": "foundation/runtime boundary",
+      "rejectionReason": "Current primary remains open but closure-blocked by its own live positive identity/disposable route-probe gates; no replacement selected."
+    },
+    {
+      "ticket": 60,
+      "title": "PRD0062 13D — Connect authenticated PDF viewer to mapping workspace",
+      "graphClear": true,
+      "roadmapPhase": "teacher workflow",
+      "rejectionReason": "Descendant/later-phase work; depends functionally on #59/#09D deployed route proof and shares the current Worker route integration blocker."
+    },
+    {
+      "ticket": 61,
+      "title": "PRD0062 14 — Copy Unit prompt and import Unit JSON directly",
+      "graphClear": true,
+      "roadmapPhase": "teacher workflow",
+      "rejectionReason": "Later-phase teacher workflow; deployment proof stages through trusted Activity/Assembly commands and would share unresolved #59 route/provisioning authority."
+    },
+    {
+      "ticket": 65,
+      "title": "PRD0062 16 — Publish one full-PDF Unit atomically",
+      "graphClear": true,
+      "roadmapPhase": "runtime",
+      "rejectionReason": "Publication/activation work requires scoped Assembly/Activity publication identities, private B2 binding, rules/emulator/deployment proof, and is later than unresolved route/provisioning foundation."
+    },
+    {
+      "ticket": 66,
+      "title": "PRD0062 17 — Publish one component-PDF Unit atomically",
+      "graphClear": true,
+      "roadmapPhase": "runtime",
+      "rejectionReason": "Publication/activation work requires same unresolved scoped publication/private B2/rules/deployment authority family as #65."
+    },
+    {
+      "ticket": 70,
+      "title": "PRD0062 20B — Migrate unpublished Mode 2 source strategy and remap",
+      "graphClear": true,
+      "roadmapPhase": "operations",
+      "rejectionReason": "Later operations workflow; trusted command/deployment/rules proof depends on route/provisioning foundation remaining unresolved."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "title": "PRD0062 final closure browser/security/regression suites",
+      "graphClear": true,
+      "roadmapPhase": "final closure",
+      "rejectionReason": "Final closure phase ineligible while foundation/runtime route, B2, publication, and student/teacher workflow tickets remain open."
+    }
+  ],
+  "decision": "No independent eligible root/enabler with a different executable acceptance path remains. Pause primary work at #59 blocker; preserve full 112-ticket scope."
+}

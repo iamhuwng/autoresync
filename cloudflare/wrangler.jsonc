@@ -38,11 +38,26 @@
       "new_sqlite_classes": [
         "UploadGrantReplayLedger"
       ]
+    },
+    {
+      "tag": "v4-prd0062-prd0062b-retirement"
     }
   ],
   "vars": {
     "PUBLIC_URL": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev",
     "FIREBASE_PROJECT_ID": "temp-a1437",
-    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com"
+    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
+    "BOOK_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "disabled",
+    "BOOK_ASSEMBLY_ROUTES_ENABLED": "disabled",
+    "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_HOMEWORK_ROUTES_ENABLED": "disabled",
+    "BOOK_EVALUATION_HISTORY_ROUTES_ENABLED": "disabled",
+    "BOOK_INTEGRITY_ROUTES_ENABLED": "disabled",
+    "BOOK_NOTIFICATIONS_ROUTES_ENABLED": "disabled",
+    "BOOK_IMPACT_SNAPSHOT_ROUTES_ENABLED": "disabled",
+    "BOOK_UPDATES_ROUTES_ENABLED": "disabled",
+    "BOOK_REPLACEMENT_CLEANUP_ROUTES_ENABLED": "disabled"
   }
 }

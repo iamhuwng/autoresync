@@ -10,7 +10,7 @@ Published issue bodies remain authoritative. Update both when ownership moves.
 | Domain model, pure validation, local unit/property proof | Domain ticket |
 | Fragment content and fragment-level negative proof | Fragment-producing domain ticket |
 | Generated `database.rules.json`, assembled emulator suite, active rules readback, rules rollback | #118 / 09E |
-| Top-level Worker route composition, live route reachability, deployed Worker identity/config integration, route rollback | #59 / 09D |
+| Top-level Worker route composition, live route reachability, active Worker/config/gate readback, fail-closed route probes, route rollback | #59 / 09D |
 | Feature-specific browser behavior on an already-owned shell | Feature ticket |
 | Structural Book Runtime shell, shell navigation, launch/reload structure | #73 / 22B |
 | Deployed integrated drills and pre-pilot decision | #134 / 51E |
@@ -94,10 +94,17 @@ Moved to #59:
 
 - canonical top-level Assembly route composition;
 - deployed Assembly route reachability;
-- deployed Worker-to-Firebase Assembly identity integration;
-- disposable save/reload through canonical Worker route;
 - active Worker version/config/readback;
+- fail-closed disabled-route probes;
 - route-level rollback proof.
+
+Moved/confirmed in #128/#134:
+
+- positive disposable Assembly save/reload through the canonical Worker route;
+- positive current Book/Source Set/Source Version/candidate readback through an
+  enabled canonical route;
+- deployed Worker-to-Firebase Assembly identity integration after scoped
+  provisioning and activation.
 
 Moved to #118:
 
@@ -118,9 +125,12 @@ Moved to #118:
   #73 owns assembled student launch, Delivery, canonical route/CSP, and
   integrated PDF transport proof.
 - #59 owns fixed route-manifest/top-level dispatcher composition, generic
-  auth/rate/CORS/gate enforcement, seam registration, and Worker identity
-  readback. #86 owns Book Homework saga behavior and its route-specific
-  teacher/student/deployment/rollback proof.
+  auth/rate/CORS/gate enforcement, seam registration, active Worker/config/gate
+  readback, fail-closed route probes, and route rollback. Positive domain
+  mutation/read drills and activated Worker-to-domain-identity proof remain with
+  #128/#134 or the published activation/integration owner. #86 owns Book
+  Homework saga behavior and its route-specific teacher/student/deployment/
+  rollback proof.
 - #63 owns teacher candidate-preview projection/host/input and read-only
   preview proof. It consumes the shared frame/registry and viewer seams; it
   does not own the structural student runtime shell.
@@ -145,11 +155,12 @@ Moved to #118:
   #39's transferred integrated browser proof: Student quick-login, assembled
   shell fixtures, pointer/keyboard/touch runtime operation, navigation, and
   browser-level 200% zoom.
-- #40 remains blocked: the canonical coverage matrix has no supported
-  long-response row, while #40 requires long-response registration and #37
-  rejects unresearched registration. #37/coverage authority must publish a
-  profile or #40/#73 must be revised to a dormant-renderer contract before work
-  begins.
+- #40 is closed under the repaired generic-registration boundary: canonical
+  `profile:null` long-response registration satisfies #36's generic contract
+  without claiming an IELTS Reading/Listening matrix row. Profiled or invented
+  IELTS long-response registration remains rejected. #73 owns the transferred
+  assembled Student quick-login, drafting/restoration, pending-review,
+  navigation, browser-level zoom, and no-objective-scoring proof.
 - #41 owns Reading V2/Listening public-export adapters, exact supported-matrix
   conversion, authorization-reference preservation, dependency-direction
   proof, and native-domain regressions. #73 owns assembled Book-shell loading,
@@ -168,7 +179,8 @@ Moved to #118:
   source-switch cleanup, redacted typed failures, no token/provider/PDF byte
   storage, and no direct B2, bearer URL, iframe, or whole-buffer fallback. #59
   owns deployed canonical document-route composition, live route reachability,
-  active Worker readback, route rollback, and deployed #52 document-byte probes.
+  active Worker readback, fail-closed document-route probes, and route rollback.
+  #134 owns deployed positive document-byte drills after activation/provisioning.
   #73 owns assembled student-runtime proof through #53/#54 transport/viewer,
   Delivery projection, production route/CSP, quick-login, redacted network
   behavior, retry/abort/resume, copied/anonymous/direct-B2 denial, and console
