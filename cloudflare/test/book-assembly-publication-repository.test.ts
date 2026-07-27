@@ -32,6 +32,7 @@ const createFetchHarness = (
   initial: unknown = null,
   rejectFirstPut = false,
   concurrentState: unknown = null,
+  failPut = false,
 ) => {
   const calls: string[] = [];
   const etagRequests: string[] = [];
@@ -52,6 +53,7 @@ const createFetchHarness = (
     }
     if (method === 'PUT') {
       ifMatches.push(headers.get('if-match') ?? '');
+      if (failPut) return new Response('', { status: 500 });
       if (rejectFirstPut && !rejected) {
         rejected = true;
         stored = concurrentState;
@@ -334,6 +336,26 @@ describe('Book Assembly publication Firebase repository', () => {
       write: true,
     }))).rejects.toThrow('book_assembly_publication_scope_cas_retries_exhausted');
     expect(exhaustedHarness.read()).toBeNull();
+  });
+
+  it('preserves the prior aggregate when a durable commit fails before storage mutation', async () => {
+    const prior = completeScope();
+    const harness = createFetchHarness(prior, false, null, true);
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      fetchImpl: harness.fetchImpl,
+      getAccessToken: async () => 'test-token',
+      maxRetries: 1,
+    });
+
+    await expect(repository.transaction('book-1', () => ({
+      outcome: 'not-committed',
+      next: completeScope(concurrentOperationId),
+      write: true,
+    }))).rejects.toThrow('firebase_rtdb_put_failed:500:');
+
+    await expect(repository.readScope('book-1')).resolves.toEqual(prior);
+    expect(harness.read()).toEqual(prior);
   });
 
   it('fails closed on stored sensitive publication payloads', async () => {
