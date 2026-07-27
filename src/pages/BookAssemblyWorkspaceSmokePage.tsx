@@ -94,6 +94,44 @@ const ticket61Manifest: BookAssemblyManifestCandidate = {
   }],
 };
 
+const ticket62Manifest: BookAssemblyManifestCandidate = {
+  ...initialManifest,
+  units: [{
+    unitKey: 'unit-fixture',
+    activitySlots: [{
+      activityKey: 'activity-ticket62',
+      order: 1,
+      contextRequirement: 'optional',
+      pageGroupKeys: [],
+    }],
+    pageGroups: [{
+      pageGroupKey: 'pages-ticket62',
+      sourceKey: 'full',
+      pages: [2, 1, 1],
+      defaultPhysicalPageNumber: 1,
+      activityKeys: ['activity-ticket62'],
+      mode: 'activity',
+    }],
+  }],
+};
+
+const ticket62ComponentManifest: BookAssemblyManifestCandidate = {
+  bookId: BOOK_ID,
+  sourceSet: {
+    sourceStrategy: 'component_pdfs',
+    sources: [{ sourceKey: 'component-a', sourceVersionId: 'source-component-a', sourceOrder: 1, ownerNodeKey: 'section-component-a' }],
+  },
+  nodes: [
+    { nodeKey: 'section-component-a', parentNodeKey: null, nodeType: 'section', order: 1 },
+    { nodeKey: 'unit-component-a', parentNodeKey: 'section-component-a', nodeType: 'unit', order: 1 },
+  ],
+  units: [{
+    unitKey: 'unit-component-a',
+    activitySlots: [{ activityKey: 'activity-ticket62-component', order: 1, contextRequirement: 'optional', pageGroupKeys: [] }],
+    pageGroups: [{ pageGroupKey: 'pages-ticket62-component', sourceKey: 'component-a', pages: [2, 1, 1], defaultPhysicalPageNumber: 1, activityKeys: ['activity-ticket62-component'], mode: 'activity' }],
+  }],
+};
+
 const createCandidate = (
   manifest: BookAssemblyManifestCandidate,
   revision: number,
@@ -132,11 +170,17 @@ export default function BookAssemblyWorkspaceSmokePage() {
     import.meta.env.VITE_BOOK_DELIVERY_WORKER_URL?.trim() || window.location.origin;
   const componentFixture = fixture === 'ticket57-component' || fixture === 'ticket58-component';
   const ticket61Fixture = fixture.startsWith('ticket61');
+  const ticket62Fixture = fixture.startsWith('ticket62');
+  const ticket62ComponentFixture = fixture === 'ticket62-component';
   const ticket58Fixture = fixture.startsWith('ticket58-');
   const candidateFixture = componentFixture
     ? createCandidate(componentMappingManifest, 1)
     : ticket61Fixture
       ? createCandidate(ticket61Manifest, 1)
+      : ticket62ComponentFixture
+        ? createCandidate(ticket62ComponentManifest, 1)
+      : ticket62Fixture
+        ? createCandidate(ticket62Manifest, 1)
       : fixture === 'ticket57-full' || ticket58Fixture
       ? createCandidate(initialManifest, 1)
       : null;
@@ -321,8 +365,8 @@ export default function BookAssemblyWorkspaceSmokePage() {
           Simulate remote conflict
         </button>
       </header>
-      {ticket61Fixture && (
-        <section aria-label="Ticket 61 fixture state">
+      {(ticket61Fixture || ticket62Fixture) && (
+        <section aria-label="Assembly fixture state">
           <p>Candidate revision: {candidate?.revision ?? 'none'}</p>
           <p>Published state: unchanged</p>
           <p>Staged Activity count: {stagedActivities.length}</p>

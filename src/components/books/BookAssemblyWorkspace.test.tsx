@@ -706,4 +706,56 @@ describe('BookAssemblyWorkspace', () => {
     expect(repo.replace).not.toHaveBeenCalled();
     expect(mocks.error).toHaveBeenCalledWith('Unit Activity import failed.');
   });
+
+  it('applies only exact candidate reconciliation through one 13A CAS revision', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    const existing = candidate();
+    const unit = {
+      unitKey: 'unit-1',
+      activitySlots: [{ activityKey: 'activity-1', order: 1, contextRequirement: 'optional' as const, pageGroupKeys: [] }],
+      pageGroups: [{ pageGroupKey: 'pages-1', sourceKey: 'full', pages: [2, 1, 1], activityKeys: ['activity-1'], mode: 'activity' as const, defaultPhysicalPageNumber: 1 }],
+    };
+    renderWorkspace({ repository: repo, initialCandidate: { ...existing, manifest: { ...existing.manifest, units: [unit] } } });
+
+    await user.click(screen.getByRole('button', { name: 'Apply exact repairs' }));
+
+    await waitFor(() => expect(repo.replace).toHaveBeenCalledWith(expect.objectContaining({
+      candidateId: 'candidate-1',
+      expectedCandidateRevision: 1,
+      manifest: expect.objectContaining({
+        units: [expect.objectContaining({
+          activitySlots: [expect.objectContaining({ pageGroupKeys: ['pages-1'] })],
+          pageGroups: [expect.objectContaining({ pages: [1, 2] })],
+        })],
+      }),
+    })));
+    expect(mocks.success).toHaveBeenCalledWith('Exact Assembly repairs saved.');
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_reconciliation_repair_applied',
+      expect.objectContaining({ candidateId: 'candidate-1' }),
+    );
+  });
+
+  it('does not write uncertain reconciliation and records teacher choice', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    const existing = candidate();
+    const unit = {
+      unitKey: 'unit-1',
+      activitySlots: [{ activityKey: 'activity-1', order: 1, contextRequirement: 'optional' as const, pageGroupKeys: ['pages-1'] }],
+      pageGroups: [{ pageGroupKey: 'pages-1', sourceKey: 'full', pages: [1, 3], activityKeys: ['activity-1'], mode: 'activity' as const }],
+    };
+    renderWorkspace({ repository: repo, initialCandidate: { ...existing, manifest: { ...existing.manifest, units: [unit] } } });
+
+    expect(screen.queryByRole('button', { name: 'Apply exact repairs' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Record teacher choice needed' }));
+
+    expect(repo.replace).not.toHaveBeenCalled();
+    expect(mocks.info).toHaveBeenCalledWith('Choose the intended source and Activity mapping before saving.');
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_reconciliation_teacher_choice_recorded',
+      expect.objectContaining({ issueCount: 1 }),
+    );
+  });
 });

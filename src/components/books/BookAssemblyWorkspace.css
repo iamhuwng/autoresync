@@ -7,7 +7,7 @@
 .book-assembly-workspace button:hover:not(:disabled), .book-assembly-workspace button:focus-visible { border-color: #1e5d8f; outline: 3px solid #b8d9f2; outline-offset: 1px; }
 .book-assembly-workspace button:disabled { cursor: not-allowed; opacity: .55; }
 .book-assembly-workspace__header > button { background: #1e5d8f; color: #fff; border-color: #1e5d8f; }
-.book-assembly-workspace__strategy, .book-assembly-workspace__sources, .book-assembly-workspace__unit-import, .book-assembly-workspace__preview, .book-assembly-workspace__tree, .book-assembly-workspace__details, .book-assembly-workspace__mapping { border: 1px solid #d4dce3; border-radius: .5rem; padding: 1rem; }
+.book-assembly-workspace__strategy, .book-assembly-workspace__sources, .book-assembly-workspace__unit-import, .book-assembly-workspace__reconciliation, .book-assembly-workspace__preview, .book-assembly-workspace__tree, .book-assembly-workspace__details, .book-assembly-workspace__mapping { border: 1px solid #d4dce3; border-radius: .5rem; padding: 1rem; }
 .book-assembly-workspace__strategy { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: center; }
 .book-assembly-workspace__strategy h2, .book-assembly-workspace__strategy p { flex-basis: 100%; }
 .book-assembly-workspace__strategy p, .book-assembly-workspace__sources span { margin: 0; color: #5d6b78; font-size: .9rem; }
@@ -20,6 +20,11 @@
 .book-assembly-workspace__sources ol label { display: flex; gap: .4rem; align-items: center; }
 .book-assembly-workspace__sources select { min-height: 2.5rem; max-width: 16rem; border: 1px solid #697786; border-radius: .375rem; background: #fff; }
 .book-assembly-workspace__unit-import { display: grid; gap: .75rem; min-width: 0; }
+.book-assembly-workspace__reconciliation { display: grid; gap: .75rem; min-width: 0; }
+.book-assembly-workspace__reconciliation p { margin: 0; color: #5d6b78; }
+.book-assembly-workspace__reconciliation ol { display: grid; gap: .5rem; margin: 0; padding-left: 1.25rem; }
+.book-assembly-workspace__reconciliation li { overflow-wrap: anywhere; }
+.book-assembly-workspace__reconciliation code { overflow-wrap: anywhere; }
 .book-assembly-workspace__import-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .book-assembly-workspace__import-editor, .book-assembly-workspace__manual-copy { display: grid; gap: .35rem; color: #334155; font-weight: 700; min-width: 0; }
 .book-assembly-workspace__import-editor textarea, .book-assembly-workspace__manual-copy textarea { width: 100%; min-height: 9rem; border: 1px solid #697786; border-radius: .375rem; padding: .65rem; resize: vertical; color: inherit; background: #fff; font: inherit; }

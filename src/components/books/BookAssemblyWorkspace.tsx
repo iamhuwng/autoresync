@@ -12,6 +12,7 @@ import {
   type TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import { validateBookAssemblyManifestCandidate } from '../../services/book-assembly/manifestCandidate.service';
+import { analyzeBookAssemblyReconciliation } from '../../services/book-assembly/reconciliation.service';
 import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
 import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
 import { discardStagedUnitActivities, stageUnitActivityImportBundle, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
@@ -28,6 +29,7 @@ import {
 import type { AssemblyMappingViewerPageSelection } from '../../services/book-assembly/assemblyMappingViewer.browser';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import BookAssemblyMappingViewerHost from './assembly/BookAssemblyMappingViewerHost';
+import BookAssemblyReconciliationPanel from './assembly/BookAssemblyReconciliationPanel';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import UnitActivityImportControls from './assembly/UnitActivityImportControls';
 import './BookAssemblyWorkspace.css';
@@ -244,6 +246,7 @@ const BookAssemblyWorkspace = ({
   const [unitImportText, setUnitImportText] = useState('');
   const [unitImportBusy, setUnitImportBusy] = useState(false);
   const [unitImportCancelable, setUnitImportCancelable] = useState(false);
+  const [reconciliationBusy, setReconciliationBusy] = useState(false);
   const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
   const [manualCopyFallback, setManualCopyFallback] = useState(false);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
@@ -319,6 +322,16 @@ const BookAssemblyWorkspace = ({
     nodes: normalizeNodeOrders(nodes),
     units,
   }), [bookId, nodes, normalizedSources, strategy, units]);
+  const reconciliationReport = useMemo(() => analyzeBookAssemblyReconciliation({
+    manifest: manifest as unknown as BookAssemblyManifestCandidate,
+    sourceVersionAuthority: sourceAuthority,
+    expectedBookRevision: candidate?.bookRevision,
+    bookRevision,
+    expectedSourceSetRevision: candidate?.sourceSetRevision,
+    sourceSetRevision,
+    expectedCandidateRevision: candidate?.revision,
+    candidateRevision: candidate?.revision,
+  }), [bookRevision, candidate?.bookRevision, candidate?.revision, candidate?.sourceSetRevision, manifest, sourceAuthority, sourceSetRevision]);
   const unitPromptText = useMemo(() => {
     if (!selectedUnitKey) return '';
     try {
@@ -683,6 +696,63 @@ const BookAssemblyWorkspace = ({
     }
   };
 
+  const applyExactReconciliationRepair = async () => {
+    const repairedManifest = reconciliationReport.repairedManifest;
+    const unitKey = selectedUnitKey;
+    if (!repairedManifest || !unitKey || !repository || reconciliationBusy) return;
+    setReconciliationBusy(true);
+    setStatus('saving');
+    setValidationMessage(null);
+    setErrorMessage(null);
+    try {
+      const validation = validateBookAssemblyManifestCandidate(repairedManifest, sourceAuthority);
+      if (!validation.valid) {
+        setStatus('error');
+        setValidationMessage(errorText(validation));
+        toast.error('Exact repair did not pass candidate validation.');
+        emit('teacher_materials_book_assembly_reconciliation_repair_failed', { code: 'validation' });
+        return;
+      }
+      const result = await persistManifest(repairedManifest, unitKey);
+      if (result.status === 'conflict') {
+        setStatus('conflict');
+        toast.warning('Assembly changed elsewhere. Exact repair was not saved.');
+        emit('teacher_materials_book_assembly_reconciliation_repair_failed', { code: 'conflict' });
+        return;
+      }
+      if (!result.candidate) {
+        const message = mutationErrorMessage(result);
+        setStatus('error');
+        setErrorMessage(message);
+        toast.error(message);
+        emit('teacher_materials_book_assembly_reconciliation_repair_failed', { code: result.status });
+        return;
+      }
+      applyDraft(repairedManifest, result.candidate);
+      setStatus('saved');
+      onDirtyChange?.(false);
+      toast.success('Exact Assembly repairs saved.');
+      emit('teacher_materials_book_assembly_reconciliation_repair_applied', {
+        candidateId: result.candidate.candidateId,
+        revision: result.candidate.revision,
+      });
+    } catch (error) {
+      setStatus('error');
+      setErrorMessage(error instanceof Error ? error.message : 'Exact Assembly repair failed.');
+      toast.error('Exact Assembly repair could not be saved.');
+      emit('teacher_materials_book_assembly_reconciliation_repair_failed', { code: 'unknown' });
+    } finally {
+      setReconciliationBusy(false);
+    }
+  };
+
+  const recordTeacherChoiceNeeded = () => {
+    toast.info('Choose the intended source and Activity mapping before saving.');
+    emit('teacher_materials_book_assembly_reconciliation_teacher_choice_recorded', {
+      issueCount: reconciliationReport.issues.filter((entry) => entry.repair === 'teacher-choice').length,
+    });
+  };
+
   const copyUnitPrompt = (copied: boolean) => {
     if (copied) {
       setManualCopyFallback(false);
@@ -933,6 +1003,13 @@ const BookAssemblyWorkspace = ({
         promptText={unitPromptText}
         selectedUnitKey={selectedUnitKey}
         statusText={unitImportStatus}
+      />
+
+      <BookAssemblyReconciliationPanel
+        busy={reconciliationBusy}
+        report={reconciliationReport}
+        onApplyExactRepair={() => void applyExactReconciliationRepair()}
+        onRecordTeacherChoice={recordTeacherChoiceNeeded}
       />
 
       <section
