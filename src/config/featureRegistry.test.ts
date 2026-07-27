@@ -14,6 +14,7 @@ describe('featureRegistry', () => {
   describe('resolveFeatureFromRoute', () => {
     it('maps known student test routes to testTaking', () => {
       expect(resolveFeatureFromRoute('/student-test/ABC123')).toBe('testTaking');
+      expect(resolveFeatureFromRoute('/__smoke/book-runtime')).toBe('testTaking');
     });
 
     it('maps known homework routes to homework', () => {
@@ -197,6 +198,14 @@ describe('featureRegistry', () => {
           'teacher_materials_reading_passage_homework_submitted',
           'reading_v2_assignment_payload_missing',
           'reading_v2_frozen_runtime_launched',
+          'bookRuntimePageGroupSelected',
+          'bookRuntimeActivitySelected',
+          'bookRuntimeActivityNavigated',
+          'bookRuntimePdfFocused',
+          'bookRuntimeSplitRestored',
+          'bookRuntimeNavigatorToggled',
+          'bookRuntimeTabSwitched',
+          'bookRuntimeResponseChanged',
         ]),
       );
       expect(results?.actions).toEqual(

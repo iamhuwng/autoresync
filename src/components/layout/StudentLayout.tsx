@@ -175,7 +175,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                 : {}),
                             ...((isMobile || isTablet)
                                 ? {
-                                    marginTop: 56,
+                                    margin: '56px 0 0',
                                     maxWidth: '100%',
                                     width: '100%',
                                     boxShadow: 'none',

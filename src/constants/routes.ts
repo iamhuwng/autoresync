@@ -98,6 +98,7 @@ export const ROUTES = {
   STUDENT_LIBRARY: '/student/library',
   STUDENT_ACADEMIC_RECORD: '/student/academic-record',
   STUDENT_PRACTICE: '/student/practice/:materialId',
+  BOOK_RUNTIME_SMOKE: '/__smoke/book-runtime',
   RESULT_DETAIL: '/result/:resultId',
   MATERIAL_UNAVAILABLE: '/material-unavailable/:materialId',
 } as const;

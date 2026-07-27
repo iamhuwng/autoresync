@@ -1,0 +1,335 @@
+.book-runtime-shell {
+  --runtime-bg: var(--sv-bg-page, #f8f9fa);
+  --runtime-shell: var(--sv-bg-shell, #f1f4f6);
+  --runtime-surface: var(--sv-bg-surface, #ffffff);
+  --runtime-muted: var(--sv-bg-surface-muted, #eaeff1);
+  --runtime-text: var(--sv-text-primary, #2b3437);
+  --runtime-body: var(--sv-text-secondary, #586064);
+  --runtime-accent: var(--sv-accent, #4d44e3);
+  --runtime-accent-soft: var(--sv-accent-soft, #e2dfff);
+  --runtime-outline: var(--sv-outline-soft, #abb3b7);
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  color: var(--runtime-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.book-runtime-shell button {
+  min-height: 44px;
+  border: 1px solid var(--runtime-outline);
+  border-radius: 8px;
+  background: var(--runtime-surface);
+  color: var(--runtime-text);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 12px;
+}
+
+.book-runtime-shell button:hover:not(:disabled),
+.book-runtime-shell button.is-active {
+  border-color: var(--runtime-accent);
+  color: var(--runtime-accent);
+}
+
+.book-runtime-shell button:focus-visible {
+  outline: 3px solid var(--runtime-accent);
+  outline-offset: 2px;
+}
+
+.book-runtime-shell button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.book-runtime-shell__header,
+.book-runtime-shell__panel-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.book-runtime-shell__header h1,
+.book-runtime-shell__panel-heading h2,
+.book-runtime-shell__header p,
+.book-runtime-shell__panel-heading p {
+  margin: 0;
+}
+
+.book-runtime-shell__header h1 {
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  letter-spacing: -0.03em;
+}
+
+.book-runtime-shell__panel-heading h2 {
+  font-size: 1.125rem;
+  line-height: 1.25;
+}
+
+.book-runtime-shell__eyebrow {
+  color: var(--runtime-body);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.book-runtime-shell__context,
+.book-runtime-shell__viewer-safety {
+  color: var(--runtime-body);
+  font-size: 0.8125rem;
+}
+
+.book-runtime-shell__header-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 8px;
+  color: var(--runtime-body);
+  font-size: 0.75rem;
+}
+
+.book-runtime-shell__header-status span,
+.book-runtime-shell__activity-position {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: var(--runtime-muted);
+}
+
+.book-runtime-shell__workspace {
+  display: grid;
+  grid-template-columns: minmax(56px, 0.22fr) minmax(0, 1.35fr) minmax(280px, 0.9fr);
+  gap: 16px;
+  min-width: 0;
+  align-items: start;
+}
+
+.book-runtime-shell__page-navigator,
+.book-runtime-shell__activity-pane,
+.book-runtime-shell__viewer-pane {
+  min-width: 0;
+  background: var(--runtime-surface);
+  border: 1px solid color-mix(in srgb, var(--runtime-outline) 28%, transparent);
+  border-radius: 12px;
+}
+
+.book-runtime-shell__page-navigator {
+  position: sticky;
+  top: 16px;
+  padding: 14px;
+}
+
+.book-runtime-shell__activity-pane,
+.book-runtime-shell__viewer-pane {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.book-runtime-shell__panel-heading {
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--runtime-outline) 22%, transparent);
+}
+
+.book-runtime-shell__icon-button {
+  min-width: 44px;
+  padding: 8px;
+}
+
+.book-runtime-shell__group-list,
+.book-runtime-shell__mobile-activity-list {
+  display: grid;
+  gap: 8px;
+}
+
+.book-runtime-shell__group-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+}
+
+.book-runtime-shell__group-number {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--runtime-muted);
+  font-weight: 800;
+}
+
+.book-runtime-shell__group-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-runtime-shell[data-navigator-collapsed="true"] .book-runtime-shell__page-navigator {
+  padding: 8px;
+}
+
+.book-runtime-shell[data-navigator-collapsed="true"] .book-runtime-shell__group-list button {
+  justify-content: center;
+  padding: 8px;
+}
+
+.book-runtime-shell[data-navigator-collapsed="true"] .book-runtime-shell__group-label {
+  display: none;
+}
+
+.book-runtime-shell__mobile-tabs,
+.book-runtime-shell__mobile-activity-list {
+  display: none;
+}
+
+.book-runtime-shell__activity-pane :where([aria-label="Activity instructions"], [aria-label="Activity interactions"]) {
+  display: grid;
+  gap: 12px;
+}
+
+.book-runtime-shell__reference-state,
+.book-runtime-shell__pending-state {
+  margin: 0;
+  padding: 12px;
+  border-left: 3px solid var(--runtime-accent);
+  background: var(--runtime-accent-soft);
+  color: var(--runtime-body);
+  font-size: 0.8125rem;
+}
+
+.book-runtime-shell__pending-state {
+  border-left-color: #9a6b18;
+  background: #fff8e8;
+}
+
+.book-runtime-shell__activity-navigation {
+  position: sticky;
+  bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  background: color-mix(in srgb, var(--runtime-surface) 94%, transparent);
+}
+
+.book-runtime-shell__viewer-content {
+  min-height: 360px;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--runtime-outline) 36%, transparent);
+  border-radius: 8px;
+  background: var(--runtime-bg);
+}
+
+.book-runtime-shell__viewer-safety {
+  margin: 0;
+}
+
+.book-runtime-shell[data-desktop-view="pdf-focus"] .book-runtime-shell__page-navigator,
+.book-runtime-shell[data-desktop-view="pdf-focus"] .book-runtime-shell__activity-pane {
+  display: none;
+}
+
+.book-runtime-shell[data-desktop-view="pdf-focus"] .book-runtime-shell__workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.book-runtime-shell__failure {
+  display: grid;
+  gap: 8px;
+  padding: 24px;
+  border: 1px solid var(--runtime-outline);
+  border-radius: 12px;
+  background: var(--runtime-surface);
+}
+
+.book-runtime-shell__failure h1,
+.book-runtime-shell__failure p {
+  margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .book-runtime-shell__workspace {
+    grid-template-columns: minmax(56px, 0.2fr) minmax(0, 1.4fr);
+  }
+
+  .book-runtime-shell__viewer-pane {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .book-runtime-shell {
+    gap: 14px;
+  }
+
+  .book-runtime-shell__header {
+    display: block;
+  }
+
+  .book-runtime-shell__header-status {
+    justify-content: start;
+    margin-top: 12px;
+  }
+
+  .book-runtime-shell__mobile-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .book-runtime-shell__mobile-tabs button {
+    border-radius: 8px;
+  }
+
+  .book-runtime-shell__mobile-tabs button.is-active {
+    background: var(--runtime-accent-soft);
+  }
+
+  .book-runtime-shell__workspace {
+    display: block;
+  }
+
+  .book-runtime-shell__page-navigator {
+    display: none;
+  }
+
+  .book-runtime-shell__activity-pane,
+  .book-runtime-shell__viewer-pane {
+    display: none;
+    padding: 16px;
+  }
+
+  .book-runtime-shell[data-mobile-tab="activity"] .book-runtime-shell__activity-pane,
+  .book-runtime-shell[data-mobile-tab="page"] .book-runtime-shell__viewer-pane {
+    display: grid;
+  }
+
+  .book-runtime-shell__mobile-activity-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .book-runtime-shell__activity-navigation {
+    position: static;
+  }
+
+  .book-runtime-shell__viewer-content {
+    min-height: 280px;
+    padding: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-runtime-shell *,
+  .book-runtime-shell *::before,
+  .book-runtime-shell *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

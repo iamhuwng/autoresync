@@ -1,0 +1,33 @@
+{
+  "route": "http://localhost:5174/__smoke/book-runtime",
+  "account": "Student dev quick-login",
+  "checks": {
+    "initialRegistryShell": true,
+    "registeredChoiceRendererCount": 2,
+    "referenceOnlyPdf": true,
+    "desktopNavigatorCollapse": true,
+    "desktopNavigatorRestore": true,
+    "longResponseTextarea": true,
+    "pendingReviewPresentation": true,
+    "sourceReferencePresentation": true,
+    "pdfFocusAndSplitRestore": true,
+    "mobileViewport": "375x812",
+    "mobileDocumentWidth": 375,
+    "mobileBodyWidth": 375,
+    "mobileActivityPanel": "grid",
+    "mobileViewerPanel": "none",
+    "mobilePageTab": true,
+    "twoHundredPercentLayoutZoom": {
+      "method": "documentElement.style.zoom = 2",
+      "documentWidth": 375,
+      "viewportWidth": 375
+    },
+    "historyBackResync": true,
+    "reloadPreservesActivityAndContext": true,
+    "invalidBookIdentityFailClosed": true
+  },
+  "errors": {
+    "console": [],
+    "page": []
+  }
+}

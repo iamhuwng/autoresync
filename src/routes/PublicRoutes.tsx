@@ -1,6 +1,7 @@
 import { useRoutes } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 import { withTrackedRoute } from './routeHelpers';
+import { ROUTES } from '../constants/routes';
 
 const LoginPage = lazyWithRetry(() => import('../pages/LoginPage.jsx'));
 const GuestJoinPage = lazyWithRetry(() => import('../pages/GuestJoinPage.jsx'));
@@ -15,6 +16,7 @@ const BookAssemblySourceStrategySuccessorSmokePage = lazyWithRetry(() => import(
 const BookAssemblyMappingRevisionSmokePage = lazyWithRetry(() => import('../pages/BookAssemblyMappingRevisionSmokePage'));
 const BookAssemblyActivityRevisionSmokePage = lazyWithRetry(() => import('../pages/BookAssemblyActivityRevisionSmokePage'));
 const BookPdfViewerSmokePage = lazyWithRetry(() => import('../pages/BookPdfViewerSmokePage'));
+const BookRuntimeShellSmokePage = lazyWithRetry(() => import('../pages/BookRuntimeShellSmokePage'));
 const ReadingV2StudioSmokePage = lazyWithRetry(() => import('../pages/ReadingV2StudioSmokePage'));
 const ReadingV2VerticalLoopSmokePage = lazyWithRetry(() => import('../pages/ReadingV2VerticalLoopSmokePage'));
 
@@ -69,6 +71,9 @@ export default function PublicRoutes() {
     }, {
       path: '/__smoke/book-viewer',
       element: withTrackedRoute(<BookPdfViewerSmokePage />, 'testCreation'),
+    }, {
+      path: ROUTES.BOOK_RUNTIME_SMOKE,
+      element: withTrackedRoute(<BookRuntimeShellSmokePage />, 'testTaking'),
     }, {
       path: '/__smoke/reading-v2-studio',
       element: withTrackedRoute(<ReadingV2StudioSmokePage />, 'readingV2Studio'),
