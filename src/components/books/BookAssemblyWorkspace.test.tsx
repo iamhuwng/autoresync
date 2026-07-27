@@ -524,6 +524,30 @@ describe('BookAssemblyWorkspace', () => {
     expect(screen.queryByRole('button', { name: 'Preview full' })).not.toBeInTheDocument();
   });
 
+  it('mounts only an exact current #63 candidate runtime preview projection', () => {
+    const runtimePreview = {
+      bookId: 'book-1', candidateId: 'candidate-1', candidateRevision: 1,
+      sourceSetRevision: 3, unitKey: 'unit-1', registryVersion: 'registry-v1',
+      activities: [{
+        activityKey: 'activity-1', sourceContext: { available: true, description: 'Candidate source context: full page 2.' },
+        projection: {
+          schemaVersion: 1, title: 'Preview', taskProfile: null, presentationMode: 'structured',
+          contextRequirement: { mode: 'none', acceptedKinds: [] }, instructions: [],
+          interaction: { family: 'choice', variant: 'v1' }, answerRule: { defaultPoints: 1, normalization: 'exact' },
+          stimulus: null, assetRefs: [], interactions: [], scoring: { mode: 'auto-where-possible', feedbackVisibility: 'none' },
+        },
+      }],
+    } as const;
+    const { unmount } = renderWorkspace({
+      initialCandidate: candidate(),
+      candidateRuntimePreview: runtimePreview,
+    });
+    expect(screen.getByRole('heading', { name: 'Candidate runtime preview' })).toBeInTheDocument();
+    unmount();
+    renderWorkspace({ initialCandidate: candidate(2), candidateRuntimePreview: runtimePreview });
+    expect(screen.queryByRole('heading', { name: 'Candidate runtime preview' })).not.toBeInTheDocument();
+  });
+
   it('uses viewer page selection to update source-qualified mapping fields without saving', async () => {
     const user = userEvent.setup();
     const repo = repository();

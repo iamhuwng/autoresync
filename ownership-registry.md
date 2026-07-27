@@ -130,10 +130,15 @@ Moved to #118:
   mutation/read drills and activated Worker-to-domain-identity proof remain with
   #128/#134 or the published activation/integration owner. #86 owns Book
   Homework saga behavior and its route-specific teacher/student/deployment/
-  rollback proof.
-- #63 owns teacher candidate-preview projection/host/input and read-only
-  preview proof. It consumes the shared frame/registry and viewer seams; it
-  does not own the structural student runtime shell.
+  rollback proof. #59 also owns canonical #63 preview/approval descriptor
+  composition and handler binding; it must preserve generic deny probes and
+  route rollback without making #63 edit the top-level Worker.
+- #63 owns teacher candidate-preview projection/host/input, approval record,
+  local Worker/security proof, fixture-safe component/browser proof, and
+  preview-control rollback. It consumes the shared frame/registry and viewer
+  seams; it does not own canonical dispatcher composition, activated
+  teacher-browser evidence (#128), deployed/canary drills (#134), or the
+  structural student runtime shell (#73).
 - #64 owns the strategy-neutral publication primitive and adapter-neutral
   common Worker-boundary proof. #65/#66 own teacher-facing adapter publication
   proof; #72 owns server-side Book Delivery projection resolution and

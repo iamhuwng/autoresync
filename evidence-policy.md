@@ -41,6 +41,17 @@ Publication primitive boundary:
 - #72 owns server-side Delivery projection and pinned-identity proof; #73 owns
   the assembled Student proof of the current-pointer/student-safe projection.
 
+Candidate-preview boundary:
+
+- #63 proves candidate-scoped answer-safe projection/approval behavior, shared
+  frame/registry parity, local handler security, isolated preview state, and
+  fixture-safe teacher host behavior.
+- #59 proves canonical preview/approval route composition, generic dispatcher
+  enforcement, route readback, fail-closed probes, and route rollback.
+- #128 proves activated teacher quick-login canonical-route browser journeys;
+  #134 proves positive deployed/canary preview drills. Neither is a hard
+  prerequisite of #63 producer closure.
+
 ## Browser cadence
 
 - Teacher flows use `http://localhost:5173`.

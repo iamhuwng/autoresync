@@ -7,6 +7,7 @@ import type {
   BookAssemblyMutationResult,
 } from '../services/book-assembly/unitAssembly.types';
 import type { ActivityAuthoringService } from '../services/book-activity/activityAuthoring.service';
+import type { CandidateUnitPreviewProjection } from '../services/book-assembly/unitPreview.service';
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../types/bookAssembly.types';
 import { materialCatalogIds, type MaterialBookMetadata } from '../types/materialCatalog.types';
 import { useAuth } from '../hooks/useAuth';
@@ -132,6 +133,27 @@ const ticket62ComponentManifest: BookAssemblyManifestCandidate = {
   }],
 };
 
+const ticket63Manifest: BookAssemblyManifestCandidate = {
+  ...initialManifest,
+  units: [{
+    unitKey: 'unit-fixture',
+    activitySlots: [{
+      activityKey: 'activity-ticket63',
+      order: 1,
+      contextRequirement: 'required',
+      pageGroupKeys: ['pages-ticket63'],
+    }],
+    pageGroups: [{
+      pageGroupKey: 'pages-ticket63',
+      sourceKey: 'full',
+      pages: [2],
+      defaultPhysicalPageNumber: 2,
+      activityKeys: ['activity-ticket63'],
+      mode: 'activity',
+    }],
+  }],
+};
+
 const createCandidate = (
   manifest: BookAssemblyManifestCandidate,
   revision: number,
@@ -139,7 +161,7 @@ const createCandidate = (
   bookId: BOOK_ID,
   bookRevision: 7,
   candidateId: 'candidate-ticket56',
-  lifecycle: 'draft',
+  lifecycle: manifest === ticket63Manifest ? 'validated' : 'draft',
   manifest,
   ownerId: OWNER_ID,
   revision,
@@ -172,6 +194,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const ticket61Fixture = fixture.startsWith('ticket61');
   const ticket62Fixture = fixture.startsWith('ticket62');
   const ticket62ComponentFixture = fixture === 'ticket62-component';
+  const ticket63Fixture = fixture === 'ticket63-preview';
   const ticket58Fixture = fixture.startsWith('ticket58-');
   const candidateFixture = componentFixture
     ? createCandidate(componentMappingManifest, 1)
@@ -181,6 +204,8 @@ export default function BookAssemblyWorkspaceSmokePage() {
         ? createCandidate(ticket62ComponentManifest, 1)
       : ticket62Fixture
         ? createCandidate(ticket62Manifest, 1)
+      : ticket63Fixture
+        ? createCandidate(ticket63Manifest, 1)
       : fixture === 'ticket57-full' || ticket58Fixture
       ? createCandidate(initialManifest, 1)
       : null;
@@ -194,6 +219,46 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const forceConflictRef = useRef(false);
   const [dirty, setDirty] = useState(false);
   const [stagedActivities, setStagedActivities] = useState<Array<{ activityKey?: string; evidenceRefs?: string[] }>>([]);
+  const candidateRuntimePreview = useMemo<CandidateUnitPreviewProjection | null>(() => {
+    if (!ticket63Fixture || !candidate) return null;
+    return {
+      bookId: BOOK_ID,
+      candidateId: candidate.candidateId,
+      candidateRevision: candidate.revision,
+      sourceSetRevision: 4,
+      unitKey: 'unit-fixture',
+      registryVersion: 'ticket63-local-fixture-v1',
+      activities: [{
+        activityKey: 'activity-ticket63',
+        sourceContext: { available: true, description: 'Candidate source context: full page 2.' },
+        projection: {
+          schemaVersion: 1,
+          title: 'Ticket 63 source-assisted preview',
+          taskProfile: { taxonomyId: 'ielts-reading', typeId: 'diagram-labeling', taxonomyVersion: 1 },
+          presentationMode: 'source-assisted',
+          contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+          instructions: [{ text: 'Use the candidate source context before choosing.' }],
+          interaction: { family: 'choice', variant: 'diagram-label-choice' },
+          answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+          stimulus: null,
+          assetRefs: [],
+          interactions: [{
+            family: 'choice',
+            interactionId: 'choice-ticket63',
+            prompt: 'Choose candidate answer.',
+            options: [{ itemId: 'option-a', label: 'A' }, { itemId: 'option-b', label: 'B' }],
+            sourceAssisted: {
+              questionLabel: '1',
+              accessiblePrompt: 'Choose one candidate answer using source context.',
+              sourceExerciseLabel: 'Ticket 63 source exercise',
+              responseShape: 'single-choice',
+            },
+          }],
+          scoring: { mode: 'auto-where-possible', feedbackVisibility: 'none' },
+        },
+      }],
+    };
+  }, [candidate, ticket63Fixture]);
 
   const persistCandidate = useCallback((next: BookAssemblyCandidateRecord) => {
     setCandidate(next);
@@ -315,6 +380,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
     }),
   }), [fixture]);
 
+  const fixtureTitle = ticket63Fixture ? 'PRD0062 Ticket 63 Candidate Preview Fixture' : smokeBook.title;
   const signedInLabel = user
     ? `${profile?.role ?? 'user'} ${user.email ?? user.uid}`
     : 'not signed in';
@@ -352,7 +418,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
     <main style={{ display: 'grid', gap: 16, maxWidth: '100%', overflowX: 'clip', padding: 'clamp(12px, 4vw, 24px)' }}>
       <header>
         <p style={{ margin: 0, color: '#5d687b', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Ticket 56 fixture
+          {ticket63Fixture ? 'Ticket 63 fixture' : 'Ticket 56 fixture'}
         </p>
         <h1 style={{ margin: '4px 0 0' }}>Assembly workspace browser proof</h1>
         <p style={{ margin: '8px 0 0' }}>Signed in: {signedInLabel}</p>
@@ -378,11 +444,12 @@ export default function BookAssemblyWorkspaceSmokePage() {
         activityAuthoring={activityAuthoring}
         assemblyBookRevision={7}
         assemblyInitialCandidate={candidate}
+        assemblyCandidateRuntimePreview={candidateRuntimePreview}
         assemblyPreviewDocuments={previewDocuments}
         assemblyRepository={repository}
         assemblySourceSetRevision={4}
         assemblySourceVersions={sourceVersions}
-        book={smokeBook}
+        book={{ ...smokeBook, title: fixtureTitle }}
         onDirtyChange={setDirty}
         presentation="page-compat"
         uploadPresentationEnabled={false}

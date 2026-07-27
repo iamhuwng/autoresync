@@ -5,10 +5,12 @@ import type { BookRuntimeFrameViewModel } from './bookRuntimeFrame.types';
 export interface BookRuntimeFrameProps {
   registry: ActivityRendererRegistry;
   viewModel: BookRuntimeFrameViewModel;
+  /** Embedded hosts avoid nesting the runtime landmark inside another page main. */
+  as?: 'main' | 'section';
 }
 
-export const BookRuntimeFrame = ({ registry, viewModel }: BookRuntimeFrameProps) => (
-  <main aria-labelledby="book-runtime-title">
+export const BookRuntimeFrame = ({ registry, viewModel, as: Root = 'main' }: BookRuntimeFrameProps) => (
+  <Root aria-labelledby="book-runtime-title">
     <header>
       <h1 id="book-runtime-title">{viewModel.title}</h1>
     </header>
@@ -32,5 +34,5 @@ export const BookRuntimeFrame = ({ registry, viewModel }: BookRuntimeFrameProps)
         </button>
       ) : null}
     </nav>
-  </main>
+  </Root>
 );

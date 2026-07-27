@@ -26,6 +26,7 @@ import type {
 } from '../../services/book-assembly/unitAssembly.types';
 import type { TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
 import type { BookTeacherAssemblyDocumentProjection } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
+import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
 import BookAssemblyWorkspace from './BookAssemblyWorkspace';
 import BookSourceInspectionPanel, {
   type BookSourceInspectionAction,
@@ -51,6 +52,7 @@ interface BookMode2EditorShellProps {
   readonly assemblySourceSetRevision?: number;
   readonly assemblyPreviewDocuments?: readonly BookTeacherAssemblyDocumentProjection[];
   readonly assemblyPreviewGetIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
+  readonly assemblyCandidateRuntimePreview?: CandidateUnitPreviewProjection | null;
   readonly onDirtyChange?: (dirty: boolean) => void;
 }
 
@@ -120,6 +122,7 @@ const BookMode2EditorShell = ({
   assemblySourceSetRevision = 0,
   assemblyPreviewDocuments,
   assemblyPreviewGetIdToken,
+  assemblyCandidateRuntimePreview,
   onDirtyChange,
 }: BookMode2EditorShellProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
@@ -224,6 +227,7 @@ const BookMode2EditorShell = ({
           activityAuthoring={resolvedActivityAuthoring}
           previewDocuments={assemblyPreviewDocuments}
           previewGetIdToken={assemblyPreviewGetIdToken}
+          candidateRuntimePreview={assemblyCandidateRuntimePreview}
           onDirtyChange={onDirtyChange}
         />
       ) : (

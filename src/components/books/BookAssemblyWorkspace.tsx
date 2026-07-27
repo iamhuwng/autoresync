@@ -13,6 +13,7 @@ import {
 } from '../../types/bookAssembly.types';
 import { validateBookAssemblyManifestCandidate } from '../../services/book-assembly/manifestCandidate.service';
 import { analyzeBookAssemblyReconciliation } from '../../services/book-assembly/reconciliation.service';
+import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
 import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
 import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
 import { discardStagedUnitActivities, stageUnitActivityImportBundle, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
@@ -30,6 +31,7 @@ import type { AssemblyMappingViewerPageSelection } from '../../services/book-ass
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import BookAssemblyMappingViewerHost from './assembly/BookAssemblyMappingViewerHost';
 import BookAssemblyReconciliationPanel from './assembly/BookAssemblyReconciliationPanel';
+import BookAssemblyUnitPreview from './assembly/BookAssemblyUnitPreview';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import UnitActivityImportControls from './assembly/UnitActivityImportControls';
 import './BookAssemblyWorkspace.css';
@@ -47,6 +49,8 @@ export interface BookAssemblyWorkspaceProps {
   readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly previewDocuments?: readonly BookTeacherAssemblyDocumentProjection[];
   readonly previewGetIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
+  /** Trusted #63 output; route composition remains #59-owned. */
+  readonly candidateRuntimePreview?: CandidateUnitPreviewProjection | null;
   readonly onAction?: (action: string, metadata?: Record<string, unknown>) => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
 }
@@ -224,6 +228,7 @@ const BookAssemblyWorkspace = ({
   activityAuthoring,
   previewDocuments = [],
   previewGetIdToken,
+  candidateRuntimePreview,
   onAction,
   onDirtyChange,
 }: BookAssemblyWorkspaceProps) => {
@@ -242,6 +247,7 @@ const BookAssemblyWorkspace = ({
   const [mappingMode, setMappingMode] = useState<PageGroupMode>('activity');
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(initialCandidate ?? null);
   const [selectedPreviewSourceVersionId, setSelectedPreviewSourceVersionId] = useState<string | null>(null);
+  const [dismissedRuntimePreviewIdentity, setDismissedRuntimePreviewIdentity] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'conflict' | 'error'>('idle');
   const [unitImportText, setUnitImportText] = useState('');
   const [unitImportBusy, setUnitImportBusy] = useState(false);
@@ -311,6 +317,32 @@ const BookAssemblyWorkspace = ({
     candidate,
     normalizedSources,
     previewDocuments,
+    sourceSetRevision,
+  ]);
+  const currentRuntimePreview = useMemo(() => {
+    if (!candidate || !candidateRuntimePreview || candidateRuntimePreview.bookId !== bookId ||
+      candidateRuntimePreview.candidateId !== candidate.candidateId ||
+      candidateRuntimePreview.candidateRevision !== candidate.revision ||
+      candidateRuntimePreview.sourceSetRevision !== candidate.sourceSetRevision ||
+      candidateRuntimePreview.sourceSetRevision !== sourceSetRevision ||
+      candidateRuntimePreview.unitKey !== selectedUnitKey) {
+      return null;
+    }
+    const identity = [
+      candidateRuntimePreview.candidateId,
+      candidateRuntimePreview.candidateRevision,
+      candidateRuntimePreview.sourceSetRevision,
+      candidateRuntimePreview.registryVersion,
+    ].join(':');
+    return dismissedRuntimePreviewIdentity === identity
+      ? null
+      : { identity, preview: candidateRuntimePreview };
+  }, [
+    bookId,
+    candidate,
+    candidateRuntimePreview,
+    dismissedRuntimePreviewIdentity,
+    selectedUnitKey,
     sourceSetRevision,
   ]);
   const manifest = useMemo<AssemblyEditorDraft>(() => ({
@@ -1037,6 +1069,13 @@ const BookAssemblyWorkspace = ({
           onError={(message) => setValidationMessage(message)}
         />
       </section>
+
+      {currentRuntimePreview ? (
+        <BookAssemblyUnitPreview
+          preview={currentRuntimePreview.preview}
+          onExit={() => setDismissedRuntimePreviewIdentity(currentRuntimePreview.identity)}
+        />
+      ) : null}
 
       <div className="book-assembly-workspace__body">
         <section className="book-assembly-workspace__tree" aria-label="Assembly hierarchy">
