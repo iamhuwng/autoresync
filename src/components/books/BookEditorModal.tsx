@@ -317,6 +317,7 @@ const BookEditorModal = ({
               access={resolution.access}
               book={resolution.book}
               presentation="modal"
+              onDirtyChange={setDirty}
             />
           )}
           {resolution.status === 'resolved' && resolution.book.bookMode === 'materials' && (

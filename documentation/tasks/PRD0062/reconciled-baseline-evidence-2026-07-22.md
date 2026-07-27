@@ -3813,6 +3813,22 @@ goal remains open.
 
 ### Ticket 13B / #56 closure evidence - 2026-07-27
 
+Closure reproducibility correction later on 2026-07-27:
+
+- #56 and dependent #57 were reopened after source inspection proved the
+  committed #56 smoke page/tests consumed Assembly props whose ticket-owned
+  `BookMode2EditorShell` and `BookEditorModal` integration was still unstaged.
+- The omitted integration was preserved without changing #59 deployed-route,
+  #118 generated-rules, #50A, or #03B boundaries.
+- Fresh retained verification passed: 7 files / 58 tests, repository
+  TypeScript, focused ESLint, production Vite build with 9,356 modules, and
+  Playwright 2/2 at `http://localhost:5173` for desktop and 375px teacher
+  quick-login flows.
+- #56 was formally re-closed. The complete 112-ticket graph was rebuilt:
+  79 open, 33 closed, 308 unique edges, no missing references, duplicate
+  edges, or cycles, and 112/112 topological coverage. #57 became the sole
+  selected primary for post-prerequisite reverification.
+
 #56 was selected as the sole Teacher workflow root/enabler after a fresh live
 112-ticket graph rebuild: 112 issues, 81 open, 31 closed, 308 unique edges, no
 missing references, no duplicate edges, no cycles, and 112/112 topological

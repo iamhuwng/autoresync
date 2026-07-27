@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-07-27T04:01:00.000Z",
+  "selectionStatus": "selected-reverification",
+  "selectedPrimary": {
+    "issue": 57,
+    "ticket": "13C",
+    "title": "PRD0062 13C — Build Page Group and Activity mapping workspace",
+    "roadmapPhase": "teacher workflow",
+    "selectionReason": "#56 is formally re-closed with fresh proof. #57 is now the earliest unresolved descendant/root correction, all direct and transitive prerequisites are CLOSED, its retained gates are executable, and it has the strongest downstream leverage."
+  },
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket56-reclosure.json",
+    "issueHash": "c1388683dd88dac987f5d6e5d6e3beb65f8d2f59e8db013efb5760e9bcbbaa4c",
+    "issueCount": 112,
+    "openCount": 79,
+    "closedCount": 33,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 57, 65, 66, 129, 130, 131, 132, 133]
+  },
+  "closedPrerequisites": {
+    "direct": [56],
+    "transitiveOpen": []
+  },
+  "candidateDisposition": [
+    {
+      "issue": 57,
+      "downstreamLeverage": 69,
+      "eligible": true,
+      "selected": true
+    },
+    {
+      "issues": [49, 50],
+      "eligible": true,
+      "rejection": "Independent roots with lower downstream leverage; #57 must be reverified immediately after its repaired prerequisite."
+    },
+    {
+      "issues": [65, 66],
+      "eligible": true,
+      "rejection": "Later runtime publication adapters with lower leverage than the reopened teacher-workflow root."
+    },
+    {
+      "issues": [129, 130, 131, 132, 133],
+      "eligible": false,
+      "rejection": "Final-closure suites remain roadmap-phase ineligible despite graph-clear status."
+    },
+    {
+      "issue": 58,
+      "eligible": false,
+      "rejection": "Direct prerequisite #57 remains OPEN until fresh retained acceptance passes."
+    }
+  ],
+  "selectionRuleChecks": {
+    "onePrimary": true,
+    "allDirectAndTransitivePrerequisitesClosed": true,
+    "currentRoadmapPhase": true,
+    "acceptanceGatesExecutable": true,
+    "ownershipAndAuthorityAvailable": true,
+    "highestClosureAndDownstreamValueAmongEligibleCurrentPhaseCandidates": true,
+    "preservesFull112TicketScope": true
+  }
+}

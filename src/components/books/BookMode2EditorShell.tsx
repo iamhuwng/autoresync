@@ -16,6 +16,13 @@ import {
   createSourceUploadClient,
   createSourceUploadSessionStatePort,
 } from '../../services/book-source-delivery/sourceUpload.client';
+import { createBookAssemblyClient } from '../../services/book-assembly/assemblyClient.browser';
+import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
+import type {
+  BookAssemblyCandidateRecord,
+} from '../../services/book-assembly/unitAssembly.types';
+import type { TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
+import BookAssemblyWorkspace from './BookAssemblyWorkspace';
 import BookSourceInspectionPanel, {
   type BookSourceInspectionAction,
 } from './BookSourceInspectionPanel';
@@ -32,6 +39,12 @@ interface BookMode2EditorShellProps {
   /** Test/preview seam. Production resolves fixed browser configuration below. */
   readonly uploadWorkflow?: SourceUploadBrowserWorkflow | null;
   readonly uploadPresentationEnabled?: boolean;
+  readonly assemblyRepository?: UnitAssemblyRepository | null;
+  readonly assemblySourceVersions?: readonly TrustedBookSourceVersionProjection[];
+  readonly assemblyInitialCandidate?: BookAssemblyCandidateRecord | null;
+  readonly assemblyBookRevision?: number;
+  readonly assemblySourceSetRevision?: number;
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }
 
 const configuredUploadWorkflow = (): SourceUploadBrowserWorkflow | null => {
@@ -53,12 +66,31 @@ const configuredUploadWorkflow = (): SourceUploadBrowserWorkflow | null => {
   });
 };
 
+const configuredAssemblyRepository = (): UnitAssemblyRepository | null => {
+  const baseUrl = import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim();
+  if (!baseUrl) return null;
+  return createBookAssemblyClient({
+    baseUrl,
+    getIdToken: async () => {
+      const user = getAuth().currentUser;
+      if (!user) return '';
+      return user.getIdToken(true);
+    },
+  });
+};
+
 const BookMode2EditorShell = ({
   access,
   book,
   presentation,
   uploadWorkflow,
   uploadPresentationEnabled,
+  assemblyRepository,
+  assemblySourceVersions = [],
+  assemblyInitialCandidate,
+  assemblyBookRevision = 0,
+  assemblySourceSetRevision = 0,
+  onDirtyChange,
 }: BookMode2EditorShellProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
   const [uploadSelection, setUploadSelection] =
@@ -73,6 +105,10 @@ const BookMode2EditorShell = ({
   const resolvedUploadWorkflow = useMemo(
     () => uploadWorkflow === undefined ? configuredUploadWorkflow() : uploadWorkflow,
     [uploadWorkflow],
+  );
+  const resolvedAssemblyRepository = useMemo(
+    () => assemblyRepository === undefined ? configuredAssemblyRepository() : assemblyRepository,
+    [assemblyRepository],
   );
   const trackInspectionAction = (
     action: BookSourceInspectionAction,
@@ -140,35 +176,44 @@ const BookMode2EditorShell = ({
         />
       )}
 
-      <section
-        className="book-mode2-editor-shell__status"
-        aria-labelledby="book-mode2-status-title"
-      >
-        <h2 id="book-mode2-status-title">
-          {mutationEnabled && access !== 'public-readonly'
-            ? 'Assembly workspace'
-            : 'Assembly is read-only'}
-        </h2>
-        <p>
-          {mutationEnabled && access !== 'public-readonly'
-            ? 'Assembly capabilities will appear here when their ticket-owned services are available.'
-            : 'Upload, publication, placement, launch, and mutation remain disabled. This PDF Book will never fall back to the materials editor.'}
-        </p>
-        <dl>
-          <div>
-            <dt>Mode</dt>
-            <dd>PDF Assembly</dd>
-          </div>
-          <div>
-            <dt>Access</dt>
-            <dd>{access === 'public-readonly' ? 'Public read-only' : 'Authorized teacher'}</dd>
-          </div>
-          <div>
-            <dt>Status</dt>
-            <dd>{book.status}</dd>
-          </div>
-        </dl>
-      </section>
+      {mutationEnabled && access !== 'public-readonly' ? (
+        <BookAssemblyWorkspace
+          access={access}
+          bookId={book.bookId}
+          bookTitle={book.title}
+          bookRevision={assemblyBookRevision}
+          sourceSetRevision={assemblySourceSetRevision}
+          sourceVersions={assemblySourceVersions}
+          initialCandidate={assemblyInitialCandidate}
+          presentation={presentation}
+          repository={resolvedAssemblyRepository ?? undefined}
+          onDirtyChange={onDirtyChange}
+        />
+      ) : (
+        <section
+          className="book-mode2-editor-shell__status"
+          aria-labelledby="book-mode2-status-title"
+        >
+          <h2 id="book-mode2-status-title">Assembly is read-only</h2>
+          <p>
+            Upload, publication, placement, launch, and mutation remain disabled. This PDF Book will never fall back to the materials editor.
+          </p>
+          <dl>
+            <div>
+              <dt>Mode</dt>
+              <dd>PDF Assembly</dd>
+            </div>
+            <div>
+              <dt>Access</dt>
+              <dd>{access === 'public-readonly' ? 'Public read-only' : 'Authorized teacher'}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{book.status}</dd>
+            </div>
+          </dl>
+        </section>
+      )}
     </main>
   );
 };
