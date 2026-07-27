@@ -23,7 +23,8 @@ import {
   isCurrentBookTeacherAssemblyDocument,
   type BookTeacherAssemblyDocumentProjection,
 } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
-import BookPdfViewerHost from '../book-runtime/BookPdfViewerHost';
+import type { AssemblyMappingViewerPageSelection } from '../../services/book-assembly/assemblyMappingViewer.browser';
+import BookAssemblyMappingViewerHost from './assembly/BookAssemblyMappingViewerHost';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import './BookAssemblyWorkspace.css';
 
@@ -297,10 +298,6 @@ const BookAssemblyWorkspace = ({
     previewDocuments,
     sourceSetRevision,
   ]);
-  const selectedPreview = currentPreviewDocuments.find(
-    (document) => document.sourceVersionId === selectedPreviewSourceVersionId,
-  ) ?? null;
-
   const manifest = useMemo<AssemblyEditorDraft>(() => ({
     bookId,
     sourceSet: {
@@ -314,6 +311,30 @@ const BookAssemblyWorkspace = ({
   const emit = (action: string, metadata: Record<string, unknown> = {}) => {
     trackAction(action, { bookId, source: `book_assembly_${presentation}`, ...metadata });
     onAction?.(action, metadata);
+  };
+
+  const selectPreviewDocument = (sourceVersionId: string) => {
+    const document = currentPreviewDocuments.find((value) => value.sourceVersionId === sourceVersionId);
+    if (!document) return;
+    setSelectedPreviewSourceVersionId(document.sourceVersionId);
+    emit('teacher_materials_book_assembly_document_previewed', {
+      candidateId: document.candidateId,
+      candidateRevision: document.candidateRevision,
+      sourceKey: document.sourceKey,
+      sourceVersionId: document.sourceVersionId,
+    });
+  };
+
+  const handleViewerPageSelected = (selection: AssemblyMappingViewerPageSelection) => {
+    setMappingSourceKey(selection.sourceKey);
+    setMappingPages(String(selection.physicalPageNumber));
+    setMappingDefaultPage(String(selection.physicalPageNumber));
+    setValidationMessage(null);
+    emit('teacher_materials_book_assembly_mapping_viewer_page_selected', {
+      sourceKey: selection.sourceKey,
+      sourceVersionId: selection.sourceVersionId,
+      physicalPageNumber: selection.physicalPageNumber,
+    });
   };
 
   const requestNodeFocus = (nodeKey: string | null) => {
@@ -743,39 +764,17 @@ const BookAssemblyWorkspace = ({
             </p>
           </div>
         </div>
-        {currentPreviewDocuments.length === 0 ? (
-          <p role="status">
-            Preview is unavailable until the current saved candidate and Source Versions have fresh authorization.
-          </p>
-        ) : (
-          <div className="book-assembly-workspace__preview-actions">
-            {currentPreviewDocuments.map((document) => (
-              <button
-                key={`${document.sourceKey}:${document.sourceVersionId}`}
-                type="button"
-                onClick={() => {
-                  setSelectedPreviewSourceVersionId(document.sourceVersionId);
-                  emit('teacher_materials_book_assembly_document_previewed', {
-                    candidateId: document.candidateId,
-                    candidateRevision: document.candidateRevision,
-                    sourceKey: document.sourceKey,
-                    sourceVersionId: document.sourceVersionId,
-                  });
-                }}
-              >
-                Preview {document.sourceKey}
-              </button>
-            ))}
-          </div>
-        )}
-        {selectedPreview && (
-          <BookPdfViewerHost
-            title={`${bookTitle} — ${selectedPreview.sourceKey}`}
-            route={selectedPreview.route}
-            initialPage={selectedPreview.route.physicalPageNumber}
-            getIdToken={previewGetIdToken}
-          />
-        )}
+        <BookAssemblyMappingViewerHost
+          bookTitle={bookTitle}
+          documents={currentPreviewDocuments}
+          sourceVersions={sourceVersions}
+          selectedSourceVersionId={selectedPreviewSourceVersionId}
+          selectedUnit={selectedUnit}
+          getIdToken={previewGetIdToken}
+          onDocumentSelected={selectPreviewDocument}
+          onViewerPageSelected={handleViewerPageSelected}
+          onError={(message) => setValidationMessage(message)}
+        />
       </section>
 
       <div className="book-assembly-workspace__body">

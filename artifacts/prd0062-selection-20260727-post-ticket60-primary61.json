@@ -1,0 +1,81 @@
+{
+  "generatedAt": "2026-07-27T07:38:00Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260727-post-ticket60-closed.json",
+  "issueHash": "95392b995304cbb6caf7041e72f99fc67e9b9c8db45efc96b6906ecc3b8ff167",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 75,
+    "closedCount": 37,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": "112/112",
+    "graphClearFrontier": [49, 50, 61, 65, 66, 70, 129, 130, 131, 132, 133]
+  },
+  "mandatoryDependencyGate": {
+    "rule": "A ticket is ineligible when any direct or transitive prerequisite is open, unresolved, ownership-blocked, or not acceptance-ready.",
+    "nonFrontierRejectionSource": "All unresolved records in sourceGraph with graphClear=false are rejected by their openTransitivePrerequisites list before implementation or acceptance inspection.",
+    "nonFrontierRejectedCount": 64
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "roadmapPhase": "foundation/runtime",
+      "closedPrerequisites": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "downstreamLeverage": 2,
+      "reason": "Graph-clear root, but acceptance is not executable under current authority: no B2/Backblaze authority names are present for private bucket policy, scoped application key, disposable upload/delete, browser direct-upload, billing/capacity, and deployed current-state proof."
+    },
+    {
+      "ticket": 50,
+      "title": "PRD0062 07 — Reconcile failed and unfinished direct-B2 uploads",
+      "roadmapPhase": "foundation/runtime",
+      "closedPrerequisites": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "downstreamLeverage": 16,
+      "reason": "Graph-clear root, but shares the same unavailable B2 lifecycle-cleanup/disposable exact-version authority family as #49, so it is not independently acceptance-ready."
+    },
+    {
+      "tickets": [65, 66],
+      "titles": [
+        "PRD0062 16 — Publish one full-PDF Unit atomically",
+        "PRD0062 17 — Publish one component-PDF Unit atomically"
+      ],
+      "roadmapPhase": "teacher publication/runtime publication",
+      "downstreamLeverage": 60,
+      "reason": "Graph-clear with high leverage, but publication comes after the teacher authoring/import and reconciliation/preview enablers in the roadmap. Their positive acceptance also requires later publication proof, private-source binding, and preview/publication readiness not yet established by #61/#62/#63."
+    },
+    {
+      "ticket": 70,
+      "title": "PRD0062 20B — Migrate unpublished Mode 2 source strategy and remap",
+      "roadmapPhase": "operations",
+      "closedPrerequisites": [25, 26, 27, 29, 32, 33, 34, 35, 44, 45, 46, 47, 48, 55, 56, 57],
+      "downstreamLeverage": 27,
+      "reason": "Graph-clear but later operations workflow; #61 is the earlier unresolved teacher authoring/import enabler in the current roadmap phase."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "roadmapPhase": "final closure",
+      "reason": "Final closure browser/security/regression suites are phase-ineligible while foundation/runtime/teacher/student/operations work remains open. They must not be selected merely because #127 is closed, and no 50A/03B activation is implied."
+    }
+  ],
+  "selection": {
+    "ticket": 61,
+    "title": "PRD0062 14 — Copy Unit prompt and import Unit JSON directly",
+    "roadmapPhase": "teacher workflow",
+    "closedPrerequisites": [25, 26, 27, 29, 32, 33, 34, 35, 44, 45, 46, 47, 48, 55, 56, 57],
+    "downstreamLeverage": 27,
+    "acceptanceReadiness": "Executable under current authority with local teacher quick-login, clipboard/import fixtures, trusted 12C/13A staging boundaries, focused component/service tests, preview deployment if needed, and no 50A or 03B activation.",
+    "requiredAuthority": [
+      "local repo edits/tests",
+      "teacher browser proof at http://localhost:5173",
+      "trusted 12C/13A fixture/staging boundaries",
+      "preview deployment only if closure evidence requires it"
+    ],
+    "selectionReason": "#61 is the earliest unresolved graph-clear teacher-workflow authoring/import enabler after #60 closure and is independent from the unavailable B2 provisioning/reconciliation blocker family."
+  },
+  "activeFutureContractNotes": [
+    "#40 remains governed by the delegated correction plan: do not select or implement #40 unless #37's generic-profile validator boundary is repaired/reclosed and the live graph is rebuilt.",
+    "#50A remains all-six-deny/default-deny and #03B remains disabled unless canonical approval explicitly changes those constraints."
+  ]
+}

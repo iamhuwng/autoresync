@@ -4449,3 +4449,64 @@ Candidate disposition:
   formally closed, all transitive prerequisites are closed, acceptance gates are
   executable with available Firebase/preview/browser authority and existing
   09A/09B seams, and it has the strongest frontier leverage.
+
+## Ticket 60 / 13D - Authenticated PDF viewer mapping host - 2026-07-27
+
+Ticket #60 added the Assembly-owned mapping viewer host and kept ownership
+inside the ticket's approved seam:
+
+- `src/components/books/assembly/BookAssemblyMappingViewerHost.tsx`
+- `src/services/book-assembly/assemblyMappingViewer.browser.ts`
+- additive composition in `src/components/books/BookAssemblyWorkspace.tsx`
+- action registry sync in `src/config/featureRegistry.ts`
+- focused unit/component/workspace/browser proof
+
+Verification:
+
+- `npx vitest run --config vitest.config.ts src/services/book-assembly/assemblyMappingViewer.browser.test.ts src/components/books/assembly/BookAssemblyMappingViewerHost.test.tsx src/components/books/BookAssemblyWorkspace.test.tsx` - PASS, 3 files / 21 tests.
+- `npx eslint src/config/featureRegistry.ts src/components/books/BookAssemblyWorkspace.tsx src/components/books/BookAssemblyWorkspace.test.tsx src/components/books/assembly/BookAssemblyMappingViewerHost.tsx src/components/books/assembly/BookAssemblyMappingViewerHost.test.tsx src/services/book-assembly/assemblyMappingViewer.browser.ts src/services/book-assembly/assemblyMappingViewer.browser.test.ts e2e/prd0062-ticket60-assembly-mapping-viewer.spec.ts` - PASS.
+- `git diff --check` - PASS for changed paths; repository emitted only the existing unrelated `json` line-ending warning.
+- `node node_modules/vite/bin/vite.js build && node scripts/check-bundle-budget.mjs` - PASS, production build, bundle budget OK.
+- `VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION=enabled node node_modules/vite/bin/vite.js build --mode test && node scripts/check-bundle-budget.mjs` - PASS, acceptance-mode preview build, bundle budget OK.
+- `npx playwright test --config playwright.prd0062-ticket60.config.mjs --reporter=list` - PASS, 3 projects: desktop 1440px, mobile 375px, mobile 320px.
+- `PRD0062_TEACHER_ORIGIN=https://kahut1--prd0062-ticket60-20260727-w1b2sgpw.web.app npx playwright test --config playwright.prd0062-ticket60-deployed.config.mjs --reporter=list` - PASS, deployed desktop preview.
+
+Deployment proof:
+
+- Firebase preview channel: `prd0062-ticket60-20260727`
+- URL: `https://kahut1--prd0062-ticket60-20260727-w1b2sgpw.web.app`
+- Expiry: `2026-08-03T07:25:02.990174412Z`
+- Deploy command: `node node_modules/firebase-tools/lib/bin/firebase.js hosting:channel:deploy prd0062-ticket60-20260727 --project temp-a1437 --only kahut1 --expires 7d --json`
+- Firebase browser API key restrictions were inspected with `gcloud` under account `iamhuwng@gmail.com`, project `temp-a1437`. Only the #60 preview origin/referrer pair was added; existing API targets and referrers were preserved and no key string was printed. Operation: `operations/akmf.p10-171016256749-c85cb7ed-8fb2-494e-86b2-6b8c2a217213`.
+
+Browser proof:
+
+- Teacher quick-login opened the mapping host for one full-PDF Unit and one component-PDF Unit.
+- Viewer local-page selection updated 13C mapping draft state without save or implicit candidate mutation.
+- Mapping Page Group selection requested the current authorized local page through the existing PDF viewer/transport boundary.
+- Full/component source identity stayed source-qualified; repeated local page numbers remained unambiguous.
+- Stale, copied, discarded, and no-preview/rollback fixtures failed closed before document request while metadata-only mapping controls remained usable.
+- Redacted network proof captured authenticated `HEAD` plus bounded range `GET`; token values were not recorded.
+- DOM/storage checks found no provider object key, Backblaze/B2 identifier, token-bearing storage, direct provider URL, iframe fallback, or PDF byte copy.
+- 200% zoom had no horizontal document overflow at 1440px, 375px, and 320px.
+
+Artifacts:
+
+- `artifacts/prd0062-ticket-60/browser/desktop.json`
+- `artifacts/prd0062-ticket-60/browser/desktop.png`
+- `artifacts/prd0062-ticket-60/browser/mobile-375.json`
+- `artifacts/prd0062-ticket-60/browser/mobile-375.png`
+- `artifacts/prd0062-ticket-60/browser/mobile-320.json`
+- `artifacts/prd0062-ticket-60/browser/mobile-320.png`
+- `artifacts/prd0062-ticket-60/browser/deployed-desktop.json`
+- `artifacts/prd0062-ticket-60/browser/deployed-desktop.png`
+
+Explicit non-claims:
+
+- no new PDF.js viewer, iframe, token handler, B2 adapter, provider URL, signed query capability, or browser secret was introduced;
+- no direct provider route, student Delivery entitlement, publication, assembled student runtime, generated `database.rules.json`, assembled-rules emulator, active rules readback, or rules rollback proof was claimed;
+- #59 remains owner of canonical top-level Worker route composition;
+- #118 remains owner of assembled generated rules and deployment rollback;
+- #50A remains all-six-deny/default-deny;
+- #03B remains disabled;
+- Mode 1 remains unchanged.

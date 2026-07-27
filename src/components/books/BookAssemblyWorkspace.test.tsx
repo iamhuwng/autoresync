@@ -471,4 +471,55 @@ describe('BookAssemblyWorkspace', () => {
     });
     expect(screen.queryByRole('button', { name: 'Preview full' })).not.toBeInTheDocument();
   });
+
+  it('uses viewer page selection to update source-qualified mapping fields without saving', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    const preview = {
+      kind: 'teacher_assembly' as const,
+      bookId: 'book-1',
+      bookRevision: 2,
+      candidateId: 'candidate-1',
+      candidateRevision: 1,
+      sourceSetRevision: 3,
+      sourceKey: 'full',
+      sourceVersionId: 'source-full',
+      route: createBookTeacherAssemblyDocumentRoute({
+        workerOrigin: 'https://worker.example',
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-1',
+        candidateRevision: 1,
+        sourceKey: 'full',
+        sourceVersionId: 'source-full',
+        sourceSetRevision: 3,
+        bookRevision: 2,
+        physicalPageNumber: 1,
+      }),
+    };
+
+    renderWorkspace({
+      repository: repo,
+      initialCandidate: candidate(),
+      previewDocuments: [preview],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Preview full' }));
+    await user.clear(screen.getByLabelText('Viewer local page'));
+    await user.type(screen.getByLabelText('Viewer local page'), '8');
+    await user.click(screen.getByRole('button', { name: 'Use viewer page for mapping' }));
+
+    expect(screen.getByLabelText('Mapping source key')).toHaveValue('full');
+    expect(screen.getByLabelText('One-based physical pages')).toHaveValue('8');
+    expect(screen.getByLabelText('Default physical page')).toHaveValue('8');
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_mapping_viewer_page_selected',
+      expect.objectContaining({
+        sourceKey: 'full',
+        sourceVersionId: 'source-full',
+        physicalPageNumber: 8,
+      }),
+    );
+  });
 });
