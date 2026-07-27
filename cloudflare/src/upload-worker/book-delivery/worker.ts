@@ -1,5 +1,9 @@
 import { BookDeliveryEntitlementLifecycle, BookDeliveryLifecycleError } from '../../../../src/services/book-delivery/bookDelivery.entitlementLifecycle.ts';
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import {
+  createBookDeliveryProjectionResolver,
+  BookDeliveryProjectionError,
+} from '../../../../src/services/book-delivery/bookDelivery.service.ts';
 import { FirebaseRestBookDeliveryRepository, type BookDeliveryRepositoryEnv } from './repository.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
@@ -121,15 +125,18 @@ export const createBookDeliveryWorkerHandlers = (options: {
     async resolve(input: { env: BookDeliveryRepositoryEnv; uid: string; recipientId: string; contextId: string }) {
       try {
         const repository = repositoryFor(input.env);
-        const result = await new BookDeliveryEntitlementLifecycle({
-          repository,
-          authorizeIssuer: () => false,
-          authorizeRecipient: async (recipientId) => recipientId === input.uid,
-        }).resolve(input.recipientId, input.contextId);
-        return { body: result ?? { status: 'not-found' }, init: { status: result ? 200 : 404 } };
+        const result = await createBookDeliveryProjectionResolver({ repository }).resolve({
+          recipientId: input.recipientId,
+          contextId: input.contextId,
+          actor: { uid: input.uid },
+        });
+        return { body: result as unknown as Record<string, unknown>, init: { status: 200 } };
       } catch (error) {
-        const status = error instanceof BookDeliveryLifecycleError ? error.status : 500;
-        return { body: { code: error instanceof BookDeliveryLifecycleError ? error.code : 'book_delivery_failed' }, init: { status } };
+        const status = error instanceof BookDeliveryProjectionError ? error.status : 500;
+        return {
+          body: { code: error instanceof BookDeliveryProjectionError ? error.code : 'book_delivery_failed' },
+          init: { status },
+        };
       }
     },
   };

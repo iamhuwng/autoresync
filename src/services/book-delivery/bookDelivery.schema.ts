@@ -143,14 +143,18 @@ const validateSources = (value: unknown, errors: BookDeliveryValidationError[]):
   sources.forEach((source, index) => {
     const path = `sourceSet.sources[${index}]`;
     const expected = sourceSet.strategy === 'component_pdfs'
-      ? ['lifecycle', 'localPageScope', 'ownerNodeKey', 'sourceKey', 'sourceVersionId']
+      ? ['lifecycle', 'localPageScope', 'ownerNodeKey', 'sourceKey', 'sourceOrder', 'sourceVersionId']
       : ['lifecycle', 'localPageScope', 'sourceKey', 'sourceVersionId'];
     if (!exact(source, expected, path, errors)) return;
     if (!id(source.sourceKey) || keys.has(source.sourceKey)) error(errors, 'duplicate-id', `${path}.sourceKey`, 'Source key must be unique and safe.');
     if (!id(source.sourceVersionId) || versions.has(source.sourceVersionId)) error(errors, 'duplicate-id', `${path}.sourceVersionId`, 'Source Version must be unique and safe.');
     if (source.lifecycle !== 'verified-usable') error(errors, 'invalid-value', `${path}.lifecycle`, 'Only verified usable Source Versions may be bound.');
     if (sourceSet.strategy === 'component_pdfs' && !id(source.ownerNodeKey)) error(errors, 'invalid-value', `${path}.ownerNodeKey`, 'Component source requires an owning node.');
+    if (sourceSet.strategy === 'component_pdfs' && (!positive(source.sourceOrder) || orders.has(source.sourceOrder))) {
+      error(errors, 'duplicate-order', `${path}.sourceOrder`, 'Component source order must be unique and positive.');
+    }
     if (sourceSet.strategy === 'full_pdf' && Object.hasOwn(source, 'ownerNodeKey')) error(errors, 'source-scope-mismatch', `${path}.ownerNodeKey`, 'full_pdf cannot carry component ownership.');
+    if (sourceSet.strategy === 'full_pdf' && Object.hasOwn(source, 'sourceOrder')) error(errors, 'source-scope-mismatch', `${path}.sourceOrder`, 'full_pdf cannot carry component ordering.');
     if (!exact(source.localPageScope, ['kind', 'pages'], `${path}.localPageScope`, errors)) return;
     const localPageScope = source.localPageScope as Record<string, any>;
     if (!['all', 'pages'].includes(localPageScope.kind as string)) error(errors, 'invalid-value', `${path}.localPageScope.kind`, 'Page scope kind is invalid.');
@@ -163,9 +167,11 @@ const validateSources = (value: unknown, errors: BookDeliveryValidationError[]):
     }
     keys.add(typeof source.sourceKey === 'string' ? source.sourceKey : '');
     versions.add(typeof source.sourceVersionId === 'string' ? source.sourceVersionId : '');
-    if (positive(localPageScope.kind === 'pages' ? localPageScope.pages.length : 1)) orders.add(index);
+    if (sourceSet.strategy === 'component_pdfs' && positive(source.sourceOrder)) orders.add(source.sourceOrder);
   });
-  if (sourceSet.strategy === 'component_pdfs' && orders.size !== sourceSet.sources.length) {
+  if (sourceSet.strategy === 'component_pdfs'
+    && (orders.size !== sourceSet.sources.length
+      || [...orders].some((order) => order < 1 || order > sourceSet.sources.length))) {
     error(errors, 'invalid-value', 'sourceSet.sources', 'Component source order must be dense.');
   }
   if (sourceSet.strategy === 'full_pdf') {

@@ -78,6 +78,36 @@ describe('Book Delivery Worker contract', () => {
       }),
     });
     expect(activate.init.status).toBe(200);
+    const resolved = await handlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    });
+    const resolvedAgain = await handlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    });
+    expect(resolved.init.status).toBe(200);
+    expect(resolvedAgain).toEqual(resolved);
+    expect(resolved.body).toMatchObject({
+      projectionKind: 'book-runtime-delivery',
+      bindingId: 'binding-worker',
+      recipientId: 'teacher-1',
+      book: {
+        publicationId: 'publication-1',
+        publicationStatus: 'published',
+      },
+      provenance: {
+        publicationId: 'publication-1',
+        publicationRevision: 4,
+        bindingId: 'binding-worker',
+        bindingRevision: 1,
+      },
+    });
+    expect(JSON.stringify(resolved.body)).not.toMatch(/answerKey|teacherNotes|objectKey|credentials|providerAuthority|private/iu);
   });
 
   it('denies forged issuer ownership and future-live payloads', async () => {
@@ -134,5 +164,47 @@ describe('Book Delivery Worker contract', () => {
       }),
     });
     expect(rejected.init.status).toBe(400);
+  });
+
+  it('fails closed when resolving cross-recipient or missing delivery projection', async () => {
+    const repository = new InMemoryBookDeliveryRepository();
+    const handlers = createBookDeliveryWorkerHandlers({ repository: repository as any, now: () => '2026-07-25T00:00:00.000Z' });
+    await handlers.create({
+      env,
+      uid: 'teacher-1',
+      request: new Request('https://worker.test/book-delivery/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ binding: makeBookDeliveryTestBinding(), operationId: operation(7) }),
+      }),
+    });
+    await handlers.activate({
+      env,
+      uid: 'teacher-1',
+      request: new Request('https://worker.test/book-delivery/activate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ bindingId: 'binding-worker', expectedRecordRevision: 0, operationId: operation(8) }),
+      }),
+    });
+
+    await expect(handlers.resolve({
+      env,
+      uid: 'other-student',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    })).resolves.toEqual({
+      body: { code: 'book-delivery-forbidden' },
+      init: { status: 403 },
+    });
+    await expect(handlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'missing-context',
+    })).resolves.toEqual({
+      body: { code: 'book-delivery-not-found' },
+      init: { status: 404 },
+    });
   });
 });

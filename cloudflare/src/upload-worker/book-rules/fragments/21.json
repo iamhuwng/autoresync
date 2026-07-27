@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "21",
+  "owner": {
+    "ticketId": "21",
+    "issue": 72,
+    "generatedRuleLocations": [
+      "book_delivery/scopes/.read",
+      "book_delivery/scopes/.write",
+      "book_delivery/scopes/$recipientId/$contextId/.read",
+      "book_delivery/scopes/$recipientId/$contextId/.write",
+      "book_delivery/scopes/$recipientId/$contextId/current/.read",
+      "book_delivery/scopes/$recipientId/$contextId/current/.write",
+      "book_delivery/scopes/$recipientId/$contextId/records/$bindingId/.read",
+      "book_delivery/scopes/$recipientId/$contextId/records/$bindingId/.write",
+      "book_delivery/scopes/$recipientId/$contextId/operations/$operationId/.read",
+      "book_delivery/scopes/$recipientId/$contextId/operations/$operationId/.write",
+      "book_delivery/indexes/bindings/$bindingId/.read",
+      "book_delivery/indexes/bindings/$bindingId/.write"
+    ],
+    "serviceIdentity": "book_delivery_service",
+    "leastPrivilegePaths": [
+      "book_delivery/scopes/$recipientId/$contextId",
+      "book_delivery/indexes/bindings/$bindingId",
+      "users/$recipientId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_delivery/scopes",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_delivery/scopes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && !newData.child('answerKey').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/current",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/current",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('status').val() == 'active'"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/records/$bindingId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/records/$bindingId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && newData.child('binding/bindingId').val() == $bindingId && newData.child('binding/recipient/recipientId').val() == $recipientId && newData.child('binding/context/contextId').val() == $contextId && !newData.child('binding/answerKey').exists() && !newData.child('binding/providerAuthority').exists() && !newData.child('binding/credentials').exists() && !newData.child('binding/privateObjectKey').exists()"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/operations/$operationId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/operations/$operationId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && newData.child('result/receipt/operationId').val() == $operationId && !newData.child('answerKey').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+    },
+    {
+      "path": "book_delivery/indexes/bindings/$bindingId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true"
+    },
+    {
+      "path": "book_delivery/indexes/bindings/$bindingId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && newData.child('recipientId').isString() && newData.child('contextId').isString()"
+    }
+  ]
+}

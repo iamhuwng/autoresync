@@ -38,6 +38,7 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
           sourceVersionId: 'source-v1',
           lifecycle: 'verified-usable' as const,
           ownerNodeKey: 'unit-1',
+          sourceOrder: 1,
           localPageScope: { kind: 'pages' as const, pages: [1, 2] },
         },
         {
@@ -45,6 +46,7 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
           sourceVersionId: 'source-v2',
           lifecycle: 'verified-usable' as const,
           ownerNodeKey: 'unit-2',
+          sourceOrder: 2,
           localPageScope: { kind: 'pages' as const, pages: [1] },
         },
       ],
@@ -115,6 +117,9 @@ describe('Book Delivery binding schema', () => {
     const badPages = structuredClone(value) as any;
     badPages.sourceSet.sources[0].localPageScope = { kind: 'pages', pages: [2, 1] };
     expect(validateBookDeliveryBinding(badPages).valid).toBe(false);
+    const badOrder = structuredClone(binding({ publication: publication('component_pdfs') })) as any;
+    badOrder.sourceSet.sources[1].sourceOrder = 1;
+    expect(validateBookDeliveryBinding(badOrder).errors.some((item) => item.code === 'duplicate-order')).toBe(true);
   });
 
   it('rejects cross-identity and cross-source authority confusion', () => {

@@ -72,6 +72,7 @@ export interface BookDeliverySourceBinding {
   readonly sourceKey: string;
   readonly sourceVersionId: string;
   readonly lifecycle: 'verified-usable';
+  readonly sourceOrder?: number;
   readonly ownerNodeKey?: string;
   readonly localPageScope: BookDeliverySourcePageScope;
 }
@@ -108,6 +109,52 @@ export interface BookDeliveryBinding {
   readonly placements: readonly BookDeliveryPlacement[];
   readonly schedulePolicy: BookDeliverySchedulePolicyReference;
   readonly createdAt: string;
+}
+
+export interface BookRuntimeDeliveryDocumentRequest {
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly opaqueRouteKey: string;
+  readonly localPageScope: BookDeliverySourcePageScope;
+}
+
+export interface BookRuntimeDeliveryActivityProjection {
+  readonly placementId: string;
+  readonly activityId: string;
+  readonly activityVersion: number;
+  readonly nodeKey: string;
+  readonly order: number;
+  readonly contextMode: BookDeliveryPlacement['contextMode'];
+  readonly sourceContext: {
+    readonly available: boolean;
+    readonly description: string;
+    readonly sourcePageScopes: BookDeliveryPlacement['sourcePageScopes'];
+  };
+}
+
+export interface BookRuntimeDeliveryProjection {
+  readonly schemaVersion: 1;
+  readonly projectionKind: 'book-runtime-delivery';
+  readonly bindingId: string;
+  readonly bindingRevision: number;
+  readonly recipientId: string;
+  readonly context: Pick<BookDeliveryContext, 'contextId' | 'kind' | 'entitlementBasis'>;
+  readonly book: BookDeliveryBookReference;
+  readonly scope: BookDeliveryScope;
+  readonly sourceSet: BookDeliverySourceSet;
+  readonly documentRequests: readonly BookRuntimeDeliveryDocumentRequest[];
+  readonly activities: readonly BookRuntimeDeliveryActivityProjection[];
+  readonly actionFlags: {
+    readonly canAutosave: boolean;
+    readonly canSubmit: boolean;
+    readonly canReview: boolean;
+  };
+  readonly provenance: {
+    readonly publicationId: string;
+    readonly publicationRevision: number;
+    readonly bindingId: string;
+    readonly bindingRevision: number;
+  };
 }
 
 export interface BookDeliveryLegacyV1Read {

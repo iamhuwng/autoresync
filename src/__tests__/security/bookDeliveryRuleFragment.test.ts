@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import fragment from '../../../cloudflare/src/upload-worker/book-rules/fragments/08B.json';
+import fragment08B from '../../../cloudflare/src/upload-worker/book-rules/fragments/08B.json';
+import fragment21 from '../../../cloudflare/src/upload-worker/book-rules/fragments/21.json';
 
 describe('Ticket 08B Book Delivery rules fragment', () => {
   it('keeps generated-rule ownership with 08B and denies ancestor-shaped access', () => {
+    const fragment = fragment08B;
     expect(fragment.owner).toMatchObject({ ticketId: '08B', issue: 31 });
     const roots = fragment.operations.filter((operation) => (
       operation.path === 'book_delivery'
@@ -14,6 +16,7 @@ describe('Ticket 08B Book Delivery rules fragment', () => {
   });
 
   it('allows only scoped trusted service writes and recipient-specific reads', () => {
+    const fragment = fragment08B;
     const records = fragment.operations.find((operation) => operation.path === 'book_delivery/records/$bindingId' && operation.rule === '.write');
     const recordReads = fragment.operations.find((operation) => operation.path === 'book_delivery/records/$bindingId' && operation.rule === '.read');
     const currentWrites = fragment.operations.find((operation) => operation.path === 'book_delivery/current/$recipientId/$contextId' && operation.rule === '.write');
@@ -24,9 +27,73 @@ describe('Ticket 08B Book Delivery rules fragment', () => {
   });
 
   it('does not grant browser writes to operations or indexes', () => {
+    const fragment = fragment08B;
     const operationsWrite = fragment.operations.find((operation) => operation.path === 'book_delivery/operations/$operationId' && operation.rule === '.write');
     const indexesWrite = fragment.operations.find((operation) => operation.path === 'book_delivery/indexes' && operation.rule === '.write');
     expect(operationsWrite?.expression).toContain('book_delivery_service');
     expect(indexesWrite?.expression).toBe('false');
+  });
+});
+
+describe('Ticket 21 Book Delivery projection rules fragment', () => {
+  it('owns actual scoped repository paths used by the server projection resolver', () => {
+    expect(fragment21.owner).toMatchObject({ ticketId: '21', issue: 72 });
+    expect(fragment21.owner.generatedRuleLocations).toEqual([
+      'book_delivery/scopes/.read',
+      'book_delivery/scopes/.write',
+      'book_delivery/scopes/$recipientId/$contextId/.read',
+      'book_delivery/scopes/$recipientId/$contextId/.write',
+      'book_delivery/scopes/$recipientId/$contextId/current/.read',
+      'book_delivery/scopes/$recipientId/$contextId/current/.write',
+      'book_delivery/scopes/$recipientId/$contextId/records/$bindingId/.read',
+      'book_delivery/scopes/$recipientId/$contextId/records/$bindingId/.write',
+      'book_delivery/scopes/$recipientId/$contextId/operations/$operationId/.read',
+      'book_delivery/scopes/$recipientId/$contextId/operations/$operationId/.write',
+      'book_delivery/indexes/bindings/$bindingId/.read',
+      'book_delivery/indexes/bindings/$bindingId/.write',
+    ]);
+  });
+
+  it('denies browser direct scope access and private payload writes', () => {
+    const rootRead = fragment21.operations.find((operation) =>
+      operation.path === 'book_delivery/scopes' && operation.rule === '.read');
+    const scopeWrite = fragment21.operations.find((operation) =>
+      operation.path === 'book_delivery/scopes/$recipientId/$contextId' && operation.rule === '.write');
+    const recordRead = fragment21.operations.find((operation) =>
+      operation.path === 'book_delivery/scopes/$recipientId/$contextId/records/$bindingId'
+      && operation.rule === '.read');
+
+    expect(rootRead?.expression).toBe('false');
+    expect(scopeWrite?.expression).toContain('auth.token.book_delivery_service == true');
+    expect(scopeWrite?.expression).not.toContain('auth.uid');
+    expect(scopeWrite?.expression).toContain("!newData.child('answerKey').exists()");
+    expect(scopeWrite?.expression).toContain("!newData.child('providerAuthority').exists()");
+    expect(scopeWrite?.expression).toContain("!newData.child('credentials').exists()");
+    expect(scopeWrite?.expression).toContain("!newData.child('privateObjectKey').exists()");
+    expect(recordRead?.expression).toContain('auth.token.book_delivery_service == true');
+    expect(recordRead?.expression).not.toContain('auth.uid');
+  });
+
+  it('constrains current pointer, binding records, operation receipts, and binding index writes', () => {
+    const currentWrite = fragment21.operations.find((operation) =>
+      operation.path === 'book_delivery/scopes/$recipientId/$contextId/current'
+      && operation.rule === '.write');
+    const recordWrite = fragment21.operations.find((operation) =>
+      operation.path === 'book_delivery/scopes/$recipientId/$contextId/records/$bindingId'
+      && operation.rule === '.write');
+    const operationWrite = fragment21.operations.find((operation) =>
+      operation.path === 'book_delivery/scopes/$recipientId/$contextId/operations/$operationId'
+      && operation.rule === '.write');
+    const indexWrite = fragment21.operations.find((operation) =>
+      operation.path === 'book_delivery/indexes/bindings/$bindingId'
+      && operation.rule === '.write');
+
+    expect(currentWrite?.expression).toContain("newData.child('recipientId').val() == $recipientId");
+    expect(currentWrite?.expression).toContain("newData.child('contextId').val() == $contextId");
+    expect(recordWrite?.expression).toContain("newData.child('binding/bindingId').val() == $bindingId");
+    expect(recordWrite?.expression).toContain("newData.child('binding/recipient/recipientId').val() == $recipientId");
+    expect(operationWrite?.expression).toContain("newData.child('result/receipt/operationId').val() == $operationId");
+    expect(indexWrite?.expression).toContain("newData.child('recipientId').isString()");
+    expect(indexWrite?.expression).toContain("newData.child('contextId').isString()");
   });
 });
