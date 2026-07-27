@@ -4051,3 +4051,116 @@ preservation, rules rollback artifact, live top-level route composition, and
 deployed Worker-to-Firebase identity integration remain transferred to #118/#59.
 No 50A capability was enabled, no 03B behavior changed, and the full 112-ticket
 goal remains open.
+
+### Deterministic roadmap selection snapshot - #64 Runtime primary - 2026-07-27
+
+Fresh live graph artifact:
+
+- `artifacts/prd0062-graph-20260727-after-56-push-selection.json`
+- 112 issues, 80 open, 32 closed, 308 unique edges;
+- no missing references, duplicate edges, or cycles;
+- topological coverage 112;
+- graph hash `ed4c419bd3b903771ff856179d2720d94fc0e0807d890a0955c538531e791277`.
+
+Graph-clear frontier:
+
+- #49, #50, #57, #64, #129, #130, #131, #132, #133.
+
+Recorded selection artifact:
+
+- `artifacts/prd0062-selection-20260727-post-ticket56-primary64.json`.
+
+Candidate disposition:
+
+- #49 is graph-clear but lower leverage and requires remote B2/provisioning
+  evidence; not selected.
+- #50 is graph-clear but lower current runtime unblock value and depends on
+  remote B2 cleanup/reconciliation conditions; not selected.
+- #57 is graph-clear and high leverage, but selected only after the current
+  runtime publication primitive/root is complete; not selected.
+- #129-#133 are graph-clear only in the narrow `Blocked by` sense. They remain
+  final/regression evidence and are not acceptance-ready while unresolved
+  runtime/teacher/student/operations scope and the preserved #50A boundary
+  remain.
+- #64 is selected as the sole Runtime primary: #31 is closed, #63 is a
+  contribution relationship rather than a hard prerequisite, and the narrowed
+  #64 contract owns strategy-neutral schema/service/Worker, CAS/replay/crash/
+  rollback, bounded audit, fragment-level rules, and adapter-neutral proof.
+
+A read-only sidecar audit recommended #57 by highest frontier leverage. The
+main selection retained #64 because the operating playbook orders selection by
+current roadmap phase before leverage when a runtime root/enabler is executable.
+
+Live #37/#40/#73 observation:
+
+- #37 live body already permits canonical generic `profile:null`
+  registrations without inventing IELTS matrix rows.
+- #40 live body already keeps long-response renderer/codec scope and removes
+  the false IELTS-row requirement.
+- #73 live body already lists #40 as a formal prerequisite and owns assembled
+  long-response browser proof.
+
+### Ticket 16A / #64 local evidence - 2026-07-27
+
+Implemented ticket-owned local scope:
+
+- strategy-neutral publication/pointer/audit contracts in
+  `src/types/bookAssembly.types.ts`;
+- immutable Manifest Version, current pointer, operation replay, rollback, and
+  bounded audit helpers under `src/services/book-assembly/`;
+- injected local Worker command boundary at
+  `cloudflare/src/upload-worker/book-assembly/publication-worker.ts`;
+- ticket-owned `16A.json` RTDB fragment at
+  `cloudflare/src/upload-worker/book-rules/fragments/16A.json`;
+- focused publication transaction, Worker-boundary, and fragment tests.
+
+Verified behavior:
+
+- publish atomically creates immutable Manifest Version, current pointer,
+  operation receipt, and bounded audit record;
+- duplicate command replay is idempotent and conflicting replay is rejected;
+- stale pointer, duplicate version, mixed strategy claim, invalid fingerprint,
+  cross-owner command, disabled publication gate, and sensitive payload keys
+  fail closed;
+- rollback only moves the current pointer to an existing immutable version and
+  never rewrites/deletes committed Manifest Versions;
+- audit records contain compact deterministic fingerprints and reject obvious
+  answer/credential/PDF-byte payload leakage;
+- fragment denies browser ancestor reads/writes and restricts publication
+  records/current/audits to the scoped publication service identity.
+
+Commands:
+
+- `rtk npx vitest run src/services/book-assembly/publicationTransaction.service.test.ts src/__tests__/cloudflare/bookAssemblyPublicationWorker.test.ts src/__tests__/security/bookAssemblyPublicationRuleFragment.test.ts --reporter=dot` - PASS, 3 files / 10 tests.
+- `rtk npx vitest run src/services/book-assembly/publicationTransaction.service.test.ts src/__tests__/cloudflare/bookAssemblyPublicationWorker.test.ts src/__tests__/security/bookAssemblyPublicationRuleFragment.test.ts src/__tests__/security/bookAssemblyRuleFragment.test.ts src/__tests__/security/bookDeliveryRuleFragment.test.ts --reporter=dot` - PASS, 5 files / 15 tests.
+- `rtk npx tsc --noEmit --pretty false --skipLibCheck` - PASS.
+- `rtk npx eslint src/types/bookAssembly.types.ts src/services/book-assembly/publicationAudit.service.ts src/services/book-assembly/publicationPointer.service.ts src/services/book-assembly/publicationRepository.ts src/services/book-assembly/publicationTransaction.service.ts src/services/book-assembly/publicationTransaction.service.test.ts src/__tests__/cloudflare/bookAssemblyPublicationWorker.test.ts src/__tests__/security/bookAssemblyPublicationRuleFragment.test.ts src/__tests__/security/bookAssemblyRuleFragment.test.ts src/__tests__/security/bookDeliveryRuleFragment.test.ts cloudflare/src/upload-worker/book-assembly/publication-worker.ts` - PASS.
+- `rtk npx vite build` - PASS.
+- `rtk git diff --check` - PASS.
+
+Explicit non-claims:
+
+- no #50A capability was enabled;
+- #03B remains disabled;
+- no Mode 1 path changed;
+- no canonical top-level Worker route composition, deployed route reachability,
+  deployed Worker identity/config readback, or route rollback was claimed
+  (#59 remains owner);
+- no generated `database.rules.json`, assembled emulator, active rules hash/
+  readback, generated-rules rollback artifact, or legacy-path preservation
+  claim was made (#118 remains owner);
+- no teacher-facing adapter publication proof was claimed (#65/#66 remain
+  owners);
+- no server-side Delivery projection proof was claimed (#72 remains owner);
+- no assembled Student quick-login/current-pointer/student-safe projection
+  proof was claimed (#73 remains owner).
+
+Post-closure graph:
+
+- `artifacts/prd0062-graph-20260727-post-ticket64-closed.json`
+- 112 issues, 79 open, 33 closed, 308 unique edges;
+- no missing references, duplicate edges, or cycles;
+- topological coverage 112;
+- graph hash `c1388683dd88dac987f5d6e5d6e3beb65f8d2f59e8db013efb5760e9bcbbaa4c`;
+- graph-clear frontier after #64 closure:
+  #49, #50, #57, #65, #66, #129, #130, #131, #132, #133.
