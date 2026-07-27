@@ -1,6 +1,7 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
 import { createBookTeacherAssemblyDocumentRoute } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
@@ -12,10 +13,15 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   info: vi.fn(),
   warning: vi.fn(),
+  writeClipboardText: vi.fn(),
 }));
 
 vi.mock('../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: mocks.trackAction }),
+}));
+
+vi.mock('../../core/platform', () => ({
+  useClipboard: () => ({ writeText: mocks.writeClipboardText }),
 }));
 
 vi.mock('../modern', () => ({
@@ -125,6 +131,52 @@ const repository = (createResult: 'created' | 'conflict' | 'forbidden' = 'create
   validate: vi.fn(),
   discard: vi.fn(),
   load: vi.fn(async () => ({ status: 'loaded', candidate: candidate(3), conflict: null })),
+});
+
+const activityAuthoring = (): ActivityAuthoringService => ({
+  stage: vi.fn(async (input) => ({
+    status: 'staged',
+    candidateId: `candidate-${input.targetActivityId}`,
+    targetActivityId: input.targetActivityId ?? 'generated',
+    revision: 1,
+    lifecycle: 'staged',
+    validation: { valid: true, errors: [] },
+    diff: { classification: 'added', reasons: ['import'], requiresRedo: false },
+    evidenceRefs: [...(input.evidenceRefs ?? [])],
+    sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+    answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+  })),
+  validate: vi.fn(),
+  saveDraft: vi.fn(),
+  discard: vi.fn(),
+  loadCandidate: vi.fn(),
+});
+
+const unitImportJson = (activityKey = 'activity-reading-1') => JSON.stringify({
+  promptVersion: 'book-unit-json-v1',
+  schemaVersion: 'prd0062.unit_activity_import.v1',
+  bookId: 'book-1',
+  unitKey: 'unit-1',
+  slots: [{
+    activityKey,
+    content: {
+      schemaVersion: 1,
+      title: 'Imported Activity',
+      taskProfile: null,
+      presentationMode: 'structured',
+      contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+      instructions: [{ text: 'Answer.' }],
+      stimulus: null,
+      assetRefs: [],
+      interaction: { family: 'choice', variant: 'single-select' },
+      answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+      interactions: [{ prompt: 'Pick.', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
+      scoring: { mode: 'auto-where-possible' },
+    },
+    evidenceRefs: [`import:${activityKey}`],
+    sourceEvidenceRefs: ['source:full:page:2'],
+    answerEvidenceRefs: ['pageGroup:pages-full-2-activity'],
+  }],
 });
 
 const renderWorkspace = (overrides: Partial<React.ComponentProps<typeof BookAssemblyWorkspace>> = {}) => {
@@ -521,5 +573,137 @@ describe('BookAssemblyWorkspace', () => {
         physicalPageNumber: 8,
       }),
     );
+  });
+
+  it('copies Unit prompt and exposes deterministic manual fallback when clipboard is denied', async () => {
+    const user = userEvent.setup();
+    mocks.writeClipboardText.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    renderWorkspace({ initialCandidate: {
+      ...candidate(),
+      manifest: {
+        ...candidate().manifest!,
+        units: [{
+          unitKey: 'unit-1',
+          activitySlots: [{ activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-full-2-activity'] }],
+          pageGroups: [{ pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1'], mode: 'activity' }],
+        }],
+      },
+    } });
+
+    await user.click(screen.getByRole('button', { name: 'Copy Unit prompt' }));
+    expect(mocks.warning).toHaveBeenCalledWith('Clipboard was blocked. Manual copy fallback is available.');
+    const fallback = screen.getByLabelText('Manual copy fallback') as HTMLTextAreaElement;
+    expect(fallback.value).toContain('prd0062.unit_activity_import.v1');
+    expect(fallback.value).not.toContain('source-full');
+
+    await user.click(screen.getByRole('button', { name: 'Copy Unit prompt' }));
+    expect(mocks.success).toHaveBeenCalledWith('Unit prompt copied.');
+  });
+
+  it('imports Unit JSON through 12C staging before saving one Assembly candidate revision', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    const authoring = activityAuthoring();
+    renderWorkspace({
+      repository: repo,
+      activityAuthoring: authoring,
+      initialCandidate: {
+        ...candidate(),
+        manifest: {
+          ...candidate().manifest!,
+          units: [{
+            unitKey: 'unit-1',
+            activitySlots: [{ activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-full-2-activity'] }],
+            pageGroups: [{ pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1'], mode: 'activity' }],
+          }],
+        },
+      },
+    });
+
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), {
+      target: { value: unitImportJson() },
+    });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+
+    await waitFor(() => expect(authoring.stage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(1));
+    expect(authoring.stage).toHaveBeenCalledWith(expect.objectContaining({
+      targetActivityId: 'activity-reading-1',
+      sourceEvidenceRefs: ['source:full:page:2'],
+      answerEvidenceRefs: ['pageGroup:pages-full-2-activity'],
+    }));
+    expect(repo.replace).toHaveBeenCalledWith(expect.objectContaining({
+      candidateId: 'candidate-1',
+      expectedCandidateRevision: 1,
+    }));
+    expect(mocks.success).toHaveBeenCalledWith('Unit Activity JSON imported.');
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_unit_import_staged',
+      expect.objectContaining({ slotCount: 1 }),
+    );
+  });
+
+  it('rolls back 12C staged Activity candidates when 13A save conflicts', async () => {
+    const user = userEvent.setup();
+    const repo = repository('conflict');
+    const authoring = activityAuthoring();
+    renderWorkspace({
+      repository: repo,
+      activityAuthoring: authoring,
+      initialCandidate: {
+        ...candidate(),
+        manifest: {
+          ...candidate().manifest!,
+          units: [{
+            unitKey: 'unit-1',
+            activitySlots: [{ activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-full-2-activity'] }],
+            pageGroups: [{ pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1'], mode: 'activity' }],
+          }],
+        },
+      },
+    });
+
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), {
+      target: { value: unitImportJson() },
+    });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+
+    await waitFor(() => expect(authoring.discard).toHaveBeenCalledWith({
+      candidateId: 'candidate-activity-reading-1',
+      expectedRevision: 1,
+    }));
+    expect(repo.replace).toHaveBeenCalled();
+    expect(await screen.findByText('Assembly changed elsewhere. Imported Activities were rolled back; reload or retry.')).toBeVisible();
+  });
+
+  it('rejects malformed import atomically before 12C or 13A writes', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    const authoring = activityAuthoring();
+    renderWorkspace({
+      repository: repo,
+      activityAuthoring: authoring,
+      initialCandidate: {
+        ...candidate(),
+        manifest: {
+          ...candidate().manifest!,
+          units: [{
+            unitKey: 'unit-1',
+            activitySlots: [{ activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-full-2-activity'] }],
+            pageGroups: [{ pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1'], mode: 'activity' }],
+          }],
+        },
+      },
+    });
+
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), {
+      target: { value: unitImportJson('foreign-slot') },
+    });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('exactly match');
+    expect(authoring.stage).not.toHaveBeenCalled();
+    expect(repo.replace).not.toHaveBeenCalled();
+    expect(mocks.error).toHaveBeenCalledWith('Unit Activity import failed.');
   });
 });

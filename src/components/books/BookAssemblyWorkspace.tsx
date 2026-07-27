@@ -14,6 +14,8 @@ import {
 import { validateBookAssemblyManifestCandidate } from '../../services/book-assembly/manifestCandidate.service';
 import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
 import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
+import { discardStagedUnitActivities, stageUnitActivityImportBundle, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
+import { buildUnitActivityImportPrompt } from '../../services/book-assembly/unitPrompt.service';
 import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
@@ -24,8 +26,10 @@ import {
   type BookTeacherAssemblyDocumentProjection,
 } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import type { AssemblyMappingViewerPageSelection } from '../../services/book-assembly/assemblyMappingViewer.browser';
+import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import BookAssemblyMappingViewerHost from './assembly/BookAssemblyMappingViewerHost';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
+import UnitActivityImportControls from './assembly/UnitActivityImportControls';
 import './BookAssemblyWorkspace.css';
 
 export interface BookAssemblyWorkspaceProps {
@@ -38,6 +42,7 @@ export interface BookAssemblyWorkspaceProps {
   readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
   readonly initialCandidate?: BookAssemblyCandidateRecord | null;
   readonly repository?: UnitAssemblyRepository;
+  readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly previewDocuments?: readonly BookTeacherAssemblyDocumentProjection[];
   readonly previewGetIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
   readonly onAction?: (action: string, metadata?: Record<string, unknown>) => void;
@@ -214,6 +219,7 @@ const BookAssemblyWorkspace = ({
   sourceVersions,
   initialCandidate,
   repository,
+  activityAuthoring,
   previewDocuments = [],
   previewGetIdToken,
   onAction,
@@ -235,12 +241,18 @@ const BookAssemblyWorkspace = ({
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(initialCandidate ?? null);
   const [selectedPreviewSourceVersionId, setSelectedPreviewSourceVersionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'conflict' | 'error'>('idle');
+  const [unitImportText, setUnitImportText] = useState('');
+  const [unitImportBusy, setUnitImportBusy] = useState(false);
+  const [unitImportCancelable, setUnitImportCancelable] = useState(false);
+  const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
+  const [manualCopyFallback, setManualCopyFallback] = useState(false);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
     draftSnapshot(initial.sourceSet.sourceStrategy, initial.nodes, initial.sourceSet.sources, initial.units));
   const nodeButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingFocusNodeKeyRef = useRef<string | null>(null);
+  const unitImportAbortRef = useRef<AbortController | null>(null);
 
   const sourceAuthority = useMemo(() => ({
     getSourceVersion: (sourceVersionId: string) =>
@@ -307,6 +319,19 @@ const BookAssemblyWorkspace = ({
     nodes: normalizeNodeOrders(nodes),
     units,
   }), [bookId, nodes, normalizedSources, strategy, units]);
+  const unitPromptText = useMemo(() => {
+    if (!selectedUnitKey) return '';
+    try {
+      return buildUnitActivityImportPrompt({
+        bookTitle,
+        manifest: manifest as unknown as BookAssemblyManifestCandidate,
+        unitKey: selectedUnitKey,
+        sourceVersions,
+      });
+    } catch {
+      return '';
+    }
+  }, [bookTitle, manifest, selectedUnitKey, sourceVersions]);
 
   const emit = (action: string, metadata: Record<string, unknown> = {}) => {
     trackAction(action, { bookId, source: `book_assembly_${presentation}`, ...metadata });
@@ -581,6 +606,31 @@ const BookAssemblyWorkspace = ({
     requestNodeFocus(visibleTreeItems[nextIndex]?.node.nodeKey ?? null);
   };
 
+  const persistManifest = async (
+    validManifest: BookAssemblyManifestCandidate,
+    unitKey: string,
+  ): Promise<BookAssemblyMutationResult> => (
+    candidate
+      ? repository!.replace({
+          operationId: operationId(),
+          bookId,
+          expectedBookRevision: bookRevision,
+          expectedSourceSetRevision: sourceSetRevision,
+          unitKey,
+          candidateId: candidate.candidateId,
+          expectedCandidateRevision: candidate.revision,
+          manifest: validManifest,
+        })
+      : repository!.create({
+          operationId: operationId(),
+          bookId,
+          expectedBookRevision: bookRevision,
+          expectedSourceSetRevision: sourceSetRevision,
+          unitKey,
+          manifest: validManifest,
+        })
+  );
+
   const save = async () => {
     if (access !== 'owner' && access !== 'administrator') return;
     const validation = validateBookAssemblyManifestCandidate(manifest, sourceAuthority);
@@ -607,25 +657,7 @@ const BookAssemblyWorkspace = ({
     setValidationMessage(null);
     setErrorMessage(null);
     try {
-      const result: BookAssemblyMutationResult = candidate
-        ? await repository.replace({
-            operationId: operationId(),
-            bookId,
-            expectedBookRevision: bookRevision,
-            expectedSourceSetRevision: sourceSetRevision,
-            unitKey,
-            candidateId: candidate.candidateId,
-            expectedCandidateRevision: candidate.revision,
-            manifest: validManifest,
-          })
-        : await repository.create({
-            operationId: operationId(),
-            bookId,
-            expectedBookRevision: bookRevision,
-            expectedSourceSetRevision: sourceSetRevision,
-            unitKey,
-            manifest: validManifest,
-          });
+      const result: BookAssemblyMutationResult = await persistManifest(validManifest, unitKey);
       if (result.status === 'conflict') {
         setStatus('conflict');
         toast.warning('Assembly changed elsewhere. Reload, retry, or discard local changes.');
@@ -648,6 +680,143 @@ const BookAssemblyWorkspace = ({
       setStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'Assembly save failed.');
       toast.error('Assembly draft could not be saved.');
+    }
+  };
+
+  const copyUnitPrompt = (copied: boolean) => {
+    if (copied) {
+      setManualCopyFallback(false);
+      toast.success('Unit prompt copied.');
+      emit('teacher_materials_book_assembly_unit_prompt_copied', { unitKey: selectedUnitKey });
+      return;
+    }
+    setManualCopyFallback(true);
+    toast.warning('Clipboard was blocked. Manual copy fallback is available.');
+    emit('teacher_materials_book_assembly_unit_prompt_manual_copy_shown', { unitKey: selectedUnitKey });
+  };
+
+  const cancelUnitImport = () => {
+    if (!unitImportCancelable) {
+      setUnitImportStatus('Import is committing and can no longer be canceled safely.');
+      toast.info('Import is committing and can no longer be canceled safely.');
+      return;
+    }
+    unitImportAbortRef.current?.abort();
+    setUnitImportBusy(false);
+    setUnitImportCancelable(false);
+    setUnitImportStatus('Import canceled. Existing draft was kept.');
+    toast.info('Unit Activity import canceled.');
+    emit('teacher_materials_book_assembly_unit_import_canceled', { unitKey: selectedUnitKey });
+  };
+
+  const handleUnitImportFileReadError = () => {
+    setUnitImportStatus('Could not read Unit Activity JSON file.');
+    toast.error('Could not read Unit Activity JSON file.');
+    emit('teacher_materials_book_assembly_unit_import_failed', {
+      unitKey: selectedUnitKey,
+      code: 'file-read-failed',
+    });
+  };
+
+  const importUnitJson = async () => {
+    const unitKey = selectedUnitKey;
+    if (!unitKey) {
+      setValidationMessage('Select a Unit before importing Activity JSON.');
+      return;
+    }
+    if (!repository || !activityAuthoring) {
+      setValidationMessage('Unit import is unavailable until trusted 12C and 13A routes are configured.');
+      setStatus('error');
+      toast.error('Unit Activity import route is unavailable.');
+      return;
+    }
+    const validation = validateBookAssemblyManifestCandidate(manifest, sourceAuthority);
+    if (!validation.valid) {
+      setValidationMessage(errorText(validation));
+      setStatus('error');
+      toast.error('Assembly changes need correction before importing Activities.');
+      return;
+    }
+    const controller = new AbortController();
+    unitImportAbortRef.current = controller;
+    setUnitImportBusy(true);
+    setUnitImportCancelable(true);
+    setUnitImportStatus('Validating Unit JSON...');
+    setStatus('saving');
+    setValidationMessage(null);
+    setErrorMessage(null);
+    emit('teacher_materials_book_assembly_unit_import_started', { unitKey });
+    try {
+      const validManifest = manifest as unknown as BookAssemblyManifestCandidate;
+      const importResult = await stageUnitActivityImportBundle({
+        text: unitImportText,
+        manifest: validManifest,
+        unitKey,
+        activityAuthoring,
+        resolveActivityTargetId: (slot) => {
+          const unit = validManifest.units.find((entry) => entry.unitKey === unitKey);
+          return unit?.activitySlots.some((entry) => entry.activityKey === slot.activityKey)
+            ? slot.activityKey
+            : null;
+        },
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      setUnitImportStatus('Saving Assembly candidate revision...');
+      setUnitImportCancelable(false);
+      if (controller.signal.aborted) {
+        await discardStagedUnitActivities(activityAuthoring, importResult.staged);
+        setUnitImportStatus('Import canceled. Existing draft was kept.');
+        return;
+      }
+      const result = await persistManifest(validManifest, unitKey);
+      if (result.status === 'conflict') {
+        await discardStagedUnitActivities(activityAuthoring, importResult.staged);
+        setStatus('conflict');
+        setUnitImportStatus('Assembly changed elsewhere. Imported Activities were rolled back; reload or retry.');
+        toast.warning('Assembly changed elsewhere. Imported Activities were rolled back.');
+        return;
+      }
+      if (!result.candidate) {
+        const message = mutationErrorMessage(result);
+        await discardStagedUnitActivities(activityAuthoring, importResult.staged);
+        setStatus('error');
+        setErrorMessage(message);
+        setUnitImportStatus(message);
+        toast.error(message);
+        return;
+      }
+      setCandidate(result.candidate);
+      setSavedSnapshot(draftSnapshot(validManifest.sourceSet.sourceStrategy, validManifest.nodes, validManifest.sourceSet.sources, validManifest.units));
+      setUnitImportText('');
+      setUnitImportStatus(`Imported ${importResult.staged.length} Activity slot${importResult.staged.length === 1 ? '' : 's'}.`);
+      onDirtyChange?.(false);
+      setStatus('saved');
+      toast.success('Unit Activity JSON imported.');
+      emit('teacher_materials_book_assembly_unit_import_staged', {
+        unitKey,
+        candidateId: result.candidate.candidateId,
+        revision: result.candidate.revision,
+        slotCount: importResult.staged.length,
+      });
+    } catch (error) {
+      const message = error instanceof UnitActivityImportError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Unit Activity import failed.';
+      setStatus('error');
+      setUnitImportStatus(message);
+      setErrorMessage(message);
+      toast.error('Unit Activity import failed.');
+      emit('teacher_materials_book_assembly_unit_import_failed', {
+        unitKey,
+        code: error instanceof UnitActivityImportError ? error.code : 'unknown',
+      });
+    } finally {
+      if (unitImportAbortRef.current === controller) unitImportAbortRef.current = null;
+      setUnitImportCancelable(false);
+      setUnitImportBusy(false);
     }
   };
 
@@ -750,6 +919,21 @@ const BookAssemblyWorkspace = ({
           </ol>
         )}
       </section>
+
+      <UnitActivityImportControls
+        busy={unitImportBusy}
+        canCancel={unitImportCancelable}
+        importText={unitImportText}
+        manualCopyFallback={manualCopyFallback}
+        onCancel={cancelUnitImport}
+        onCopyPrompt={copyUnitPrompt}
+        onFileReadError={handleUnitImportFileReadError}
+        onImport={() => void importUnitJson()}
+        onImportTextChange={setUnitImportText}
+        promptText={unitPromptText}
+        selectedUnitKey={selectedUnitKey}
+        statusText={unitImportStatus}
+      />
 
       <section
         className="book-assembly-workspace__preview"

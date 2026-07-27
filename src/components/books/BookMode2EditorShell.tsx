@@ -17,6 +17,9 @@ import {
   createSourceUploadSessionStatePort,
 } from '../../services/book-source-delivery/sourceUpload.client';
 import { createBookAssemblyClient } from '../../services/book-assembly/assemblyClient.browser';
+import { createActivityAuthoringRepository } from '../../services/book-activity/activityAuthoring.repository';
+import { createActivityAuthoringService, type ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
+import { createActivityAuthoringTransport } from '../../services/book-activity/activityStorage.service';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type {
   BookAssemblyCandidateRecord,
@@ -41,6 +44,7 @@ interface BookMode2EditorShellProps {
   readonly uploadWorkflow?: SourceUploadBrowserWorkflow | null;
   readonly uploadPresentationEnabled?: boolean;
   readonly assemblyRepository?: UnitAssemblyRepository | null;
+  readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly assemblySourceVersions?: readonly TrustedBookSourceVersionProjection[];
   readonly assemblyInitialCandidate?: BookAssemblyCandidateRecord | null;
   readonly assemblyBookRevision?: number;
@@ -82,6 +86,26 @@ const configuredAssemblyRepository = (): UnitAssemblyRepository | null => {
   });
 };
 
+const getCurrentFirebaseIdToken = async (): Promise<string> => {
+  const user = getAuth().currentUser;
+  if (!user) return '';
+  return user.getIdToken(true);
+};
+
+const configuredActivityAuthoring = (): ActivityAuthoringService | null => {
+  const baseUrl = import.meta.env.VITE_BOOK_ACTIVITY_AUTHORING_WORKER_URL?.trim()
+    || import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim();
+  if (!baseUrl) return null;
+  return createActivityAuthoringService(
+    createActivityAuthoringRepository(
+      createActivityAuthoringTransport({
+        baseUrl,
+        getIdToken: getCurrentFirebaseIdToken,
+      }),
+    ),
+  );
+};
+
 const BookMode2EditorShell = ({
   access,
   book,
@@ -89,6 +113,7 @@ const BookMode2EditorShell = ({
   uploadWorkflow,
   uploadPresentationEnabled,
   assemblyRepository,
+  activityAuthoring,
   assemblySourceVersions = [],
   assemblyInitialCandidate,
   assemblyBookRevision = 0,
@@ -114,6 +139,10 @@ const BookMode2EditorShell = ({
   const resolvedAssemblyRepository = useMemo(
     () => assemblyRepository === undefined ? configuredAssemblyRepository() : assemblyRepository,
     [assemblyRepository],
+  );
+  const resolvedActivityAuthoring = useMemo(
+    () => activityAuthoring === undefined ? configuredActivityAuthoring() : activityAuthoring,
+    [activityAuthoring],
   );
   const trackInspectionAction = (
     action: BookSourceInspectionAction,
@@ -192,6 +221,7 @@ const BookMode2EditorShell = ({
           initialCandidate={assemblyInitialCandidate}
           presentation={presentation}
           repository={resolvedAssemblyRepository ?? undefined}
+          activityAuthoring={resolvedActivityAuthoring}
           previewDocuments={assemblyPreviewDocuments}
           previewGetIdToken={assemblyPreviewGetIdToken}
           onDirtyChange={onDirtyChange}

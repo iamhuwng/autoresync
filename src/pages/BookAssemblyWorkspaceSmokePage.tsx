@@ -6,6 +6,7 @@ import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from '../services/book-assembly/unitAssembly.types';
+import type { ActivityAuthoringService } from '../services/book-activity/activityAuthoring.service';
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../types/bookAssembly.types';
 import { materialCatalogIds, type MaterialBookMetadata } from '../types/materialCatalog.types';
 import { useAuth } from '../hooks/useAuth';
@@ -72,6 +73,27 @@ const componentMappingManifest: BookAssemblyManifestCandidate = {
   units: [],
 };
 
+const ticket61Manifest: BookAssemblyManifestCandidate = {
+  ...initialManifest,
+  units: [{
+    unitKey: 'unit-fixture',
+    activitySlots: [{
+      activityKey: 'activity-ticket61',
+      order: 1,
+      contextRequirement: 'required',
+      pageGroupKeys: ['pages-full-2-activity'],
+    }],
+    pageGroups: [{
+      pageGroupKey: 'pages-full-2-activity',
+      sourceKey: 'full',
+      pages: [2],
+      defaultPhysicalPageNumber: 2,
+      activityKeys: ['activity-ticket61'],
+      mode: 'activity',
+    }],
+  }],
+};
+
 const createCandidate = (
   manifest: BookAssemblyManifestCandidate,
   revision: number,
@@ -109,10 +131,13 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const previewWorkerOrigin =
     import.meta.env.VITE_BOOK_DELIVERY_WORKER_URL?.trim() || window.location.origin;
   const componentFixture = fixture === 'ticket57-component' || fixture === 'ticket58-component';
+  const ticket61Fixture = fixture.startsWith('ticket61');
   const ticket58Fixture = fixture.startsWith('ticket58-');
   const candidateFixture = componentFixture
     ? createCandidate(componentMappingManifest, 1)
-    : fixture === 'ticket57-full' || ticket58Fixture
+    : ticket61Fixture
+      ? createCandidate(ticket61Manifest, 1)
+      : fixture === 'ticket57-full' || ticket58Fixture
       ? createCandidate(initialManifest, 1)
       : null;
   const defaultCandidate = fixture === 'ticket58-stale' && candidateFixture
@@ -124,6 +149,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
     decodeCandidate(searchParams.get('candidate')) ?? defaultCandidate);
   const forceConflictRef = useRef(false);
   const [dirty, setDirty] = useState(false);
+  const [stagedActivities, setStagedActivities] = useState<Array<{ activityKey?: string; evidenceRefs?: string[] }>>([]);
 
   const persistCandidate = useCallback((next: BookAssemblyCandidateRecord) => {
     setCandidate(next);
@@ -177,6 +203,74 @@ export default function BookAssemblyWorkspaceSmokePage() {
     };
   }, [candidate, persistCandidate]);
 
+  const activityAuthoring = useMemo<ActivityAuthoringService>(() => ({
+    stage: async (input) => {
+      if (fixture === 'ticket61-stale-cas') throw new Error('Activity authoring conflict.');
+      setStagedActivities((current) => [...current, {
+        activityKey: input.targetActivityId,
+        evidenceRefs: [...(input.evidenceRefs ?? []), ...(input.sourceEvidenceRefs ?? [])],
+      }]);
+      return {
+        status: 'staged',
+        candidateId: `candidate-${input.targetActivityId ?? 'generated'}`,
+        targetActivityId: input.targetActivityId ?? 'activity-generated',
+        revision: 1,
+        lifecycle: 'staged',
+        validation: { valid: true, errors: [] },
+        diff: { classification: 'added', reasons: ['fixture import'], requiresRedo: false },
+        evidenceRefs: [...(input.evidenceRefs ?? [])],
+        sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+        answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+      };
+    },
+    validate: async (input) => ({
+      status: 'validated',
+      candidateId: input.candidateId,
+      revision: input.expectedRevision + 1,
+      lifecycle: 'validated',
+      validation: { valid: true, errors: [] },
+      diff: null,
+      evidenceRefs: [...(input.evidenceRefs ?? [])],
+      sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+      answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+    }),
+    saveDraft: async (input) => ({
+      status: 'saved',
+      activityId: 'activity-ticket61',
+      candidateId: input.candidateId,
+      candidateRevision: input.expectedRevision,
+      revision: input.expectedRevision + 1,
+      lifecycle: 'saved',
+      validation: { valid: true, errors: [] },
+      diff: null,
+      evidenceRefs: [...(input.evidenceRefs ?? [])],
+      sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+      answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+    }),
+    discard: async (input) => ({
+      status: 'discarded',
+      candidateId: input.candidateId,
+      revision: input.expectedRevision + 1,
+      lifecycle: 'discarded',
+    }),
+    loadCandidate: async (candidateId) => ({
+      status: 'loaded',
+      candidate: {
+        candidateId,
+        targetActivityId: 'activity-ticket61',
+        ownerId: OWNER_ID,
+        targetRevision: 0,
+        revision: 1,
+        lifecycle: 'staged',
+        content: {},
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        updatedAt: Date.parse(NOW),
+      },
+    }),
+  }), [fixture]);
+
   const signedInLabel = user
     ? `${profile?.role ?? 'user'} ${user.email ?? user.uid}`
     : 'not signed in';
@@ -227,8 +321,17 @@ export default function BookAssemblyWorkspaceSmokePage() {
           Simulate remote conflict
         </button>
       </header>
+      {ticket61Fixture && (
+        <section aria-label="Ticket 61 fixture state">
+          <p>Candidate revision: {candidate?.revision ?? 'none'}</p>
+          <p>Published state: unchanged</p>
+          <p>Staged Activity count: {stagedActivities.length}</p>
+          <p>Staged Activity evidence: {stagedActivities.flatMap((entry) => entry.evidenceRefs ?? []).join(', ') || 'none'}</p>
+        </section>
+      )}
       <BookMode2EditorShell
         access="owner"
+        activityAuthoring={activityAuthoring}
         assemblyBookRevision={7}
         assemblyInitialCandidate={candidate}
         assemblyPreviewDocuments={previewDocuments}
