@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 const MAX_DOCUMENT_BYTES = 500 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const OPAQUE_DOCUMENT_PATH = /^\/v1\/book-delivery\/document\/[A-Za-z0-9._~-]{1,160}$/u;
+const TEACHER_ASSEMBLY_DOCUMENT_PATH = /^\/v1\/book-delivery\/teacher-assembly\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/[1-9]\d*\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/\d+\/\d+$/u;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$/u;
 const PDF_CONTENT_TYPE = 'application/pdf';
 
@@ -71,6 +72,8 @@ export interface BookDocumentTransportOptions {
   readonly route: BookDocumentRoute;
   readonly fetchImpl?: typeof fetch;
   readonly getIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
+  /** Test/host injection. Production also trusts configured Book Delivery origin and same origin. */
+  readonly trustedWorkerOrigins?: readonly string[];
   readonly timeoutMs?: number;
   readonly onRouteExpired?: (reason: 'not-found' | 'stale-binding') => void;
 }
@@ -89,7 +92,39 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const defaultGetIdToken = async (forceRefresh = false): Promise<string | null | undefined> =>
   getAuth().currentUser?.getIdToken(forceRefresh);
 
-const normalizeRoute = (route: BookDocumentRoute): { readonly url: string; readonly route: BookDocumentRoute } => {
+const trustedTeacherAssemblyOrigins = (explicit: readonly string[] | undefined): ReadonlySet<string> => {
+  const configured = [
+    import.meta.env.VITE_BOOK_DELIVERY_WORKER_URL,
+    import.meta.env.VITE_R2_UPLOAD_WORKER_URL,
+    typeof window === 'undefined' ? undefined : window.location.origin,
+    ...(explicit ?? []),
+  ];
+  const origins = new Set<string>();
+  for (const value of configured) {
+    if (typeof value !== 'string' || value.trim() === '') continue;
+    try {
+      const url = new URL(value.trim());
+      if (
+        (url.protocol === 'https:' || (url.protocol === 'http:' && url.hostname === 'localhost'))
+        && url.username === ''
+        && url.password === ''
+        && /^\/+$/u.test(url.pathname)
+        && url.search === ''
+        && url.hash === ''
+      ) {
+        origins.add(url.origin);
+      }
+    } catch {
+      // Invalid configured origins are ignored so the route fails closed below.
+    }
+  }
+  return origins;
+};
+
+const normalizeRoute = (
+  route: BookDocumentRoute,
+  trustedOrigins: ReadonlySet<string>,
+): { readonly url: string; readonly route: BookDocumentRoute } => {
   let url: URL;
   try {
     url = new URL(route.url);
@@ -103,7 +138,10 @@ const normalizeRoute = (route: BookDocumentRoute): { readonly url: string; reado
     || url.password !== ''
     || url.search !== ''
     || url.hash !== ''
-    || !OPAQUE_DOCUMENT_PATH.test(url.pathname)
+    || (!OPAQUE_DOCUMENT_PATH.test(url.pathname)
+      && !TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname))
+    || (TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname)
+      && !trustedOrigins.has(url.origin))
     || !SAFE_ID.test(route.sourceVersionId)
     || (route.expectedByteLength !== undefined && (
       !Number.isSafeInteger(route.expectedByteLength)
@@ -279,7 +317,8 @@ const token = async (
 export const createBookDocumentTransport = (
   options: BookDocumentTransportOptions,
 ): BookDocumentTransport => {
-  let current = normalizeRoute(options.route).route;
+  const trustedOrigins = trustedTeacherAssemblyOrigins(options.trustedWorkerOrigins);
+  let current = normalizeRoute(options.route, trustedOrigins).route;
   let generation = 0;
   let destroyed = false;
   const active = new Set<AbortController>();
@@ -468,7 +507,7 @@ export const createBookDocumentTransport = (
     head,
     get,
     switchRoute(route) {
-      current = normalizeRoute(route).route;
+      current = normalizeRoute(route, trustedOrigins).route;
       generation += 1;
       for (const controller of active) controller.abort();
       active.clear();

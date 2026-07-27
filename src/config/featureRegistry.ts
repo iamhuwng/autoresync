@@ -181,6 +181,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'teacher_materials_book_assembly_conflict_reloaded',
       'teacher_materials_book_assembly_conflict_retry_selected',
       'teacher_materials_book_assembly_local_discarded',
+      'teacher_materials_book_assembly_document_previewed',
       'reading_passage_duplicate_warning_shown',
       'reading_passage_duplicate_use_existing',
       'reading_passage_duplicate_restore_and_use',

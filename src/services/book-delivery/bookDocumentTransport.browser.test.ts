@@ -328,4 +328,39 @@ describe('bookDocumentTransport.browser', () => {
       })).toThrow(BookDocumentTransportError);
     }
   });
+
+  it('accepts the canonical teacher Assembly route without broadening provider-shaped paths', async () => {
+    const teacherRoute = route({
+      url: 'https://worker.example/v1/book-delivery/teacher-assembly/book-1/unit-1/candidate-1/3/full/source-v1/4/7',
+    });
+    const fetchImpl = vi.fn(async () => response({ url: teacherRoute.url }));
+    const transport = createBookDocumentTransport({
+      route: teacherRoute,
+      getIdToken: async () => 'teacher-token',
+      fetchImpl: fetchImpl as typeof fetch,
+      trustedWorkerOrigins: ['https://worker.example/'],
+    });
+
+    await expect(transport.get({ kind: 'closed', start: 0, end: bytes.byteLength - 1 }))
+      .resolves.toMatchObject({ sourceVersionId: 'source-v1', status: 206 });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      teacherRoute.url,
+      expect.objectContaining({
+        credentials: 'omit',
+        redirect: 'error',
+      }),
+    );
+  });
+
+  it('rejects a teacher Assembly projection targeting an untrusted HTTPS origin before token fetch', () => {
+    const getIdToken = vi.fn(async () => 'teacher-token');
+    expect(() => createBookDocumentTransport({
+      route: route({
+        url: 'https://attacker.example/v1/book-delivery/teacher-assembly/book-1/unit-1/candidate-1/3/full/source-v1/4/7',
+      }),
+      getIdToken,
+      trustedWorkerOrigins: ['https://worker.example/'],
+    })).toThrow(new BookDocumentTransportError('invalid_route'));
+    expect(getIdToken).not.toHaveBeenCalled();
+  });
 });

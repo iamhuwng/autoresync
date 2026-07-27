@@ -9,6 +9,10 @@ import type {
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../types/bookAssembly.types';
 import { materialCatalogIds, type MaterialBookMetadata } from '../types/materialCatalog.types';
 import { useAuth } from '../hooks/useAuth';
+import {
+  createBookTeacherAssemblyDocumentRoute,
+  type BookTeacherAssemblyDocumentProjection,
+} from '../services/book-delivery/bookTeacherAssemblyDocument.types';
 
 const NOW = '2026-07-27T00:00:00.000Z';
 const BOOK_ID = 'prd0062-ticket56-book';
@@ -102,11 +106,20 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const { user, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const fixture = searchParams.get('fixture') ?? 'ticket56';
-  const defaultCandidate = fixture === 'ticket57-component'
+  const previewWorkerOrigin =
+    import.meta.env.VITE_BOOK_DELIVERY_WORKER_URL?.trim() || window.location.origin;
+  const componentFixture = fixture === 'ticket57-component' || fixture === 'ticket58-component';
+  const ticket58Fixture = fixture.startsWith('ticket58-');
+  const candidateFixture = componentFixture
     ? createCandidate(componentMappingManifest, 1)
-    : fixture === 'ticket57-full'
+    : fixture === 'ticket57-full' || ticket58Fixture
       ? createCandidate(initialManifest, 1)
       : null;
+  const defaultCandidate = fixture === 'ticket58-stale' && candidateFixture
+    ? { ...candidateFixture, revision: 2 }
+    : fixture === 'ticket58-discarded' && candidateFixture
+      ? { ...candidateFixture, lifecycle: 'discarded' as const }
+      : candidateFixture;
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(() =>
     decodeCandidate(searchParams.get('candidate')) ?? defaultCandidate);
   const forceConflictRef = useRef(false);
@@ -167,6 +180,35 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const signedInLabel = user
     ? `${profile?.role ?? 'user'} ${user.email ?? user.uid}`
     : 'not signed in';
+  const canPreview = profile?.role === 'super_admin' || user?.email === 'teacher@test.com';
+  const previewDocuments = useMemo<readonly BookTeacherAssemblyDocumentProjection[]>(() => {
+    if (!candidate || !canPreview || !ticket58Fixture) return [];
+    const projectedBookId = fixture === 'ticket58-copied' ? 'copied-book' : BOOK_ID;
+    const projectedRevision = fixture === 'ticket58-stale' ? 1 : candidate.revision;
+    const sourceBindings = candidate.manifest?.sourceSet.sources ?? [];
+    return sourceBindings.map((source) => ({
+      kind: 'teacher_assembly' as const,
+      bookId: projectedBookId,
+      bookRevision: 7,
+      candidateId: candidate.candidateId,
+      candidateRevision: projectedRevision,
+      sourceSetRevision: 4,
+      sourceKey: source.sourceKey,
+      sourceVersionId: source.sourceVersionId,
+      route: createBookTeacherAssemblyDocumentRoute({
+        workerOrigin: previewWorkerOrigin,
+        bookId: BOOK_ID,
+        unitKey: candidate.unitKey,
+        candidateId: candidate.candidateId,
+        candidateRevision: projectedRevision,
+        sourceKey: source.sourceKey,
+        sourceVersionId: source.sourceVersionId,
+        sourceSetRevision: 4,
+        bookRevision: 7,
+        physicalPageNumber: 1,
+      }),
+    }));
+  }, [canPreview, candidate, fixture, previewWorkerOrigin, ticket58Fixture]);
 
   return (
     <main style={{ display: 'grid', gap: 16, maxWidth: '100%', overflowX: 'clip', padding: 'clamp(12px, 4vw, 24px)' }}>
@@ -189,6 +231,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
         access="owner"
         assemblyBookRevision={7}
         assemblyInitialCandidate={candidate}
+        assemblyPreviewDocuments={previewDocuments}
         assemblyRepository={repository}
         assemblySourceSetRevision={4}
         assemblySourceVersions={sourceVersions}

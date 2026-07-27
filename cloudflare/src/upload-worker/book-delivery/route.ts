@@ -28,7 +28,26 @@ export const bookDocumentAuthorizationRouteDescriptor = {
   response: 'bounded-streamed-pdf-or-head',
 } as const;
 
+/** Ticket 09C internal teacher Assembly authorization seam; #59 composes it. */
+export const bookTeacherAssemblyDocumentRouteDescriptor = {
+  method: 'GET|HEAD',
+  path: '/v1/book-delivery/teacher-assembly/:bookId/:unitKey/:candidateId/:candidateRevision/:sourceKey/:sourceVersionId/:sourceSetRevision/:bookRevision',
+  handler: 'serveTeacherAssemblyDocument',
+  serverOnly: true,
+  owner: '#58 / 09C authorization; #52 / 09B byte response',
+  authorizationOwner: '#58 / 09C',
+  byteResponseOwner: '#52 / 09B',
+  destination: '#59 / 09D top-level composition',
+  auth: 'firebase-id-token-before-lookup',
+  rateClass: '09D-owned',
+  gate: 'teacher-assembly-preview-only',
+  requestBodyBytes: 0,
+  responseLimitBytes: 500 * 1024 * 1024,
+  response: 'bounded-streamed-pdf-or-head',
+} as const;
+
 export const bookDocumentRouteDescriptors = [
   ...bookDeliveryRouteDescriptors,
   bookDocumentAuthorizationRouteDescriptor,
+  bookTeacherAssemblyDocumentRouteDescriptor,
 ] as const;

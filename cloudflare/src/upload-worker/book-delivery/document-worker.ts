@@ -2,6 +2,9 @@ import type {
   BookDocumentAuthorizationDecision,
   BookDocumentAuthorizedSource,
 } from './documentAuthorization.ts';
+import type {
+  TeacherAssemblyDocumentAuthorizationDecision,
+} from './teacher-assembly-authority.ts';
 import {
   documentCorsHeaders,
   documentCorsPreflight,
@@ -20,7 +23,9 @@ const STREAM_CHUNK_BYTES = 1024 * 1024;
 export type BookDocumentWorkerAuthorization =
   | {
       readonly ok: true;
-      readonly decision: BookDocumentAuthorizationDecision;
+      readonly decision:
+        | BookDocumentAuthorizationDecision
+        | TeacherAssemblyDocumentAuthorizationDecision;
       readonly source: BookDocumentAuthorizedSource;
     }
   | {

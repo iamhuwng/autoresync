@@ -3889,6 +3889,78 @@ Browser proof:
   `artifacts/prd0062-ticket-56/browser/mobile-375.json`, and
   `artifacts/prd0062-ticket-56/browser/mobile-375.png`.
 
+### Ticket 09C / #58 closure evidence - 2026-07-27
+
+#58 was selected as the sole Teacher workflow root/enabler after #57 was
+formally re-closed and the complete live 112-ticket graph was rebuilt. Its
+direct prerequisites #31, #51, #35, and #57 were formally CLOSED. #58 owns the
+teacher-Assembly authorization decision and browser-safe projection only.
+Canonical top-level Worker composition remains owned by #59, byte delivery
+remains owned by #52, and assembled generated rules remain owned by #118.
+
+Owned implementation proof:
+
+- Added the server-only `teacher_assembly` decision and exact canonical route
+  tuple for Book, unit, candidate/revision, source key/Source Version,
+  Source Set revision, and Book revision.
+- Every accepted GET, HEAD, refresh, resume, and byte-range request re-verifies
+  Firebase identity, active teacher ownership, current PDF Book revisions,
+  current non-discarded candidate, exact source binding, and usable immutable
+  Source Version before the existing #52 provider seam can run.
+- Cross-owner, super-admin-without-ownership, student, stale, replaced,
+  discarded, archived, guessed, copied, query-bearing, ancestor-shaped,
+  malformed, and unsupported-method requests fail closed. Denied requests
+  invoke no provider metadata or byte operation.
+- The browser receives only the non-capability route tuple and expected
+  document metadata. It receives no provider bucket/key/file ID, storage
+  credential, signed B2 capability, student Delivery entitlement, or reusable
+  document session.
+- The Assembly Workspace exposes preview controls only for an exact current
+  authorized projection. Full-PDF and component-PDF sources use the shared PDF
+  viewer host and authenticated HEAD/range transport. Arbitrary HTTPS origins
+  are rejected before Firebase token acquisition.
+- The route descriptor is contribution-only for #59. The deployed proof Worker
+  is an isolated #58 acceptance seam and does not claim #59 canonical
+  dispatcher/auth/rate/CORS/identity composition.
+
+Verification:
+
+- Ticket #58 root suite: PASS, 5 files / 33 tests.
+- Ticket #58 Cloudflare suite: PASS, 2 files / 25 tests.
+- Existing #51/#52/provider regression suite: PASS, 5 files / 50 tests.
+- Repository TypeScript with `--noEmit --skipLibCheck`: PASS.
+- Cloudflare TypeScript: PASS.
+- Focused root and Cloudflare ESLint: PASS.
+- Production Vite build: PASS, 9,357 modules transformed; bundle budget PASS.
+- Wrangler #58 preview dry-run: PASS.
+- Playwright: PASS, 8/8 across desktop and 375px projects at
+  `http://localhost:5173`. Teacher quick-login mapped and previewed full and
+  component candidates; second-teacher, student, stale, copied, and discarded
+  cases denied before document fetch.
+
+Deployment and rollback proof:
+
+- Isolated acceptance Worker:
+  `r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev`.
+- Active version `766740f6-521f-4627-8835-3ad8a1bedc3f` used the real logged-in
+  `teacher@test.com` Firebase session. HEAD returned 200; bounded range GET
+  returned 206 with `bytes 0-3109/3110`; the browser rendered page 1/1.
+- Revoked version `a508470b-f217-49d3-8945-f8fab43f6dd9` returned 403 and
+  provider-call count 0 for the same route and session.
+- Final rollback-disabled version
+  `2fd4cf0c-de22-4e32-b3f7-79a5a7931803` read back at 100% deployment. Its safe
+  status endpoint reports `assemblyState: disabled`; document access returns
+  503 with provider-call count 0. This disabled state remains current.
+- Structured proof:
+  `artifacts/prd0062-ticket-58/deployed-preview/proof.json`.
+  Browser and rollback screenshots are retained under
+  `artifacts/prd0062-ticket-58/browser/` and
+  `artifacts/prd0062-ticket-58/deployed-preview/`.
+
+No #59 canonical composition or #118 generated-rules evidence is claimed. No
+#50A capability was enabled, no #03B behavior changed, no student Delivery row
+or authority was created, and the full 112-ticket goal remains open.
+
 Transferred/destination-owned proof remains open under #59/#118: canonical
 deployed Assembly route composition, deployed hierarchy/source save/reload,
 Worker-to-Firebase identity/config readback, route rollback, generated

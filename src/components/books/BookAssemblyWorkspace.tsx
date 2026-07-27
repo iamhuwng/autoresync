@@ -19,6 +19,11 @@ import type {
   BookAssemblyMutationResult,
 } from '../../services/book-assembly/unitAssembly.types';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
+import {
+  isCurrentBookTeacherAssemblyDocument,
+  type BookTeacherAssemblyDocumentProjection,
+} from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
+import BookPdfViewerHost from '../book-runtime/BookPdfViewerHost';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import './BookAssemblyWorkspace.css';
 
@@ -32,6 +37,8 @@ export interface BookAssemblyWorkspaceProps {
   readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
   readonly initialCandidate?: BookAssemblyCandidateRecord | null;
   readonly repository?: UnitAssemblyRepository;
+  readonly previewDocuments?: readonly BookTeacherAssemblyDocumentProjection[];
+  readonly previewGetIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
   readonly onAction?: (action: string, metadata?: Record<string, unknown>) => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
 }
@@ -206,6 +213,8 @@ const BookAssemblyWorkspace = ({
   sourceVersions,
   initialCandidate,
   repository,
+  previewDocuments = [],
+  previewGetIdToken,
   onAction,
   onDirtyChange,
 }: BookAssemblyWorkspaceProps) => {
@@ -223,6 +232,7 @@ const BookAssemblyWorkspace = ({
   const [mappingContextRequirement, setMappingContextRequirement] = useState<ActivityContextRequirement>('required');
   const [mappingMode, setMappingMode] = useState<PageGroupMode>('activity');
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(initialCandidate ?? null);
+  const [selectedPreviewSourceVersionId, setSelectedPreviewSourceVersionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'conflict' | 'error'>('idle');
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -263,6 +273,33 @@ const BookAssemblyWorkspace = ({
     () => selectedUnit ? missingRequiredSourceContext(selectedUnit) : [],
     [selectedUnit],
   );
+  const currentPreviewDocuments = useMemo(() => {
+    if (!candidate) return [];
+    const sourceVersionIds = normalizedSources.map((source) => source.sourceVersionId);
+    return previewDocuments.filter((document) =>
+      normalizedSources.some((source) =>
+        source.sourceKey === document.sourceKey
+        && source.sourceVersionId === document.sourceVersionId)
+      && isCurrentBookTeacherAssemblyDocument(document, {
+        bookId,
+        bookRevision,
+        sourceSetRevision,
+        candidateId: candidate.candidateId,
+        candidateRevision: candidate.revision,
+        candidateLifecycle: candidate.lifecycle,
+        sourceVersionIds,
+      }));
+  }, [
+    bookId,
+    bookRevision,
+    candidate,
+    normalizedSources,
+    previewDocuments,
+    sourceSetRevision,
+  ]);
+  const selectedPreview = currentPreviewDocuments.find(
+    (document) => document.sourceVersionId === selectedPreviewSourceVersionId,
+  ) ?? null;
 
   const manifest = useMemo<AssemblyEditorDraft>(() => ({
     bookId,
@@ -309,6 +346,17 @@ const BookAssemblyWorkspace = ({
       setMappingSourceKey(availableMappingSources[0]?.sourceKey ?? '');
     }
   }, [availableMappingSources, mappingSourceKey]);
+
+  useEffect(() => {
+    if (
+      selectedPreviewSourceVersionId
+      && !currentPreviewDocuments.some(
+        (document) => document.sourceVersionId === selectedPreviewSourceVersionId,
+      )
+    ) {
+      setSelectedPreviewSourceVersionId(null);
+    }
+  }, [currentPreviewDocuments, selectedPreviewSourceVersionId]);
 
   useEffect(() => {
     const pending = pendingFocusNodeKeyRef.current;
@@ -679,6 +727,54 @@ const BookAssemblyWorkspace = ({
               </li>
             ))}
           </ol>
+        )}
+      </section>
+
+      <section
+        className="book-assembly-workspace__preview"
+        aria-labelledby="book-assembly-preview-title"
+      >
+        <div className="book-assembly-workspace__section-heading">
+          <div>
+            <h2 id="book-assembly-preview-title">Assembly PDF preview</h2>
+            <p>
+              Preview uses a short opaque route. Access and current candidate/source
+              revisions are checked again for every document request.
+            </p>
+          </div>
+        </div>
+        {currentPreviewDocuments.length === 0 ? (
+          <p role="status">
+            Preview is unavailable until the current saved candidate and Source Versions have fresh authorization.
+          </p>
+        ) : (
+          <div className="book-assembly-workspace__preview-actions">
+            {currentPreviewDocuments.map((document) => (
+              <button
+                key={`${document.sourceKey}:${document.sourceVersionId}`}
+                type="button"
+                onClick={() => {
+                  setSelectedPreviewSourceVersionId(document.sourceVersionId);
+                  emit('teacher_materials_book_assembly_document_previewed', {
+                    candidateId: document.candidateId,
+                    candidateRevision: document.candidateRevision,
+                    sourceKey: document.sourceKey,
+                    sourceVersionId: document.sourceVersionId,
+                  });
+                }}
+              >
+                Preview {document.sourceKey}
+              </button>
+            ))}
+          </div>
+        )}
+        {selectedPreview && (
+          <BookPdfViewerHost
+            title={`${bookTitle} — ${selectedPreview.sourceKey}`}
+            route={selectedPreview.route}
+            initialPage={selectedPreview.route.physicalPageNumber}
+            getIdToken={previewGetIdToken}
+          />
         )}
       </section>
 

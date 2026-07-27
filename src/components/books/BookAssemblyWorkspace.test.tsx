@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
+import { createBookTeacherAssemblyDocumentRoute } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import BookAssemblyWorkspace from './BookAssemblyWorkspace';
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +25,12 @@ vi.mock('../modern', () => ({
     info: mocks.info,
     warning: mocks.warning,
   },
+}));
+
+vi.mock('../book-runtime/BookPdfViewerHost', () => ({
+  default: ({ title }: { readonly title: string }) => (
+    <div data-testid="teacher-assembly-pdf-preview">{title}</div>
+  ),
 }));
 
 const sourceVersions = [
@@ -414,5 +421,54 @@ describe('BookAssemblyWorkspace', () => {
     await user.click(secondUnit);
     expect(screen.getByLabelText('Mapping source key')).toHaveTextContent('source-source-part-b');
     expect(screen.getByLabelText('Mapping source key')).not.toHaveTextContent('source-source-part-a');
+  });
+
+  it('shows only an exact current teacher Assembly preview projection', async () => {
+    const user = userEvent.setup();
+    const preview = {
+      kind: 'teacher_assembly' as const,
+      bookId: 'book-1',
+      bookRevision: 2,
+      candidateId: 'candidate-1',
+      candidateRevision: 1,
+      sourceSetRevision: 3,
+      sourceKey: 'full',
+      sourceVersionId: 'source-full',
+      route: createBookTeacherAssemblyDocumentRoute({
+        workerOrigin: 'https://worker.example',
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-1',
+        candidateRevision: 1,
+        sourceKey: 'full',
+        sourceVersionId: 'source-full',
+        sourceSetRevision: 3,
+        bookRevision: 2,
+      }),
+    };
+    const { unmount } = renderWorkspace({
+      initialCandidate: candidate(),
+      previewDocuments: [preview],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Preview full' }));
+    expect(screen.getByTestId('teacher-assembly-pdf-preview')).toHaveTextContent(
+      'Assembly Book — full',
+    );
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_document_previewed',
+      expect.objectContaining({
+        candidateId: 'candidate-1',
+        candidateRevision: 1,
+        sourceVersionId: 'source-full',
+      }),
+    );
+
+    unmount();
+    renderWorkspace({
+      initialCandidate: candidate(2),
+      previewDocuments: [preview],
+    });
+    expect(screen.queryByRole('button', { name: 'Preview full' })).not.toBeInTheDocument();
   });
 });

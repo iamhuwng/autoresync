@@ -1,0 +1,80 @@
+{
+  "ticket": "#58 / 09C",
+  "canonicalCompositionOwner": "#59 / 09D (not claimed here)",
+  "browser": {
+    "origin": "http://localhost:5173",
+    "identity": "teacher@test.com",
+    "auth": "Firebase bearer redacted"
+  },
+  "active": {
+    "versionId": "766740f6-521f-4627-8835-3ad8a1bedc3f",
+    "ui": "Page 1 of 1 rendered at Fit width.",
+    "requests": [
+      {
+        "status": 204,
+        "type": "Preflight",
+        "url": "https://r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev/v1/book-delivery/teacher-assembly/prd0062-ticket56-book/unit-fixture/candidate-ticket56/1/full/source-full-ready/4/7",
+        "providerCalls": "0"
+      },
+      {
+        "status": 200,
+        "type": "Fetch",
+        "url": "https://r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev/v1/book-delivery/teacher-assembly/prd0062-ticket56-book/unit-fixture/candidate-ticket56/1/full/source-full-ready/4/7",
+        "providerCalls": "1",
+        "contentLength": "3110"
+      },
+      {
+        "status": 204,
+        "type": "Preflight",
+        "url": "https://r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev/v1/book-delivery/teacher-assembly/prd0062-ticket56-book/unit-fixture/candidate-ticket56/1/full/source-full-ready/4/7",
+        "providerCalls": "0"
+      },
+      {
+        "status": 206,
+        "type": "Fetch",
+        "url": "https://r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev/v1/book-delivery/teacher-assembly/prd0062-ticket56-book/unit-fixture/candidate-ticket56/1/full/source-full-ready/4/7",
+        "providerCalls": "2",
+        "contentLength": "3110",
+        "contentRange": "bytes 0-3109/3110"
+      }
+    ]
+  },
+  "revoked": {
+    "versionId": "a508470b-f217-49d3-8945-f8fab43f6dd9",
+    "ui": "You do not have access to this PDF.",
+    "requests": [
+      {
+        "status": 204,
+        "type": "Preflight",
+        "url": "https://r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev/v1/book-delivery/teacher-assembly/prd0062-ticket56-book/unit-fixture/candidate-ticket56/1/full/source-full-ready/4/7",
+        "providerCalls": "0"
+      },
+      {
+        "status": 403,
+        "type": "Fetch",
+        "url": "https://r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev/v1/book-delivery/teacher-assembly/prd0062-ticket56-book/unit-fixture/candidate-ticket56/1/full/source-full-ready/4/7",
+        "providerCalls": "0"
+      }
+    ]
+  },
+  "rollbackDisabled": {
+    "versionId": "2fd4cf0c-de22-4e32-b3f7-79a5a7931803",
+    "ui": "PDF service is unavailable. Retry.",
+    "requests": [
+      {
+        "status": 204,
+        "type": "Preflight",
+        "url": "https://r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev/v1/book-delivery/teacher-assembly/prd0062-ticket56-book/unit-fixture/candidate-ticket56/1/full/source-full-ready/4/7",
+        "providerCalls": "0"
+      },
+      {
+        "status": 503,
+        "type": "Fetch",
+        "url": "https://r2-upload-signer-prd0062-ticket58-preview.iamhuwng.workers.dev/v1/book-delivery/teacher-assembly/prd0062-ticket56-book/unit-fixture/candidate-ticket56/1/full/source-full-ready/4/7",
+        "providerCalls": "0"
+      }
+    ]
+  },
+  "providerBoundary": "provider callback count remains 0 for denied and disabled document requests",
+  "finalRemoteState": "disabled"
+}

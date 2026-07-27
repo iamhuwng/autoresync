@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "r2-upload-signer-prd0062-ticket58-preview",
+  "account_id": "e41db829dabe9993f03674afdfd56510",
+  "main": "src/upload-worker/book-delivery/teacher-assembly-preview-worker.js",
+  "compatibility_date": "2026-07-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "FIREBASE_PROJECT_ID": "temp-a1437",
+    "TICKET58_ALLOWED_OWNER_EMAIL": "teacher@test.com",
+    "TICKET58_ASSEMBLY_STATE": "active"
+  }
+}

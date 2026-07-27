@@ -1,0 +1,97 @@
+{
+  "generatedAt": "2026-07-27T05:24:12.3524935Z",
+  "selectionStatus": "selected",
+  "selectedPrimary": {
+    "issue": 59,
+    "ticket": "09D",
+    "title": "PRD0062 09D — Integrate Book Worker route dispatch",
+    "roadmapPhase": "runtime canonical route, identity, delivery, and rollback integration",
+    "selectionReason": "All direct and transitive prerequisites are formally CLOSED after #58 closure. #59 is the earliest unresolved runtime root/enabler, its acceptance gates are executable with current Cloudflare, Firebase, browser, and deployment authority, and it unblocks 59 downstream tickets."
+  },
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket58-closed.json",
+    "issueHash": "bf9d0183391b3d2178fe8954756004587fecd0282f1f37e486ca66156885d863",
+    "issueCount": 112,
+    "openCount": 77,
+    "closedCount": 35,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 59, 60, 61, 65, 66, 70, 129, 130, 131, 132, 133]
+  },
+  "closedPrerequisites": {
+    "direct": [44, 51, 52, 58],
+    "transitive": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58],
+    "transitiveOpen": []
+  },
+  "candidateDisposition": [
+    {
+      "issue": 59,
+      "downstreamLeverage": 59,
+      "eligible": true,
+      "selected": true
+    },
+    {
+      "issue": 49,
+      "downstreamLeverage": 2,
+      "eligible": true,
+      "rejection": "Independent B2 provisioning root with substantially lower critical-path leverage."
+    },
+    {
+      "issue": 50,
+      "downstreamLeverage": 16,
+      "eligible": true,
+      "rejection": "Independent operations/reconciliation root; later roadmap phase and lower leverage."
+    },
+    {
+      "issue": 60,
+      "downstreamLeverage": 25,
+      "eligible": true,
+      "rejection": "Teacher mapping/viewer composition follows the canonical runtime route seam and has lower leverage."
+    },
+    {
+      "issue": 61,
+      "downstreamLeverage": 27,
+      "eligible": true,
+      "rejection": "Later teacher import workflow with lower leverage."
+    },
+    {
+      "issues": [65, 66],
+      "downstreamLeverage": 60,
+      "eligible": true,
+      "rejection": "Publication adapters have one additional descendant each but belong to the later Teacher workflow phase; roadmap order requires the unresolved runtime canonical-route enabler first."
+    },
+    {
+      "issue": 70,
+      "downstreamLeverage": 27,
+      "eligible": true,
+      "rejection": "Later migration/operations workflow with lower leverage."
+    },
+    {
+      "issues": [129, 130, 131, 132, 133],
+      "eligible": false,
+      "rejection": "Final-closure suites are phase-ineligible and their positive acceptance still depends on unresolved runtime, teacher, student, operations, activation, and #50A-boundary work; graph-clear alone is insufficient."
+    }
+  ],
+  "authorityAndReadiness": {
+    "requiredAuthority": [
+      "local reconciled worktree",
+      "Cloudflare media account deployment and active-version readback",
+      "Firebase identity, scoped service-identity configuration, and deployment readback",
+      "teacher browser at http://localhost:5173 and student browser at http://localhost:5174",
+      "live #31/#35/#51/#52/#58 route descriptors and handler seams"
+    ],
+    "acceptanceReadiness": "Executable without enabling #50A capabilities or #03B behavior. #59 owns canonical route composition and deployed identity integration; domain behavior remains with its owner tickets and #118 retains generated-rules composition/deployment."
+  },
+  "selectionRuleChecks": {
+    "onePrimary": true,
+    "allDirectAndTransitivePrerequisitesClosed": true,
+    "currentRoadmapPhase": true,
+    "acceptanceGatesExecutable": true,
+    "ownershipAndAuthorityAvailable": true,
+    "highestClosureAndDownstreamValueAmongEligibleCurrentPhaseCandidates": true,
+    "preservesFull112TicketScope": true
+  }
+}

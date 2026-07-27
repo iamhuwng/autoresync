@@ -1,0 +1,25 @@
+{
+  "project": "mobile-375",
+  "requests": [
+    {
+      "method": "HEAD"
+    },
+    {
+      "method": "GET",
+      "range": "bytes=0-3395"
+    },
+    {
+      "method": "HEAD"
+    },
+    {
+      "method": "GET",
+      "range": "bytes=0-3395"
+    }
+  ],
+  "proof": [
+    "teacher quick-login",
+    "full/component mapping and preview",
+    "authenticated HEAD and bounded range",
+    "no browser provider authority"
+  ]
+}
