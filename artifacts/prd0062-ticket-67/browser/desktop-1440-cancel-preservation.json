@@ -1,0 +1,18 @@
+{
+  "project": "desktop-1440",
+  "route": "http://localhost:5173/__smoke/book-assembly-mapping-revision?state=canceled",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "proof": [
+    "cancel performs no mapping publication",
+    "predecessor remains active and unchanged",
+    "Activity Version identities remain preserved after reload"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

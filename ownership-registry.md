@@ -188,6 +188,26 @@ disposable migration, identity/readback, cleanup, or operational rollback drill;
   readback, assembled-rules readback, pointer/context proof, cleanup, and
   operational rollback. #70 does not own activated publication, generated
   rules, private-B2, or deployed canary proof.
+- #71 owns published source-strategy successor behavior: separate successor
+  identity/publication lineage, reuse of #70 explicit source-qualified remap
+  validation and #65/#66 immutable publication adapters, predecessor/context
+  continuity, CAS/replay/crash/rollback, rules-fragment, impact-input, and
+  teacher browser proof. #59 retains canonical route composition; #118 retains
+  assembled generated-rules proof; #73 owns assembled student
+  predecessor-binding proof; #134 owns deployed/canary successor execution,
+  identity/config/version/hash readback, cleanup, rollback, and recovery.
+  #71 does not claim deployed proof or automatic context switching.
+- #67 owns published mapping-revision behavior without Activity reimport:
+  mapping-only split/merge/reorder/default/reference decisions, stable Activity
+  and Activity Version references, new Placement lineage, bounded impact input,
+  source-assisted fresh-preview enforcement, CAS/replay/crash/rollback through
+  the common primitive, local rule/Worker proof, and teacher localhost browser
+  proof. #64 owns the common durable publication repository and conformance
+  proof after its repair; #59 owns canonical Full-PDF/component publication
+  route composition and repository injection after its repair; #118 owns
+  assembled generated-rules proof; #134 owns deployed/canary mapping proof;
+  #73 owns assembled student binding/runtime proof. #67 makes no durable
+  production, deployed, trusted-action, private-B2, #50A, or #03B claim.
 - #63 owns teacher candidate-preview projection/host/input, approval record,
   local Worker/security proof, fixture-safe component/browser proof, and
   preview-control rollback. It consumes the shared frame/registry and viewer

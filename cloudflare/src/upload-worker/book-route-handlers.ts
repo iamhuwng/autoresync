@@ -67,6 +67,8 @@ export interface BookRouteHandlersOptions {
   readonly assemblyHandlers?: Record<string, unknown>;
   readonly assemblyMigrationHandlers?: Record<string, unknown>;
   readonly assemblyPublication?: BookAssemblyPublicationRouteOptions;
+  readonly assemblySuccessorHandlers?: Record<string, unknown>;
+  readonly assemblyMappingRevisionHandlers?: Record<string, unknown>;
   readonly runtimeHandlers?: Record<string, unknown>;
   readonly documentHandler?: BookRouteHandler;
   readonly teacherDocumentHandler?: BookRouteHandler;
@@ -91,6 +93,8 @@ export const createBookRouteHandlers = (
   const assembly = options.assemblyHandlers ?? createBookAssemblyWorkerHandlers();
   const assemblyMigration = options.assemblyMigrationHandlers ?? createSourceStrategyMigrationWorkerHandlers();
   const assemblyPublication = createBookAssemblyPublicationRouteHandlers(options.assemblyPublication);
+  const assemblySuccessor = options.assemblySuccessorHandlers ?? {};
+  const assemblyMappingRevision = options.assemblyMappingRevisionHandlers ?? {};
   const runtime = options.runtimeHandlers ?? createBookRuntimeWorkerHandlers();
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
@@ -108,6 +112,10 @@ export const createBookRouteHandlers = (
     ['confirm', 'discard', 'cancel'], 'bookAssemblyMigration', () => ['bookId', 'unitKey', 'migrationCandidateId']);
   addFactoryHandlers(handlers, assemblyPublication as unknown as Record<string, unknown>,
     ['fullPdfPublish', 'componentPdfPublish'], 'bookAssembly', () => []);
+  addFactoryHandlers(handlers, assemblySuccessor,
+    ['publish'], 'bookAssemblySuccessor', () => []);
+  addFactoryHandlers(handlers, assemblyMappingRevision,
+    ['publish'], 'bookAssemblyMappingRevision', () => []);
   addFactoryHandlers(handlers, runtime, ['command'], 'bookRuntime', () => []);
 
   const documentHandler = options.documentHandler ?? unavailableDocumentHandler;

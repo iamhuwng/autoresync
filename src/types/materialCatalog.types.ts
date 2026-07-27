@@ -8,6 +8,8 @@ export type MaterialTestTypeId = MaterialCatalogId<'testTypeId'>;
 export type MaterialBookId = MaterialCatalogId<'bookId'>;
 export type MaterialBookNodeId = MaterialCatalogId<'bookNodeId'>;
 export type MaterialBookRefId = MaterialCatalogId<'bookRefId'>;
+export type MaterialActivityId = MaterialCatalogId<'activityId'>;
+export type MaterialActivityVersionId = MaterialCatalogId<'activityVersionId'>;
 
 const asMaterialCatalogId =
   <K extends string>() =>
@@ -26,6 +28,8 @@ export const materialCatalogIds = {
   bookId: asMaterialCatalogId<'bookId'>(),
   nodeId: asMaterialCatalogId<'bookNodeId'>(),
   refId: asMaterialCatalogId<'bookRefId'>(),
+  activityId: asMaterialCatalogId<'activityId'>(),
+  activityVersionId: asMaterialCatalogId<'activityVersionId'>(),
 } as const;
 
 export const MATERIAL_CATALOG_MATERIAL_KINDS = [
@@ -37,6 +41,7 @@ export const MATERIAL_CATALOG_MATERIAL_KINDS = [
   'writing-prompt',
   'vocabulary-set',
   'grammar-worksheet',
+  'interactive-activity',
   'video',
   'file-attachment',
   'thcs-thpt-test',
@@ -44,6 +49,81 @@ export const MATERIAL_CATALOG_MATERIAL_KINDS = [
 
 export type MaterialCatalogMaterialKind =
   (typeof MATERIAL_CATALOG_MATERIAL_KINDS)[number];
+
+/**
+ * Identity/provenance is system-owned. Activity revision JSON is deliberately
+ * not represented here: it must never be able to replace these fields.
+ */
+export type ActivityMaterialOriginalProvenance =
+  | {
+      readonly kind: 'original';
+      readonly createdFrom: 'manual';
+      readonly createdAt: string;
+      readonly createdBy: string;
+    }
+  | {
+      readonly kind: 'original';
+      readonly createdFrom: 'import';
+      readonly originalActivityKey: string;
+      readonly sourceBookId: MaterialBookId;
+      readonly sourceVersionId: string;
+      readonly manifestVersionId: string;
+      readonly createdFromNodeKey: string;
+      readonly createdAt: string;
+      readonly createdBy: string;
+    };
+
+export type ActivityMaterialProvenance =
+  | ActivityMaterialOriginalProvenance
+  | {
+      readonly kind: 'fork';
+      readonly forkedFromMaterialId: MaterialActivityId;
+      readonly forkedFromVersionId: MaterialActivityVersionId;
+      readonly createdAt: string;
+      readonly createdBy: string;
+    };
+
+export interface ActivityMaterialIdentity {
+  readonly materialId: MaterialActivityId;
+  readonly activityId: MaterialActivityId;
+  readonly materialKind: 'interactive-activity';
+  readonly ownerId: string;
+  readonly provenance: ActivityMaterialProvenance;
+  readonly createdAt: string;
+  readonly createdBy: string;
+  readonly currentDraftVersionId?: MaterialActivityVersionId;
+  readonly currentPublishedVersionId?: MaterialActivityVersionId;
+}
+
+export interface ActivityMaterialVersionIdentity {
+  readonly materialId: MaterialActivityId;
+  readonly activityId: MaterialActivityId;
+  readonly activityVersionId: MaterialActivityVersionId;
+  readonly revisionOfVersionId?: MaterialActivityVersionId;
+  readonly createdAt: string;
+  readonly createdBy: string;
+}
+
+/** Fields forbidden from editable Activity JSON and candidate imports. */
+export const ACTIVITY_EDITABLE_JSON_FORBIDDEN_IDENTITY_FIELDS = [
+  'activityId',
+  'materialId',
+  'versionId',
+  'activityVersionId',
+  'currentDraftVersionId',
+  'currentPublishedVersionId',
+  'snapshotVersionId',
+  'placementId',
+  'bookId',
+  'nodeId',
+  'pageGroupIds',
+  'ownerId',
+  'createdAt',
+  'createdBy',
+  'publishedAt',
+  'publishedBy',
+  'provenance',
+] as const;
 
 export interface MaterialTestTypeConfig {
   readonly testTypeId: MaterialTestTypeId;
@@ -138,6 +218,19 @@ export interface MaterialBookReusedActivityRef {
   readonly versionId: string;
 }
 
+/** Trusted publication provenance; never a browser-controlled mode mutation. */
+export interface MaterialBookSourceStrategySuccessorLineage {
+  readonly kind: 'source-strategy-successor';
+  readonly predecessorBookId: MaterialBookId;
+  readonly predecessorPublicationId: string;
+  readonly predecessorManifestVersionId: string;
+  readonly fromStrategy: 'full_pdf' | 'component_pdfs';
+  readonly toStrategy: 'full_pdf' | 'component_pdfs';
+  readonly actorId: string;
+  readonly createdByCommandId: string;
+  readonly createdAt: string;
+}
+
 export interface MaterialBookPublicReviewState {
   readonly status: MaterialBookPublicReviewStatus;
   readonly reason?: string;
@@ -155,6 +248,8 @@ export interface MaterialBookMetadata {
   readonly modeSuccessorLineage?: MaterialBookModeSuccessorLineage;
   /** Identity/version only; never carries predecessor placement or delivery state. */
   readonly reusedActivityRefs?: readonly MaterialBookReusedActivityRef[];
+  /** Publication successor provenance; it never carries context bindings. */
+  readonly sourceStrategySuccessorLineage?: MaterialBookSourceStrategySuccessorLineage;
   readonly ownerId: string;
   readonly title: string;
   readonly subtitle?: string;
@@ -186,6 +281,7 @@ export const MATERIAL_BOOK_NODE_TYPES = [
   'note-placeholder',
   'section',
   'chapter',
+  'unit',
   'test',
 ] as const;
 

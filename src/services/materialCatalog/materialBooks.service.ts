@@ -462,7 +462,8 @@ export const updateBookMetadata = async (
   bookId: string,
   updates: Partial<Omit<
     MaterialBookMetadata,
-    'bookId' | 'bookMode' | 'modeSuccessorLineage' | 'reusedActivityRefs' | 'ownerId' | 'createdAt' | 'createdBy'
+    'bookId' | 'bookMode' | 'modeSuccessorLineage' | 'reusedActivityRefs'
+      | 'sourceStrategySuccessorLineage' | 'ownerId' | 'createdAt' | 'createdBy'
   >>,
   repository: MaterialBooksRepository,
   context: MaterialBookValidationContext,
@@ -476,6 +477,9 @@ export const updateBookMetadata = async (
   if ('reusedActivityRefs' in updates) {
     throw new Error('Material Book successor Activity reuse is immutable.');
   }
+  if ('sourceStrategySuccessorLineage' in updates) {
+    throw new Error('Material Book source-strategy successor lineage is immutable.');
+  }
 
   const current = await requireBook(repository, bookId);
   const nodes = await repository.listBookNodes(bookId);
@@ -486,6 +490,7 @@ export const updateBookMetadata = async (
     bookId: current.bookId,
     modeSuccessorLineage: current.modeSuccessorLineage,
     reusedActivityRefs: current.reusedActivityRefs,
+    sourceStrategySuccessorLineage: current.sourceStrategySuccessorLineage,
     ownerId: current.ownerId,
     createdAt: current.createdAt,
     createdBy: current.createdBy,

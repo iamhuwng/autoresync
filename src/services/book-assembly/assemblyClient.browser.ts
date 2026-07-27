@@ -1,9 +1,17 @@
-import type { BookAssemblyManifestCandidate, SourceSetCandidate } from '../../types/bookAssembly.types';
+import type {
+  BookAssemblyImmutableManifestVersion,
+  BookAssemblyManifestCandidate,
+  BookAssemblyPreviewApprovalReference,
+  BookAssemblyPublicationPointer,
+  BookAssemblySourceStrategySuccessorImpact,
+  SourceSetCandidate,
+} from '../../types/bookAssembly.types';
 import type { SourceStrategyMigrationRemap } from './sourceStrategyMigration.service';
 import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from './unitAssembly.types';
+import type { BookAssemblyPublicationStatus } from './publicationTransaction.service';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -11,6 +19,10 @@ const MAX_RESPONSE_BYTES = 1_200_000;
 const RESULT_STATUSES = new Set<BookAssemblyMutationResult['status']>([
   'created', 'replaced', 'validated', 'discarded', 'loaded', 'replayed',
   'conflict', 'not-found', 'forbidden', 'invalid', 'idempotency-conflict',
+]);
+const PUBLICATION_STATUSES = new Set<BookAssemblyPublicationStatus>([
+  'published', 'replayed', 'rolled-back', 'conflict', 'invalid',
+  'idempotency-conflict', 'not-found', 'forbidden',
 ]);
 
 export class BookAssemblyClientError extends Error {
@@ -79,6 +91,30 @@ export interface BookAssemblyMigrationClient {
   discardMigration(input: DiscardAssemblySourceStrategyMigrationInput): Promise<BookAssemblyMutationResult>;
 }
 
+export interface PublishSourceStrategySuccessorInput {
+  readonly operationId: string;
+  readonly bookId: string;
+  readonly expectedCurrentPublicationId: string;
+  readonly expectedBookRevision: number;
+  readonly expectedSourceSetRevision: number;
+  readonly targetSourceSetRevision: number;
+  readonly targetSourceSet: SourceSetCandidate;
+  readonly remaps?: readonly SourceStrategyMigrationRemap[];
+  readonly previewApproval: BookAssemblyPreviewApprovalReference;
+}
+
+export interface BookAssemblySourceStrategySuccessorResult {
+  readonly status: BookAssemblyPublicationStatus;
+  readonly pointer?: BookAssemblyPublicationPointer;
+  readonly version?: BookAssemblyImmutableManifestVersion;
+  readonly impact?: BookAssemblySourceStrategySuccessorImpact;
+  readonly failureCode?: string;
+}
+
+export interface BookAssemblySourceStrategySuccessorClient {
+  publishSuccessor(input: PublishSourceStrategySuccessorInput): Promise<BookAssemblySourceStrategySuccessorResult>;
+}
+
 const safeId = (value: unknown, label: string): string => {
   if (typeof value !== 'string' || !ID.test(value)) {
     throw new BookAssemblyClientError(`invalid_${label}`, 0);
@@ -129,6 +165,13 @@ const result = (value: Record<string, unknown>): BookAssemblyMutationResult => {
   }
   return value as unknown as BookAssemblyMutationResult;
 };
+const publicationResult = (value: Record<string, unknown>): BookAssemblySourceStrategySuccessorResult => {
+  if (typeof value.status !== 'string'
+    || !PUBLICATION_STATUSES.has(value.status as BookAssemblyPublicationStatus)) {
+    throw new BookAssemblyClientError('invalid_response', 502);
+  }
+  return value as unknown as BookAssemblySourceStrategySuccessorResult;
+};
 
 export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
   const base = (() => {
@@ -171,6 +214,36 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       );
     }
     return result(parsed);
+  };
+  const requestPublication = async (
+    path: string,
+    payload: PublishSourceStrategySuccessorInput,
+  ): Promise<BookAssemblySourceStrategySuccessorResult> => {
+    const token = (await options.getIdToken()).trim();
+    if (!token) throw new BookAssemblyClientError('unauthorized', 401);
+    const url = `${base}${path}`;
+    const response = await (options.fetchImpl ?? globalThis.fetch)(url, {
+      method: 'POST',
+      credentials: 'omit',
+      redirect: 'error',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': payload.operationId,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (response.redirected || (response.url && response.url !== url)) {
+      throw new BookAssemblyClientError('response_binding_mismatch', 502);
+    }
+    const parsed = await body(response);
+    if (!response.ok) {
+      throw new BookAssemblyClientError(
+        typeof parsed.code === 'string' ? parsed.code : `http_${response.status}`,
+        response.status,
+      );
+    }
+    return publicationResult(parsed);
   };
   const validateCreateInput = (input: CreateAssemblyCandidateInput): void => {
     safeOperationId(input.operationId);
@@ -225,6 +298,15 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       safeRevision(input.expectedMigrationCandidateRevision, 'expected_migration_candidate_revision');
       const { bookId, unitKey, migrationCandidateId, ...payload } = input;
       return request(`/book-assembly/books/${encodeURIComponent(bookId)}/units/${encodeURIComponent(unitKey)}/migrations/${encodeURIComponent(migrationCandidateId)}`, 'DELETE', payload);
+    },
+    publishSuccessor(input: PublishSourceStrategySuccessorInput) {
+      safeOperationId(input.operationId);
+      safeId(input.bookId, 'book_id');
+      safeId(input.expectedCurrentPublicationId, 'expected_current_publication_id');
+      safeRevision(input.expectedBookRevision, 'expected_book_revision');
+      safeRevision(input.expectedSourceSetRevision, 'expected_source_set_revision');
+      safeRevision(input.targetSourceSetRevision, 'target_source_set_revision');
+      return requestPublication('/book-assembly/source-strategy-successors', input);
     },
     validate(input: {
       readonly operationId: string;

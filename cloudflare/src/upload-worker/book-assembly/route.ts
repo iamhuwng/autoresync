@@ -25,3 +25,13 @@ export const bookAssemblyPublicationRouteDescriptors = [
   { method: 'POST', path: '/book-assembly/full-pdf-publications', handler: 'fullPdfPublish' },
   { method: 'POST', path: '/book-assembly/component-pdf-publications', handler: 'componentPdfPublish' },
 ] as const;
+
+/** Ticket 20C published source-strategy successor. Capability remains disabled by default. */
+export const bookAssemblySuccessorRouteDescriptors = [
+  { method: 'POST', path: '/book-assembly/source-strategy-successors', handler: 'publish' },
+] as const;
+
+/** Ticket 18 published mapping revision. Capability remains disabled by default. */
+export const bookAssemblyMappingRevisionRouteDescriptors = [
+  { method: 'POST', path: '/book-assembly/mapping-revisions', handler: 'publish' },
+] as const;

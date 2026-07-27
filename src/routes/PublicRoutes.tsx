@@ -11,6 +11,8 @@ const TeacherInvitePage = lazyWithRetry(() => import('../pages/TeacherInvitePage
 const AuthenticatedRoutes = lazyWithRetry(() => import('./AuthenticatedRoutes'));
 const BookEditorSmokePage = lazyWithRetry(() => import('../pages/BookEditorSmokePage'));
 const BookAssemblyWorkspaceSmokePage = lazyWithRetry(() => import('../pages/BookAssemblyWorkspaceSmokePage'));
+const BookAssemblySourceStrategySuccessorSmokePage = lazyWithRetry(() => import('../pages/BookAssemblySourceStrategySuccessorSmokePage'));
+const BookAssemblyMappingRevisionSmokePage = lazyWithRetry(() => import('../pages/BookAssemblyMappingRevisionSmokePage'));
 const BookPdfViewerSmokePage = lazyWithRetry(() => import('../pages/BookPdfViewerSmokePage'));
 const ReadingV2StudioSmokePage = lazyWithRetry(() => import('../pages/ReadingV2StudioSmokePage'));
 const ReadingV2VerticalLoopSmokePage = lazyWithRetry(() => import('../pages/ReadingV2VerticalLoopSmokePage'));
@@ -54,6 +56,12 @@ export default function PublicRoutes() {
     }, {
       path: '/__smoke/book-assembly',
       element: withTrackedRoute(<BookAssemblyWorkspaceSmokePage />, 'readingV2Studio'),
+    }, {
+      path: '/__smoke/book-assembly-successor',
+      element: withTrackedRoute(<BookAssemblySourceStrategySuccessorSmokePage />, 'readingV2Studio'),
+    }, {
+      path: '/__smoke/book-assembly-mapping-revision',
+      element: withTrackedRoute(<BookAssemblyMappingRevisionSmokePage />, 'readingV2Studio'),
     }, {
       path: '/__smoke/book-viewer',
       element: withTrackedRoute(<BookPdfViewerSmokePage />, 'testCreation'),

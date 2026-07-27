@@ -60,6 +60,38 @@ Source-strategy migration boundary:
   context proof, cleanup, and operational rollback. No #70 proof enables #50A,
   #03B, trusted actions, private-B2, or deployed positive publication.
 
+Published source-strategy successor boundary:
+
+- #71 proves the published successor workflow locally: separate successor
+  identity/publication lineage, reuse of #70 explicit source-qualified remap
+  validation and #65/#66 immutable publication adapters, predecessor/context
+  continuity, CAS/replay/crash/rollback, rules-fragment and impact-input
+  boundaries, and teacher browser proof. It does not mutate the current
+  publication or automatically switch registered contexts.
+- #59 retains canonical route composition; #118 retains assembled generated
+  rules; #73 owns assembled student predecessor-binding proof. #134 owns
+  deployed/canary successor execution, identity/config/version/hash readback,
+  cleanup, rollback, and recovery. #71 does not claim deployed proof.
+
+Published mapping-revision boundary:
+
+- #67 proves mapping-only publication locally: split/merge/reorder/default/
+  reference mapping decisions, immutable Manifest/Unit revision, preserved
+  Activity and Activity Version identities, stable Placement lineage, bounded
+  impact input, source-assisted exact fresh-preview approval, stale/duplicate/
+  unauthorized denial, common CAS/replay/crash/rollback behavior, disabled
+  route/rules fragment, and teacher browser proof at
+  `http://localhost:5173`. It does not reimport Activity records or claim
+  durable production storage, canonical deployed composition, generated-rule
+  deployment, trusted-action activation, private-B2, #50A, or #03B.
+- #64 owns durable Firebase publication-repository implementation and
+  conformance proof after repair. #59 owns canonical Full-PDF/component
+  publication route descriptors, handler composition, and repository injection
+  after repair. #118 owns assembled generated-rules proof; #134 owns positive
+  deployed/canary publication, identity/config/hash, cleanup, rollback, and
+  recovery; #73 owns assembled Student mapping/runtime proof. Each transferred
+  gate remains destination-owned exactly once.
+
 Candidate-preview boundary:
 
 - #63 proves candidate-scoped answer-safe projection/approval behavior, shared

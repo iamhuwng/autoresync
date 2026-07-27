@@ -178,6 +178,66 @@ export interface BookAssemblyPreviewApprovalReference {
   readonly approvalRevision: number;
   readonly approvedAt: string;
   readonly expiresAt: string;
+  /** Fingerprint of the exact source-assisted input approved by the preview owner. */
+  readonly approvedInputFingerprint?: string;
+}
+
+/**
+ * Immutable provenance for a published source-strategy successor. The
+ * predecessor remains readable and is never rewritten by the successor flow.
+ */
+export interface BookAssemblySourceStrategySuccessorLineage {
+  readonly kind: 'source-strategy-successor';
+  readonly predecessorPublicationId: string;
+  readonly predecessorManifestVersionId: string;
+  readonly predecessorPublicationRevision: number;
+  readonly predecessorStrategy: BookSourceStrategy;
+  readonly successorStrategy: BookSourceStrategy;
+  readonly predecessorSourceSetRevision: number;
+  readonly successorSourceSetRevision: number;
+  readonly createdByCommandId: string;
+  readonly createdAt: string;
+}
+
+export interface BookAssemblySourceStrategySuccessorImpact {
+  readonly fromStrategy: BookSourceStrategy;
+  readonly toStrategy: BookSourceStrategy;
+  readonly preservedNodeKeys: readonly string[];
+  readonly preservedUnitKeys: readonly string[];
+  readonly preservedActivityKeys: readonly string[];
+  readonly remappedPageGroupKeys: readonly string[];
+  readonly affectedPageGroupKeys: readonly string[];
+  readonly contextAdapterInput: {
+    readonly predecessorPublicationId: string;
+    readonly successorPublicationId: string;
+    readonly affectedUnitKeys: readonly string[];
+  };
+}
+
+/** Immutable provenance for a published mapping-only revision. */
+export interface BookAssemblyMappingRevisionLineage {
+  readonly kind: 'mapping-revision';
+  readonly predecessorPublicationId: string;
+  readonly predecessorManifestVersionId: string;
+  readonly predecessorPublicationRevision: number;
+  readonly sourceSetRevision: number;
+  readonly createdByCommandId: string;
+  readonly createdAt: string;
+  readonly changedPageGroupKeys: readonly string[];
+  readonly preservedActivityIds: readonly string[];
+  readonly preservedActivityVersionIds: readonly string[];
+}
+
+export interface BookAssemblyMappingRevisionImpact {
+  readonly changedPageGroupKeys: readonly string[];
+  readonly preservedActivityIds: readonly string[];
+  readonly preservedActivityVersionIds: readonly string[];
+  readonly affectedUnitKeys: readonly string[];
+  readonly contextAdapterInput: {
+    readonly predecessorPublicationId: string;
+    readonly successorPublicationId: string;
+    readonly changedPageGroupKeys: readonly string[];
+  };
 }
 
 export interface BookAssemblyStudentSafePublicationProjection {
@@ -188,6 +248,12 @@ export interface BookAssemblyStudentSafePublicationProjection {
   readonly sourceStrategy: BookSourceStrategy;
   readonly sourceSet: SourceSetCandidate;
   readonly units: readonly BookUnitCandidate[];
+}
+
+export interface BookAssemblyActivityVersionReference {
+  readonly activityVersionId: string;
+  readonly activityId: string;
+  readonly activityVersion: number;
 }
 
 export interface BookAssemblyActivityVersionRecord {
@@ -206,6 +272,7 @@ export interface BookAssemblyActivityVersionRecord {
   readonly createdAt: string;
   readonly sourcePages: readonly SourceQualifiedPageIdentity[];
   readonly payloadFingerprint: string;
+  readonly predecessorActivityVersionId?: string;
 }
 
 export interface BookAssemblyActivitySafeProjectionRecord {
@@ -239,6 +306,7 @@ export interface BookAssemblyPlacementRecord {
   readonly order: number;
   readonly pageGroupKeys: readonly string[];
   readonly sourcePages: readonly SourceQualifiedPageIdentity[];
+  readonly predecessorPlacementId?: string;
 }
 
 export interface BookAssemblyPublishedUnitProjectionRecord {
@@ -274,6 +342,8 @@ export interface BookAssemblyDeliveryPublicationPlan {
 
 export interface BookAssemblyPublicationAtomicWriteSet {
   readonly activityVersions: readonly BookAssemblyActivityVersionRecord[];
+  /** Existing immutable Activity Versions reused by mapping-only publications. */
+  readonly activityVersionRefs?: readonly BookAssemblyActivityVersionReference[];
   readonly activitySafeProjections: readonly BookAssemblyActivitySafeProjectionRecord[];
   readonly placements: readonly BookAssemblyPlacementRecord[];
   readonly unitProjections: readonly BookAssemblyPublishedUnitProjectionRecord[];
@@ -283,7 +353,7 @@ export interface BookAssemblyPublicationAtomicWriteSet {
 export interface BookAssemblyPublicationAdapterPlan {
   readonly strategy: BookSourceStrategy;
   readonly planId: string;
-  readonly adapterTicket: '16' | '17' | 'fixture';
+  readonly adapterTicket: '16' | '17' | '18' | '20C' | 'fixture';
   readonly ownerId: string;
   readonly bookId: string;
   readonly candidateId: string;
@@ -295,6 +365,8 @@ export interface BookAssemblyPublicationAdapterPlan {
   readonly studentSafeProjection: BookAssemblyStudentSafePublicationProjection;
   readonly atomicWrites: BookAssemblyPublicationAtomicWriteSet;
   readonly previewApproval?: BookAssemblyPreviewApprovalReference;
+  readonly successorLineage?: BookAssemblySourceStrategySuccessorLineage;
+  readonly mappingRevisionLineage?: BookAssemblyMappingRevisionLineage;
 }
 
 export interface BookAssemblyImmutableManifestVersion {
@@ -316,6 +388,8 @@ export interface BookAssemblyImmutableManifestVersion {
   readonly createdAt: string;
   readonly manifest: BookAssemblyManifestCandidate;
   readonly studentSafeProjection: BookAssemblyStudentSafePublicationProjection;
+  readonly successorLineage?: BookAssemblySourceStrategySuccessorLineage;
+  readonly mappingRevisionLineage?: BookAssemblyMappingRevisionLineage;
 }
 
 export interface BookAssemblyPublicationPointer {

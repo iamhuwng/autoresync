@@ -1,5 +1,6 @@
 import type {
   BookAssemblyActivitySafeProjectionRecord,
+  BookAssemblyActivityVersionReference,
   BookAssemblyActivityVersionRecord,
   BookAssemblyDeliveryPublicationPlan,
   BookAssemblyImmutableManifestVersion,
@@ -48,6 +49,8 @@ export interface PublishBookAssemblyInput {
   readonly publicationRevision: number;
   readonly plan: BookAssemblyPublicationAdapterPlan;
   readonly now: string;
+  /** Optional trusted command fingerprint for durable idempotent replay. */
+  readonly operationFingerprint?: string;
 }
 
 export interface RollbackBookAssemblyPublicationInput {
@@ -95,6 +98,9 @@ const fingerprintOf = (value: unknown): string => {
   }
   return `fnv1a64:${hash.toString(16).padStart(16, '0')}`;
 };
+
+/** Stable trusted-command fingerprint shared by route coordinators. */
+export const fingerprintBookAssemblyOperation = (value: unknown): string => fingerprintOf(value);
 const validId = (value: unknown): value is string => typeof value === 'string' && ID.test(value);
 const validOperationId = (value: unknown): value is string =>
   typeof value === 'string' && OPERATION_ID.test(value);
@@ -117,8 +123,9 @@ const assertCommonPublicationWriteSet = (
   input: PublishBookAssemblyInput,
 ): BookAssemblyPublicationResult | null => {
   const { atomicWrites } = input.plan;
+  const activityVersionRefs: readonly BookAssemblyActivityVersionReference[] = atomicWrites.activityVersionRefs ?? [];
   if (!atomicWrites
-    || atomicWrites.activityVersions.length === 0
+    || (atomicWrites.activityVersions.length === 0 && activityVersionRefs.length === 0)
     || atomicWrites.activitySafeProjections.length === 0
     || atomicWrites.placements.length === 0
     || atomicWrites.unitProjections.length === 0
@@ -127,6 +134,7 @@ const assertCommonPublicationWriteSet = (
   }
 
   const activityVersionIds = atomicWrites.activityVersions.map((record) => record.activityVersionId);
+  const activityVersionReferenceIds = activityVersionRefs.map((record) => record.activityVersionId);
   const projectionIds = atomicWrites.activitySafeProjections.map((record) => record.projectionId);
   const placementIds = atomicWrites.placements.map((record) => record.placementId);
   const unitProjectionIds = atomicWrites.unitProjections.map((record) => record.unitProjectionId);
@@ -135,11 +143,20 @@ const assertCommonPublicationWriteSet = (
     || !allIds(projectionIds)
     || !allIds(placementIds)
     || !allIds(unitProjectionIds)
-    || !allIds(deliveryPlanIds)) {
+    || !allIds(deliveryPlanIds)
+    || new Set([...activityVersionIds, ...activityVersionReferenceIds]).size
+      !== activityVersionIds.length + activityVersionReferenceIds.length) {
     return invalid('invalid-publication-plan');
   }
 
-  const activityVersionSet = new Set(activityVersionIds);
+  if (activityVersionRefs.some((record) => !validId(record.activityVersionId)
+    || !validId(record.activityId)
+    || !Number.isSafeInteger(record.activityVersion)
+    || record.activityVersion <= 0
+    || !unique(activityVersionReferenceIds))) {
+    return invalid('invalid-publication-plan');
+  }
+  const activityVersionSet = new Set([...activityVersionIds, ...activityVersionReferenceIds]);
   const placementSet = new Set(placementIds);
   const unitProjectionSet = new Set(unitProjectionIds);
   const common = {
@@ -289,7 +306,7 @@ export const createBookAssemblyPublicationService = (
   publish: async (input: PublishBookAssemblyInput): Promise<BookAssemblyPublicationResult> => {
     const rejected = rejectUnlessPlanIsStrategyNeutral(input);
     if (rejected) return rejected;
-    const fingerprint = fingerprintOf({
+    const fingerprint = input.operationFingerprint ?? fingerprintOf({
       action: 'publish',
       expectedCurrentPublicationId: input.expectedCurrentPublicationId,
       manifestVersionId: input.manifestVersionId,
@@ -309,6 +326,21 @@ export const createBookAssemblyPublicationService = (
       }
       if (scope.versions?.[input.manifestVersionId]) {
         const output: BookAssemblyPublicationResult = { status: 'conflict', failureCode: 'duplicate-version' };
+        remember(scope, input.operationId, {
+          ownerId: input.plan.ownerId, fingerprint, result: output, createdAt: input.now,
+        });
+        return { outcome: output, next: scope, write: true };
+      }
+      const invalidActivityReference = (input.plan.atomicWrites.activityVersionRefs ?? []).some((reference) => {
+        const existing = scope.activityVersions?.[reference.activityVersionId];
+        return !existing
+          || existing.activityId !== reference.activityId
+          || existing.activityVersion !== reference.activityVersion
+          || existing.ownerId !== input.plan.ownerId
+          || existing.bookId !== input.plan.bookId;
+      });
+      if (invalidActivityReference) {
+        const output: BookAssemblyPublicationResult = { status: 'invalid', failureCode: 'invalid-publication-plan' };
         remember(scope, input.operationId, {
           ownerId: input.plan.ownerId, fingerprint, result: output, createdAt: input.now,
         });
@@ -346,6 +378,12 @@ export const createBookAssemblyPublicationService = (
         createdAt: input.now,
         manifest: clone(input.plan.manifest),
         studentSafeProjection: clone(input.plan.studentSafeProjection),
+        ...(input.plan.successorLineage
+          ? { successorLineage: clone(input.plan.successorLineage) }
+          : {}),
+        ...(input.plan.mappingRevisionLineage
+          ? { mappingRevisionLineage: clone(input.plan.mappingRevisionLineage) }
+          : {}),
       };
       const pointer = createBookAssemblyPublicationPointer({
         version,

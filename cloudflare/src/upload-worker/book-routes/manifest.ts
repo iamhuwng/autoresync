@@ -5,6 +5,8 @@ import {
   bookAssemblyRouteDescriptors,
   bookAssemblyMigrationRouteDescriptors,
   bookAssemblyPublicationRouteDescriptors,
+  bookAssemblySuccessorRouteDescriptors,
+  bookAssemblyMappingRevisionRouteDescriptors,
 } from '../book-assembly/route.ts';
 import {
   bookRuntimeRouteDescriptors,
@@ -171,6 +173,40 @@ const assemblyPublicationRoutes = bookAssemblyPublicationRouteDescriptors.map((r
   contributorTicket: '#59',
 }));
 
+const assemblySuccessorRoutes = bookAssemblySuccessorRouteDescriptors.map((route) => contributor({
+  id: `book.assembly-successor.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#71',
+  domain: 'assembly',
+  handler: `bookAssemblySuccessor.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-teacher',
+  rateClass: 'book-control',
+  gateEnv: 'BOOK_SOURCE_STRATEGY_SUCCESSOR_ROUTES_ENABLED',
+  requestBodyBytes: MAX_ASSEMBLY_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+  contributorTicket: '#71',
+}));
+
+const assemblyMappingRevisionRoutes = bookAssemblyMappingRevisionRouteDescriptors.map((route) => contributor({
+  id: `book.assembly-mapping-revision.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#67',
+  domain: 'assembly',
+  handler: `bookAssemblyMappingRevision.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-teacher',
+  rateClass: 'book-control',
+  gateEnv: 'BOOK_MAPPING_REVISION_ROUTES_ENABLED',
+  requestBodyBytes: MAX_ASSEMBLY_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+  contributorTicket: '#67',
+}));
+
 const runtimeRoutes = bookRuntimeRouteDescriptors.map((route) => contributor({
   id: `book.runtime.${route.handler}`,
   method: route.method,
@@ -322,6 +358,8 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...assemblyRoutes,
   ...assemblyMigrationRoutes,
   ...assemblyPublicationRoutes,
+  ...assemblySuccessorRoutes,
+  ...assemblyMappingRevisionRoutes,
   ...runtimeRoutes,
   documentRoute,
   teacherAssemblyDocumentRoute,

@@ -1,0 +1,20 @@
+{
+  "project": "mobile-375",
+  "route": "http://localhost:5173/__smoke/book-assembly-mapping-revision?state=published",
+  "viewport": {
+    "width": 375,
+    "height": 900
+  },
+  "proof": [
+    "teacher quick-login",
+    "mapping-only repair changes source-assisted page mapping without Activity reimport",
+    "exact source-assisted preview approval required before publish",
+    "publish creates immutable mapping revision",
+    "reload preserves predecessor and Activity Version identities"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

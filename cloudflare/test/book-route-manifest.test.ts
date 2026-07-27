@@ -11,16 +11,18 @@ const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(23);
+    expect(contributorRoutes).toHaveLength(25);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#59')).toHaveLength(2);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#70')).toHaveLength(3);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#67')).toHaveLength(1);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#71')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(23);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(25);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -111,6 +113,40 @@ describe('canonical Book route contract catalog', () => {
         handler: 'bookAssemblyMigration.discard',
         gateEnv: 'BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED',
         contributorTicket: '#70',
+      }),
+    ]));
+  });
+
+  it('registers #71 published source-strategy successor only through a disabled route', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly-successor.publish',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/source-strategy-successors',
+        owner: '#71',
+        handler: 'bookAssemblySuccessor.publish',
+        gateEnv: 'BOOK_SOURCE_STRATEGY_SUCCESSOR_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+        contributorTicket: '#71',
+      }),
+    ]));
+  });
+
+  it('registers #67 mapping revision only through a disabled route', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly-mapping-revision.publish',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/mapping-revisions',
+        owner: '#67',
+        handler: 'bookAssemblyMappingRevision.publish',
+        gateEnv: 'BOOK_MAPPING_REVISION_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+        contributorTicket: '#67',
       }),
     ]));
   });

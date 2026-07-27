@@ -373,6 +373,38 @@ describe('materialBooks.service', () => {
     expect(repo.updates).toEqual([]);
   });
 
+  it('rejects source-strategy successor-lineage retargeting without changing the original Book', async () => {
+    const lineage = {
+      kind: 'source-strategy-successor' as const,
+      predecessorBookId: materialCatalogIds.bookId('book-before'),
+      predecessorPublicationId: 'publication-before',
+      predecessorManifestVersionId: 'manifest-before',
+      fromStrategy: 'full_pdf' as const,
+      toStrategy: 'component_pdfs' as const,
+      actorId: 'teacher-1',
+      createdByCommandId: '00000000-0000-4000-8000-000000000071',
+      createdAt: NOW,
+    };
+    const repo = createRepo([metadata({ sourceStrategySuccessorLineage: lineage })]);
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      now: () => NOW,
+    };
+
+    await expect(updateBookMetadata(
+      'book-1',
+      { sourceStrategySuccessorLineage: { ...lineage, predecessorPublicationId: 'retargeted' } } as never,
+      repo,
+      context,
+    )).rejects.toThrow('source-strategy successor lineage is immutable');
+    expect(repo.updates).toEqual([]);
+    await expect(repo.readBook('book-1')).resolves.toMatchObject({
+      sourceStrategySuccessorLineage: lineage,
+    });
+  });
+
   it('updates metadata and cleans stale visibility/Test Type indexes', async () => {
     const repo = createRepo([metadata({
       visibility: 'private',

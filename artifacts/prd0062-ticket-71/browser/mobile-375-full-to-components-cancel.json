@@ -1,0 +1,18 @@
+{
+  "project": "mobile-375",
+  "route": "http://localhost:5173/__smoke/book-assembly-successor?fixture=ticket71-full&state=cancelled",
+  "viewport": {
+    "width": 375,
+    "height": 900
+  },
+  "proof": [
+    "cancel performs no publication request",
+    "predecessor remains active and unchanged",
+    "reload preserves canceled state"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

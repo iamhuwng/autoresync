@@ -119,6 +119,55 @@ describe('PRD0062 ticket 13A browser client boundary', () => {
     expect(String(discardInit.body)).not.toContain('unitKey');
   });
 
+  it('binds published source-strategy successor commands to the canonical route', async () => {
+    const fetchImpl = vi.fn(async () => ok({
+      status: 'published',
+      pointer: { publicationId: 'publication-successor' },
+      impact: { fromStrategy: 'full_pdf', toStrategy: 'component_pdfs' },
+    }));
+    const client = createBookAssemblyClient({
+      baseUrl: 'https://assembly.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+    const operationId = op('20');
+    await client.publishSuccessor({
+      operationId,
+      bookId: 'book-1',
+      expectedCurrentPublicationId: 'publication-before',
+      expectedBookRevision: 7,
+      expectedSourceSetRevision: 4,
+      targetSourceSetRevision: 5,
+      targetSourceSet: {
+        sourceStrategy: 'component_pdfs',
+        sources: [{ sourceKey: 'component-a', sourceVersionId: 'source-a', sourceOrder: 1, ownerNodeKey: 'section-1' }],
+      },
+      remaps: [{
+        pageGroupKey: 'pages-1',
+        pages: [{ from: { sourceKey: 'full', physicalPageNumber: 1 }, to: { sourceKey: 'component-a', physicalPageNumber: 1 } }],
+      }],
+      previewApproval: {
+        approvalId: 'approval-1',
+        approvalRevision: 1,
+        approvedAt: '2026-07-27T23:00:00.000Z',
+        expiresAt: '2026-07-28T01:00:00.000Z',
+      },
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://assembly.example/book-assembly/source-strategy-successors',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'omit',
+        redirect: 'error',
+        headers: expect.objectContaining({ 'Idempotency-Key': operationId }),
+      }),
+    );
+    const request = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(String(request.body)).toContain('expectedCurrentPublicationId');
+    expect(String(request.body)).toContain('previewApproval');
+    expect(String(request.body)).not.toContain('pdfBytes');
+  });
+
   it('fails closed on redirect binding mismatch, empty token, and malformed response', async () => {
     const redirected = vi.fn(async () => ({
       redirected: true,

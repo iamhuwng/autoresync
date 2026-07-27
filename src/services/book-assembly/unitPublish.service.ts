@@ -4,6 +4,11 @@ import {
   type ReplaceAssemblyCandidateInput,
 } from './assemblyClient.browser';
 import type { BookAssemblyMutationResult } from './unitAssembly.types';
+import {
+  createSourceStrategySuccessorPublicationPlan,
+  type CreateSourceStrategySuccessorPlanInput,
+  type SourceStrategySuccessorPlan,
+} from './sourceStrategySuccessor.service';
 
 /**
  * Candidate-only command surface for 13A.
@@ -49,6 +54,22 @@ export const createUnitPublishCandidateOnly = (
   publish: undefined as never,
   publishActivity: undefined as never,
   createDeliveryBinding: undefined as never,
+});
+
+/**
+ * Published successor seam for Ticket 20C.
+ *
+ * This remains separate from the candidate-only command surface above. It
+ * creates a strategy-successor plan for the trusted common publication
+ * transaction; it does not expose candidate publication or delivery-binding
+ * commands.
+ */
+export interface PublishedSourceStrategySuccessorAdapter {
+  createPlan(input: CreateSourceStrategySuccessorPlanInput): SourceStrategySuccessorPlan;
+}
+
+export const createPublishedSourceStrategySuccessorAdapter = (): PublishedSourceStrategySuccessorAdapter => ({
+  createPlan: createSourceStrategySuccessorPublicationPlan,
 });
 
 export const assertCandidateBookBinding = (
