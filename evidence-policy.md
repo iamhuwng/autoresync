@@ -34,7 +34,8 @@ When a published contract mixes these classes:
 Publication primitive boundary:
 
 - #64 retains strategy-neutral schemas, CAS/replay/crash/rollback, bounded
-  audit, rules/emulator, and adapter-neutral Worker-boundary proof. It has no
+  audit, durable Firebase RTDB publication repository, rules/emulator, and
+  adapter-neutral Worker-boundary proof. It has no
   role-port or assembled-shell closure claim.
 - #65/#66 own teacher-facing adapter publication proof for full-PDF and
   component-PDF strategies.

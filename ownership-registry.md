@@ -164,7 +164,9 @@ Moved to #134:
   teacher-browser evidence (#128), deployed/canary drills (#134), or the
   structural student runtime shell (#73).
 - #64 owns the strategy-neutral publication primitive and adapter-neutral
-  common Worker-boundary proof. #65/#66 own teacher-facing adapter publication
+  common Worker-boundary proof, including the durable Firebase RTDB
+  `FirebaseRestBookAssemblyPublicationRepository` and its ETag-CAS conformance
+  tests. #65/#66 own teacher-facing adapter publication
   proof; #72 owns server-side Book Delivery projection resolution and
   pinned-identity contracts; #73 owns the assembled student proof for the #64
   current-pointer/student-safe projection and publication/binding visibility
