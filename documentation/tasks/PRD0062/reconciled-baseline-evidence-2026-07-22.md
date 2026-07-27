@@ -4164,3 +4164,192 @@ Post-closure graph:
 - graph hash `c1388683dd88dac987f5d6e5d6e3beb65f8d2f59e8db013efb5760e9bcbbaa4c`;
 - graph-clear frontier after #64 closure:
   #49, #50, #57, #65, #66, #129, #130, #131, #132, #133.
+
+### Deterministic roadmap selection snapshot - #57 Teacher workflow primary - 2026-07-27
+
+Fresh live graph artifacts:
+
+- `artifacts/prd0062-graph-20260727-post-ticket64-closed.json`
+- `artifacts/prd0062-graph-20260727-contract-repair-40-live.json`
+- 112 issues, 79 open, 33 closed, 308 unique edges;
+- no missing references, duplicate edges, or cycles;
+- topological coverage 112;
+- graph-clear frontier: #49, #50, #57, #65, #66, #129, #130, #131, #132,
+  #133.
+
+Recorded selection artifact:
+
+- `artifacts/prd0062-selection-20260727-post-ticket64-primary57.json`.
+
+Candidate disposition:
+
+- #49 and #50 are graph-clear runtime/B2 tickets but have lower current
+  critical-path leverage and require remote provisioning/reconciliation proof.
+- #65 and #66 are graph-clear only after #64, but publication is downstream of
+  the #57 mapping root/enabler and should not bypass Page Group/source-qualified
+  mapping ownership.
+- #129-#133 remain final/regression evidence and are not acceptance-ready while
+  unresolved runtime/teacher/student/operations scope and preserved #50A
+  boundaries remain.
+- #57 was selected as the sole primary because #56 is formally closed, all
+  direct/transitive prerequisites are closed, browser/local acceptance gates are
+  executable, and it has the strongest current root/enabler leverage among
+  eligible candidates.
+
+Live #40 contract-repair observation:
+
+- #37 is already closed with the canonical generic `profile:null` exception for
+  non-IELTS registrations.
+- #40 is already closed with long-response renderer/codec ownership preserved
+  and the false IELTS-row gate removed.
+- #73 already lists #40 as a formal prerequisite and owns assembled
+  long-response browser proof.
+- #38 and #39 were read-only audited and do not need reopening: their live
+  contracts are matrix-row bounded, and #73 owns only their assembled browser
+  proof.
+
+### Ticket 13C / #57 local evidence - 2026-07-27
+
+Implemented ticket-owned local scope:
+
+- Page Group mapping host in `src/components/books/BookAssemblyWorkspace.tsx`;
+- ticket-owned mapping summary component in
+  `src/components/books/assembly/PageGroupMappingSummary.tsx`;
+- strict local page parsing, Page Group upsert/merge, and Activity ordering in
+  `src/services/book-assembly/pageGroup.service.ts`;
+- required source-context checks in
+  `src/services/book-assembly/sourceContextRequirement.service.ts`;
+- #57 mapping actions registered in `src/config/featureRegistry.ts`;
+- teacher smoke fixtures and browser proof under
+  `src/pages/BookAssemblyWorkspaceSmokePage.tsx`,
+  `e2e/prd0062-ticket57-assembly-mapping-browser.spec.ts`, and
+  `playwright.prd0062-ticket57.config.mjs`.
+
+Verified behavior:
+
+- teacher maps `sourceKey` plus one-based local physical pages; printed labels
+  remain display-only;
+- explicit default physical page is stored only when it belongs to the mapped
+  page set;
+- one Activity maps to multiple Page Groups without duplicating Activity
+  content;
+- multiple ordered Activities can share one source/page Page Group without
+  duplicate Page Groups;
+- reference-only Page Groups stay outside Activity slot order;
+- component-PDF mapping source choices are branch-scoped while repeated local
+  page numbers across components remain unambiguous;
+- malformed, duplicate, out-of-range, unknown-source, and stale-CAS/conflict
+  cases fail closed with repair/reload UX;
+- source removal and strategy changes preserve mappings as repairable candidate
+  state instead of silently deleting them;
+- save/reload uses existing #56/#13A CAS candidate path and preserves unrelated
+  hierarchy/source branches;
+- browser proof at `http://localhost:5173` covers teacher quick-login, full-PDF
+  Unit mapping, component-PDF Unit mapping, reload, stale save conflict
+  recovery, 1440px/375px/320px viewports, 200% zoom, overflow safety, no console
+  errors, and no PDF request from this ticket.
+
+Commands:
+
+- `rtk npx vitest run src/services/book-assembly/pageGroup.service.test.ts src/components/books/BookAssemblyWorkspace.test.tsx --reporter=dot` - PASS, 2 files / 16 tests.
+- `rtk npx playwright test --config=playwright.prd0062-ticket57.config.mjs` - PASS, 3 projects.
+- `rtk npx vitest run src/services/book-assembly/pageGroup.service.test.ts src/services/book-assembly/ticket11-manifestCandidate.service.test.ts src/services/book-assembly/ticket11-generated.property.test.ts src/services/book-assembly/assemblyClient.browser.test.ts src/components/books/BookAssemblyWorkspace.test.tsx --reporter=dot` - PASS, 5 files / 34 tests.
+- `rtk npx tsc --noEmit --pretty false --skipLibCheck` - PASS.
+- `rtk npx eslint src/components/books/BookAssemblyWorkspace.tsx src/components/books/assembly/PageGroupMappingSummary.tsx src/components/books/BookAssemblyWorkspace.test.tsx src/services/book-assembly/pageGroup.service.ts src/services/book-assembly/pageGroup.service.test.ts src/services/book-assembly/sourceContextRequirement.service.ts src/pages/BookAssemblyWorkspaceSmokePage.tsx src/config/featureRegistry.ts e2e/prd0062-ticket57-assembly-mapping-browser.spec.ts` - PASS.
+- `rtk npx vite build` - PASS.
+- `rtk npx playwright test --config=playwright.prd0062-ticket56.config.mjs` - PASS, 2 projects.
+- `rtk git diff --check` - PASS.
+
+Deployment proof:
+
+- Firebase target: project `temp-a1437`, hosting target/site `kahut1`.
+- Preview URL:
+  `https://kahut1--prd0062-ticket57-20260727-0t5erift.web.app`;
+  expiry `2026-08-03T03:27:47.649812938Z`.
+- Preview deploy command:
+  `firebase hosting:channel:deploy prd0062-ticket57-20260727 --project temp-a1437 --only kahut1 --expires 7d --json` - PASS.
+- The first production-mode preview build stripped `/__smoke/book-assembly`
+  because smoke routes are gated to `DEV` or `MODE === 'test'`. The acceptance
+  preview was therefore rebuilt with `VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION`
+  set to `enabled` and `rtk npx vite build --mode test` so the #57 smoke route
+  and mutation presentation matched the local acceptance harness.
+- Firebase browser API key restrictions were inspected with `gcloud` under
+  account `iamhuwng@gmail.com`, project `temp-a1437`. Only the #57 preview
+  origin/referrer pair was added; existing API targets and referrers were
+  preserved and no key string was printed. Operation:
+  `operations/akmf.p10-171016256749-ffc7fdc1-ae21-45ee-b26b-dec69cd09cfc`.
+- `PRD0062_TEACHER_ORIGIN=https://kahut1--prd0062-ticket57-20260727-0t5erift.web.app rtk npx playwright test --config=playwright.prd0062-ticket57-deployed.config.mjs` - PASS, 1 project.
+
+Deployment artifacts:
+
+- `artifacts/prd0062-ticket-57/browser/deployed-desktop.json`
+- `artifacts/prd0062-ticket-57/browser/deployed-desktop.png`
+
+Browser artifacts:
+
+- `artifacts/prd0062-ticket-57/browser/desktop.json`
+- `artifacts/prd0062-ticket-57/browser/desktop.png`
+- `artifacts/prd0062-ticket-57/browser/mobile-375.json`
+- `artifacts/prd0062-ticket-57/browser/mobile-375.png`
+- `artifacts/prd0062-ticket-57/browser/mobile-320.json`
+- `artifacts/prd0062-ticket-57/browser/mobile-320.png`
+- `artifacts/prd0062-ticket-57/browser/deployed-desktop.json`
+- `artifacts/prd0062-ticket-57/browser/deployed-desktop.png`
+
+Explicit non-claims:
+
+- no PDF bytes were fetched by #57 browser proof;
+- no PDF.js, viewer host, document URL, authenticated viewer transport, B2
+  upload/readback, canonical production route proof, or live top-level Worker
+  route composition proof was added or claimed;
+- no publication, Delivery binding, assembled Student runtime, generated
+  `database.rules.json`, active rules readback, or rules rollback proof was
+  claimed;
+- no #50A capability was enabled;
+- #03B remains disabled;
+- Mode 1 remains unchanged.
+
+Post-closure graph:
+
+- `artifacts/prd0062-graph-20260727-post-ticket57-closed.json`
+- 112 issues, 78 open, 34 closed, 308 unique edges;
+- no missing references, duplicate edges, or cycles;
+- topological coverage 112;
+- graph hash `0788c7db003e95d571bbdbe38afeb080ea666141e450dfc515d9909b248a40ac`;
+- graph-clear frontier after #57 closure:
+  #49, #50, #58, #61, #65, #66, #70, #129, #130, #131, #132, #133.
+
+### Deterministic roadmap selection snapshot - #58 Runtime/teacher-preview primary - 2026-07-27
+
+Fresh live graph artifact:
+
+- `artifacts/prd0062-graph-20260727-post-ticket57-closed.json`
+- 112 issues, 78 open, 34 closed, 308 unique edges;
+- no missing references, duplicate edges, or cycles;
+- topological coverage 112;
+- graph-clear frontier: #49, #50, #58, #61, #65, #66, #70, #129, #130,
+  #131, #132, #133.
+
+Recorded selection artifact:
+
+- `artifacts/prd0062-selection-20260727-post-ticket57-primary58.json`.
+
+Candidate disposition:
+
+- #49 is graph-clear but lower current critical-path leverage and belongs to a
+  separate B2 provisioning/billing proof family.
+- #50 is graph-clear but lower current leverage and belongs to upload
+  lifecycle-cleanup/reconciliation operations rather than the current Assembly
+  preview/document-access seam.
+- #61 is graph-clear after #57 but is a later teacher import workflow with
+  lower leverage than #58.
+- #65/#66 are graph-clear publication adapters, but #58 is the higher-leverage
+  trusted document-preview seam before route/publication descendants.
+- #70 is graph-clear but is later unpublished migration/repair work with lower
+  leverage.
+- #129-#133 remain final/regression evidence and are not acceptance-ready while
+  unresolved runtime/teacher/student/operations scope remains.
+- #58 was selected as the sole primary because #31, #35, #51, and #57 are
+  formally closed, all transitive prerequisites are closed, acceptance gates are
+  executable with available Firebase/preview/browser authority and existing
+  09A/09B seams, and it has the strongest frontier leverage.

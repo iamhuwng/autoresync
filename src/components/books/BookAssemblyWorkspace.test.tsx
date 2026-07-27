@@ -73,6 +73,27 @@ const invalidSourceCandidate = (): BookAssemblyCandidateRecord => ({
   },
 });
 
+const componentMappingCandidate = (): BookAssemblyCandidateRecord => ({
+  ...candidate(),
+  manifest: {
+    bookId: 'book-1',
+    sourceSet: {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'source-source-part-a', sourceVersionId: 'source-part-a', sourceOrder: 1, ownerNodeKey: 'section-a' },
+        { sourceKey: 'source-source-part-b', sourceVersionId: 'source-part-b', sourceOrder: 2, ownerNodeKey: 'section-b' },
+      ],
+    },
+    nodes: [
+      { nodeKey: 'section-a', parentNodeKey: null, nodeType: 'section', order: 1 },
+      { nodeKey: 'unit-a', parentNodeKey: 'section-a', nodeType: 'unit', order: 1 },
+      { nodeKey: 'section-b', parentNodeKey: null, nodeType: 'section', order: 2 },
+      { nodeKey: 'unit-b', parentNodeKey: 'section-b', nodeType: 'unit', order: 1 },
+    ],
+    units: [],
+  },
+});
+
 const repository = (createResult: 'created' | 'conflict' | 'forbidden' = 'created'): UnitAssemblyRepository => ({
   create: vi.fn(async (input) => ({
     status: createResult === 'created' ? 'created' : createResult,
@@ -238,5 +259,160 @@ describe('BookAssemblyWorkspace', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('no longer have permission');
     expect(mocks.error).toHaveBeenCalledWith('You no longer have permission to save this Assembly draft.');
+  });
+
+  it('maps source-qualified pages to Page Groups and Activity slots before saving', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    renderWorkspace({ repository: repo });
+
+    await user.click(screen.getAllByRole('button', { name: 'Bind' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add unit' }));
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '2,3');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '2');
+    await user.clear(screen.getByLabelText('Activity key'));
+    await user.type(screen.getByLabelText('Activity key'), 'activity-reading-1');
+    await user.selectOptions(screen.getByLabelText('Context requirement'), 'required');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+
+    expect(screen.getByRole('list', { name: 'Page Groups' })).toHaveTextContent('full pages 2, 3');
+    expect(screen.getByRole('list', { name: 'Activity slot order' })).toHaveTextContent('1. activity-reading-1 (required)');
+
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => expect(repo.create).toHaveBeenCalledTimes(1));
+    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({
+      manifest: expect.objectContaining({
+        units: [expect.objectContaining({
+          activitySlots: [expect.objectContaining({
+            activityKey: 'activity-reading-1',
+            contextRequirement: 'required',
+            pageGroupKeys: ['pages-full-2-3-activity'],
+          })],
+          pageGroups: [expect.objectContaining({
+            pageGroupKey: 'pages-full-2-3-activity',
+            sourceKey: 'full',
+            pages: [2, 3],
+            defaultPhysicalPageNumber: 2,
+            activityKeys: ['activity-reading-1'],
+          })],
+        })],
+      }),
+    }));
+  });
+
+  it('supports reference-only/default pages and one Activity mapped to multiple Page Groups', async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    await user.click(screen.getAllByRole('button', { name: 'Bind' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add unit' }));
+    await user.selectOptions(screen.getByLabelText('Page Group mode'), 'reference_only');
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '1');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+    expect(screen.getByRole('list', { name: 'Page Groups' })).toHaveTextContent('Reference only');
+    expect(screen.queryByRole('list', { name: 'Activity slot order' })).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Activity slot order' })).queryAllByRole('listitem')).toHaveLength(0);
+
+    await user.selectOptions(screen.getByLabelText('Page Group mode'), 'activity');
+    await user.clear(screen.getByLabelText('Activity key'));
+    await user.type(screen.getByLabelText('Activity key'), 'activity-shared');
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '2');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '2');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '3');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '3');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+
+    expect(screen.getByRole('list', { name: 'Activity slot order' })).toHaveTextContent('activity-shared');
+    expect(screen.getByRole('list', { name: 'Activity slot order' })).toHaveTextContent('pages-full-2-activity, pages-full-3-activity');
+  });
+
+  it('merges multiple Activities onto one source page without duplicating Page Group content', async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    await user.click(screen.getAllByRole('button', { name: 'Bind' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add unit' }));
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '7');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '7');
+    await user.clear(screen.getByLabelText('Activity key'));
+    await user.type(screen.getByLabelText('Activity key'), 'activity-a');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+    await user.clear(screen.getByLabelText('Activity key'));
+    await user.type(screen.getByLabelText('Activity key'), 'activity-b');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+
+    expect(within(screen.getByRole('list', { name: 'Page Groups' })).getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.getByRole('list', { name: 'Page Groups' })).toHaveTextContent('Activities activity-a, activity-b');
+    expect(screen.getByRole('list', { name: 'Activity slot order' })).toHaveTextContent('1. activity-a');
+    expect(screen.getByRole('list', { name: 'Activity slot order' })).toHaveTextContent('2. activity-b');
+  });
+
+  it('rejects malformed and out-of-range physical page input before save', async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    await user.click(screen.getAllByRole('button', { name: 'Bind' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add unit' }));
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '2, nope');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid physical page "nope"');
+
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '41');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '41');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('outside full');
+  });
+
+  it('preserves mappings as repairable state when source strategy or source binding changes', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    renderWorkspace({ repository: repo });
+
+    await user.click(screen.getAllByRole('button', { name: 'Bind' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add unit' }));
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '2');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '2');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+    expect(screen.getByRole('list', { name: 'Page Groups' })).toHaveTextContent('pages-full-2-activity');
+
+    await user.click(screen.getByRole('button', { name: 'Remove full' }));
+    expect(screen.getByRole('list', { name: 'Page Groups' })).toHaveTextContent('pages-full-2-activity');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('full_pdf requires exactly one source');
+    expect(repo.create).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('radio', { name: 'Component PDFs' }));
+    expect(screen.getByRole('list', { name: 'Page Groups' })).toHaveTextContent('pages-full-2-activity');
+  });
+
+  it('limits component-PDF mapping choices to the selected Unit owner branch', async () => {
+    const user = userEvent.setup();
+    renderWorkspace({ initialCandidate: componentMappingCandidate() });
+
+    const firstUnit = screen.getByRole('button', { name: 'unit: unit-a' });
+    await user.click(firstUnit);
+    expect(screen.getByLabelText('Mapping source key')).toHaveTextContent('source-source-part-a');
+    expect(screen.getByLabelText('Mapping source key')).not.toHaveTextContent('source-source-part-b');
+
+    const secondUnit = screen.getByRole('button', { name: 'unit: unit-b' });
+    await user.click(secondUnit);
+    expect(screen.getByLabelText('Mapping source key')).toHaveTextContent('source-source-part-b');
+    expect(screen.getByLabelText('Mapping source key')).not.toHaveTextContent('source-source-part-a');
   });
 });

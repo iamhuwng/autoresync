@@ -5,16 +5,21 @@ import { toast } from '../modern';
 import {
   BOOK_SOURCE_STRATEGIES,
   type BookAssemblyManifestCandidate,
+  type ActivityContextRequirement,
   type BookContentNodeType,
   type BookSourceStrategy,
+  type PageGroupMode,
   type TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import { validateBookAssemblyManifestCandidate } from '../../services/book-assembly/manifestCandidate.service';
+import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
+import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
 import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from '../../services/book-assembly/unitAssembly.types';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
+import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import './BookAssemblyWorkspace.css';
 
 export interface BookAssemblyWorkspaceProps {
@@ -119,6 +124,7 @@ const draftSnapshot = (
   strategy: BookSourceStrategy,
   nodes: readonly DraftNode[],
   sources: readonly DraftSource[],
+  units: BookAssemblyManifestCandidate['units'],
 ): string => JSON.stringify({
   strategy,
   nodes: normalizeNodeOrders(nodes)
@@ -128,6 +134,9 @@ const draftSnapshot = (
       || left.order - right.order
       || left.nodeKey.localeCompare(right.nodeKey)),
   sources: normalizeSources(strategy, sources),
+  units: units
+    .slice()
+    .sort((left, right) => left.unitKey.localeCompare(right.unitKey)),
 });
 
 const buildVisibleTree = (nodes: readonly DraftNode[]): readonly VisibleTreeItem[] => {
@@ -163,6 +172,22 @@ const buildVisibleTree = (nodes: readonly DraftNode[]): readonly VisibleTreeItem
   return items;
 };
 
+const isOwnerInUnitBranch = (
+  nodes: readonly DraftNode[],
+  ownerNodeKey: string | undefined,
+  unitKey: string | null,
+): boolean => {
+  if (!ownerNodeKey || !unitKey) return false;
+  let current = nodes.find((node) => node.nodeKey === unitKey);
+  while (current) {
+    if (current.nodeKey === ownerNodeKey) return true;
+    current = current.parentNodeKey
+      ? nodes.find((node) => node.nodeKey === current?.parentNodeKey)
+      : undefined;
+  }
+  return false;
+};
+
 const mutationErrorMessage = (result: BookAssemblyMutationResult): string => {
   if (result.status === 'forbidden') return 'You no longer have permission to save this Assembly draft.';
   if (result.status === 'invalid') return 'Assembly draft failed server validation.';
@@ -189,13 +214,20 @@ const BookAssemblyWorkspace = ({
   const [strategy, setStrategy] = useState<BookSourceStrategy>(initial.sourceSet.sourceStrategy);
   const [nodes, setNodes] = useState<readonly DraftNode[]>(initial.nodes);
   const [sources, setSources] = useState<readonly DraftSource[]>(initial.sourceSet.sources);
+  const [units, setUnits] = useState<BookAssemblyManifestCandidate['units']>(initial.units);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(initial.nodes[0]?.nodeKey ?? null);
+  const [mappingSourceKey, setMappingSourceKey] = useState(initial.sourceSet.sources[0]?.sourceKey ?? '');
+  const [mappingPages, setMappingPages] = useState('1');
+  const [mappingDefaultPage, setMappingDefaultPage] = useState('1');
+  const [mappingActivityKey, setMappingActivityKey] = useState('activity-1');
+  const [mappingContextRequirement, setMappingContextRequirement] = useState<ActivityContextRequirement>('required');
+  const [mappingMode, setMappingMode] = useState<PageGroupMode>('activity');
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(initialCandidate ?? null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'conflict' | 'error'>('idle');
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
-    draftSnapshot(initial.sourceSet.sourceStrategy, initial.nodes, initial.sourceSet.sources));
+    draftSnapshot(initial.sourceSet.sourceStrategy, initial.nodes, initial.sourceSet.sources, initial.units));
   const nodeButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingFocusNodeKeyRef = useRef<string | null>(null);
 
@@ -210,8 +242,26 @@ const BookAssemblyWorkspace = ({
   );
   const visibleTreeItems = useMemo(() => buildVisibleTree(nodes), [nodes]);
   const currentSnapshot = useMemo(
-    () => draftSnapshot(strategy, nodes, sources),
-    [nodes, sources, strategy],
+    () => draftSnapshot(strategy, nodes, sources, units),
+    [nodes, sources, strategy, units],
+  );
+  const selectedUnitKey = useMemo(() => {
+    const selected = nodes.find((node) => node.nodeKey === selectedNodeKey);
+    if (selected?.nodeType === 'unit') return selected.nodeKey;
+    return nodes.find((node) => node.nodeType === 'unit')?.nodeKey ?? null;
+  }, [nodes, selectedNodeKey]);
+  const selectedUnit = useMemo(
+    () => units.find((unit) => unit.unitKey === selectedUnitKey),
+    [selectedUnitKey, units],
+  );
+  const availableMappingSources = useMemo(
+    () => normalizedSources.filter((source) =>
+      strategy === 'full_pdf' || isOwnerInUnitBranch(nodes, source.ownerNodeKey, selectedUnitKey)),
+    [nodes, normalizedSources, selectedUnitKey, strategy],
+  );
+  const selectedUnitMissingContext = useMemo(
+    () => selectedUnit ? missingRequiredSourceContext(selectedUnit) : [],
+    [selectedUnit],
   );
 
   const manifest = useMemo<AssemblyEditorDraft>(() => ({
@@ -221,8 +271,8 @@ const BookAssemblyWorkspace = ({
       sources: normalizedSources,
     },
     nodes: normalizeNodeOrders(nodes),
-    units: [],
-  }), [bookId, nodes, normalizedSources, strategy]);
+    units,
+  }), [bookId, nodes, normalizedSources, strategy, units]);
 
   const emit = (action: string, metadata: Record<string, unknown> = {}) => {
     trackAction(action, { bookId, source: `book_assembly_${presentation}`, ...metadata });
@@ -238,8 +288,9 @@ const BookAssemblyWorkspace = ({
     setStrategy(draft.sourceSet.sourceStrategy);
     setSources(draft.sourceSet.sources);
     setNodes(draft.nodes);
+    setUnits(draft.units);
     setCandidate(nextCandidate);
-    setSavedSnapshot(draftSnapshot(draft.sourceSet.sourceStrategy, draft.nodes, draft.sourceSet.sources));
+    setSavedSnapshot(draftSnapshot(draft.sourceSet.sourceStrategy, draft.nodes, draft.sourceSet.sources, draft.units));
     setValidationMessage(null);
     setErrorMessage(null);
     requestNodeFocus(draft.nodes[0]?.nodeKey ?? null);
@@ -248,6 +299,16 @@ const BookAssemblyWorkspace = ({
   useEffect(() => {
     onDirtyChange?.(currentSnapshot !== savedSnapshot);
   }, [currentSnapshot, onDirtyChange, savedSnapshot]);
+
+  useEffect(() => {
+    if (availableMappingSources.length === 0) {
+      if (mappingSourceKey !== '') setMappingSourceKey('');
+      return;
+    }
+    if (!availableMappingSources.some((source) => source.sourceKey === mappingSourceKey)) {
+      setMappingSourceKey(availableMappingSources[0]?.sourceKey ?? '');
+    }
+  }, [availableMappingSources, mappingSourceKey]);
 
   useEffect(() => {
     const pending = pendingFocusNodeKeyRef.current;
@@ -261,6 +322,7 @@ const BookAssemblyWorkspace = ({
   const selectStrategy = (next: BookSourceStrategy) => {
     setStrategy(next);
     setSources([]);
+    setMappingSourceKey('');
     setValidationMessage(null);
     setErrorMessage(null);
     emit('teacher_materials_book_assembly_strategy_changed', { strategy: next });
@@ -296,6 +358,7 @@ const BookAssemblyWorkspace = ({
     setNodes((current) => normalizeNodeOrders(current.filter((node) => !deleted.has(node.nodeKey))));
     setSources((current) => normalizeSources(strategy, current.filter((source) =>
       typeof source.ownerNodeKey !== 'string' || !deleted.has(source.ownerNodeKey))));
+    setUnits((current) => current.filter((unit) => !deleted.has(unit.unitKey)));
     requestNodeFocus(fallbackKey);
     emit('teacher_materials_book_node_deleted', { nodeKey: selectedNodeKey });
   };
@@ -334,6 +397,7 @@ const BookAssemblyWorkspace = ({
           };
       return normalizeSources(strategy, strategy === 'full_pdf' ? [next] : [...current, next]);
     });
+    setMappingSourceKey((current) => current || (strategy === 'full_pdf' ? 'full' : `source-${sourceVersionId}`));
     emit('teacher_materials_book_assembly_source_bound', { sourceVersionId, ownerNodeKey, strategy });
   };
 
@@ -364,6 +428,76 @@ const BookAssemblyWorkspace = ({
     emit('teacher_materials_book_assembly_source_removed', { sourceVersionId });
   };
 
+  const addMapping = () => {
+    if (!selectedUnitKey) {
+      setValidationMessage('Add or select a Unit before mapping pages.');
+      return;
+    }
+    const parsedPages = parsePhysicalPageList(mappingPages);
+    if (parsedPages.error || parsedPages.pages.length === 0) {
+      setValidationMessage(parsedPages.error ?? 'Enter at least one one-based physical page number.');
+      return;
+    }
+    const sourceKey = availableMappingSources.some((source) => source.sourceKey === mappingSourceKey)
+      ? mappingSourceKey
+      : availableMappingSources[0]?.sourceKey;
+    const selectedSource = availableMappingSources.find((source) => source.sourceKey === sourceKey);
+    if (!sourceKey || !selectedSource) {
+      setValidationMessage('Bind a verified Source Version before mapping pages.');
+      return;
+    }
+    const sourceVersion = sourceVersions.find((value) => value.sourceVersionId === selectedSource.sourceVersionId);
+    const overRange = parsedPages.pages.find((page) => sourceVersion && page > sourceVersion.physicalPageCount);
+    if (overRange !== undefined) {
+      setValidationMessage(`Physical page ${overRange} is outside ${sourceKey}'s ${sourceVersion?.physicalPageCount ?? 0} pages.`);
+      return;
+    }
+    const defaultPage = Number(mappingDefaultPage);
+    if (!Number.isSafeInteger(defaultPage) || !parsedPages.pages.includes(defaultPage)) {
+      setValidationMessage('Default physical page must be one of the mapped pages.');
+      return;
+    }
+    const normalizedActivityKey = mappingActivityKey.trim();
+    if (mappingMode === 'activity' && normalizedActivityKey.length === 0) {
+      setValidationMessage('Activity key is required for Activity Page Groups.');
+      return;
+    }
+    const pageGroupKey = `pages-${sourceKey}-${parsedPages.pages.join('-')}-${mappingMode === 'reference_only' ? 'reference' : 'activity'}`;
+    setUnits((current) => {
+      const currentUnit = current.find((unit) => unit.unitKey === selectedUnitKey);
+      const nextUnit = upsertPageGroupMapping({
+        unit: currentUnit,
+        unitKey: selectedUnitKey,
+        pageGroupKey,
+        sourceKey,
+        pages: parsedPages.pages,
+        mode: mappingMode,
+        activityKey: normalizedActivityKey,
+        contextRequirement: mappingContextRequirement,
+        defaultPhysicalPageNumber: defaultPage,
+      });
+      return [
+        ...current.filter((unit) => unit.unitKey !== selectedUnitKey),
+        nextUnit,
+      ];
+    });
+    setValidationMessage(null);
+    emit('teacher_materials_book_assembly_page_group_mapped', {
+      unitKey: selectedUnitKey,
+      pageGroupKey,
+      sourceKey,
+      mode: mappingMode,
+      activityKey: mappingMode === 'activity' ? normalizedActivityKey : undefined,
+    });
+  };
+
+  const moveActivitySlot = (activityKey: string, direction: -1 | 1) => {
+    if (!selectedUnitKey) return;
+    setUnits((current) => current.map((unit) =>
+      unit.unitKey === selectedUnitKey ? reorderActivitySlot(unit, activityKey, direction) : unit));
+    emit('teacher_materials_book_assembly_activity_slot_reordered', { unitKey: selectedUnitKey, activityKey, direction });
+  };
+
   const handleTreeKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || visibleTreeItems.length === 0) return;
     event.preventDefault();
@@ -392,7 +526,7 @@ const BookAssemblyWorkspace = ({
       setStatus('error');
       return;
     }
-    const unitKey = manifest.nodes.find((node) => node.nodeKey === selectedNodeKey && node.nodeType === 'unit')?.nodeKey;
+    const unitKey = selectedUnitKey;
     if (!unitKey) {
       setValidationMessage('Select or add a Unit before saving an Assembly candidate.');
       setStatus('error');
@@ -436,7 +570,7 @@ const BookAssemblyWorkspace = ({
         return;
       }
       setCandidate(result.candidate);
-      setSavedSnapshot(draftSnapshot(validManifest.sourceSet.sourceStrategy, validManifest.nodes, validManifest.sourceSet.sources));
+      setSavedSnapshot(draftSnapshot(validManifest.sourceSet.sourceStrategy, validManifest.nodes, validManifest.sourceSet.sources, validManifest.units));
       onDirtyChange?.(false);
       setStatus('saved');
       toast.success('Assembly draft saved.');
@@ -595,6 +729,7 @@ const BookAssemblyWorkspace = ({
             <div><dt>Strategy</dt><dd>{strategy}</dd></div>
             <div><dt>Sources</dt><dd>{normalizedSources.length}</dd></div>
             <div><dt>Nodes</dt><dd>{nodes.length}</dd></div>
+            <div><dt>Page Groups</dt><dd>{units.reduce((total, unit) => total + unit.pageGroups.length, 0)}</dd></div>
           </dl>
           {status === 'conflict' && (
             <div role="alert">
@@ -608,6 +743,106 @@ const BookAssemblyWorkspace = ({
           {errorMessage && <p role="alert">{errorMessage}</p>}
         </aside>
       </div>
+
+      <section className="book-assembly-workspace__mapping" aria-labelledby="book-assembly-mapping-title">
+        <div className="book-assembly-workspace__section-heading">
+          <div>
+            <h2 id="book-assembly-mapping-title">Page Groups and Activity slots</h2>
+            <p>Use `sourceKey` plus local one-based physical page numbers. Printed labels stay display-only.</p>
+          </div>
+        </div>
+        <div className="book-assembly-workspace__mapping-form">
+          <label>
+            Unit
+            <select
+              value={selectedUnitKey ?? ''}
+              onChange={(event) => requestNodeFocus(event.target.value || null)}
+              aria-label="Mapped Unit"
+            >
+              <option value="">Choose Unit</option>
+              {nodes.filter((node) => node.nodeType === 'unit').map((node) => (
+                <option key={node.nodeKey} value={node.nodeKey}>{node.nodeKey}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Source key
+            <select
+              value={mappingSourceKey}
+              onChange={(event) => setMappingSourceKey(event.target.value)}
+              aria-label="Mapping source key"
+            >
+              <option value="">Choose Source</option>
+              {availableMappingSources.map((source) => (
+                <option key={source.sourceKey} value={source.sourceKey}>
+                  {source.sourceKey}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Physical pages
+            <input
+              aria-label="One-based physical pages"
+              value={mappingPages}
+              onChange={(event) => setMappingPages(event.target.value)}
+              placeholder="1,2"
+            />
+          </label>
+          <label>
+            Default physical page
+            <input
+              aria-label="Default physical page"
+              value={mappingDefaultPage}
+              onChange={(event) => setMappingDefaultPage(event.target.value)}
+              placeholder="1"
+            />
+          </label>
+          <label>
+            Mode
+            <select
+              value={mappingMode}
+              onChange={(event) => setMappingMode(event.target.value as PageGroupMode)}
+              aria-label="Page Group mode"
+            >
+              <option value="activity">Activity</option>
+              <option value="reference_only">Reference only</option>
+            </select>
+          </label>
+          {mappingMode === 'activity' && (
+            <>
+              <label>
+                Activity key
+                <input
+                  aria-label="Activity key"
+                  value={mappingActivityKey}
+                  onChange={(event) => setMappingActivityKey(event.target.value)}
+                />
+              </label>
+              <label>
+                Context requirement
+                <select
+                  aria-label="Context requirement"
+                  value={mappingContextRequirement}
+                  onChange={(event) => setMappingContextRequirement(event.target.value as ActivityContextRequirement)}
+                >
+                  <option value="required">Required</option>
+                  <option value="optional">Optional</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+            </>
+          )}
+          <button type="button" onClick={addMapping}>Add mapping</button>
+        </div>
+        {selectedUnit && (
+          <PageGroupMappingSummary
+            selectedUnit={selectedUnit}
+            missingRequiredActivityKeys={selectedUnitMissingContext}
+            onMoveActivitySlot={moveActivitySlot}
+          />
+        )}
+      </section>
     </main>
   );
 };

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import BookMode2EditorShell from '../components/books/BookMode2EditorShell';
 import type { UnitAssemblyRepository } from '../services/book-assembly/unitAssembly.repository';
@@ -50,6 +50,24 @@ const initialManifest: BookAssemblyManifestCandidate = {
   units: [],
 };
 
+const componentMappingManifest: BookAssemblyManifestCandidate = {
+  bookId: BOOK_ID,
+  sourceSet: {
+    sourceStrategy: 'component_pdfs',
+    sources: [
+      { sourceKey: 'source-source-component-a', sourceVersionId: 'source-component-a', sourceOrder: 1, ownerNodeKey: 'section-component-a' },
+      { sourceKey: 'source-source-component-b', sourceVersionId: 'source-component-b', sourceOrder: 2, ownerNodeKey: 'section-component-b' },
+    ],
+  },
+  nodes: [
+    { nodeKey: 'section-component-a', parentNodeKey: null, nodeType: 'section', order: 1 },
+    { nodeKey: 'unit-component-a', parentNodeKey: 'section-component-a', nodeType: 'unit', order: 1 },
+    { nodeKey: 'section-component-b', parentNodeKey: null, nodeType: 'section', order: 2 },
+    { nodeKey: 'unit-component-b', parentNodeKey: 'section-component-b', nodeType: 'unit', order: 1 },
+  ],
+  units: [],
+};
+
 const createCandidate = (
   manifest: BookAssemblyManifestCandidate,
   revision: number,
@@ -83,15 +101,21 @@ const decodeCandidate = (value: string | null): BookAssemblyCandidateRecord | nu
 export default function BookAssemblyWorkspaceSmokePage() {
   const { user, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const fixture = searchParams.get('fixture') ?? 'ticket56';
+  const defaultCandidate = fixture === 'ticket57-component'
+    ? createCandidate(componentMappingManifest, 1)
+    : fixture === 'ticket57-full'
+      ? createCandidate(initialManifest, 1)
+      : null;
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(() =>
-    decodeCandidate(searchParams.get('candidate')));
-  const [forceConflict, setForceConflict] = useState(false);
+    decodeCandidate(searchParams.get('candidate')) ?? defaultCandidate);
+  const forceConflictRef = useRef(false);
   const [dirty, setDirty] = useState(false);
 
   const persistCandidate = useCallback((next: BookAssemblyCandidateRecord) => {
     setCandidate(next);
-    setSearchParams({ fixture: 'ticket56', candidate: encodeCandidate(next) }, { replace: true });
-  }, [setSearchParams]);
+    setSearchParams({ fixture, candidate: encodeCandidate(next) }, { replace: true });
+  }, [fixture, setSearchParams]);
 
   const repository = useMemo<UnitAssemblyRepository>(() => {
     const mutationResult = (
@@ -120,10 +144,10 @@ export default function BookAssemblyWorkspaceSmokePage() {
         return mutationResult('created', next);
       },
       replace: async (input) => {
-        if (forceConflict) {
+        if (forceConflictRef.current) {
           const remote = createCandidate(candidate?.manifest ?? initialManifest, (candidate?.revision ?? 1) + 1);
           persistCandidate(remote);
-          setForceConflict(false);
+          forceConflictRef.current = false;
           return mutationResult('conflict');
         }
         const next = createCandidate(input.manifest, (candidate?.revision ?? input.expectedCandidateRevision) + 1);
@@ -138,14 +162,14 @@ export default function BookAssemblyWorkspaceSmokePage() {
         status: 'loaded',
       }),
     };
-  }, [candidate, forceConflict, persistCandidate]);
+  }, [candidate, persistCandidate]);
 
   const signedInLabel = user
     ? `${profile?.role ?? 'user'} ${user.email ?? user.uid}`
     : 'not signed in';
 
   return (
-    <main style={{ display: 'grid', gap: 16, padding: 24 }}>
+    <main style={{ display: 'grid', gap: 16, maxWidth: '100%', overflowX: 'clip', padding: 'clamp(12px, 4vw, 24px)' }}>
       <header>
         <p style={{ margin: 0, color: '#5d687b', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
           Ticket 56 fixture
@@ -155,7 +179,9 @@ export default function BookAssemblyWorkspaceSmokePage() {
         <p style={{ margin: '8px 0 0' }} data-testid="ticket56-dirty-state">
           Draft dirty: {dirty ? 'yes' : 'no'}
         </p>
-        <button type="button" onClick={() => setForceConflict(true)}>
+        <button type="button" onClick={() => {
+          forceConflictRef.current = true;
+        }}>
           Simulate remote conflict
         </button>
       </header>

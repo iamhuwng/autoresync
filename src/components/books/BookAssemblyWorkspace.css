@@ -7,7 +7,7 @@
 .book-assembly-workspace button:hover:not(:disabled), .book-assembly-workspace button:focus-visible { border-color: #1e5d8f; outline: 3px solid #b8d9f2; outline-offset: 1px; }
 .book-assembly-workspace button:disabled { cursor: not-allowed; opacity: .55; }
 .book-assembly-workspace__header > button { background: #1e5d8f; color: #fff; border-color: #1e5d8f; }
-.book-assembly-workspace__strategy, .book-assembly-workspace__sources, .book-assembly-workspace__tree, .book-assembly-workspace__details { border: 1px solid #d4dce3; border-radius: .5rem; padding: 1rem; }
+.book-assembly-workspace__strategy, .book-assembly-workspace__sources, .book-assembly-workspace__tree, .book-assembly-workspace__details, .book-assembly-workspace__mapping { border: 1px solid #d4dce3; border-radius: .5rem; padding: 1rem; }
 .book-assembly-workspace__strategy { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: center; }
 .book-assembly-workspace__strategy h2, .book-assembly-workspace__strategy p { flex-basis: 100%; }
 .book-assembly-workspace__strategy p, .book-assembly-workspace__sources span { margin: 0; color: #5d6b78; font-size: .9rem; }
@@ -29,6 +29,15 @@
 .book-assembly-workspace__details dl div { display: flex; justify-content: space-between; gap: 1rem; }
 .book-assembly-workspace__details dt { color: #5d6b78; }
 .book-assembly-workspace__details dd { margin: 0; font-weight: 700; }
+.book-assembly-workspace__mapping { display: grid; gap: 1rem; }
+.book-assembly-workspace__mapping-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .75rem; align-items: end; }
+.book-assembly-workspace__mapping-form label { display: grid; gap: .25rem; min-width: 0; color: #334155; font-weight: 700; }
+.book-assembly-workspace__mapping-form input, .book-assembly-workspace__mapping-form select { width: 100%; min-height: 2.75rem; border: 1px solid #697786; border-radius: .375rem; background: #fff; color: inherit; }
+.book-assembly-workspace__mapping-summary { display: grid; gap: .65rem; min-width: 0; }
+.book-assembly-workspace__mapping-summary h3 { margin: 0; font-size: .95rem; }
+.book-assembly-workspace__mapping-summary ol { display: grid; gap: .5rem; margin: 0; padding-left: 1.25rem; }
+.book-assembly-workspace__mapping-summary li { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; min-width: 0; overflow-wrap: anywhere; }
+.book-assembly-workspace [role="alert"] { border: 1px solid #d97706; border-radius: .5rem; padding: .65rem; background: #fff7ed; color: #7c2d12; }
 @media (max-width: 700px) {
   .book-assembly-workspace { padding: .85rem; overflow-x: clip; }
   .book-assembly-workspace__header, .book-assembly-workspace__section-heading { flex-direction: column; }
@@ -38,4 +47,6 @@
   .book-assembly-workspace__sources ol li { align-items: stretch; flex-direction: column; }
   .book-assembly-workspace__sources select { max-width: 100%; width: 100%; }
   .book-assembly-workspace__actions button, .book-assembly-workspace__node-actions button { flex: 1 1 8rem; }
+  .book-assembly-workspace__mapping-form { grid-template-columns: minmax(0, 1fr); }
+  .book-assembly-workspace__mapping-summary li { display: grid; }
 }
