@@ -8,6 +8,22 @@ const activities = [
   { activityId: 'activity-3', pageGroupKey: 'group-2' },
 ];
 
+const components = [
+  { componentId: 'component-1', sourceOrder: 1, activityIds: ['activity-1', 'activity-2'] },
+  { componentId: 'component-2', sourceOrder: 2, activityIds: ['activity-3'] },
+];
+
+const componentActivities = [
+  { ...activities[0]!, componentIds: ['component-1'] },
+  { ...activities[1]!, componentIds: ['component-1'] },
+  { ...activities[2]!, componentIds: ['component-2'] },
+];
+
+const scopedComponents = [
+  { ...components[0]!, localPageScope: { kind: 'pages' as const, pages: [2, 4] } },
+  components[1]!,
+];
+
 describe('useBookRuntimeNavigation', () => {
   it('normalizes URL-derived activity state and flushes before navigation', async () => {
     const events: string[] = [];
@@ -78,5 +94,58 @@ describe('useBookRuntimeNavigation', () => {
       result.current.setDesktopView('pdf-focus');
     });
     expect(result.current.state).toMatchObject({ desktopView: 'pdf-focus', mobileTab: 'page' });
+  });
+
+  it('crosses component boundaries and restores a page per component', async () => {
+    const events: string[] = [];
+    const { result } = renderHook(() => useBookRuntimeNavigation({
+      activities: componentActivities,
+      components,
+      initialState: {
+        activityId: 'activity-2',
+        componentId: 'component-1',
+        componentPageById: { 'component-1': 2, 'component-2': 1 },
+      },
+      onNavigate: (state, reason) => events.push(`${reason}:${state.componentId}:${state.activityId}`),
+    }));
+
+    expect(result.current.state).toMatchObject({
+      activityId: 'activity-2',
+      componentId: 'component-1',
+      componentPageById: { 'component-1': 2, 'component-2': 1 },
+    });
+
+    act(() => result.current.selectComponent('component-2'));
+    await waitFor(() => expect(result.current.state).toMatchObject({
+      activityId: 'activity-3',
+      componentId: 'component-2',
+    }));
+    act(() => result.current.setComponentPage('component-2', 2));
+    expect(result.current.state.componentPageById).toMatchObject({ 'component-1': 2, 'component-2': 2 });
+
+    act(() => result.current.previousActivity());
+    await waitFor(() => expect(result.current.state).toMatchObject({
+      activityId: 'activity-2',
+      componentId: 'component-1',
+    }));
+    expect(result.current.state.componentPageById).toMatchObject({ 'component-1': 2, 'component-2': 2 });
+    expect(events).toEqual([
+      'component-selected:component-2:activity-3',
+      'previous-activity:component-1:activity-2',
+    ]);
+  });
+
+  it('fails closed for pages outside a component local page scope', () => {
+    const { result } = renderHook(() => useBookRuntimeNavigation({
+      activities: componentActivities,
+      components: scopedComponents,
+      initialState: { componentId: 'component-1', componentPageById: { 'component-1': 3 } },
+    }));
+
+    expect(result.current.state.componentPageById['component-1']).toBe(2);
+    act(() => result.current.setComponentPage('component-1', 3));
+    expect(result.current.state.componentPageById['component-1']).toBe(2);
+    act(() => result.current.setComponentPage('component-1', 4));
+    expect(result.current.state.componentPageById['component-1']).toBe(4);
   });
 });

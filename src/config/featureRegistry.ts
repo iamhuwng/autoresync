@@ -80,6 +80,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'reading_v2_assignment_payload_missing',
       'reading_v2_frozen_runtime_launched',
       'bookRuntimePageGroupSelected',
+      'bookRuntimeComponentSelected',
+      'bookRuntimeComponentPageChanged',
       'bookRuntimeActivitySelected',
       'bookRuntimeActivityNavigated',
       'bookRuntimePdfFocused',

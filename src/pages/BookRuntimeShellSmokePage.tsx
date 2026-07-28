@@ -92,6 +92,78 @@ const deliveryProjection: BookRuntimeDeliveryProjection = {
   },
 };
 
+const componentDeliveryProjection: BookRuntimeDeliveryProjection = {
+  ...deliveryProjection,
+  bindingId: 'binding-student-components-fixture',
+  bindingRevision: 4,
+  sourceSet: {
+    strategy: 'component_pdfs',
+    sources: [
+      {
+        sourceKey: 'component-pdf-2',
+        sourceVersionId: 'source-component-v2',
+        lifecycle: 'verified-usable',
+        sourceOrder: 2,
+        ownerNodeKey: 'group-2',
+        localPageScope: { kind: 'pages', pages: [1, 2] },
+      },
+      {
+        sourceKey: 'component-pdf-1',
+        sourceVersionId: 'source-component-v1',
+        lifecycle: 'verified-usable',
+        sourceOrder: 1,
+        ownerNodeKey: 'group-1',
+        localPageScope: { kind: 'pages', pages: [1, 2, 3] },
+      },
+    ],
+  },
+  documentRequests: [
+    {
+      sourceKey: 'component-pdf-2',
+      sourceVersionId: 'source-component-v2',
+      opaqueRouteKey: 'component-route-v2',
+      localPageScope: { kind: 'pages', pages: [1, 2] },
+    },
+    {
+      sourceKey: 'component-pdf-1',
+      sourceVersionId: 'source-component-v1',
+      opaqueRouteKey: 'component-route-v1',
+      localPageScope: { kind: 'pages', pages: [1, 2, 3] },
+    },
+  ],
+  activities: [
+    {
+      ...deliveryProjection.activities[0]!,
+      sourceContext: {
+        available: true,
+        description: 'Component 1 Â· Book Page 1.',
+        sourcePageScopes: [{ sourceKey: 'component-pdf-1', pages: [1] }],
+      },
+    },
+    {
+      ...deliveryProjection.activities[1]!,
+      sourceContext: {
+        available: true,
+        description: 'Component 1 Â· Book Page 2.',
+        sourcePageScopes: [{ sourceKey: 'component-pdf-1', pages: [2] }],
+      },
+    },
+    {
+      ...deliveryProjection.activities[2]!,
+      sourceContext: {
+        available: true,
+        description: 'Component 2 Â· Book Page 1.',
+        sourcePageScopes: [{ sourceKey: 'component-pdf-2', pages: [1] }],
+      },
+    },
+  ],
+  provenance: {
+    ...deliveryProjection.provenance,
+    bindingId: 'binding-student-components-fixture',
+    bindingRevision: 4,
+  },
+};
+
 const choiceProjection = {
   schemaVersion: 1,
   title: 'Choose the best answer.',
@@ -170,6 +242,30 @@ let fixtureRuntimeMode: FixtureRuntimeMode = 'none';
 
 const FIXTURE_RUNTIME_STORE_KEY = 'prd0062-book-runtime-worker-fixture-v1';
 
+const componentPagesFromSearchParams = (searchParams: URLSearchParams): Readonly<Record<string, number>> => {
+  const pages: Record<string, number> = {};
+  const serialized = searchParams.get('componentPages') ?? '';
+  serialized.split(',').forEach((entry) => {
+    const separator = entry.lastIndexOf(':');
+    if (separator <= 0) return;
+    const componentId = entry.slice(0, separator);
+    const page = Number(entry.slice(separator + 1));
+    if (componentId && Number.isSafeInteger(page) && page > 0) pages[componentId] = page;
+  });
+  const activeComponentId = searchParams.get('component');
+  const activePage = Number(searchParams.get('componentPage'));
+  if (activeComponentId && Number.isSafeInteger(activePage) && activePage > 0) {
+    pages[activeComponentId] = activePage;
+  }
+  return pages;
+};
+
+const componentPagesToSearchParam = (pages: Readonly<Record<string, number>>): string => Object.entries(pages)
+  .filter(([, page]) => Number.isSafeInteger(page) && page > 0)
+  .sort(([left], [right]) => left.localeCompare(right))
+  .map(([componentId, page]) => `${componentId}:${page}`)
+  .join(',');
+
 const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
   const requestUrl = new URL(input instanceof Request ? input.url : String(input));
   if (!requestUrl.pathname.startsWith('/book-runtime/')) {
@@ -238,12 +334,14 @@ const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
 const viewer: BookRuntimeViewerAdapter = {
   title: 'Reference PDF',
   status: { state: 'ready', message: 'Reference PDF ready.' },
-  render: ({ activeActivityId, pageGroupKey, request, view }) => (
+  render: ({ activeActivityId, pageGroupKey, componentId, physicalPageNumber, request, view }) => (
     <section aria-label="Reference-only PDF" data-testid="reference-only-pdf">
       <p style={{ marginTop: 0, fontWeight: 700 }}>Reference-only PDF</p>
       <p>PDF focus: {view === 'pdf-focus' ? 'focused' : 'split'}.</p>
       <p>Page Group: {pageGroupKey}</p>
       <p>Activity anchor: {activeActivityId}</p>
+      <p>Component: {componentId}</p>
+      <p>Component page: {physicalPageNumber}</p>
       <p>Source: {request?.sourceVersionId ?? 'unavailable'}</p>
       <div
         aria-label="PDF page canvas"
@@ -260,8 +358,18 @@ export default function BookRuntimeShellSmokePage() {
   const { user, profile } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
   const [searchParams, setSearchParams] = useSearchParams();
+  const componentMode = searchParams.get('strategy') === 'components';
+  const activeProjection = componentMode ? componentDeliveryProjection : deliveryProjection;
+  const requestedComponentId = searchParams.get('component');
+  const initialActivityId = searchParams.get('activity')
+    ?? (requestedComponentId
+      ? activeProjection.activities.find((activity) => activity.sourceContext.sourcePageScopes.some(
+        (scope) => scope.sourceKey === requestedComponentId,
+      ))?.activityId
+      : undefined)
+    ?? fixtureActivities[0]!.activityId;
   const [activeActivityId, setActiveActivityId] = useState(
-    searchParams.get('activity') ?? fixtureActivities[0]!.activityId,
+    initialActivityId,
   );
   const previousPersistenceStatus = useRef<string | null>(null);
   const requestedBookId = searchParams.get('bookId');
@@ -269,15 +377,15 @@ export default function BookRuntimeShellSmokePage() {
   const requestedActivityId = searchParams.get('activity');
   const requestedPageGroupKey = searchParams.get('pageGroup');
   const requestedActivity = fixtureActivities.find((activity) => activity.activityId === requestedActivityId);
-  const requestedPageGroupExists = deliveryProjection.activities.some(
+  const requestedPageGroupExists = activeProjection.activities.some(
     (activity) => activity.nodeKey === requestedPageGroupKey,
   );
   const activeFixtureActivity = fixtureActivities.find(
     (activity) => activity.activityId === activeActivityId,
   ) ?? fixtureActivities[0]!;
-  const activePlacement = deliveryProjection.activities.find(
+  const activePlacement = activeProjection.activities.find(
     (activity) => activity.activityId === activeFixtureActivity.activityId,
-  ) ?? deliveryProjection.activities[0]!;
+  ) ?? activeProjection.activities[0]!;
   const activeInteractionIds = useMemo(() => (
     Array.isArray((activeFixtureActivity.projection as { interactions?: unknown }).interactions)
       ? ((activeFixtureActivity.projection as { interactions: Array<{ interactionId: string }> }).interactions)
@@ -285,13 +393,13 @@ export default function BookRuntimeShellSmokePage() {
       : []
   ), [activeFixtureActivity]);
   const runtimeAddress = useMemo(() => ({
-    bindingId: deliveryProjection.bindingId,
-    bindingRevision: deliveryProjection.bindingRevision,
-    contextId: deliveryProjection.context.contextId,
+    bindingId: activeProjection.bindingId,
+    bindingRevision: activeProjection.bindingRevision,
+    contextId: activeProjection.context.contextId,
     placementId: activePlacement.placementId,
     activityId: activePlacement.activityId,
     activityVersion: activePlacement.activityVersion,
-  }), [activePlacement]);
+  }), [activePlacement, activeProjection]);
   const runtimeClient = useMemo(() => createBookRuntimeClient({
     baseUrl: typeof window === 'undefined' ? 'http://localhost:5174' : window.location.origin,
     getIdToken: async () => 'student-fixture-token',
@@ -311,7 +419,7 @@ export default function BookRuntimeShellSmokePage() {
   }, [activeFixtureActivity, activePlacement]);
   const runtime = useBookActivityRuntime({
     client: runtimeClient,
-    recipientId: deliveryProjection.recipientId,
+    recipientId: activeProjection.recipientId,
     address: runtimeAddress,
     interactionIds: activeInteractionIds,
     serializeResponse,
@@ -325,16 +433,27 @@ export default function BookRuntimeShellSmokePage() {
   const initialNavigation = useMemo<Partial<BookRuntimeNavigationState>>(() => ({
     activityId: searchParams.get('activity') ?? undefined,
     pageGroupKey: searchParams.get('pageGroup') ?? undefined,
-  }), [searchParams]);
+    componentId: searchParams.get('component') ?? undefined,
+    componentPageById: componentMode ? componentPagesFromSearchParams(searchParams) : undefined,
+  }), [componentMode, searchParams]);
   const onNavigationStateChange = useCallback((state: BookRuntimeNavigationState) => {
     setActiveActivityId(state.activityId);
     const next = new URLSearchParams(searchParams);
-    next.set('bookId', deliveryProjection.book.bookId);
+    next.set('bookId', activeProjection.book.bookId);
     next.set('unitKey', 'unit-fixture');
     next.set('pageGroup', state.pageGroupKey);
     next.set('activity', state.activityId);
+    if (componentMode) {
+      next.set('component', state.componentId);
+      next.set('componentPage', String(state.componentPageById[state.componentId] ?? 1));
+      next.set('componentPages', componentPagesToSearchParam(state.componentPageById));
+    } else {
+      next.delete('component');
+      next.delete('componentPage');
+      next.delete('componentPages');
+    }
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [activeProjection, componentMode, searchParams, setSearchParams]);
   const onResponseChange = useCallback((interactionId: string, response: unknown) => {
     runtime.change(interactionId, response);
   }, [runtime]);
@@ -381,12 +500,12 @@ export default function BookRuntimeShellSmokePage() {
   }
 
   if (
-    (requestedBookId && requestedBookId !== deliveryProjection.book.bookId) ||
+    (requestedBookId && requestedBookId !== activeProjection.book.bookId) ||
     (requestedUnitKey && requestedUnitKey !== 'unit-fixture') ||
     (requestedActivityId && !requestedActivity) ||
     (requestedPageGroupKey && !requestedPageGroupExists) ||
     (requestedActivity && requestedPageGroupKey &&
-      deliveryProjection.activities.find((activity) => activity.activityId === requestedActivity.activityId)?.nodeKey !== requestedPageGroupKey)
+      activeProjection.activities.find((activity) => activity.activityId === requestedActivity.activityId)?.nodeKey !== requestedPageGroupKey)
   ) {
     return (
       <main style={{ padding: 24 }}>
@@ -421,7 +540,7 @@ export default function BookRuntimeShellSmokePage() {
       </div>
       <BookRuntimeShell
         activities={fixtureActivities}
-        deliveryProjection={deliveryProjection}
+        deliveryProjection={activeProjection}
         initialNavigation={initialNavigation}
         onAction={(action, metadata) => trackAction(action, metadata)}
         onFlushBeforeNavigate={onFlushBeforeNavigate}
@@ -429,7 +548,7 @@ export default function BookRuntimeShellSmokePage() {
         onResponseChange={onResponseChange}
         personalTimer={(
           <PersonalTimer
-            timerKey={`${deliveryProjection.recipientId}:${deliveryProjection.bindingId}:${deliveryProjection.context.contextId}`}
+            timerKey={`${activeProjection.recipientId}:${activeProjection.bindingId}:${activeProjection.context.contextId}`}
           />
         )}
         registry={bookActivityRendererRegistry}

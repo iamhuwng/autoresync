@@ -1,0 +1,115 @@
+{
+  "generatedAt": "2026-07-28",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket79-closed.json",
+  "issueHash": "b44c8ade503faff60902386987c5996d30e3fa96819368b4412ed410544f8b5c",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 60,
+    "closedCount": 52,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "mandatoryTransitiveGate": {
+    "unresolvedTicketsAudited": 60,
+    "completeChainSource": "Every open ticket record in sourceGraph.records contains its complete transitivePrerequisites and openTransitivePrerequisites.",
+    "selectedTicketOpenTransitivePrerequisites": [],
+    "rejectedIneligibleTickets": {
+      "rule": "Any open direct or transitive prerequisite, ownership blocker, or non-executable acceptance gate makes a ticket ineligible.",
+      "tickets": []
+    }
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected-authority",
+      "reason": "Foundation private-B2 provisioning remains authority-blocked; private-B2 must stay disabled."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-authority",
+      "reason": "Foundation private-B2 reconciliation remains authority-blocked; 50A all-six-deny/default-deny must stay unchanged."
+    },
+    {
+      "ticket": 76,
+      "decision": "rejected-acceptance-readiness",
+      "reason": "Graph-clear, but live contract still owns deployed submission/rollback proof without destination-first owner or executable deployment authority; generated rules remain #09E-owned."
+    },
+    {
+      "ticket": 81,
+      "decision": "selected",
+      "reason": "Earliest eligible Book Homework enabler in the current teacher/student workflow phase. Direct and complete transitive prerequisites are CLOSED; browser is explicitly not independently required; local schema, compatibility, dependency-boundary, preview-fixture, and disabled-capability rollback gates are executable with no new authority. Downstream leverage is 44."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-phase",
+      "reason": "Later operations/notification phase; #81 is the earlier homework-domain enabler."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-phase",
+      "reason": "Later public catalog/access phase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser reconciliation."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected-phase",
+      "reason": "Final-closure assembled Student browser reconciliation."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device reconciliation."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security reconciliation."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/backup/recovery reconciliation."
+    }
+  ],
+  "blockedCandidateRecord": {
+    "ticket": 49,
+    "owner": "#49/#50 contract owners with private-B2 authority owner",
+    "requiredAction": "Obtain canonical approval and executable provisioning authority before enabling private-B2; preserve 50A all-six-deny/default-deny and 03B disabled.",
+    "evidence": "Live #49/#50 contracts and current safety policy prohibit private-B2 activation in this checkpoint.",
+    "impact": "#49/#50 and descendants requiring private-B2 activation remain ineligible; #81 is independent of that blocker family."
+  },
+  "selection": {
+    "primaryTicket": 81,
+    "title": "PRD0062 33A — Model frozen Book Homework manifest",
+    "status": "selected-teacher-student-workflow",
+    "roadmapPhase": "teacher-workflow-and-student-homework",
+    "directClosedPrerequisites": [32, 34, 72],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 44,
+    "acceptanceReadiness": "Local typed manifest/schema, deterministic builder, legacy compatibility, dependency-boundary, preview-fixture, and disabled-capability rollback gates are executable. Browser proof is explicitly owned by #33B and is not independently required by #81.",
+    "requiredAuthority": [
+      "closed #32 Book tree candidate, #34 Activity contract, and #72 Delivery projection",
+      "local schema/fixture/emulator authority only",
+      "no new credentials or remote activation",
+      "trusted actions disabled; preserve #50A all-six-deny/default-deny, #03B disabled, private-B2 disabled"
+    ]
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "reopenedTickets": [],
+    "full112TicketScope": "preserved"
+  }
+}

@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ActivityResponseCodec } from '../../services/book-activity/runtime/activityResponseCodec.types';
 import { createActivityRendererRegistry } from '../../services/book-activity/runtime/activityRendererRegistry';
 import {
@@ -9,6 +9,8 @@ import {
 } from '../../services/book-activity/runtime/activityRenderer.types';
 import type { BookRuntimeDeliveryProjection } from '../../services/book-delivery/bookDelivery.types';
 import { BookRuntimeShell } from './BookRuntimeShell';
+
+afterEach(cleanup);
 
 const codec: ActivityResponseCodec<string> = {
   maxSerializedBytes: 100,

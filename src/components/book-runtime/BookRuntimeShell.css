@@ -152,6 +152,52 @@
   padding: 6px 10px;
 }
 
+.book-runtime-shell__component-selector {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--runtime-outline) 28%, transparent);
+  border-radius: 12px;
+  background: var(--runtime-surface);
+}
+
+.book-runtime-shell__component-selector h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.book-runtime-shell__component-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.book-runtime-shell__component-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.book-runtime-shell__component-page {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--runtime-body);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.book-runtime-shell__component-page input {
+  width: 88px;
+  min-height: 44px;
+  border: 1px solid var(--runtime-outline);
+  border-radius: 8px;
+  color: var(--runtime-text);
+  font: inherit;
+  padding: 8px;
+}
+
 .book-runtime-shell__workspace {
   display: grid;
   grid-template-columns: minmax(56px, 0.22fr) minmax(0, 1.35fr) minmax(280px, 0.9fr);

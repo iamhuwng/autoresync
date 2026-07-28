@@ -6,9 +6,14 @@ import type {
   BookRuntimeDeliveryProjection,
 } from '../../services/book-delivery/bookDelivery.types';
 import {
+  createBookDeliveryComponentProjection,
+} from '../../services/book-delivery/bookDeliveryComponentProjection.service';
+import type { BookDeliveryComponentProjection } from '../../services/book-delivery/bookDeliveryComponentProjection.types';
+import {
   useBookRuntimeNavigation,
   type BookRuntimeDesktopView,
   type BookRuntimeMobileTab,
+  type BookRuntimeNavigationComponent,
   type BookRuntimeNavigationReason,
   type BookRuntimeNavigationState,
 } from '../../hooks/book-runtime/useBookRuntimeNavigation';
@@ -29,6 +34,10 @@ export interface BookRuntimeShellActivity {
 export interface BookRuntimeViewerRenderInput {
   readonly activeActivityId: string;
   readonly pageGroupKey: string;
+  readonly componentId: string;
+  readonly componentOrder: number;
+  readonly componentCount: number;
+  readonly physicalPageNumber: number;
   readonly request: BookRuntimeDeliveryDocumentRequest | null;
   readonly view: BookRuntimeDesktopView;
 }
@@ -44,6 +53,8 @@ export interface BookRuntimeViewerAdapter {
 
 export type BookRuntimeAction =
   | 'bookRuntimePageGroupSelected'
+  | 'bookRuntimeComponentSelected'
+  | 'bookRuntimeComponentPageChanged'
   | 'bookRuntimeActivitySelected'
   | 'bookRuntimeActivityNavigated'
   | 'bookRuntimePdfFocused'
@@ -85,12 +96,14 @@ export interface BookRuntimeShellProps {
 
 interface ResolvedRuntimeActivity extends BookRuntimeShellActivity {
   readonly pageGroupKey: string;
+  readonly componentIds: readonly string[];
   readonly label: string;
   readonly placement: BookRuntimeDeliveryProjection['activities'][number];
 }
 
 interface ActivityResolution {
   readonly activities: readonly ResolvedRuntimeActivity[];
+  readonly componentProjection: BookDeliveryComponentProjection | null;
   readonly error: string | null;
 }
 
@@ -98,10 +111,24 @@ const resolveActivities = (
   deliveryProjection: BookRuntimeDeliveryProjection,
   activities: readonly BookRuntimeShellActivity[],
 ): ActivityResolution => {
+  let componentProjection: BookDeliveryComponentProjection;
+  try {
+    componentProjection = createBookDeliveryComponentProjection(deliveryProjection);
+  } catch {
+    return {
+      activities: [],
+      componentProjection: null,
+      error: 'Book Delivery component projection is unavailable or stale.',
+    };
+  }
   const byId = new Map<string, BookRuntimeShellActivity>();
   for (const activity of activities) {
     if (byId.has(activity.activityId)) {
-      return { activities: [], error: 'Book Activity projection contains a duplicate Activity ID.' };
+      return {
+        activities: [],
+        componentProjection: null,
+        error: 'Book Activity projection contains a duplicate Activity ID.',
+      };
     }
     byId.set(activity.activityId, activity);
   }
@@ -110,14 +137,26 @@ const resolveActivities = (
     (left, right) => left.order - right.order || left.activityId.localeCompare(right.activityId),
   );
   if (placements.length === 0) {
-    return { activities: [], error: 'Book Delivery projection contains no Activities.' };
+    return {
+      activities: [],
+      componentProjection: null,
+      error: 'Book Delivery projection contains no Activities.',
+    };
   }
+  const componentIdForSource = new Map(
+    componentProjection.components.map((component) => [component.sourceKey, component.componentId]),
+  );
+  const defaultComponentId = componentProjection.components[0]?.componentId ?? 'full-pdf';
   const resolved = placements.map((placement): ResolvedRuntimeActivity | null => {
     const activity = byId.get(placement.activityId);
     if (!activity) return null;
+    const componentIds = placement.sourceContext.sourcePageScopes
+      .map((scope) => componentIdForSource.get(scope.sourceKey))
+      .filter((componentId): componentId is string => componentId !== undefined);
     return {
       ...activity,
       pageGroupKey: placement.nodeKey,
+      componentIds: Object.freeze(componentIds.length > 0 ? componentIds : [defaultComponentId]),
       label: activity.label?.trim() || placement.activityId,
       placement,
     };
@@ -125,10 +164,15 @@ const resolveActivities = (
   if (resolved.some((activity) => activity === null) || byId.size !== placements.length) {
     return {
       activities: [],
+      componentProjection: null,
       error: 'Book Delivery projection and Activity projections do not match.',
     };
   }
-  return { activities: resolved as ResolvedRuntimeActivity[], error: null };
+  return {
+    activities: resolved as ResolvedRuntimeActivity[],
+    componentProjection,
+    error: null,
+  };
 };
 
 const ShellFailure = ({ message }: { message: string }) => (
@@ -171,16 +215,24 @@ export const BookRuntimeShell = (props: BookRuntimeShellProps) => {
     [props.activities, props.deliveryProjection],
   );
   if (resolution.error) return <ShellFailure message={resolution.error} />;
-  return <BookRuntimeShellReady {...props} activities={resolution.activities} />;
+  return (
+    <BookRuntimeShellReady
+      {...props}
+      activities={resolution.activities}
+      componentProjection={resolution.componentProjection!}
+    />
+  );
 };
 
 interface BookRuntimeShellReadyProps extends Omit<BookRuntimeShellProps, 'activities'> {
   readonly activities: readonly ResolvedRuntimeActivity[];
+  readonly componentProjection: BookDeliveryComponentProjection;
 }
 
 const BookRuntimeShellReady = ({
   deliveryProjection,
   activities,
+  componentProjection,
   registry,
   viewer,
   responses,
@@ -195,11 +247,25 @@ const BookRuntimeShellReady = ({
   persistence,
 }: BookRuntimeShellReadyProps) => {
   const navigationActivities = useMemo(
-    () => activities.map(({ activityId, pageGroupKey }) => ({ activityId, pageGroupKey })),
+    () => activities.map(({ activityId, pageGroupKey, componentIds }) => ({
+      activityId,
+      pageGroupKey,
+      componentIds,
+    })),
     [activities],
+  );
+  const navigationComponents = useMemo<readonly BookRuntimeNavigationComponent[]>(
+    () => componentProjection.components.map(({ componentId, sourceOrder, activityIds, localPageScope }) => ({
+      componentId,
+      sourceOrder,
+      activityIds,
+      localPageScope,
+    })),
+    [componentProjection],
   );
   const navigation = useBookRuntimeNavigation({
     activities: navigationActivities,
+    components: navigationComponents,
     initialState: initialNavigation,
     onFlushBeforeNavigate,
     onNavigate: onNavigationStateChange,
@@ -218,11 +284,19 @@ const BookRuntimeShellReady = ({
   }, [activeActivity.activityId]);
 
   const pageGroups = navigation.pageGroups;
-  const request = activeActivity.placement.sourceContext.sourcePageScopes[0]
-    ? deliveryProjection.documentRequests.find(
-      (candidate) => candidate.sourceKey === activeActivity.placement.sourceContext.sourcePageScopes[0]?.sourceKey,
-    ) ?? null
-    : deliveryProjection.documentRequests[0] ?? null;
+  const activeComponent = componentProjection.components.find(
+    (component) => component.componentId === navigation.state.componentId,
+  );
+  const request = activeComponent?.documentRequest
+    ?? componentProjection.fullPdfRequest
+    ?? (activeActivity.placement.sourceContext.sourcePageScopes[0]
+      ? deliveryProjection.documentRequests.find(
+        (candidate) => candidate.sourceKey === activeActivity.placement.sourceContext.sourcePageScopes[0]?.sourceKey,
+      ) ?? null
+      : deliveryProjection.documentRequests[0] ?? null);
+  const activeComponentOrder = activeComponent?.sourceOrder ?? 1;
+  const activeComponentPage = navigation.state.componentPageById[navigation.state.componentId] ?? 1;
+  const activeComponentPageScope = activeComponent?.localPageScope;
   const activeGroupActivities = activities.filter(
     (activity) => activity.pageGroupKey === activeActivity.pageGroupKey,
   );
@@ -313,6 +387,78 @@ const BookRuntimeShellReady = ({
           Activity
         </button>
       </div>
+
+      {componentProjection.components.length > 0 ? (
+        <section
+          aria-label="Authorized components"
+          className="book-runtime-shell__component-selector"
+          data-testid="book-runtime-component-selector"
+        >
+          <div className="book-runtime-shell__panel-heading">
+            <div>
+              <p className="book-runtime-shell__eyebrow">Book components</p>
+              <h2>Authorized source order</h2>
+            </div>
+            <span className="book-runtime-shell__activity-position">
+              Component {activeComponentOrder} / {componentProjection.components.length}
+            </span>
+          </div>
+          <nav aria-label="Authorized Book components" className="book-runtime-shell__component-list">
+            {componentProjection.components.map((component) => (
+              <button
+                aria-current={navigation.state.componentId === component.componentId ? 'page' : undefined}
+                className={navigation.state.componentId === component.componentId ? 'is-active' : ''}
+                data-component-id={component.componentId}
+                disabled={navigation.isTransitioning}
+                key={component.componentId}
+                onClick={() => {
+                  onAction?.('bookRuntimeComponentSelected', {
+                    componentId: component.componentId,
+                    sourceOrder: component.sourceOrder,
+                  });
+                  navigation.selectComponent(component.componentId);
+                }}
+                type="button"
+              >
+                <span className="book-runtime-shell__group-number">{component.sourceOrder}</span>
+                <span>Component {component.sourceOrder}</span>
+              </button>
+            ))}
+          </nav>
+          <label className="book-runtime-shell__component-page">
+            Page in Component {activeComponentOrder}
+            <input
+              aria-label={`Page in Component ${activeComponentOrder}`}
+              max={activeComponentPageScope?.kind === 'pages'
+                ? Math.max(...activeComponentPageScope.pages)
+                : undefined}
+              min={1}
+              onChange={(event) => {
+                const page = Number(event.currentTarget.value);
+                if (
+                  !Number.isSafeInteger(page)
+                  || page < 1
+                  || (activeComponentPageScope?.kind === 'pages' && !activeComponentPageScope.pages.includes(page))
+                ) return;
+                navigation.setComponentPage(navigation.state.componentId, page);
+                onAction?.('bookRuntimeComponentPageChanged', {
+                  componentId: navigation.state.componentId,
+                  page,
+                });
+                onNavigationStateChange?.({
+                  ...navigation.state,
+                  componentPageById: {
+                    ...navigation.state.componentPageById,
+                    [navigation.state.componentId]: page,
+                  },
+                }, 'component-page-selected');
+              }}
+              type="number"
+              value={activeComponentPage}
+            />
+          </label>
+        </section>
+      ) : null}
 
       <div className="book-runtime-shell__workspace">
         <aside className="book-runtime-shell__page-navigator" aria-label="Book page groups">
@@ -471,6 +617,10 @@ const BookRuntimeShellReady = ({
             {viewer.render({
               activeActivityId: activeActivity.activityId,
               pageGroupKey: activeActivity.pageGroupKey,
+              componentId: navigation.state.componentId,
+              componentOrder: activeComponentOrder,
+              componentCount: componentProjection.components.length || 1,
+              physicalPageNumber: activeComponentPage,
               request,
               view: navigation.state.desktopView,
             })}
