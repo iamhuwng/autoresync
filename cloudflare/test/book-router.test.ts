@@ -250,7 +250,10 @@ describe('canonical Book router core', () => {
     )(request(), env());
 
     expect(streamedResponse?.status).toBe(200);
-    await expect(streamedResponse?.arrayBuffer()).rejects.toThrow('book_response_too_large');
+    const reader = streamedResponse?.body?.getReader();
+    expect(reader).toBeDefined();
+    await expect(reader!.read()).resolves.toMatchObject({ done: false });
+    await expect(reader!.read()).rejects.toThrow('book_response_too_large');
   });
 
   it('returns exact CORS preflight and rejects wrong origin/method/header', async () => {
