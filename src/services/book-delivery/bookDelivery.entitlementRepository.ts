@@ -12,7 +12,17 @@ import type {
 } from './bookDelivery.entitlement';
 
 const clone = <T>(value: T): T => structuredClone(value);
-const fingerprint = (value: unknown): string => JSON.stringify(value);
+const fingerprint = (value: unknown): string => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return JSON.stringify(value);
+  const stableInput = clone(value as Record<string, unknown>);
+  delete stableInput.now;
+  if (stableInput.binding && typeof stableInput.binding === 'object' && !Array.isArray(stableInput.binding)) {
+    const binding = clone(stableInput.binding as Record<string, unknown>);
+    delete binding.createdAt;
+    stableInput.binding = binding;
+  }
+  return JSON.stringify(stableInput);
+};
 
 const assertValidBinding = (binding: BookDeliveryBinding): void => {
   const result = validateBookDeliveryBinding(binding);
@@ -56,9 +66,10 @@ export class InMemoryBookDeliveryRepository implements BookDeliveryRepository {
     now: string;
   }): Promise<BookDeliveryMutationResult> {
     assertValidBinding(input.binding);
-    const replay = this.replay(input.operationId, input);
+    const operationInput = { action: 'create', ...input };
+    const replay = this.replay(input.operationId, operationInput);
     if (replay) return replay;
-    if (this.records.has(input.binding.bindingId)) return this.finish(input.operationId, input.now, 'conflict', input.binding.bindingId, undefined, undefined, input);
+    if (this.records.has(input.binding.bindingId)) return this.finish(input.operationId, input.now, 'conflict', input.binding.bindingId, undefined, undefined, operationInput);
     const record: BookDeliveryRecord = {
       binding: clone(input.binding),
       recordRevision: 0,
@@ -67,7 +78,7 @@ export class InMemoryBookDeliveryRepository implements BookDeliveryRepository {
       updatedAt: input.now,
     };
     this.records.set(record.binding.bindingId, record);
-    return this.finish(input.operationId, input.now, 'created', record.binding.bindingId, record, undefined, input);
+    return this.finish(input.operationId, input.now, 'created', record.binding.bindingId, record, undefined, operationInput);
   }
 
   async activate(input: {
@@ -77,27 +88,28 @@ export class InMemoryBookDeliveryRepository implements BookDeliveryRepository {
     operationId: string;
     now: string;
   }): Promise<BookDeliveryMutationResult> {
-    const replay = this.replay(input.operationId, input);
+    const operationInput = { action: 'activate', ...input };
+    const replay = this.replay(input.operationId, operationInput);
     if (replay) return replay;
     const current = this.records.get(input.bindingId);
-    if (!current) return this.finish(input.operationId, input.now, 'not-found', undefined, undefined, undefined, input);
+    if (!current) return this.finish(input.operationId, input.now, 'not-found', undefined, undefined, undefined, operationInput);
     if (current.recordRevision !== input.expectedRecordRevision || current.status !== 'draft') {
-      return this.finish(input.operationId, input.now, 'conflict', input.bindingId, current, undefined, input);
+      return this.finish(input.operationId, input.now, 'conflict', input.bindingId, current, undefined, operationInput);
     }
     const key = this.currentKey(current.binding.recipient.recipientId, current.binding.context.contextId);
     const existing = this.current.get(key);
     if (input.expectedCurrentBindingId !== undefined
       && existing?.bindingId !== input.expectedCurrentBindingId) {
-      return this.finish(input.operationId, input.now, 'conflict', input.bindingId, current, undefined, input);
+      return this.finish(input.operationId, input.now, 'conflict', input.bindingId, current, undefined, operationInput);
     }
     if (existing && existing.bindingId !== input.bindingId) {
-      return this.finish(input.operationId, input.now, 'conflict', input.bindingId, current, undefined, input);
+      return this.finish(input.operationId, input.now, 'conflict', input.bindingId, current, undefined, operationInput);
     }
     const record = this.updated(current, 'active', input.now);
     const active = { ...record, binding: { ...record.binding, status: 'active' as const } };
     this.records.set(input.bindingId, active);
     this.current.set(key, pointer(active, input.now));
-    return this.finish(input.operationId, input.now, 'activated', input.bindingId, active, this.current.get(key), input);
+    return this.finish(input.operationId, input.now, 'activated', input.bindingId, active, this.current.get(key), operationInput);
   }
 
   async supersede(input: {
@@ -107,18 +119,19 @@ export class InMemoryBookDeliveryRepository implements BookDeliveryRepository {
     now: string;
   }): Promise<BookDeliveryMutationResult> {
     assertValidBinding(input.binding);
-    const replay = this.replay(input.operationId, input);
+    const operationInput = { action: 'supersede', ...input };
+    const replay = this.replay(input.operationId, operationInput);
     if (replay) return replay;
     const key = this.currentKey(input.binding.recipient.recipientId, input.binding.context.contextId);
     const existing = this.current.get(key);
     if (!existing || existing.bindingId !== input.expectedCurrentBindingId) {
-      return this.finish(input.operationId, input.now, 'conflict', input.binding.bindingId, undefined, undefined, input);
+      return this.finish(input.operationId, input.now, 'conflict', input.binding.bindingId, undefined, undefined, operationInput);
     }
     if (this.records.has(input.binding.bindingId)) {
-      return this.finish(input.operationId, input.now, 'conflict', input.binding.bindingId, undefined, undefined, input);
+      return this.finish(input.operationId, input.now, 'conflict', input.binding.bindingId, undefined, undefined, operationInput);
     }
     const old = this.records.get(existing.bindingId);
-    if (!old || old.status !== 'active') return this.finish(input.operationId, input.now, 'conflict', undefined, undefined, undefined, input);
+    if (!old || old.status !== 'active') return this.finish(input.operationId, input.now, 'conflict', undefined, undefined, undefined, operationInput);
     const next: BookDeliveryRecord = {
       binding: clone({ ...input.binding, status: 'active' as const }),
       recordRevision: 0,
@@ -130,7 +143,7 @@ export class InMemoryBookDeliveryRepository implements BookDeliveryRepository {
     this.records.set(old.binding.bindingId, retired);
     this.records.set(next.binding.bindingId, next);
     this.current.set(key, pointer(next, input.now));
-    return this.finish(input.operationId, input.now, 'superseded', next.binding.bindingId, next, this.current.get(key), input);
+    return this.finish(input.operationId, input.now, 'superseded', next.binding.bindingId, next, this.current.get(key), operationInput);
   }
 
   async revoke(input: {
@@ -140,19 +153,20 @@ export class InMemoryBookDeliveryRepository implements BookDeliveryRepository {
     operationId: string;
     now: string;
   }): Promise<BookDeliveryMutationResult> {
-    const replay = this.replay(input.operationId, input);
+    const operationInput = { action: 'revoke', ...input };
+    const replay = this.replay(input.operationId, operationInput);
     if (replay) return replay;
     const record = this.records.get(input.bindingId);
     const key = record ? this.currentKey(record.binding.recipient.recipientId, record.binding.context.contextId) : '';
     const current = record ? this.current.get(key) : undefined;
     if (!record || !current || current.bindingId !== input.expectedCurrentBindingId
       || record.recordRevision !== input.expectedRecordRevision || record.status !== 'active') {
-      return this.finish(input.operationId, input.now, 'conflict', input.bindingId, record, undefined, input);
+      return this.finish(input.operationId, input.now, 'conflict', input.bindingId, record, undefined, operationInput);
     }
     const revoked = this.updated(record, 'revoked', input.now);
     this.records.set(input.bindingId, revoked);
     this.current.delete(key);
-    return this.finish(input.operationId, input.now, 'revoked', input.bindingId, revoked, undefined, input);
+    return this.finish(input.operationId, input.now, 'revoked', input.bindingId, revoked, undefined, operationInput);
   }
 
   private updated(record: BookDeliveryRecord, status: BookDeliveryRecord['status'], now: string): BookDeliveryRecord {

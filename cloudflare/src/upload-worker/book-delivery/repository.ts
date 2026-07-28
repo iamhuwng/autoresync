@@ -62,6 +62,16 @@ const stable = (value: unknown): string => {
   }
   return JSON.stringify(value);
 };
+const operationFingerprint = (action: string, input: Record<string, unknown>): string => {
+  const stableInput = clone(input);
+  delete stableInput.now;
+  if (stableInput.binding && typeof stableInput.binding === 'object' && !Array.isArray(stableInput.binding)) {
+    const binding = clone(stableInput.binding as Record<string, unknown>);
+    delete binding.createdAt;
+    stableInput.binding = binding;
+  }
+  return stable({ action, ...stableInput });
+};
 const encodedBytes = (value: unknown): number =>
   new TextEncoder().encode(JSON.stringify(value)).byteLength;
 
@@ -289,19 +299,20 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     assertOperationId(input.operationId);
     const validation = validateBookDeliveryBinding(input.binding);
     if (!validation.valid || input.binding.status !== 'draft') throw new Error('invalid_book_delivery_binding');
+    const fp = operationFingerprint('create', input);
     const index = {
       recipientId: input.binding.recipient.recipientId,
       contextId: input.binding.context.contextId,
     };
     if (!await this.ensureIndex(input.binding.bindingId, index)) {
-      return result(input.operationId, stable(input), 'conflict', input.now);
+      return result(input.operationId, fp, 'conflict', input.now);
     }
-    return this.transaction(index, input.operationId, stable({ action: 'create', ...input }), input.now, (scope) => {
+    return this.transaction(index, input.operationId, fp, input.now, (scope) => {
       if (scope.records?.[input.binding.bindingId]) {
-        return result(input.operationId, stable({ action: 'create', ...input }), 'conflict', input.now);
+        return result(input.operationId, fp, 'conflict', input.now);
       }
       if (Object.keys(scope.records ?? {}).length >= MAX_RECORDS_PER_SCOPE) {
-        return result(input.operationId, stable({ action: 'create', ...input }), 'conflict', input.now);
+        return result(input.operationId, fp, 'conflict', input.now);
       }
       const record: BookDeliveryRecord = {
         binding: clone(input.binding),
@@ -311,7 +322,7 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
         updatedAt: input.now,
       };
       scope.records = { ...(scope.records ?? {}), [record.binding.bindingId]: record };
-      return result(input.operationId, stable({ action: 'create', ...input }), 'created', input.now, record);
+      return result(input.operationId, fp, 'created', input.now, record);
     });
   }
 
@@ -323,9 +334,9 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     now: string;
   }): Promise<BookDeliveryMutationResult> {
     assertOperationId(input.operationId);
+    const fp = operationFingerprint('activate', input);
     const index = parseIndex(await this.rtdb.readValue(bindingPath(input.bindingId)));
-    if (!index) return result(input.operationId, stable(input), 'not-found', input.now);
-    const fp = stable({ action: 'activate', ...input });
+    if (!index) return result(input.operationId, fp, 'not-found', input.now);
     return this.transaction(index, input.operationId, fp, input.now, (scope) => {
       const record = scope.records?.[input.bindingId];
       if (!record) return result(input.operationId, fp, 'not-found', input.now);
@@ -352,14 +363,14 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     assertOperationId(input.operationId);
     const validation = validateBookDeliveryBinding(input.binding);
     if (!validation.valid || input.binding.status !== 'draft') throw new Error('invalid_book_delivery_binding');
+    const fp = operationFingerprint('supersede', input);
     const index = {
       recipientId: input.binding.recipient.recipientId,
       contextId: input.binding.context.contextId,
     };
     if (!await this.ensureIndex(input.binding.bindingId, index)) {
-      return result(input.operationId, stable(input), 'conflict', input.now);
+      return result(input.operationId, fp, 'conflict', input.now);
     }
-    const fp = stable({ action: 'supersede', ...input });
     return this.transaction(index, input.operationId, fp, input.now, (scope) => {
       const old = scope.records?.[input.expectedCurrentBindingId];
       if (!scope.current
@@ -394,9 +405,9 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     now: string;
   }): Promise<BookDeliveryMutationResult> {
     assertOperationId(input.operationId);
+    const fp = operationFingerprint('revoke', input);
     const index = parseIndex(await this.rtdb.readValue(bindingPath(input.bindingId)));
-    if (!index) return result(input.operationId, stable(input), 'not-found', input.now);
-    const fp = stable({ action: 'revoke', ...input });
+    if (!index) return result(input.operationId, fp, 'not-found', input.now);
     return this.transaction(index, input.operationId, fp, input.now, (scope) => {
       const record = scope.records?.[input.bindingId];
       if (!record

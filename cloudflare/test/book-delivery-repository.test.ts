@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FirebaseRestBookDeliveryRepository } from '../src/upload-worker/book-delivery/repository';
-import { makeBookDeliveryTestBinding } from './book-delivery-worker.test';
+import { makeBookDeliveryTestBinding } from './book-delivery.fixture';
 
 const operation = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
@@ -112,13 +112,19 @@ describe('Book Delivery Firebase repository', () => {
       expectedRecordRevision: 0,
       operationId: operation(4),
       now: '2026-07-25T00:02:00.000Z',
+    })).status).toBe('replayed');
+    expect((await repository.activate({
+      bindingId: 'binding-worker',
+      expectedRecordRevision: 1,
+      operationId: operation(4),
+      now: '2026-07-25T00:03:00.000Z',
     })).status).toBe('idempotency-conflict');
     const revoked = await repository.revoke({
       bindingId: 'binding-worker',
       expectedRecordRevision: 1,
       expectedCurrentBindingId: 'binding-worker',
       operationId: operation(5),
-      now: '2026-07-25T00:03:00.000Z',
+      now: '2026-07-25T00:04:00.000Z',
     });
     expect(revoked.status).toBe('revoked');
     expect(await repository.readCurrent('teacher-1', 'preview-1')).toBeNull();
