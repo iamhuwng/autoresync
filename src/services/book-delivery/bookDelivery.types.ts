@@ -95,6 +95,22 @@ export interface BookDeliveryPlacement {
   }[];
 }
 
+/** Trusted, student-safe structural context supplied by Book Delivery. */
+export interface BookDeliveryStructuralNodeProjection {
+  readonly nodeKey: string;
+  readonly parentNodeKey: string | null;
+  readonly nodeType:
+    | 'intro-placeholder'
+    | 'toc-placeholder'
+    | 'note-placeholder'
+    | 'section'
+    | 'chapter'
+    | 'unit'
+    | 'test';
+  readonly order: number;
+  readonly titleSnapshot?: string;
+}
+
 export interface BookDeliveryBinding {
   readonly schemaVersion: typeof BOOK_DELIVERY_SCHEMA_VERSION;
   readonly bindingId: string;
@@ -122,12 +138,16 @@ export interface BookRuntimeDeliveryActivityProjection {
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
+  /** Optional until older Delivery bindings are upgraded; Book Homework rejects missing pins. */
+  readonly activityVersionId?: string;
   readonly nodeKey: string;
   readonly order: number;
   readonly contextMode: BookDeliveryPlacement['contextMode'];
+  readonly titleSnapshot?: string;
   readonly sourceContext: {
     readonly available: boolean;
     readonly description: string;
+    readonly pageGroupKeys?: readonly string[];
     readonly sourcePageScopes: BookDeliveryPlacement['sourcePageScopes'];
   };
 }
@@ -141,6 +161,8 @@ export interface BookRuntimeDeliveryProjection {
   readonly context: Pick<BookDeliveryContext, 'contextId' | 'kind' | 'entitlementBasis'>;
   readonly book: BookDeliveryBookReference;
   readonly scope: BookDeliveryScope;
+  /** Present when the Delivery resolver exposes the selected Book structure. */
+  readonly outline?: readonly BookDeliveryStructuralNodeProjection[];
   readonly sourceSet: BookDeliverySourceSet;
   readonly documentRequests: readonly BookRuntimeDeliveryDocumentRequest[];
   readonly activities: readonly BookRuntimeDeliveryActivityProjection[];
