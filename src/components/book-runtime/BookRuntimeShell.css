@@ -90,6 +90,20 @@
   font-size: 0.75rem;
 }
 
+.book-runtime-shell__header-tools {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.book-runtime-shell__personal-timer {
+  min-width: 0;
+  max-width: min(100%, 360px);
+}
+
 .book-runtime-shell__header-status span,
 .book-runtime-shell__activity-position {
   padding: 8px 10px;
@@ -313,9 +327,13 @@
     display: block;
   }
 
+  .book-runtime-shell__header-tools {
+    justify-content: flex-start;
+    margin-top: 12px;
+  }
+
   .book-runtime-shell__header-status {
     justify-content: start;
-    margin-top: 12px;
   }
 
   .book-runtime-shell__mobile-tabs {

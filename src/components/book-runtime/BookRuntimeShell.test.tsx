@@ -223,4 +223,16 @@ describe('BookRuntimeShell', () => {
     );
     expect(screen.getByRole('alert')).toHaveTextContent('Required source context is unavailable.');
   });
+
+  it('composes optional personal timer UI without changing runtime response state', () => {
+    const onResponseChange = vi.fn();
+    render(<BookRuntimeShell {...shellProps({
+      onResponseChange,
+      personalTimer: <span data-testid="personal-timer-slot">Personal timer</span>,
+    })} />);
+
+    expect(screen.getByTestId('personal-timer-slot')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Choose an answer.' }), { target: { value: 'answer' } });
+    expect(onResponseChange).toHaveBeenCalledWith('interaction-1', 'answer');
+  });
 });

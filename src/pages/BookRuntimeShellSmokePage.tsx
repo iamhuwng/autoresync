@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { BookRuntimeShell, type BookRuntimeViewerAdapter } from '../components/book-runtime';
+import { BookRuntimeShell, PersonalTimer, type BookRuntimeViewerAdapter } from '../components/book-runtime';
 import { toast } from '../components/modern';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
@@ -427,6 +427,11 @@ export default function BookRuntimeShellSmokePage() {
         onFlushBeforeNavigate={onFlushBeforeNavigate}
         onNavigationStateChange={onNavigationStateChange}
         onResponseChange={onResponseChange}
+        personalTimer={(
+          <PersonalTimer
+            timerKey={`${deliveryProjection.recipientId}:${deliveryProjection.bindingId}:${deliveryProjection.context.contextId}`}
+          />
+        )}
         registry={bookActivityRendererRegistry}
         persistence={{
           status: runtime.status,

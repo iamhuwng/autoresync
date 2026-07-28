@@ -71,6 +71,7 @@ export interface BookRuntimeShellProps {
   ) => void;
   readonly onNavigationError?: (error: unknown, reason: BookRuntimeNavigationReason) => void;
   readonly onAction?: (action: BookRuntimeAction, metadata?: Record<string, unknown>) => void;
+  readonly personalTimer?: ReactNode;
   readonly persistence?: {
     readonly status: BookActivityRuntimeStatus;
     readonly message: string;
@@ -190,6 +191,7 @@ const BookRuntimeShellReady = ({
   onNavigationStateChange,
   onNavigationError,
   onAction,
+  personalTimer,
   persistence,
 }: BookRuntimeShellReadyProps) => {
   const navigationActivities = useMemo(
@@ -251,9 +253,12 @@ const BookRuntimeShellReady = ({
             {deliveryProjection.context.kind} · {deliveryProjection.book.publicationId}
           </p>
         </div>
-        <div className="book-runtime-shell__header-status" aria-label="Book runtime status">
-          <span>{deliveryProjection.activities.length} activities</span>
-          <span>{deliveryProjection.actionFlags.canSubmit ? 'Local response state' : 'Reference-only'}</span>
+        <div className="book-runtime-shell__header-tools">
+          {personalTimer ? <div className="book-runtime-shell__personal-timer">{personalTimer}</div> : null}
+          <div className="book-runtime-shell__header-status" aria-label="Book runtime status">
+            <span>{deliveryProjection.activities.length} activities</span>
+            <span>{deliveryProjection.actionFlags.canSubmit ? 'Local response state' : 'Reference-only'}</span>
+          </div>
         </div>
       </header>
 

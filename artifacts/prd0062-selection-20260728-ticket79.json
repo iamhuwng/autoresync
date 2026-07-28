@@ -1,0 +1,120 @@
+{
+  "generatedAt": "2026-07-28",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket78-closed.json",
+  "issueHash": "1a9cea691b84c3dd4a117d260edad23913ed3207a2f02ca74d6ee4b78d9c39d5",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 61,
+    "closedCount": 51,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 79, 81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "student-workflow-runtime",
+  "mandatoryTransitiveGate": {
+    "unresolvedTicketsAudited": 61,
+    "completeChainSource": "Every open ticket record in sourceGraph.records contains its complete transitivePrerequisites and openTransitivePrerequisites.",
+    "openPrerequisiteRejections": {
+      "count": 48,
+      "rule": "Any non-empty openTransitivePrerequisites makes ticket ineligible; no inspection, implementation, or acceptance work started.",
+      "tickets": [77, 80, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136]
+    }
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected-authority",
+      "reason": "Foundation private-B2 provisioning remains authority-blocked; private-B2 must stay disabled."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-authority",
+      "reason": "Foundation private-B2 reconciliation remains authority-blocked; 50A all-six-deny/default-deny must stay unchanged."
+    },
+    {
+      "ticket": 76,
+      "decision": "rejected-acceptance-readiness",
+      "reason": "Graph-clear, but live contract still owns deployed submission/rollback proof without destination-first owner or executable deployment authority; generated rules remain #09E-owned."
+    },
+    {
+      "ticket": 79,
+      "decision": "selected",
+      "reason": "Earliest independent Mode 2 multi-component runtime enabler after #78. Direct and transitive prerequisites are formally CLOSED. Preview-only projection/navigation/authorization/browser/rollback gates are executable with local x64 harness, fixture/emulator authority, and localhost:5174 Student quick-login; no production claim or trusted action required."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected-phase",
+      "reason": "Later homework-assignment subphase; runtime multi-component enabler #79 must be reconciled first despite higher downstream leverage."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-phase",
+      "reason": "Later operations/notification subphase."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-phase",
+      "reason": "Later public catalog/access subphase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser reconciliation."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected-phase",
+      "reason": "Final-closure assembled Student browser reconciliation."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device reconciliation."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security reconciliation."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/backup/recovery reconciliation."
+    }
+  ],
+  "blockedCandidateRecord": {
+    "ticket": 76,
+    "owner": "#76 contract owner, with #09E generated-rules owner and an unassigned deployment executor",
+    "requiredAction": "Add destination-first ownership for deployed submission/rollback proof, name executable authority, and preserve #09E generated-rules ownership before re-selection.",
+    "evidence": "Live #76 body queried after #78 graph refresh: no destination-first transfer ledger; #76 still owns deployment and rollback; actual deployment executor is unspecified.",
+    "impact": "#76 and its descendants remain ineligible. No descendant may bypass this shared blocker family."
+  },
+  "selection": {
+    "primaryTicket": 79,
+    "title": "PRD0062 31 — Navigate multiple authorized components",
+    "status": "selected-student-workflow-runtime",
+    "directClosedPrerequisites": [52, 66, 78],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65, 66, 72, 73, 74, 75, 78],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 34,
+    "acceptanceReadiness": "Preview-only component navigation, projection, authorization, accessibility, browser, and rollback gates executable with local x64 harness, fixture/emulator authority, and localhost:5174 Student quick-login. Real production/private-storage deployment is not claimed.",
+    "requiredAuthority": [
+      "closed #52 component projection and #66 component publication prerequisites",
+      "closed #78 runtime UI prerequisite",
+      "local Book Delivery/Source Delivery fixture or emulator authority for scoped GET/HEAD/range and denial proofs",
+      "Student dev quick-login at localhost:5174",
+      "trusted actions disabled; preserve #50A all-six-deny/default-deny, #03B disabled, private-B2 disabled"
+    ]
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "reopenedTickets": []
+  }
+}

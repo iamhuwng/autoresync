@@ -167,3 +167,55 @@ test('28B student runtime saves, resumes, retries, and preserves conflicts', asy
     fullPage: true,
   });
 });
+
+test('30 personal timer stays local, accessible, and isolated from runtime', async ({ page }) => {
+  const commandRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/book-runtime/commands')) commandRequests.push(request.url());
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Show dev quick login' }).click();
+  await page.locator('#dev-login-student').click();
+  await expect(page).toHaveURL(/\/student\/?$/u, { timeout: 60_000 });
+  await page.goto(
+    '/__smoke/book-runtime?bookId=book-runtime-fixture&unitKey=unit-fixture',
+    { waitUntil: 'domcontentloaded' },
+  );
+
+  const timer = page.getByTestId('personal-timer');
+  await expect(timer).toBeVisible();
+  await expect(page.getByTestId('personal-timer-elapsed')).toHaveText('00:00');
+  await page.getByTestId('personal-timer-start').click();
+  await expect(page.getByTestId('personal-timer-elapsed')).not.toHaveText('00:00', { timeout: 3_000 });
+  await page.getByTestId('personal-timer-pause').click();
+  const pausedElapsed = await page.getByTestId('personal-timer-elapsed').textContent();
+  await page.getByRole('button', { name: 'Collapse page navigator' }).click();
+  await expect(page.getByTestId('book-runtime-shell')).toHaveAttribute('data-navigator-collapsed', 'true');
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  await page.getByRole('tab', { name: 'Book Page' }).click();
+  await page.getByTestId('personal-timer-hide').click();
+  await page.getByTestId('personal-timer-show').click();
+  await expect(page.getByTestId('personal-timer-elapsed')).toHaveText(pausedElapsed ?? '00:00');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('personal-timer-elapsed')).toHaveText(pausedElapsed ?? '00:00');
+  await expect(timer.getByRole('status')).toContainText('Paused');
+
+  await page.setViewportSize({ width: 320, height: 812 });
+  await expect.poll(async () => page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }))).toEqual({ scrollWidth: 320, clientWidth: 320 });
+  const buttonSizes = await page.getByTestId('personal-timer').getByRole('button').evaluateAll((buttons) => (
+    buttons.map((button) => {
+      const box = button.getBoundingClientRect();
+      return { width: box.width, height: box.height };
+    })
+  ));
+  expect(buttonSizes.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+  expect(commandRequests).toEqual([]);
+  await page.screenshot({ path: 'artifacts/prd0062-ticket-78/browser/personal-timer.png', fullPage: true });
+});
