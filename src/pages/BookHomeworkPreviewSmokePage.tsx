@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { HomeworkCreateModal } from '../components/homework/HomeworkCreateModal';
 import type { BookRuntimeDeliveryProjection } from '../services/book-delivery/bookDelivery.types';
 import type { BookHomeworkPreviewSource } from '../services/book-homework/bookHomeworkPreview.service';
@@ -148,6 +148,22 @@ const makeSource = (delivery: BookRuntimeDeliveryProjection): BookHomeworkPrevie
     createdAt: '2026-07-28T00:00:00.000Z',
     bindingRevision: delivery.bindingRevision,
   },
+  initialSchedule: {
+    availableFrom: '',
+    dueDate: '2026-08-30T20:00',
+    scheduleRules: [
+      {
+        nodeKey: 'section-1',
+        availableFrom: '2026-08-01T08:00',
+        dueAt: '',
+      },
+      {
+        nodeKey: 'unit-1',
+        availableFrom: '',
+        dueAt: '2026-08-10T20:00',
+      },
+    ],
+  },
   bookTitle: 'Teacher Preview Book',
   priorResultAccess: true,
   soloAccess: true,
@@ -155,6 +171,7 @@ const makeSource = (delivery: BookRuntimeDeliveryProjection): BookHomeworkPrevie
 
 export default function BookHomeworkPreviewSmokePage() {
   const [strategy, setStrategy] = useState<'full_pdf' | 'component_pdfs'>('full_pdf');
+  const [acceptanceWidth, setAcceptanceWidth] = useState<'desktop' | '375' | '320'>('desktop');
   const [isOpen, setIsOpen] = useState(false);
   const [lastHandoff, setLastHandoff] = useState<string | null>(null);
   const [forkNotice, setForkNotice] = useState(false);
@@ -187,6 +204,18 @@ export default function BookHomeworkPreviewSmokePage() {
             <option value="component_pdfs">Component PDFs</option>
           </select>
         </label>
+        <label htmlFor="book-homework-preview-width">
+          Acceptance viewport
+          <select
+            id="book-homework-preview-width"
+            value={acceptanceWidth}
+            onChange={(event) => setAcceptanceWidth(event.target.value as typeof acceptanceWidth)}
+          >
+            <option value="desktop">Desktop</option>
+            <option value="375">375 px</option>
+            <option value="320">320 px</option>
+          </select>
+        </label>
         <button type="button" onClick={() => setIsOpen(true)}>Open Book Homework preview</button>
       </section>
 
@@ -197,16 +226,24 @@ export default function BookHomeworkPreviewSmokePage() {
       {lastHandoff && <p role="status">{lastHandoff}</p>}
 
       {isOpen && (
-        <HomeworkCreateModal
-          isOpen
-          onClose={() => setIsOpen(false)}
-          onSuccess={() => setIsOpen(false)}
-          preselectedBookHomework={source}
-          onBookHomeworkConfirm={(draft) => {
-            setLastHandoff(`Read-only handoff prepared for ${draft.manifest.completion.requiredBindingCount} Activity record(s).`);
-          }}
-          onBookHomeworkForkBeforeAssign={() => setForkNotice(true)}
-        />
+        <div
+          className="book-homework-preview-smoke__viewport"
+          data-acceptance-width={acceptanceWidth}
+          style={{
+            '--book-homework-fixture-width': acceptanceWidth === 'desktop' ? '100vw' : `${acceptanceWidth}px`,
+          } as CSSProperties}
+        >
+          <HomeworkCreateModal
+            isOpen
+            onClose={() => setIsOpen(false)}
+            onSuccess={() => setIsOpen(false)}
+            preselectedBookHomework={source}
+            onBookHomeworkConfirm={(draft) => {
+              setLastHandoff(`Read-only handoff prepared for ${draft.manifest.completion.requiredBindingCount} Activity record(s).`);
+            }}
+            onBookHomeworkForkBeforeAssign={() => setForkNotice(true)}
+          />
+        </div>
       )}
     </main>
   );

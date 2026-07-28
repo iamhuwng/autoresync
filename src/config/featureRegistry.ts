@@ -449,6 +449,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'bookHomeworkTargetSelected',
       'bookHomeworkPolicyChanged',
       'bookHomeworkActivityPolicyChanged',
+      'bookHomeworkScheduleIntent',
       'bookHomeworkForkRequested',
       'bookHomeworkPreviewConfirmed',
       'bookHomeworkPreviewCanceled',

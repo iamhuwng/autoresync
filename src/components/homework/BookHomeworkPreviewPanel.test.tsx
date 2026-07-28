@@ -197,6 +197,116 @@ describe('BookHomeworkPreviewPanel', () => {
     expect(onAction).toHaveBeenCalledWith('bookHomeworkForkRequested', { reason: 'prior-feedback-risk' });
   });
 
+  it('compiles nested schedule rules into the typed manifest handoff', () => {
+    const onConfirm = vi.fn();
+    render(
+      <BookHomeworkPreviewPanel
+        source={source}
+        renderScheduleEditor={({ value, onChange }) => (
+          <button
+            type="button"
+            onClick={() => onChange({
+              ...value,
+              dueDate: '2026-08-30T12:00',
+              scheduleRules: [{
+                nodeKey: 'unit-1',
+                availableFrom: '2026-08-05T12:00',
+                dueAt: '2026-08-20T12:00',
+              }],
+            })}
+          >
+            Apply nested schedule
+          </button>
+        )}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply nested schedule' }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm preview/i }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      manifest: expect.objectContaining({
+        scheduleRules: [{
+          nodeKey: 'unit-1',
+          availableFrom: new Date('2026-08-05T12:00').toISOString(),
+          dueAt: new Date('2026-08-20T12:00').toISOString(),
+        }],
+      }),
+      deadlineMutationIntents: [],
+    }));
+  });
+
+  it('resolves a unique Activity target without widening to whole-Book scope', () => {
+    render(
+      <BookHomeworkPreviewPanel
+        source={{
+          ...source,
+          initialTarget: {
+            kind: 'activity',
+            bookId: 'book-1',
+            activityId: 'activity-1',
+          },
+        }}
+        renderScheduleEditor={renderScheduleEditor}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('Assignment scope')).toHaveValue('activity:placement-1');
+  });
+
+  it('filters hidden rules and carries fail-closed mutation intent to the trusted handoff', () => {
+    const onConfirm = vi.fn();
+    render(
+      <BookHomeworkPreviewPanel
+        source={{
+          ...source,
+          initialSchedule: {
+            availableFrom: '',
+            dueDate: '2026-08-30T12:00',
+            scheduleRules: [{
+              nodeKey: 'outside-selected-scope',
+              availableFrom: '',
+              dueAt: '2026-08-20T12:00',
+            }],
+          },
+        }}
+        renderScheduleEditor={({ onIntent }) => (
+          <button
+            type="button"
+            onClick={() => onIntent?.({
+              kind: 'add',
+              nodeKey: 'unit-1',
+              nextDueAt: new Date('2026-08-20T12:00').toISOString(),
+              affectedStudentStates: [],
+              affectedStudentStateKnown: false,
+              requiresTrustedDenial: true,
+            })}
+          >
+            Record deadline intent
+          </button>
+        )}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Record deadline intent' }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm preview/i }));
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      manifest: expect.objectContaining({ scheduleRules: [] }),
+      deadlineMutationIntents: [expect.objectContaining({
+        kind: 'add',
+        nodeKey: 'unit-1',
+        affectedStudentStateKnown: false,
+        requiresTrustedDenial: true,
+      })],
+    }));
+  });
+
   it('announces unsupported-content blockers to assistive technology', () => {
     render(
       <BookHomeworkPreviewPanel

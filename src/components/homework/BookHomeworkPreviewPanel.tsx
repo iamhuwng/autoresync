@@ -10,13 +10,15 @@ import {
   type BookHomeworkPreviewSource,
   type BookHomeworkScheduleDraft,
 } from '../../services/book-homework/bookHomeworkPreview.service';
+import {
+  compileBookHomeworkScheduleDraft,
+  type BookHomeworkDeadlineMutationIntent,
+} from '../../services/book-homework/bookHomeworkSchedule.service';
 import { createBookHomeworkManifest } from '../../services/book-homework/bookHomeworkManifest.service';
+import type { BookScheduleEditorProps } from './BookScheduleEditor';
 import './BookHomeworkPreviewPanel.css';
 
-export interface BookHomeworkScheduleEditorProps {
-  readonly value: BookHomeworkScheduleDraft;
-  readonly onChange: (next: BookHomeworkScheduleDraft) => void;
-}
+export type BookHomeworkScheduleEditorProps = BookScheduleEditorProps;
 
 export type BookHomeworkScheduleEditor = (
   props: BookHomeworkScheduleEditorProps,
@@ -104,16 +106,40 @@ const BookHomeworkPreviewPanel = ({
     () => new Map(targetOptions.map((option) => [option.value, option.target])),
     [targetOptions],
   );
-  const initialTargetValue = targetMap.has(targetKey(initialTarget))
-    ? targetKey(initialTarget)
-    : 'book';
+  const initialTargetKey = targetKey(initialTarget);
+  const matchingActivityOptions = initialTarget.kind === 'activity' && !initialTarget.placementId
+    ? targetOptions.filter((option) => (
+        option.target.kind === 'activity'
+        && option.target.activityId === initialTarget.activityId
+      ))
+    : [];
+  const initialTargetValue = targetMap.has(initialTargetKey)
+    ? initialTargetKey
+    : matchingActivityOptions.length === 1
+      ? matchingActivityOptions[0]!.value
+      : '';
   const [selectedTargetValue, setSelectedTargetValue] = useState(initialTargetValue);
-  const selectedTarget = targetMap.get(selectedTargetValue) ?? targetOptions[0]?.target;
+  const selectedTarget = targetMap.get(selectedTargetValue);
   const [policy, setPolicy] = useState<BookHomeworkPolicyDraft | null>(null);
-  const [schedule, setSchedule] = useState<BookHomeworkScheduleDraft>({ availableFrom: '', dueDate: '' });
+  const [scheduleIntents, setScheduleIntents] = useState<readonly BookHomeworkDeadlineMutationIntent[]>([]);
+  const [schedule, setSchedule] = useState<BookHomeworkScheduleDraft>(() => source.initialSchedule
+    ? {
+        ...source.initialSchedule,
+        scheduleRules: source.initialSchedule.scheduleRules.map((rule) => ({ ...rule })),
+      }
+    : {
+        availableFrom: '',
+        dueDate: '',
+        scheduleRules: [],
+      });
 
   const manifestResult = useMemo(() => {
-    if (!selectedTarget) return { manifest: null, error: null };
+    if (!selectedTarget) {
+      return {
+        manifest: null,
+        error: 'The exact Book scope is unavailable. Select a valid scope before continuing.',
+      };
+    }
     try {
       return {
         manifest: createBookHomeworkManifest({
@@ -132,6 +158,15 @@ const BookHomeworkPreviewPanel = ({
 
   useEffect(() => {
     setPolicy(manifest ? createDefaultBookHomeworkPolicy(manifest) : null);
+    if (!manifest) return;
+    const visibleNodeKeys = new Set(manifest.outline.map((node) => node.nodeKey));
+    setSchedule((current) => {
+      const scheduleRules = current.scheduleRules.filter((rule) => visibleNodeKeys.has(rule.nodeKey));
+      return scheduleRules.length === current.scheduleRules.length
+        ? current
+        : { ...current, scheduleRules };
+    });
+    setScheduleIntents((current) => current.filter((intent) => visibleNodeKeys.has(intent.nodeKey)));
   }, [manifest]);
 
   const previewResult = useMemo(() => {
@@ -147,6 +182,14 @@ const BookHomeworkPreviewPanel = ({
   }, [manifest, policy, source]);
   const preview = previewResult.preview;
   const manifestError = manifestResult.error ?? previewResult.error;
+  const compiledSchedule = useMemo(() => {
+    if (!manifest || !schedule.dueDate) return null;
+    try {
+      return compileBookHomeworkScheduleDraft(schedule, manifest.outline);
+    } catch {
+      return null;
+    }
+  }, [manifest, schedule]);
 
   const updatePolicy = (next: BookHomeworkPolicyDraft): void => {
     setPolicy(next);
@@ -180,15 +223,19 @@ const BookHomeworkPreviewPanel = ({
   };
 
   const handleConfirm = (): void => {
-    if (!preview || !preview.canConfirm || schedule.dueDate === '') return;
+    if (!preview || !preview.canConfirm || !compiledSchedule) return;
     onAction?.('bookHomeworkPreviewConfirmed', {
       target: targetKey(preview.manifest.selectedTarget),
       activityCount: preview.manifest.completion.requiredBindingCount,
     });
     void onConfirm({
-      manifest: preview.manifest,
+      manifest: {
+        ...preview.manifest,
+        scheduleRules: compiledSchedule.scheduleRules,
+      },
       policy: preview.policy,
       schedule,
+      deadlineMutationIntents: scheduleIntents,
       warnings: preview.warnings,
     });
   };
@@ -200,6 +247,19 @@ const BookHomeworkPreviewPanel = ({
 
   const updateSchedule = (next: BookHomeworkScheduleDraft): void => {
     setSchedule(next);
+  };
+
+  const handleScheduleIntent = (intent: BookHomeworkDeadlineMutationIntent): void => {
+    setScheduleIntents((current) => [
+      ...current.filter((entry) => entry.nodeKey !== intent.nodeKey),
+      intent,
+    ]);
+    onAction?.('bookHomeworkScheduleIntent', {
+      kind: intent.kind,
+      nodeKey: intent.nodeKey,
+      affectedStudentStateKnown: intent.affectedStudentStateKnown,
+      requiresTrustedDenial: intent.requiresTrustedDenial,
+    });
   };
 
   return (
@@ -223,6 +283,7 @@ const BookHomeworkPreviewPanel = ({
             onAction?.('bookHomeworkTargetSelected', { target: event.target.value });
           }}
         >
+          {!selectedTarget && <option value="" disabled>Select an exact Book scope</option>}
           {targetOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </label>
@@ -360,7 +421,13 @@ const BookHomeworkPreviewPanel = ({
             {policy?.integrityOverride && <p className="book-homework-preview__hint">Explicit integrity override will be included in the assignment handoff audit.</p>}
           </section>
 
-          {renderScheduleEditor({ value: schedule, onChange: updateSchedule })}
+          {renderScheduleEditor({
+            value: schedule,
+            onChange: updateSchedule,
+            outline: preview.manifest.outline,
+            activities: preview.manifest.bindings,
+            onIntent: handleScheduleIntent,
+          })}
 
           {preview.warnings.length > 0 && (
             <section className="book-homework-preview__warnings" aria-labelledby="book-homework-warning-title">
@@ -395,7 +462,7 @@ const BookHomeworkPreviewPanel = ({
         <button
           type="button"
           className="is-primary"
-          disabled={!preview?.canConfirm || schedule.dueDate === ''}
+          disabled={!preview?.canConfirm || !compiledSchedule}
           onClick={handleConfirm}
         >
           Confirm preview for assignment handoff

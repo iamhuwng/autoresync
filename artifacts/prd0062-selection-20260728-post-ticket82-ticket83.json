@@ -1,0 +1,108 @@
+{
+  "generatedAt": "2026-07-28T13:47:10.364Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket82-closed.json",
+  "issueHash": "568cabf9b4d206d4626dd263b6c5616f5a16d9cababd87c180a6fb3d7d992bfc",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 58,
+    "closedCount": 54,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 83, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "mandatoryTransitiveGate": {
+    "unresolvedTicketsAudited": 58,
+    "allUnresolvedTickets": [49, 50, 76, 77, 80, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 129, 130, 131, 132, 133, 134, 135, 136],
+    "completeChainSource": "For every ticket above, directPrerequisites, transitivePrerequisites, and openTransitivePrerequisites are recorded by ticket in sourceGraph.records.",
+    "nonGraphClearRejected": [77, 80, 84, 85, 86, 87, 88, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136],
+    "nonGraphClearRejectionReason": "INELIGIBLE: one or more direct or transitive prerequisites remain OPEN; exact chains and open prerequisites are recorded in sourceGraph.records.",
+    "rejectionRule": "Any direct or transitive open prerequisite, ownership blocker, phase mismatch, or non-executable acceptance gate makes a ticket ineligible."
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected-authority",
+      "reason": "Private-B2 provisioning and deployed disposable-upload proof are not authorized; capability remains disabled."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-authority",
+      "reason": "50A remains all-six-deny/default-deny; activation authority is unavailable."
+    },
+    {
+      "ticket": 76,
+      "decision": "rejected-phase",
+      "reason": "Graph-clear Student-workflow runtime/result work is later than the active Teacher-workflow root."
+    },
+    {
+      "ticket": 83,
+      "decision": "selected",
+      "reason": "Earliest eligible Teacher-workflow root after #82; all 28 transitive prerequisites are CLOSED, acceptance is locally executable without protected-write authority, and downstream leverage is 42."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-phase",
+      "reason": "Graph-clear notification work belongs to the later Operations phase and lacks approved deployed compatibility proof."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-phase",
+      "reason": "Graph-clear public catalog/access work is later than the current Teacher-workflow phase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser proof is later than unresolved Teacher-workflow implementation roots."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected-phase",
+      "reason": "Final-closure assembled Student browser proof is later than unresolved Teacher-workflow implementation roots."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device proof is later than unresolved Teacher-workflow implementation roots."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security proof is later than unresolved Teacher-workflow implementation roots and cannot bypass #50A."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/recovery proof is later than unresolved Teacher-workflow implementation roots and cannot bypass #50A."
+    }
+  ],
+  "selection": {
+    "primaryTicket": 83,
+    "title": "PRD0062 34A — Model and edit nested Book schedules",
+    "roadmapPhase": "teacher-workflow",
+    "directClosedPrerequisites": [82],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 81, 82],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 42,
+    "acceptanceReadiness": "Pure schedule types/resolution, fixture-backed editor intent through #82's typed seam, compatibility tests, local production build, and localhost:5173 teacher browser proof are executable. Protected write, post-start authority, round-trip, and CAS remain owned by #84.",
+    "requiredAuthority": ["#82 typed preview composition seam", "authenticated teacher quick-login/browser session", "local fixture and production-build authority", "no protected write or remote activation"]
+  },
+  "phaseHealthCheck": {
+    "hardDependency": "#83 legitimately consumes #82's typed schedule-editor composition seam.",
+    "destinationProof": "#84 remains sole owner of protected mutation authority, optimistic conflict/CAS enforcement, and protected round-trip proof.",
+    "ownership": "Schedule types, pure resolver, editor intent, and legacy compatibility are owned by #83.",
+    "browserAndDeployment": "#83 proves local teacher editing/resolution and build compatibility; #84 proves protected persistence.",
+    "duplication": "No HomeworkCreateModal orchestration, policy/exposure rendering, or pinned Activity mutation is duplicated."
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "reopenedTickets": [],
+    "full112TicketScope": "preserved"
+  }
+}

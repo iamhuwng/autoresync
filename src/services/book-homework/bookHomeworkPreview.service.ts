@@ -8,6 +8,11 @@ import {
   assertValidBookHomeworkManifest,
   type BookHomeworkExcludedActivityCandidate,
 } from './bookHomeworkManifest.service';
+export type { BookHomeworkScheduleDraft } from './bookHomeworkSchedule.service';
+import type {
+  BookHomeworkDeadlineMutationIntent,
+  BookHomeworkScheduleDraft,
+} from './bookHomeworkSchedule.service';
 
 export type BookHomeworkIntent = 'accountable' | 'practice';
 export type BookHomeworkFeedbackRelease = FeedbackTiming | 'manual';
@@ -34,14 +39,10 @@ export interface BookHomeworkPolicyDraft {
   readonly activityPolicies: readonly BookHomeworkActivityPolicy[];
 }
 
-export interface BookHomeworkScheduleDraft {
-  readonly availableFrom: string;
-  readonly dueDate: string;
-}
-
 export interface BookHomeworkPreviewSource {
   readonly delivery: BookRuntimeDeliveryProjection;
   readonly identity: BookHomeworkManifestIdentity;
+  readonly initialSchedule?: BookHomeworkScheduleDraft;
   readonly bookTitle?: string;
   readonly initialTarget?: BookHomeworkManifest['selectedTarget'];
   readonly excludedActivities?: readonly BookHomeworkExcludedActivityCandidate[];
@@ -84,6 +85,7 @@ export interface BookHomeworkPreviewDraft {
   readonly manifest: BookHomeworkManifest;
   readonly policy: BookHomeworkPolicyDraft;
   readonly schedule: BookHomeworkScheduleDraft;
+  readonly deadlineMutationIntents: readonly BookHomeworkDeadlineMutationIntent[];
   readonly warnings: readonly BookHomeworkPreviewWarning[];
 }
 

@@ -27,6 +27,7 @@ import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import BookHomeworkPreviewPanel, {
     type BookHomeworkScheduleEditor,
 } from './BookHomeworkPreviewPanel';
+import BookScheduleEditor from './BookScheduleEditor';
 import type {
     BookHomeworkPreviewDraft,
     BookHomeworkPreviewSource,
@@ -503,7 +504,14 @@ export function HomeworkCreateModal({
         }
     };
 
-    const renderScheduleEditor: BookHomeworkScheduleEditor = ({ value, onChange }) => (
+    const renderBookScheduleEditor: BookHomeworkScheduleEditor = (props) => (
+        <BookScheduleEditor {...props} />
+    );
+
+    const renderLegacyScheduleEditor = ({
+        value,
+        onChange,
+    }: Pick<Parameters<BookHomeworkScheduleEditor>[0], 'value' | 'onChange'>) => (
         <div className="additional-fields">
             <div className="field-group">
                 <label className="field-label">📅 Available From</label>
@@ -709,7 +717,7 @@ export function HomeworkCreateModal({
                     {preselectedBookHomework ? (
                         <BookHomeworkPreviewPanel
                             source={preselectedBookHomework}
-                            renderScheduleEditor={renderScheduleEditor}
+                            renderScheduleEditor={renderBookScheduleEditor}
                             onConfirm={handleBookHomeworkConfirm}
                             onCancel={handleBookHomeworkCancel}
                             onForkBeforeAssign={onBookHomeworkForkBeforeAssign}
@@ -863,8 +871,8 @@ export function HomeworkCreateModal({
                             <h3 className="step-title">⚙️ Configure Settings</h3>
 
                             {/* ── Scheduling (all materials) ─────────────── */}
-                            {renderScheduleEditor({
-                                value: { availableFrom, dueDate },
+                            {renderLegacyScheduleEditor({
+                                value: { availableFrom, dueDate, scheduleRules: [] },
                                 onChange: (next) => {
                                     setAvailableFrom(next.availableFrom);
                                     setDueDate(next.dueDate);

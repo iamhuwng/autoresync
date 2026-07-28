@@ -62,6 +62,13 @@
   padding: 0.55rem 0.7rem;
 }
 
+.book-homework-preview-smoke__viewport .homework-create-modal-overlay {
+  right: auto;
+  left: 50%;
+  width: min(100vw, var(--book-homework-fixture-width));
+  transform: translateX(-50%);
+}
+
 .book-homework-preview-smoke__controls button {
   cursor: pointer;
   background: #125ea8;
