@@ -25,6 +25,7 @@ const binding = (id = 'binding-1', revision = 1) => createBookDeliveryBinding({
     publicationStatus: 'published',
     ownerId: 'teacher-1',
     scope: { kind: 'subtree', nodeKeys: ['unit-1'], placementIds: [] },
+    outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
     sourceSet: {
       strategy: 'full_pdf',
       sources: [{
@@ -37,10 +38,12 @@ const binding = (id = 'binding-1', revision = 1) => createBookDeliveryBinding({
     placements: [{
       placementId: 'placement-1',
       activityId: 'activity-1',
+      activityVersionId: 'activity-1-v2',
       activityVersion: 2,
       nodeKey: 'unit-1',
       order: 1,
       contextMode: 'required',
+      pageGroupKeys: ['group-1'],
       sourcePageScopes: [{ sourceKey: 'full', pages: [1] }],
     }],
     schedulePolicy: { policyId: 'schedule-1', policyRevision: 1, basis: 'immutable-reference' },

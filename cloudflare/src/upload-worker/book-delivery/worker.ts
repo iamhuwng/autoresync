@@ -291,7 +291,8 @@ export const createTrustedBookDeliveryPublication = (
     .filter((source) => (
       version.strategy === 'full_pdf'
       || selectedSourceKeys.has(source.sourceKey)
-      || ('ownerNodeKey' in source
+      || (intent.scope.kind === 'subtree'
+        && 'ownerNodeKey' in source
         && typeof source.ownerNodeKey === 'string'
         && outlineKeys.has(source.ownerNodeKey))
     ));

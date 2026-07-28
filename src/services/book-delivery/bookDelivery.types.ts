@@ -1,4 +1,4 @@
-export const BOOK_DELIVERY_SCHEMA_VERSION = 2 as const;
+export const BOOK_DELIVERY_SCHEMA_VERSION = 3 as const;
 export const BOOK_DELIVERY_BINDING_STATUSES = ['draft', 'active', 'revoked'] as const;
 export type BookDeliveryBindingStatus = (typeof BOOK_DELIVERY_BINDING_STATUSES)[number];
 
@@ -85,10 +85,12 @@ export interface BookDeliverySourceSet {
 export interface BookDeliveryPlacement {
   readonly placementId: string;
   readonly activityId: string;
+  readonly activityVersionId: string;
   readonly activityVersion: number;
   readonly nodeKey: string;
   readonly order: number;
   readonly contextMode: 'none' | 'optional' | 'required';
+  readonly pageGroupKeys: readonly string[];
   readonly sourcePageScopes: readonly {
     readonly sourceKey: string;
     readonly pages: readonly number[];
@@ -120,6 +122,7 @@ export interface BookDeliveryBinding {
   readonly issuer: BookDeliveryIssuer;
   readonly book: BookDeliveryBookReference;
   readonly scope: BookDeliveryScope;
+  readonly outline: readonly BookDeliveryStructuralNodeProjection[];
   readonly context: BookDeliveryContext;
   readonly sourceSet: BookDeliverySourceSet;
   readonly placements: readonly BookDeliveryPlacement[];
@@ -139,7 +142,7 @@ export interface BookRuntimeDeliveryActivityProjection {
   readonly activityId: string;
   readonly activityVersion: number;
   /** Optional until older Delivery bindings are upgraded; Book Homework rejects missing pins. */
-  readonly activityVersionId?: string;
+  readonly activityVersionId: string;
   readonly nodeKey: string;
   readonly order: number;
   readonly contextMode: BookDeliveryPlacement['contextMode'];
@@ -147,7 +150,7 @@ export interface BookRuntimeDeliveryActivityProjection {
   readonly sourceContext: {
     readonly available: boolean;
     readonly description: string;
-    readonly pageGroupKeys?: readonly string[];
+    readonly pageGroupKeys: readonly string[];
     readonly sourcePageScopes: BookDeliveryPlacement['sourcePageScopes'];
   };
 }
@@ -162,7 +165,7 @@ export interface BookRuntimeDeliveryProjection {
   readonly book: BookDeliveryBookReference;
   readonly scope: BookDeliveryScope;
   /** Present when the Delivery resolver exposes the selected Book structure. */
-  readonly outline?: readonly BookDeliveryStructuralNodeProjection[];
+  readonly outline: readonly BookDeliveryStructuralNodeProjection[];
   readonly sourceSet: BookDeliverySourceSet;
   readonly documentRequests: readonly BookRuntimeDeliveryDocumentRequest[];
   readonly activities: readonly BookRuntimeDeliveryActivityProjection[];

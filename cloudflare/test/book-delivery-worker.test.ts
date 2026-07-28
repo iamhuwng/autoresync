@@ -41,6 +41,32 @@ const setup = (
   return { handlers, repository };
 };
 
+const makeComponentPlacementScope = () => {
+  const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+  const version = scope.versions['manifest-1'];
+  version.strategy = 'component_pdfs';
+  version.manifest.sourceSet = {
+    sourceStrategy: 'component_pdfs',
+    sources: [
+      { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'component-b', sourceVersionId: 'source-b-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+    ],
+  };
+  scope.deliveryPlans['delivery-plan-1'].sourceStrategy = 'component_pdfs';
+  scope.deliveryPlans['delivery-plan-1'].sourceSet = structuredClone(version.manifest.sourceSet);
+  version.manifest.units[0].pageGroups[0].sourceKey = 'component-a';
+  scope.placements['placement-1'].sourcePages = [
+    { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', physicalPageNumber: 1 },
+  ];
+  scope.activityVersions['activity-1-v1'].sourcePages = [
+    { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', physicalPageNumber: 1 },
+  ];
+  scope.activitySafeProjections['projection-1'].sourcePages = [
+    { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', physicalPageNumber: 1 },
+  ];
+  return scope;
+};
+
 describe('Book Delivery Worker contract', () => {
   it('owns every 08B fragment operation and no #72 scope path', () => {
     expect([...fragment08B.owner.generatedRuleLocations].sort()).toEqual(
@@ -131,6 +157,60 @@ describe('Book Delivery Worker contract', () => {
     expect(JSON.stringify(resolved.body)).not.toMatch(
       /answerKey|teacherNotes|objectKey|credentials|providerAuthority|private/iu,
     );
+    const repeated = await handlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    });
+    expect(repeated).toEqual(resolved);
+    const revoked = await handlers.revoke({
+      env,
+      uid: 'teacher-1',
+      request: request({
+        bindingId: 'binding-worker',
+        expectedRecordRevision: 1,
+        expectedCurrentBindingId: 'binding-worker',
+        operationId: operation(25),
+      }),
+    });
+    expect(revoked).toMatchObject({ init: { status: 200 }, body: { status: 'revoked' } });
+    await expect(handlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    })).resolves.toEqual({
+      body: { code: 'book-delivery-not-found' },
+      init: { status: 404 },
+    });
+  });
+
+  it('keeps placement-scoped component delivery limited to selected source keys', async () => {
+    const { handlers } = setup(() => 'binding-component-placement', makeComponentPlacementScope());
+    const created = await handlers.create({
+      env,
+      uid: 'teacher-1',
+      request: request({
+        intent: {
+          ...makeBookDeliveryIssuanceIntent(),
+          scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
+        },
+        operationId: operation(26),
+      }),
+    });
+    expect(created.init.status).toBe(200);
+    expect(created.body).toMatchObject({
+      record: {
+        binding: {
+          sourceSet: {
+            strategy: 'component_pdfs',
+            sources: [{ sourceKey: 'component-a', sourceVersionId: 'source-a-v1', ownerNodeKey: 'unit-1' }],
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(created.body)).not.toContain('component-b');
   });
 
   it('derives stable collision-resistant IDs from operation identity and replays safely', async () => {

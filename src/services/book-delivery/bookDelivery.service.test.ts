@@ -19,6 +19,10 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
   publicationStatus: 'published' as const,
   ownerId: 'teacher-1',
   scope: { kind: 'subtree' as const, nodeKeys: ['unit-1'], placementIds: [] },
+  outline: [
+    { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section' as const, order: 1, titleSnapshot: 'Section 1' },
+    { nodeKey: 'unit-1', parentNodeKey: 'section-1', nodeType: 'unit' as const, order: 1, titleSnapshot: 'Unit 1' },
+  ],
   sourceSet: {
     strategy,
     sources: strategy === 'full_pdf'
@@ -51,29 +55,35 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
     ? [{
       placementId: 'placement-1',
       activityId: 'activity-1',
+      activityVersionId: 'activity-1-v2',
       activityVersion: 2,
       nodeKey: 'unit-1',
       order: 1,
       contextMode: 'required' as const,
+      pageGroupKeys: ['group-1'],
       sourcePageScopes: [{ sourceKey: 'full', pages: [1] }],
     }]
     : [
       {
         placementId: 'placement-a',
         activityId: 'activity-a',
+        activityVersionId: 'activity-a-v1',
         activityVersion: 1,
         nodeKey: 'unit-1',
         order: 1,
         contextMode: 'required' as const,
+        pageGroupKeys: ['group-a'],
         sourcePageScopes: [{ sourceKey: 'component-a', pages: [1] }],
       },
       {
         placementId: 'placement-b',
         activityId: 'activity-b',
+        activityVersionId: 'activity-b-v1',
         activityVersion: 1,
         nodeKey: 'unit-1',
         order: 2,
         contextMode: 'required' as const,
+        pageGroupKeys: ['group-b'],
         sourcePageScopes: [{ sourceKey: 'component-b', pages: [1] }],
       },
     ],
@@ -137,7 +147,19 @@ describe('Book Delivery projection resolver', () => {
       opaqueRouteKey: 'binding-full_pdf-1-full-source-full-v1',
       localPageScope: { kind: 'all', pages: [] },
     }]);
-    expect(projection.activities).toHaveLength(1);
+    expect(projection.outline).toEqual([
+      { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', order: 1, titleSnapshot: 'Section 1' },
+      { nodeKey: 'unit-1', parentNodeKey: 'section-1', nodeType: 'unit', order: 1, titleSnapshot: 'Unit 1' },
+    ]);
+    expect(projection.activities).toEqual([
+      expect.objectContaining({
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 2,
+        activityVersionId: 'activity-1-v2',
+        sourceContext: expect.objectContaining({ pageGroupKeys: ['group-1'] }),
+      }),
+    ]);
     expect(JSON.stringify(projection)).not.toMatch(/answerKey|teacher|objectKey|credential|private|providerAuthority|storage/iu);
   });
 
@@ -163,6 +185,14 @@ describe('Book Delivery projection resolver', () => {
     expect(projection.activities.map((activity) => activity.sourceContext.sourcePageScopes)).toEqual([
       [{ sourceKey: 'component-a', pages: [1] }],
       [{ sourceKey: 'component-b', pages: [1] }],
+    ]);
+    expect(projection.activities.map((activity) => activity.activityVersionId)).toEqual([
+      'activity-a-v1',
+      'activity-b-v1',
+    ]);
+    expect(projection.activities.map((activity) => activity.sourceContext.pageGroupKeys)).toEqual([
+      ['group-a'],
+      ['group-b'],
     ]);
     expect(projection.activities[0]?.sourceContext.description).toContain('component component-a pages 1 owned by section-1');
     expect(projection.activities[1]?.sourceContext.description).toContain('component component-b pages 1 owned by section-1');

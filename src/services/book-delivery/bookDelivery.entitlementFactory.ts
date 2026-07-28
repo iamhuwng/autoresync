@@ -39,7 +39,7 @@ export const createBookDeliveryBinding = (
   const issuer = structuredClone(input.issuer);
   const context = structuredClone(input.context);
   const binding: BookDeliveryBinding = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     bindingId: input.bindingId,
     revision: input.revision,
     status: input.status,
@@ -54,6 +54,7 @@ export const createBookDeliveryBinding = (
       publicationStatus: publication.publicationStatus,
     },
     scope: publication.scope,
+    outline: publication.outline,
     context,
     sourceSet: publication.sourceSet,
     placements: publication.placements,

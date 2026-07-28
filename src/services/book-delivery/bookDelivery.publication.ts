@@ -3,6 +3,7 @@ import type {
   BookDeliverySchedulePolicyReference,
   BookDeliveryScope,
   BookDeliverySourceSet,
+  BookDeliveryStructuralNodeProjection,
 } from './bookDelivery.types';
 import { validateBookDeliveryBinding } from './bookDelivery.schema';
 
@@ -15,6 +16,7 @@ export interface BookDeliveryPublishedPublicationReference {
   readonly publicationStatus: 'published';
   readonly ownerId: string;
   readonly scope: BookDeliveryScope;
+  readonly outline: readonly BookDeliveryStructuralNodeProjection[];
   readonly sourceSet: BookDeliverySourceSet;
   readonly placements: readonly BookDeliveryPlacement[];
   readonly schedulePolicy: BookDeliverySchedulePolicyReference;
@@ -52,7 +54,7 @@ export function assertPublishedBookDeliveryPublication(
 ): asserts value is BookDeliveryPublishedPublicationReference {
   if (!isRecord(value)) throw new BookDeliveryPublicationError('publication must be a plain object.');
   exactKeys(value, [
-    'bookId', 'bookMode', 'bookRevision', 'ownerId', 'placements', 'publicationId',
+    'bookId', 'bookMode', 'bookRevision', 'outline', 'ownerId', 'placements', 'publicationId',
     'publicationRevision', 'publicationStatus', 'schedulePolicy', 'scope', 'sourceSet',
   ], 'publication');
   const publication = value as Record<string, any>;
@@ -69,7 +71,7 @@ export function assertPublishedBookDeliveryPublication(
     throw new BookDeliveryPublicationError('publication schedule policy reference is invalid.');
   }
   const validation = validateBookDeliveryBinding({
-    schemaVersion: 2,
+    schemaVersion: 3,
     bindingId: 'publication-validation',
     revision: 0,
     status: 'draft',
@@ -84,6 +86,7 @@ export function assertPublishedBookDeliveryPublication(
       publicationStatus: publication.publicationStatus,
     },
     scope: publication.scope,
+    outline: publication.outline,
     context: {
       kind: 'preview',
       contextId: 'publication-validation',

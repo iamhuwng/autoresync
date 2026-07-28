@@ -196,6 +196,66 @@ const validatePageArray = (value: unknown, path: string, errors: BookDeliveryVal
   }
 };
 
+const nodeTypes = new Set([
+  'intro-placeholder',
+  'toc-placeholder',
+  'note-placeholder',
+  'section',
+  'chapter',
+  'unit',
+  'test',
+]);
+
+const validateOutline = (value: unknown, errors: BookDeliveryValidationError[]): void => {
+  if (!boundedArray(value) || value.length === 0) {
+    error(errors, 'invalid-value', 'outline', 'Selected Book outline must be a bounded nonempty array.');
+    return;
+  }
+  const nodes = value as readonly Record<string, any>[];
+  const keys = new Set<string>();
+  const siblingOrders = new Set<string>();
+  nodes.forEach((node, index) => {
+    const path = `outline[${index}]`;
+    const expected = Object.hasOwn(node ?? {}, 'titleSnapshot')
+      ? ['nodeKey', 'nodeType', 'order', 'parentNodeKey', 'titleSnapshot']
+      : ['nodeKey', 'nodeType', 'order', 'parentNodeKey'];
+    if (!exact(node, expected, path, errors)) return;
+    if (!id(node.nodeKey) || keys.has(node.nodeKey)) {
+      error(errors, 'duplicate-id', `${path}.nodeKey`, 'Outline node key must be unique and safe.');
+    }
+    if (node.parentNodeKey !== null && !id(node.parentNodeKey)) {
+      error(errors, 'invalid-value', `${path}.parentNodeKey`, 'Outline parent must be null or a safe node key.');
+    }
+    if (!nodeTypes.has(String(node.nodeType))) error(errors, 'invalid-value', `${path}.nodeType`, 'Outline node type is unsupported.');
+    if (!positive(node.order)) error(errors, 'invalid-value', `${path}.order`, 'Outline order must be positive.');
+    if (Object.hasOwn(node, 'titleSnapshot')
+      && (typeof node.titleSnapshot !== 'string' || node.titleSnapshot.length === 0 || node.titleSnapshot.length > 500)) {
+      error(errors, 'invalid-value', `${path}.titleSnapshot`, 'Outline title snapshot must be bounded text.');
+    }
+    const siblingOrder = `${String(node.parentNodeKey)}:${String(node.order)}`;
+    if (siblingOrders.has(siblingOrder)) error(errors, 'duplicate-order', `${path}.order`, 'Sibling outline order must be unique.');
+    siblingOrders.add(siblingOrder);
+    if (typeof node.nodeKey === 'string') keys.add(node.nodeKey);
+  });
+  nodes.forEach((node, index) => {
+    if (node.parentNodeKey !== null && !keys.has(node.parentNodeKey)) {
+      error(errors, 'invalid-value', `outline[${index}].parentNodeKey`, 'Outline parent is absent from the selected structure.');
+    }
+    const visited = new Set<string>();
+    let current: Record<string, any> | undefined = node;
+    while (current) {
+      if (visited.has(current.nodeKey)) {
+        error(errors, 'invalid-value', `outline[${index}].parentNodeKey`, 'Outline contains a cycle.');
+        break;
+      }
+      visited.add(current.nodeKey);
+      current = current.parentNodeKey === null
+        ? undefined
+        : nodes.find((candidate) => candidate.nodeKey === current?.parentNodeKey);
+    }
+  });
+};
+
 const validatePlacements = (value: unknown, errors: BookDeliveryValidationError[]): void => {
   if (!boundedArray(value) || value.length === 0) {
     error(errors, 'invalid-value', 'placements', 'At least one placement is required.');
@@ -205,14 +265,19 @@ const validatePlacements = (value: unknown, errors: BookDeliveryValidationError[
   const orders = new Set<number>();
   value.forEach((placement, index) => {
     const path = `placements[${index}]`;
-    if (!exact(placement, ['activityId', 'activityVersion', 'contextMode', 'nodeKey', 'order', 'placementId', 'sourcePageScopes'], path, errors)) return;
+    if (!exact(placement, [
+      'activityId', 'activityVersion', 'activityVersionId', 'contextMode', 'nodeKey',
+      'order', 'pageGroupKeys', 'placementId', 'sourcePageScopes',
+    ], path, errors)) return;
     const entry = placement as Record<string, any>;
     if (!id(entry.placementId) || ids.has(entry.placementId)) error(errors, 'duplicate-id', `${path}.placementId`, 'Placement ID must be unique and safe.');
-    if (!id(entry.activityId) || !id(entry.nodeKey) || !positive(entry.activityVersion) || !positive(entry.order)) {
+    if (!id(entry.activityId) || !id(entry.activityVersionId) || !id(entry.nodeKey)
+      || !positive(entry.activityVersion) || !positive(entry.order)) {
       error(errors, 'invalid-value', path, 'Placement identity and version are invalid.');
     }
     if (!['none', 'optional', 'required'].includes(entry.contextMode as string)) error(errors, 'invalid-value', `${path}.contextMode`, 'Context mode is invalid.');
     if (orders.has(entry.order as number)) error(errors, 'duplicate-order', `${path}.order`, 'Placement order must be unique.');
+    validateIdArray(entry.pageGroupKeys, `${path}.pageGroupKeys`, errors, true);
     if (!boundedArray(entry.sourcePageScopes)) error(errors, 'invalid-value', `${path}.sourcePageScopes`, 'Source page scopes must be a bounded array.');
     else (entry.sourcePageScopes as readonly Record<string, any>[]).forEach((scope, scopeIndex) => {
       const scopePath = `${path}.sourcePageScopes[${scopeIndex}]`;
@@ -223,6 +288,14 @@ const validatePlacements = (value: unknown, errors: BookDeliveryValidationError[
     if (entry.contextMode === 'required' && (!Array.isArray(entry.sourcePageScopes) || entry.sourcePageScopes.length === 0)) {
       error(errors, 'source-scope-mismatch', `${path}.sourcePageScopes`, 'Required context must carry source page scope.');
     }
+    if (entry.contextMode === 'required' && (!Array.isArray(entry.pageGroupKeys) || entry.pageGroupKeys.length === 0)) {
+      error(errors, 'source-scope-mismatch', `${path}.pageGroupKeys`, 'Required context must pin at least one Page Group.');
+    }
+    if (entry.contextMode === 'none'
+      && ((Array.isArray(entry.sourcePageScopes) && entry.sourcePageScopes.length > 0)
+        || (Array.isArray(entry.pageGroupKeys) && entry.pageGroupKeys.length > 0))) {
+      error(errors, 'source-scope-mismatch', path, 'Context-free placement cannot carry Page Group or source-page authority.');
+    }
     ids.add(typeof entry.placementId === 'string' ? entry.placementId : '');
     orders.add(typeof entry.order === 'number' ? entry.order : NaN);
   });
@@ -231,12 +304,14 @@ const validatePlacements = (value: unknown, errors: BookDeliveryValidationError[
 const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidationResult => {
   const errors: BookDeliveryValidationError[] = [];
   if (!exact(value, [
-    'bindingId', 'book', 'context', 'createdAt', 'issuer', 'placements',
+    'bindingId', 'book', 'context', 'createdAt', 'issuer', 'outline', 'placements',
     'recipient', 'revision', 'schedulePolicy', 'schemaVersion', 'scope',
     'sourceSet', 'status',
   ], 'binding', errors)) return { valid: false, errors };
   const binding = value as Record<string, any>;
-  if (binding.schemaVersion !== BOOK_DELIVERY_SCHEMA_VERSION) error(errors, 'invalid-value', 'binding.schemaVersion', 'Only schema version 2 is supported.');
+  if (binding.schemaVersion !== BOOK_DELIVERY_SCHEMA_VERSION) {
+    error(errors, 'invalid-value', 'binding.schemaVersion', `Only schema version ${BOOK_DELIVERY_SCHEMA_VERSION} is supported.`);
+  }
   if (!id(binding.bindingId) || !nonnegative(binding.revision) || !BOOK_DELIVERY_BINDING_STATUSES.includes(binding.status as never) || !iso(binding.createdAt)) {
     error(errors, 'invalid-value', 'binding', 'Binding identity, revision, status, or creation time is invalid.');
   }
@@ -269,6 +344,7 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
       error(errors, 'contradictory-scope', 'binding.scope', 'Placement scope requires placement IDs and no node keys.');
     }
   }
+  validateOutline(binding.outline, errors);
   validateContext(binding.context, errors);
   if (exact(binding.schedulePolicy, ['basis', 'policyId', 'policyRevision'], 'binding.schedulePolicy', errors)
     && (!id(binding.schedulePolicy.policyId) || !positive(binding.schedulePolicy.policyRevision) || binding.schedulePolicy.basis !== 'immutable-reference')) {
@@ -281,6 +357,8 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
   const issuer = binding.issuer as Record<string, any>;
   const context = binding.context as Record<string, any>;
   const sourceSet = binding.sourceSet as Record<string, any>;
+  const outline = Array.isArray(binding.outline) ? binding.outline as readonly Record<string, any>[] : [];
+  const outlineKeys = new Set(outline.map((node) => node.nodeKey));
   const placements = Array.isArray(binding.placements) ? binding.placements as readonly Record<string, any>[] : [];
   const placementIds = new Set(placements.map((placement) => placement.placementId));
   const sourceKeys = new Set(
@@ -301,7 +379,52 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
       error(errors, 'contradictory-scope', 'binding.scope.placementIds', 'Placement scope must exactly equal the ordered bound placement set.');
     }
   }
+  if (Array.isArray(binding.scope?.nodeKeys)
+    && binding.scope.nodeKeys.some((nodeKey: string) => !outlineKeys.has(nodeKey))) {
+    error(errors, 'contradictory-scope', 'binding.scope.nodeKeys', 'Selected scope node is absent from the frozen outline.');
+  }
+  const parentByNode = new Map(outline.map((node) => [node.nodeKey, node.parentNodeKey]));
+  const lineage = (nodeKey: string): Set<string> => {
+    const result = new Set<string>();
+    let current: string | null | undefined = nodeKey;
+    while (typeof current === 'string' && !result.has(current)) {
+      result.add(current);
+      current = parentByNode.get(current);
+    }
+    return result;
+  };
+  const selectedRoots = binding.scope?.kind === 'subtree' && Array.isArray(binding.scope.nodeKeys)
+    ? new Set<string>(binding.scope.nodeKeys)
+    : new Set<string>();
+  if (selectedRoots.size > 0) {
+    const allowedOutline = new Set<string>();
+    selectedRoots.forEach((nodeKey) => lineage(nodeKey).forEach((key) => allowedOutline.add(key)));
+    outline.forEach((node) => {
+      if ([...lineage(node.nodeKey)].some((key) => selectedRoots.has(key))) allowedOutline.add(node.nodeKey);
+    });
+    if (outline.some((node) => !allowedOutline.has(node.nodeKey))) {
+      error(errors, 'contradictory-scope', 'binding.outline', 'Frozen outline contains structure outside the selected subtree.');
+    }
+  }
+  if (binding.scope?.kind === 'placements') {
+    const selectedPlacementIds = new Set<string>(
+      Array.isArray(binding.scope.placementIds) ? binding.scope.placementIds : [],
+    );
+    const allowedOutline = new Set<string>();
+    placements
+      .filter((placement) => selectedPlacementIds.has(placement.placementId))
+      .forEach((placement) => lineage(placement.nodeKey).forEach((key) => allowedOutline.add(key)));
+    if (outline.some((node) => !allowedOutline.has(node.nodeKey))) {
+      error(errors, 'contradictory-scope', 'binding.outline', 'Frozen outline contains structure outside selected placements.');
+    }
+  }
   placements.forEach((placement) => {
+    if (!outlineKeys.has(placement.nodeKey)) {
+      error(errors, 'contradictory-scope', 'binding.placements.nodeKey', 'Placement node is absent from the frozen outline.');
+    }
+    if (selectedRoots.size > 0 && ![...lineage(placement.nodeKey)].some((key) => selectedRoots.has(key))) {
+      error(errors, 'contradictory-scope', 'binding.placements.nodeKey', 'Placement is outside the selected subtree.');
+    }
     if (Array.isArray(placement.sourcePageScopes)) {
       placement.sourcePageScopes.forEach((scope: Record<string, any>) => {
         if (!sourceKeys.has(scope.sourceKey)) {
@@ -325,6 +448,10 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
   if (contextKind === 'future_live' && binding.recipient.recipientKind !== 'preview-user') error(errors, 'unrunnable-future-live', 'binding.recipient.recipientKind', 'future_live is never a student grant.');
   if (binding.sourceSet?.strategy === 'full_pdf' && binding.sourceSet.sources.length !== 1) error(errors, 'source-scope-mismatch', 'binding.sourceSet', 'full_pdf must bind the complete PDF.');
   if (binding.sourceSet?.strategy === 'component_pdfs' && binding.sourceSet.sources.some((source: any) => !source.ownerNodeKey)) error(errors, 'source-scope-mismatch', 'binding.sourceSet', 'Every component PDF needs an owning node.');
+  if (binding.sourceSet?.strategy === 'component_pdfs'
+    && binding.sourceSet.sources.some((source: any) => !outlineKeys.has(source.ownerNodeKey))) {
+    error(errors, 'source-scope-mismatch', 'binding.sourceSet', 'Component source owner must exist in the frozen outline.');
+  }
   if (JSON.stringify(binding).length > MAX_BYTES) error(errors, 'invalid-value', 'binding', 'Binding exceeds bounded size.');
   return { valid: errors.length === 0, errors: Object.freeze(errors) };
 };

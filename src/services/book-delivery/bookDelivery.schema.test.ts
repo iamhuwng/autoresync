@@ -23,6 +23,9 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
     nodeKeys: ['unit-1'],
     placementIds: [],
   },
+  outline: [
+    { nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit' as const, order: 1, titleSnapshot: 'Unit 1' },
+  ],
   sourceSet: {
     strategy,
     sources: strategy === 'full_pdf'
@@ -45,7 +48,7 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
           sourceKey: 'component-b',
           sourceVersionId: 'source-v2',
           lifecycle: 'verified-usable' as const,
-          ownerNodeKey: 'unit-2',
+          ownerNodeKey: 'unit-1',
           sourceOrder: 2,
           localPageScope: { kind: 'pages' as const, pages: [1] },
         },
@@ -54,10 +57,12 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
   placements: [{
     placementId: 'placement-1',
     activityId: 'activity-1',
+    activityVersionId: 'activity-1-v2',
     activityVersion: 2,
     nodeKey: 'unit-1',
     order: 1,
     contextMode: 'required' as const,
+    pageGroupKeys: ['group-1'],
     sourcePageScopes: [{ sourceKey: strategy === 'full_pdf' ? 'full' : 'component-a', pages: [1] }],
   }],
   schedulePolicy: { policyId: 'schedule-1', policyRevision: 1, basis: 'immutable-reference' as const },
@@ -136,6 +141,41 @@ describe('Book Delivery binding schema', () => {
     expect(validateBookDeliveryBinding(outOfScopePage).errors.some((item) => item.code === 'source-scope-mismatch')).toBe(true);
   });
 
+  it('requires a frozen selected outline, immutable Activity Version IDs, and Page Group pins', () => {
+    const missingOutline = structuredClone(binding()) as any;
+    delete missingOutline.outline;
+    expect(validateBookDeliveryBinding(missingOutline).errors).toContainEqual(
+      expect.objectContaining({ code: 'missing-field', path: 'binding.outline' }),
+    );
+
+    const missingVersionId = structuredClone(binding()) as any;
+    delete missingVersionId.placements[0].activityVersionId;
+    expect(validateBookDeliveryBinding(missingVersionId).valid).toBe(false);
+
+    const missingPageGroups = structuredClone(binding()) as any;
+    missingPageGroups.placements[0].pageGroupKeys = [];
+    expect(validateBookDeliveryBinding(missingPageGroups).errors).toContainEqual(
+      expect.objectContaining({ code: 'source-scope-mismatch', path: 'placements[0].pageGroupKeys' }),
+    );
+
+    const outsideOutline = structuredClone(binding()) as any;
+    outsideOutline.placements[0].nodeKey = 'unit-outside';
+    expect(validateBookDeliveryBinding(outsideOutline).errors).toContainEqual(
+      expect.objectContaining({ code: 'contradictory-scope', path: 'binding.placements.nodeKey' }),
+    );
+
+    const unrelatedBranch = structuredClone(binding()) as any;
+    unrelatedBranch.outline.push({
+      nodeKey: 'unit-unrelated',
+      parentNodeKey: null,
+      nodeType: 'unit',
+      order: 2,
+    });
+    expect(validateBookDeliveryBinding(unrelatedBranch).errors).toContainEqual(
+      expect.objectContaining({ code: 'contradictory-scope', path: 'binding.outline' }),
+    );
+  });
+
   it('fails closed for malformed nested records and hidden array authority', () => {
     const malformed = validateBookDeliveryBinding({
       ...binding(),
@@ -184,6 +224,7 @@ describe('Book Delivery binding schema', () => {
     const input = publication() as any;
     const reference = createBookDeliveryPublicationReference(input);
     expect(Object.isFrozen(reference.sourceSet.sources)).toBe(true);
+    expect(Object.isFrozen(reference.outline)).toBe(true);
     expect(Object.isFrozen(input.sourceSet.sources)).toBe(false);
     input.sourceSet.sources[0].sourceKey = 'mutated';
     expect(reference.sourceSet.sources[0]?.sourceKey).toBe('full');

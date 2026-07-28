@@ -81,6 +81,50 @@ describe('Book Delivery Firebase repository', () => {
     expect(firebase.calls.some((call) => call === 'GET book_delivery')).toBe(false);
     const resolved = await repository.resolveCurrent('teacher-1', 'preview-1');
     expect(resolved?.record.status).toBe('active');
+    const currentReads = firebase.calls.filter((call) => call === 'GET book_delivery/scopes/teacher-1/preview-1/current');
+    const recordReads = firebase.calls.filter((call) => call === 'GET book_delivery/scopes/teacher-1/preview-1/records/binding-worker');
+    expect(currentReads).toHaveLength(1);
+    expect(recordReads).toHaveLength(1);
+
+    firebase.values.set('book_delivery/scopes/teacher-1/preview-1/current', {
+      bindingId: 'binding-worker',
+      bindingRevision: 2,
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+      contextKind: 'preview',
+      status: 'active',
+      updatedAt: '2026-07-25T00:02:00.000Z',
+    });
+    expect(await repository.resolveCurrent('teacher-1', 'preview-1')).toBeNull();
+  });
+
+  it('rejects an oversized indexed scope before parsing or writing it', async () => {
+    const firebase = createFirebase();
+    const repository = new FirebaseRestBookDeliveryRepository({
+      env,
+      fetchImpl: firebase.fetchImpl,
+      getAccessToken: async () => 'test-token',
+    });
+    await repository.createDraft({
+      binding: makeBookDeliveryTestBinding(),
+      operationId: operation(9),
+      now: '2026-07-25T00:00:00.000Z',
+    });
+    firebase.values.set('book_delivery/scopes/teacher-1/preview-1', {
+      operations: {
+        [operation(10)]: {
+          fingerprint: 'x'.repeat(9 * 1024 * 1024),
+          result: { receipt: { operationId: operation(10), fingerprint: 'x', status: 'created', createdAt: '2026-07-25T00:00:00.000Z' } },
+        },
+      },
+    });
+    await expect(repository.revoke({
+      bindingId: 'binding-worker',
+      expectedRecordRevision: 0,
+      expectedCurrentBindingId: 'binding-worker',
+      operationId: operation(11),
+      now: '2026-07-25T00:01:00.000Z',
+    })).rejects.toThrow('invalid_book_delivery_scope');
   });
 
   it('replays exact operations, rejects conflicting replays, and clears pointer in same scope CAS', async () => {
