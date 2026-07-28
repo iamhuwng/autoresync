@@ -144,10 +144,14 @@ export class BookHomeworkAuthorityRepository {
         record: BookHomeworkAuthorityRecord,
         nodeKey: string,
       ) => Promise<readonly BookHomeworkStudentState[]>;
+      readonly resolveCommittedRoot: (record: BookHomeworkAuthorityRecord) => Promise<boolean>;
     },
   ) {
     if (typeof options?.resolveAffectedStudentStates !== 'function') {
       throw new BookHomeworkAuthorityError('invalid-command', 'An authoritative student-state resolver is required.');
+    }
+    if (typeof options?.resolveCommittedRoot !== 'function') {
+      throw new BookHomeworkAuthorityError('invalid-command', 'A root-saga visibility resolver is required.');
     }
   }
 
@@ -166,7 +170,8 @@ export class BookHomeworkAuthorityRepository {
     assertCommandId(studentId, 'studentId');
     const record = await this.read(assignmentId);
     if (!record || record.bookManifest.context.recipientId !== studentId
-      || record.visibility.status !== 'committed') return null;
+      || record.visibility.status !== 'committed'
+      || !await this.options.resolveCommittedRoot(record)) return null;
     return clone({
       assignmentId: record.assignmentId,
       schemaVersion: record.schemaVersion,
@@ -586,7 +591,11 @@ export const createFirebaseRestBookHomeworkRepository = (options: {
     record: BookHomeworkAuthorityRecord,
     nodeKey: string,
   ) => Promise<readonly BookHomeworkStudentState[]>;
+  readonly resolveCommittedRoot: (record: BookHomeworkAuthorityRecord) => Promise<boolean>;
 }): BookHomeworkAuthorityRepository => new BookHomeworkAuthorityRepository(
   new FirebaseRestBookHomeworkDocumentStore(options),
-  { resolveAffectedStudentStates: options.resolveAffectedStudentStates },
+  {
+    resolveAffectedStudentStates: options.resolveAffectedStudentStates,
+    resolveCommittedRoot: options.resolveCommittedRoot,
+  },
 );

@@ -99,6 +99,7 @@ const createRepository = (
   store: BookHomeworkDocumentStore = new InMemoryBookHomeworkDocumentStore(),
 ) => new BookHomeworkAuthorityRepository(store, {
   resolveAffectedStudentStates: async () => states,
+  resolveCommittedRoot: async (record) => record.saga.state === 'committed',
 });
 
 describe('Book Homework Firestore authority', () => {

@@ -175,10 +175,10 @@ describe('Homework Firestore rule contract', () => {
     expect(firestoreRules).toContain('data.readingPassageSet.items is list');
   });
 
-  it('keeps Book Homework service-only and committed-only for browser reads', () => {
+  it('keeps Book Homework service-only and browser-denied', () => {
     expect(firestoreRules).toContain("data.assignmentKind == 'book_activity_bundle'");
-    expect(firestoreRules).toContain('isCommittedBookHomework');
-    expect(firestoreRules).toContain('isBookHomeworkOwnerOrRecipient');
+    expect(firestoreRules).toContain('Raw Book authority documents are never browser-readable');
+    expect(firestoreRules).toContain('!isBookHomework(resource.data)');
     expect(firestoreRules).toContain('!isBookHomework(request.resource.data)');
   });
 });
@@ -298,7 +298,7 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertSucceeds(teacher.firestore().doc('homework_assignments/assignment-1').delete());
   });
 
-  it('denies Book authority browser writes, prepared reads, and cross-owner reads while preserving committed projections', async () => {
+  it('denies raw Book authority reads/writes, including malformed nested records', async () => {
     const {
       otherTeacher,
       student,
@@ -316,13 +316,38 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
         ...malformedShape,
         bookManifest: { ...malformedShape.bookManifest, unexpected: true },
       });
+      await context.firestore().doc('homework_assignments/book-malformed-outline').set({
+        ...malformedShape,
+        bookManifest: { ...malformedShape.bookManifest, outline: ['malformed-node'] },
+      });
+      await context.firestore().doc('homework_assignments/book-malformed-schedule').set({
+        ...malformedShape,
+        bookManifest: { ...malformedShape.bookManifest, scheduleRules: [{ nodeKey: 'unit-1', dueAt: 1 }] },
+      });
+      await context.firestore().doc('homework_assignments/book-malformed-bindings').set({
+        ...malformedShape,
+        bookManifest: { ...malformedShape.bookManifest, bindings: [null] },
+      });
+      await context.firestore().doc('homework_assignments/book-malformed-extensions').set({
+        ...malformedShape,
+        studentExtensions: { 'student-1': { 'unit-1': { dueAt: 'not-iso' } } },
+      });
+      await context.firestore().doc('homework_assignments/book-malformed-operations').set({
+        ...malformedShape,
+        operations: { 'operation-1': { fingerprint: 1 } },
+      });
     });
 
     await assertFails(student.firestore().doc('homework_assignments/book-prepared').get());
-    await assertSucceeds(student.firestore().doc('homework_assignments/book-committed').get());
+    await assertFails(student.firestore().doc('homework_assignments/book-committed').get());
     await assertFails(student.firestore().doc('homework_assignments/book-malformed').get());
     await assertFails(student.firestore().doc('homework_assignments/book-malformed-shape').get());
-    await assertSucceeds(teacher.firestore().doc('homework_assignments/book-committed').get());
+    await assertFails(student.firestore().doc('homework_assignments/book-malformed-outline').get());
+    await assertFails(student.firestore().doc('homework_assignments/book-malformed-schedule').get());
+    await assertFails(student.firestore().doc('homework_assignments/book-malformed-bindings').get());
+    await assertFails(student.firestore().doc('homework_assignments/book-malformed-extensions').get());
+    await assertFails(student.firestore().doc('homework_assignments/book-malformed-operations').get());
+    await assertFails(teacher.firestore().doc('homework_assignments/book-committed').get());
     await assertFails(otherTeacher.firestore().doc('homework_assignments/book-committed').get());
 
     await assertFails(

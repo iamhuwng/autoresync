@@ -1,0 +1,67 @@
+{
+  "generatedAt": "2026-07-29T02:49:00+07:00",
+  "sourceGraph": "artifacts/prd0062-graph-20260729-post-ticket84-residual-schema-open.json",
+  "issueHash": "d78579bfb83474a277e91c888fb005dddc3d512893a97e19f73324dfb1934829",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 56,
+    "closedCount": 56,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 84, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "mandatoryTransitiveGate": {
+    "unresolvedTicketsAudited": 56,
+    "ineligibilityRule": "Any direct or transitive open prerequisite, ownership blocker, roadmap-phase mismatch, unavailable authority, or non-executable acceptance gate makes a ticket ineligible.",
+    "completeChainSource": "Source graph records every unresolved ticket directPrerequisites, transitivePrerequisites, and openTransitivePrerequisites."
+  },
+  "candidateDecisions": [
+    { "ticket": 49, "decision": "rejected", "reason": "Foundation candidate not acceptance-ready: private-B2 provisioning and disposable-upload proof remain disabled and unauthorized." },
+    { "ticket": 50, "decision": "rejected", "reason": "Foundation candidate not acceptance-ready: 50A remains all-six-deny/default-deny and activation authority unavailable." },
+    { "ticket": 76, "decision": "rejected", "reason": "Graph-clear but student-workflow phase; current phase remains the unresolved teacher-workflow authority enabler." },
+    { "ticket": 84, "decision": "selected", "reason": "Earliest unresolved teacher-workflow authority enabler with all direct/transitive prerequisites CLOSED. Reopened residual read-boundary audit has concrete local evidence; repair must complete before any dependent ticket." , "downstreamLeverage": 41 },
+    { "ticket": 86, "decision": "rejected", "reason": "INELIGIBLE: direct prerequisite #84 is OPEN; complete transitive chain contains open #84. Do not continue route/browser/deployment work." },
+    { "ticket": 93, "decision": "rejected", "reason": "Graph-clear but later operations phase; cannot bypass the current teacher-workflow authority repair." },
+    { "ticket": 105, "decision": "rejected", "reason": "Graph-clear but lower critical-path leverage and later workflow phase than #84." },
+    { "ticket": 129, "decision": "rejected", "reason": "Final-closure browser phase; roadmap phase later than the current teacher-workflow repair." },
+    { "ticket": 130, "decision": "rejected", "reason": "Final-closure student browser phase; roadmap phase later than the current teacher-workflow repair." },
+    { "ticket": 131, "decision": "rejected", "reason": "Final-closure accessibility/device phase; roadmap phase later than the current teacher-workflow repair." },
+    { "ticket": 132, "decision": "rejected", "reason": "Final-closure security phase; roadmap phase later than the current teacher-workflow repair." },
+    { "ticket": 133, "decision": "rejected", "reason": "Final-closure legacy/recovery phase; roadmap phase later than the current teacher-workflow repair." }
+  ],
+  "selection": {
+    "primaryTicket": 84,
+    "title": "PRD0062 33D — Establish Firestore Book Homework authority",
+    "roadmapPhase": "teacher-workflow",
+    "directClosedPrerequisites": [81, 82, 83],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 81, 82, 83],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 41,
+    "acceptanceReadiness": "Local authority and root-gate evidence exists. Residual acceptance is the safe Firestore read boundary: raw Book authority reads are denied, legacy reads remain allowed, and canonical safe projection remains destination-owned by #86.",
+    "requiredAuthority": [
+      "Closed #81/#82/#83 manifest, preview-policy, and nested-schedule contracts",
+      "Firestore emulator through the required harness",
+      "No trusted Book activation, #50A, #03B, or private-B2 capability"
+    ]
+  },
+  "blocker": {
+    "owner": "#84 authority/schema boundary",
+    "requiredAction": "Complete raw-read denial and malformed nested active-record proof, then rerun the full #84 closure audit before re-closing.",
+    "evidence": [
+      "firestore.rules previously accepted committed Book documents based on outer/list/map types without nested element validation.",
+      "Firebase emulator now proves raw Book reads fail, including malformed outline, schedule, bindings, extensions, and operations fixtures."
+    ],
+    "impact": "#86 remains transitive-ineligible until #84 is formally CLOSED and the full graph is rebuilt."
+  },
+  "safety": {
+    "trustedActionGates": "disabled",
+    "mode03B": "disabled",
+    "mode50A": "all-six-deny/default-deny",
+    "privateB2": "disabled",
+    "scope": "Preserve all 112 tickets; no early completion."
+  }
+}

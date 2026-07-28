@@ -40,9 +40,14 @@ service cloud.firestore {
     // by the authority repository and bypass client rules.
     function isBookHomework(data) {
       return data is map
-        && data.keys().hasAny(['assignmentKind'])
-        && data.assignmentKind is string
-        && data.assignmentKind == 'book_activity_bundle';
+        && (
+          (
+            data.keys().hasAny(['assignmentKind'])
+            && data.assignmentKind is string
+            && data.assignmentKind == 'book_activity_bundle'
+          )
+          || data.keys().hasAny(['bookManifest'])
+        );
     }
 
     function isCommittedBookHomework(data) {
@@ -265,9 +270,11 @@ service cloud.firestore {
 
     // Homework assignments — teachers create, students read their assigned ones
     match /homework_assignments/{assignmentId} {
+      // Raw Book authority documents are never browser-readable. Firestore
+      // rules cannot validate arbitrary members of nested lists/maps; the
+      // canonical Worker owns authenticated safe Book projections.
       allow read: if request.auth != null
-        && (!isBookHomework(resource.data)
-          || (isCommittedBookHomework(resource.data) && isBookHomeworkOwnerOrRecipient(resource.data)));
+        && !isBookHomework(resource.data);
       allow create: if request.auth != null
         && !isBookHomework(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
