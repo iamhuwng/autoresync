@@ -1,0 +1,301 @@
+.book-homework-preview {
+  display: grid;
+  gap: 1rem;
+  color: var(--color-text, #1f2937);
+}
+
+.book-homework-preview__heading,
+.book-homework-preview__activity-heading,
+.book-homework-preview__actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.book-homework-preview__heading h3,
+.book-homework-preview h4,
+.book-homework-preview p {
+  margin: 0;
+}
+
+.book-homework-preview__heading p:last-child {
+  margin-top: 0.35rem;
+  color: var(--color-text-secondary, #5b6472);
+}
+
+.book-homework-preview__eyebrow {
+  margin-bottom: 0.25rem !important;
+  color: var(--color-primary, #1769aa);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.book-homework-preview__status {
+  flex: 0 0 auto;
+  border: 1px solid #b7d7c1;
+  border-radius: 0.25rem;
+  padding: 0.55rem 0.7rem;
+  color: #176b35;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.book-homework-preview__field,
+.book-homework-preview__field span,
+.book-homework-preview__activity-controls label,
+.book-homework-preview__activity-controls label span {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.book-homework-preview__field > span,
+.book-homework-preview__activity-controls label > span {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.book-homework-preview select,
+.book-homework-preview input:not([type='checkbox']):not([type='radio']),
+.book-homework-preview button {
+  min-height: 44px;
+  border: 1px solid #aeb8c5;
+  border-radius: 0.25rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+}
+
+.book-homework-preview button {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.book-homework-preview button:hover:not(:disabled) {
+  background: #f2f6fa;
+}
+
+.book-homework-preview button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.book-homework-preview :is(button, select, input):focus-visible {
+  outline: 3px solid #0b63ce;
+  outline-offset: 2px;
+}
+
+.book-homework-preview__blocker {
+  border-left: 4px solid #b42318;
+  background: #fff1f0;
+  padding: 0.75rem 1rem;
+}
+
+.book-homework-preview__blocker p {
+  margin-top: 0.25rem;
+}
+
+.book-homework-preview__facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.book-homework-preview__facts > div {
+  border: 1px solid #d7dee8;
+  padding: 0.7rem;
+}
+
+.book-homework-preview__facts dt,
+.book-homework-preview__facts dd {
+  margin: 0;
+}
+
+.book-homework-preview__facts dt {
+  color: var(--color-text-secondary, #5b6472);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.book-homework-preview__facts dd {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.book-homework-preview__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.book-homework-preview__columns > section,
+.book-homework-preview__activities,
+.book-homework-preview__policy,
+.book-homework-preview__warnings {
+  border: 1px solid #d7dee8;
+  padding: 0.9rem;
+}
+
+.book-homework-preview__outline,
+.book-homework-preview__source-list,
+.book-homework-preview__activities,
+.book-homework-preview__warnings ul {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.7rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.book-homework-preview__outline li,
+.book-homework-preview__source-list li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.book-homework-preview__outline small,
+.book-homework-preview__source-list span,
+.book-homework-preview__source-list small,
+.book-homework-preview__activity-heading span,
+.book-homework-preview__intent-options small {
+  color: var(--color-text-secondary, #5b6472);
+  font-size: 0.82rem;
+}
+
+.book-homework-preview__activity-heading {
+  align-items: center;
+}
+
+.book-homework-preview__activity-heading > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.book-homework-preview__activity-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 0.55rem;
+  min-width: min(30rem, 55%);
+}
+
+.book-homework-preview__late-policy {
+  grid-column: 1 / -1;
+  display: flex !important;
+  align-items: center;
+  min-height: 44px;
+}
+
+.book-homework-preview__late-policy input,
+.book-homework-preview__integrity-toggle input,
+.book-homework-preview__intent-options input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.book-homework-preview__policy {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.book-homework-preview__intent-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.book-homework-preview__intent-options label,
+.book-homework-preview__integrity-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+}
+
+.book-homework-preview__intent-options label {
+  border: 1px solid #d7dee8;
+  padding: 0.55rem 0.7rem;
+}
+
+.book-homework-preview__intent-options label span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.book-homework-preview__hint {
+  color: #805b00;
+  font-size: 0.85rem;
+}
+
+.book-homework-preview__warnings {
+  background: #fffaf0;
+}
+
+.book-homework-preview__warnings li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.book-homework-preview__warnings li.is-blocker {
+  color: #8a1c13;
+}
+
+.book-homework-preview__warnings button {
+  flex: 0 0 auto;
+}
+
+.book-homework-preview__no-score {
+  color: var(--color-text-secondary, #5b6472);
+  font-size: 0.85rem;
+}
+
+.book-homework-preview__actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.book-homework-preview__actions .is-primary {
+  border-color: #125ea8;
+  background: #125ea8;
+  color: #fff;
+}
+
+@media (max-width: 700px) {
+  .book-homework-preview__facts,
+  .book-homework-preview__columns {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .book-homework-preview__activity-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .book-homework-preview__activity-controls {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .book-homework-preview__heading,
+  .book-homework-preview__actions,
+  .book-homework-preview__warnings li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .book-homework-preview__facts,
+  .book-homework-preview__columns,
+  .book-homework-preview__activity-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .book-homework-preview__actions button {
+    width: 100%;
+  }
+}

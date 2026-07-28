@@ -19,6 +19,7 @@ const BookPdfViewerSmokePage = lazyWithRetry(() => import('../pages/BookPdfViewe
 const BookRuntimeShellSmokePage = lazyWithRetry(() => import('../pages/BookRuntimeShellSmokePage'));
 const ReadingV2StudioSmokePage = lazyWithRetry(() => import('../pages/ReadingV2StudioSmokePage'));
 const ReadingV2VerticalLoopSmokePage = lazyWithRetry(() => import('../pages/ReadingV2VerticalLoopSmokePage'));
+const BookHomeworkPreviewSmokePage = lazyWithRetry(() => import('../pages/BookHomeworkPreviewSmokePage'));
 
 export default function PublicRoutes() {
   const routes = [
@@ -80,6 +81,9 @@ export default function PublicRoutes() {
     }, {
       path: '/__smoke/reading-v2-vertical-loop',
       element: withTrackedRoute(<ReadingV2VerticalLoopSmokePage />, 'testTaking'),
+    }, {
+      path: '/__smoke/book-homework-preview',
+      element: withTrackedRoute(<BookHomeworkPreviewSmokePage />, 'homework'),
     });
   }
 
