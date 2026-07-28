@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  authorizeRuntimeDraftRead,
   authorizeRuntimeCommand,
   soloOnlyBookRuntimeSchedulePolicy,
 } from '../src/upload-worker/book-runtime/authorization.ts';
-import type { BookDeliveryBinding } from '../../src/services/book-delivery/bookDelivery.types.ts';
+import {
+  BOOK_DELIVERY_SCHEMA_VERSION,
+  type BookDeliveryBinding,
+} from '../../src/services/book-delivery/bookDelivery.types.ts';
 
 const binding = (overrides: Partial<BookDeliveryBinding> = {}): BookDeliveryBinding => ({
-  schemaVersion: 2,
+  schemaVersion: BOOK_DELIVERY_SCHEMA_VERSION,
   bindingId: 'binding-1',
   revision: 1,
   status: 'active',
@@ -20,7 +24,8 @@ const binding = (overrides: Partial<BookDeliveryBinding> = {}): BookDeliveryBind
     publicationRevision: 1,
     publicationStatus: 'published',
   },
-  scope: { kind: 'placements', nodeKeys: ['unit-1'], placementIds: ['placement-1'] },
+  scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
+  outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
   context: {
     kind: 'solo',
     contextId: 'context-1',
@@ -34,16 +39,18 @@ const binding = (overrides: Partial<BookDeliveryBinding> = {}): BookDeliveryBind
       sourceKey: 'full',
       sourceVersionId: 'source-v1',
       lifecycle: 'verified-usable',
-      localPageScope: { kind: 'pages', pages: [1] },
+      localPageScope: { kind: 'all', pages: [] },
     }],
   },
   placements: [{
     placementId: 'placement-1',
     activityId: 'activity-1',
+    activityVersionId: 'activity-1-v1',
     activityVersion: 1,
     nodeKey: 'unit-1',
     order: 1,
     contextMode: 'required',
+    pageGroupKeys: ['group-1'],
     sourcePageScopes: [{ sourceKey: 'full', pages: [1] }],
   }],
   schedulePolicy: { policyId: 'solo', policyRevision: 1, basis: 'immutable-reference' },
@@ -66,6 +73,56 @@ const command = () => ({
 });
 
 describe('Ticket 28A runtime authorization and schedule policy', () => {
+  it('accepts current schema-v3 bindings for draft reads and commands', async () => {
+    await expect(authorizeRuntimeDraftRead(
+      { uid: 'student-1' },
+      {
+        bindingId: 'binding-1',
+        bindingRevision: 1,
+        contextId: 'context-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+      },
+      binding(),
+      '2026-07-27T00:00:00.000Z',
+    )).resolves.toMatchObject({
+      actorUid: 'student-1',
+      operationKind: 'document',
+      activityVersion: 1,
+    });
+    await expect(authorizeRuntimeCommand(
+      { uid: 'student-1' },
+      command(),
+      binding(),
+      soloOnlyBookRuntimeSchedulePolicy,
+    )).resolves.toMatchObject({ actorUid: 'student-1' });
+  });
+
+  it('keeps schema-v2 draft reads compatible but denies schema-v2 mutations', async () => {
+    const legacy = { ...binding(), schemaVersion: 2 } as unknown as BookDeliveryBinding;
+    await expect(authorizeRuntimeDraftRead(
+      { uid: 'student-1' },
+      {
+        bindingId: 'binding-1',
+        bindingRevision: 1,
+        contextId: 'context-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+      },
+      legacy,
+    )).resolves.toMatchObject({ operationKind: 'document' });
+    await expect(authorizeRuntimeCommand(
+      { uid: 'student-1' },
+      command(),
+      legacy,
+      soloOnlyBookRuntimeSchedulePolicy,
+    )).rejects.toMatchObject({ code: 'runtime_binding_unsupported' });
+  });
+
   it('returns trusted context for current solo binding and forwards trusted clock to policy', async () => {
     const schedule = {
       authorize: vi.fn(() => ({ allowed: true })),

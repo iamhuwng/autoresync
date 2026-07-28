@@ -3,12 +3,15 @@ import { createBookRouter } from '../src/upload-worker/book-router.ts';
 import { createBookRouteHandlers } from '../src/upload-worker/book-route-handlers.ts';
 import { createBookRuntimeWorkerHandlers } from '../src/upload-worker/book-runtime/worker.ts';
 import { InMemoryBookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
-import type { BookDeliveryBinding } from '../../src/services/book-delivery/bookDelivery.types.ts';
+import {
+  BOOK_DELIVERY_SCHEMA_VERSION,
+  type BookDeliveryBinding,
+} from '../../src/services/book-delivery/bookDelivery.types.ts';
 
 const operationId = '00000000-0000-4000-8000-000000000074';
 
 const binding = (): BookDeliveryBinding => ({
-  schemaVersion: 2,
+  schemaVersion: BOOK_DELIVERY_SCHEMA_VERSION,
   bindingId: 'binding-1',
   revision: 1,
   status: 'active',
@@ -22,7 +25,8 @@ const binding = (): BookDeliveryBinding => ({
     publicationRevision: 1,
     publicationStatus: 'published',
   },
-  scope: { kind: 'placements', nodeKeys: ['unit-1'], placementIds: ['placement-1'] },
+  scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
+  outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
   context: {
     kind: 'solo',
     contextId: 'context-1',
@@ -36,16 +40,18 @@ const binding = (): BookDeliveryBinding => ({
       sourceKey: 'full',
       sourceVersionId: 'source-v1',
       lifecycle: 'verified-usable',
-      localPageScope: { kind: 'pages', pages: [1] },
+      localPageScope: { kind: 'all', pages: [] },
     }],
   },
   placements: [{
     placementId: 'placement-1',
     activityId: 'activity-1',
+    activityVersionId: 'activity-1-v1',
     activityVersion: 1,
     nodeKey: 'unit-1',
     order: 1,
     contextMode: 'required',
+    pageGroupKeys: ['group-1'],
     sourcePageScopes: [{ sourceKey: 'full', pages: [1] }],
   }],
   schedulePolicy: { policyId: 'solo', policyRevision: 1, basis: 'immutable-reference' },

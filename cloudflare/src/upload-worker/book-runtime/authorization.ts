@@ -4,10 +4,21 @@ import type {
   BookRuntimeScheduleOperationKind,
   BookRuntimeTrustedCommandContext,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
-import type {
-  BookDeliveryBinding,
-  BookDeliveryPlacement,
+import {
+  BOOK_DELIVERY_SCHEMA_VERSION,
+  type BookDeliveryBinding,
+  type BookDeliveryPlacement,
 } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+/*
+ * Schema v2 remains readable for legacy drafts, but mutations require the
+ * current Delivery contract because v3 carries immutable Activity Version and
+ * Page Group pins.
+ */
+const LEGACY_BOOK_DELIVERY_SCHEMA_VERSION = 2;
+const isSupportedDraftReadSchema = (schemaVersion: number): boolean => (
+  schemaVersion === LEGACY_BOOK_DELIVERY_SCHEMA_VERSION
+  || schemaVersion === BOOK_DELIVERY_SCHEMA_VERSION
+);
 
 export interface BookRuntimeActor {
   readonly uid: string;
@@ -69,7 +80,7 @@ const authorizeDraftReadBinding = (
 ): BookRuntimeTrustedCommandContext => {
   if (!actor.uid || actor.disabled) deny('runtime_actor_denied', 401);
   if (!binding) deny('runtime_binding_not_found', 404);
-  if (binding.schemaVersion !== 2) deny('runtime_binding_unsupported', 409);
+  if (!isSupportedDraftReadSchema(binding.schemaVersion)) deny('runtime_binding_unsupported', 409);
   if (binding.status !== 'active') deny('runtime_binding_not_active', 409);
   if (binding.bindingId !== input.bindingId
     || binding.revision !== input.bindingRevision
@@ -145,7 +156,7 @@ export const authorizeRuntimeCommand = async (
 ): Promise<BookRuntimeTrustedCommandContext> => {
   if (!actor.uid || actor.disabled) deny('runtime_actor_denied', 401);
   if (!binding) deny('runtime_binding_not_found', 404);
-  if (binding.schemaVersion !== 2) deny('runtime_binding_unsupported', 409);
+  if (binding.schemaVersion !== BOOK_DELIVERY_SCHEMA_VERSION) deny('runtime_binding_unsupported', 409);
   if (binding.status !== 'active') deny('runtime_binding_not_active', 409);
   if (binding.bindingId !== command.bindingId
     || binding.revision !== command.bindingRevision
