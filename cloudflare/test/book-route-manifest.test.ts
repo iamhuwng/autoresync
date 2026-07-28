@@ -60,6 +60,12 @@ describe('canonical Book route contract catalog', () => {
     expect(new Set(forTicket('#70').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
     expect(new Set(forTicket('#74').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_RUNTIME_SERVICE_IDENTITY']));
     expect(new Set(forTicket('#74').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_RUNTIME_GOOGLE_SA_KEY']));
+    expect(canonicalBookRouteManifest.find((route) => route.id === 'book.homework.assignment-command')).toEqual(expect.objectContaining({
+      identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
+      gateEnv: 'BOOK_HOMEWORK_ROUTES_ENABLED',
+      source: 'future-seam',
+    }));
   });
 
   it('registers Full-PDF and component-PDF publication only through disabled #59 route seams', () => {

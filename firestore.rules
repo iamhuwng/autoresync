@@ -35,6 +35,124 @@ service cloud.firestore {
         );
     }
 
+    // Mode 2 Book Homework is a trusted-worker authority record.  Firestore
+    // rules deliberately deny browser writes; Admin/Worker writes are checked
+    // by the authority repository and bypass client rules.
+    function isBookHomework(data) {
+      return data is map
+        && data.keys().hasAny(['assignmentKind'])
+        && data.assignmentKind is string
+        && data.assignmentKind == 'book_activity_bundle';
+    }
+
+    function isCommittedBookHomework(data) {
+      return isBookHomework(data)
+        && data.keys().hasAll([
+          'assignmentId', 'ownerId', 'bookManifest', 'schedule', 'studentExtensions',
+          'saga', 'visibility', 'schemaVersion', 'revision', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest',
+          'schedule', 'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt',
+          'updatedAt', 'operations'
+        ])
+        && data.assignmentId is string
+        && data.ownerId is string
+        && data.schemaVersion == 1
+        && data.revision is int
+        && data.revision >= 1
+        && data.createdAt is string
+        && data.updatedAt is string
+        && data.bookManifest is map
+        && data.bookManifest.keys().hasAll([
+          'schemaVersion', 'assignmentKind', 'manifestVersionId', 'ownerId',
+          'createdByCommandId', 'createdAt', 'bindingRevision', 'book', 'context',
+          'selectedTarget', 'outline', 'scheduleRules', 'bindings', 'completion'
+        ])
+        && data.bookManifest.keys().hasOnly([
+          'schemaVersion', 'assignmentKind', 'manifestVersionId', 'ownerId',
+          'createdByCommandId', 'createdAt', 'bindingRevision', 'book', 'context',
+          'selectedTarget', 'outline', 'scheduleRules', 'bindings', 'completion'
+        ])
+        && data.bookManifest.assignmentKind == 'book_activity_bundle'
+        && data.bookManifest.schemaVersion == 1
+        && data.bookManifest.manifestVersionId is string
+        && data.bookManifest.ownerId == data.ownerId
+        && data.bookManifest.createdByCommandId is string
+        && data.bookManifest.createdAt is string
+        && data.bookManifest.bindingRevision is int
+        && data.bookManifest.book is map
+        && data.bookManifest.book.keys().hasAll([
+          'bookId', 'bookMode', 'bookRevision', 'publicationId', 'publicationRevision', 'publicationStatus'
+        ])
+        && data.bookManifest.book.keys().hasOnly([
+          'bookId', 'bookMode', 'bookRevision', 'publicationId', 'publicationRevision', 'publicationStatus'
+        ])
+        && data.bookManifest.book.bookId is string
+        && data.bookManifest.book.bookMode == 'pdf'
+        && data.bookManifest.book.bookRevision is int
+        && data.bookManifest.book.publicationId is string
+        && data.bookManifest.book.publicationRevision is int
+        && data.bookManifest.book.publicationStatus == 'published'
+        && data.bookManifest.context is map
+        && data.bookManifest.context.keys().hasAll(['contextId', 'recipientId', 'kind', 'entitlementBasis'])
+        && data.bookManifest.context.keys().hasOnly(['contextId', 'recipientId', 'kind', 'entitlementBasis'])
+        && data.bookManifest.context.contextId is string
+        && data.bookManifest.context.recipientId is string
+        && data.bookManifest.context.kind == 'homework'
+        && data.bookManifest.context.entitlementBasis == 'assignment'
+        && data.bookManifest.selectedTarget is map
+        && data.bookManifest.selectedTarget.bookId is string
+        && data.bookManifest.outline is list
+        && data.bookManifest.scheduleRules is list
+        && data.bookManifest.bindings is list
+        && data.bookManifest.completion is map
+        && data.bookManifest.completion.keys().hasAll([
+          'aggregation', 'requiredBindingCount', 'excludedBindingCount', 'legacyScoreFields'
+        ])
+        && data.bookManifest.completion.keys().hasOnly([
+          'aggregation', 'requiredBindingCount', 'excludedBindingCount', 'legacyScoreFields'
+        ])
+        && data.bookManifest.completion.requiredBindingCount is int
+        && data.bookManifest.completion.excludedBindingCount is int
+        && data.schedule is map
+        && data.schedule.keys().hasAll(['schemaVersion', 'resolverVersion', 'finalDueAt', 'scheduleRules'])
+        && data.schedule.keys().hasOnly(['schemaVersion', 'resolverVersion', 'availableFrom', 'finalDueAt', 'scheduleRules'])
+        && data.schedule.schemaVersion == 1
+        && data.schedule.resolverVersion == 1
+        && data.schedule.finalDueAt is string
+        && data.schedule.scheduleRules is list
+        && data.studentExtensions is map
+        && (!data.keys().hasAny(['operations']) || data.operations is map)
+        && data.saga is map
+        && data.saga.keys().hasAll(['sagaId', 'state', 'lastCommandId'])
+        && data.saga.keys().hasOnly(['sagaId', 'state', 'lastCommandId'])
+        && data.saga.sagaId is string
+        && data.saga.lastCommandId is string
+        && data.visibility is map
+        && data.visibility.keys().hasAll(['status', 'pointerId', 'manifestVersionId', 'revision'])
+        && data.visibility.keys().hasOnly(['status', 'pointerId', 'manifestVersionId', 'revision'])
+        && data.visibility.status == 'committed'
+        && data.saga.state == 'committed'
+        && data.visibility.status == data.saga.state
+        && data.visibility.pointerId is string
+        && data.visibility.manifestVersionId is string
+        && data.visibility.revision is int
+        && data.visibility.revision >= 1
+        && data.visibility.revision <= data.revision
+        && data.visibility.pointerId == data.visibility.manifestVersionId
+        && data.bookManifest.manifestVersionId == data.visibility.manifestVersionId;
+    }
+
+    function isBookHomeworkOwnerOrRecipient(data) {
+      return data.ownerId == request.auth.uid
+        || (
+          data.bookManifest.keys().hasAll(['context'])
+          && data.bookManifest.context.keys().hasAll(['recipientId'])
+          && data.bookManifest.context.recipientId == request.auth.uid
+        );
+    }
+
     function isSafeHomeworkStats(stats) {
       return stats.keys().hasOnly([
           'totalAssigned',
@@ -55,6 +173,8 @@ service cloud.firestore {
 
     function isStudentStatsOnlyHomeworkUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats', 'updatedAt'])
+        && !isBookHomework(resource.data)
+        && !isBookHomework(request.resource.data)
         && request.resource.data.createdBy == resource.data.createdBy
         && isSafeHomeworkStats(resource.data.stats)
         && isSafeHomeworkStats(request.resource.data.stats)
@@ -145,11 +265,16 @@ service cloud.firestore {
 
     // Homework assignments — teachers create, students read their assigned ones
     match /homework_assignments/{assignmentId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+        && (!isBookHomework(resource.data)
+          || (isCommittedBookHomework(resource.data) && isBookHomeworkOwnerOrRecipient(resource.data)));
       allow create: if request.auth != null
+        && !isBookHomework(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
         && isValidReadingPassageHomeworkPayload(request.resource.data);
       allow update: if request.auth != null
+        && !isBookHomework(resource.data)
+        && !isBookHomework(request.resource.data)
         && (
           (
             resource.data.createdBy == request.auth.uid
@@ -159,6 +284,7 @@ service cloud.firestore {
           || isStudentStatsOnlyHomeworkUpdate()
         );
       allow delete: if request.auth != null
+        && !isBookHomework(resource.data)
         && resource.data.createdBy == request.auth.uid;
     }
 

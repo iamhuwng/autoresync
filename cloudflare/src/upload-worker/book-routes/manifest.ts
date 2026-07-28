@@ -80,6 +80,8 @@ const future = (input: {
   readonly gateEnv: string;
   readonly requestBodyBytes: number;
   readonly responseLimitBytes: number;
+  readonly identityEnv?: string;
+  readonly credentialEnv?: string;
 }): CanonicalBookRouteDescriptor => ({
   ...input,
   gateDefault: 'disabled',
@@ -271,6 +273,8 @@ const futureRoutes: BookRouteManifest = [
     gateEnv: 'BOOK_HOMEWORK_ROUTES_ENABLED',
     requestBodyBytes: MAX_CONTROL_REQUEST_BYTES,
     responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+    identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
+    credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
   }),
   future({
     id: 'book.evaluation-history.read',
