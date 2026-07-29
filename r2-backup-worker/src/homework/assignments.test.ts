@@ -362,6 +362,21 @@ describe('homework assignment Worker route', () => {
         expect(body.reasonCode).toBe('WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED');
     });
 
+    it('rejects a Mode 2 Book payload before legacy Firebase reads or writes', async () => {
+        const { fetchMock } = makeFetchMock(new Map());
+
+        const response = await handleCreateHomeworkAssignment(requestFor({
+            assignmentKind: 'book_activity_bundle',
+            bookManifest: { manifestVersionId: 'manifest-1' },
+            target: { type: 'students', studentIds: ['student-1'] },
+        }), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(400);
+        expect(body.reasonCode).toBe('WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('rejects unsupported content kind', async () => {
         makeFetchMock(okRecords());
 

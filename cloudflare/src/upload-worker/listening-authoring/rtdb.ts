@@ -62,7 +62,7 @@ class TokenCache {
       .setProtectedHeader({ alg: 'RS256' })
       .sign(privateKey);
 
-    const response = await this.fetchImpl(OAUTH2_TOKEN_URL, {
+    const response = await this.fetchImpl.call(globalThis, OAUTH2_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
@@ -121,14 +121,16 @@ export class FirebaseRtdbRestClient {
       env: RepositoryEnv;
       fetchImpl: typeof fetch;
       getAccessToken?: () => Promise<string>;
+      firebaseAuthToken?: boolean;
     },
   ) {}
 
   async readValue(path: string): Promise<unknown> {
     if (this.options.env.readDatabaseValue) return this.options.env.readDatabaseValue(path);
-    const response = await this.options.fetchImpl(rtdbUrl(this.options.env, path), {
+    const auth = await this.requestAuth(path);
+    const response = await this.options.fetchImpl.call(globalThis, auth.url, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${await this.accessToken()}` },
+      headers: auth.headers,
     });
     const body = parseJsonBody(await response.text());
     if (!response.ok) throw new Error(`firebase_rtdb_get_failed:${response.status}`);
@@ -136,10 +138,11 @@ export class FirebaseRtdbRestClient {
   }
 
   async readWithEtag<T>(path: string): Promise<{ data: T; etag: string }> {
-    const response = await this.options.fetchImpl(rtdbUrl(this.options.env, path), {
+    const auth = await this.requestAuth(path);
+    const response = await this.options.fetchImpl.call(globalThis, auth.url, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${await this.accessToken()}`,
+        ...auth.headers,
         'X-Firebase-ETag': 'true',
       },
     });
@@ -151,10 +154,11 @@ export class FirebaseRtdbRestClient {
   }
 
   async writeIfMatch(path: string, value: unknown, etag: string): Promise<boolean> {
-    const response = await this.options.fetchImpl(rtdbUrl(this.options.env, path), {
+    const auth = await this.requestAuth(path);
+    const response = await this.options.fetchImpl.call(globalThis, auth.url, {
       method: 'PUT',
       headers: {
-        Authorization: `Bearer ${await this.accessToken()}`,
+        ...auth.headers,
         'Content-Type': 'application/json',
         'if-match': etag,
       },
@@ -173,5 +177,16 @@ export class FirebaseRtdbRestClient {
     const saKey = this.options.env.GOOGLE_SA_KEY?.trim();
     if (!saKey) throw new Error('missing_google_sa_key');
     return getTokenCache(saKey, this.options.fetchImpl).getToken();
+  }
+
+  private async requestAuth(path: string): Promise<{
+    url: string;
+    headers: Record<string, string>;
+  }> {
+    const token = await this.accessToken();
+    const url = rtdbUrl(this.options.env, path);
+    return this.options.firebaseAuthToken
+      ? { url: `${url}?auth=${encodeURIComponent(token)}`, headers: {} }
+      : { url, headers: { Authorization: `Bearer ${token}` } };
   }
 }

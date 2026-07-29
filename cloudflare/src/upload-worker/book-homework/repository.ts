@@ -508,7 +508,7 @@ const tokenProvider = (keyJson: string, identity: string, fetchImpl: typeof fetc
     const assertion = await new SignJWT({ iss: key.client_email, sub: key.client_email, aud: OAUTH2_TOKEN_URL, iat: now, exp: now + 3600, scope: FIREBASE_SCOPES })
       .setProtectedHeader({ alg: 'RS256' })
       .sign(await importPKCS8(key.private_key, 'RS256'));
-    const response = await fetchImpl(OAUTH2_TOKEN_URL, {
+    const response = await fetchImpl.call(globalThis, OAUTH2_TOKEN_URL, {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
     });
@@ -540,7 +540,7 @@ export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocume
 
   async read(assignmentId: string): Promise<BookHomeworkStoredDocument | null> {
     assertCommandId(assignmentId, 'assignmentId');
-    const response = await this.fetchImpl(this.url(assignmentId), {
+    const response = await this.fetchImpl.call(globalThis, this.url(assignmentId), {
       headers: { Authorization: `Bearer ${await this.getAccessToken()}` },
     });
     if (response.status === 404) return null;
@@ -556,7 +556,7 @@ export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocume
     const query = updateTime === undefined
       ? '?currentDocument.exists=false'
       : `?currentDocument.updateTime=${encodeURIComponent(updateTime)}`;
-    const response = await this.fetchImpl(`${this.url(assignmentId)}${query}`, {
+    const response = await this.fetchImpl.call(globalThis, `${this.url(assignmentId)}${query}`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${await this.getAccessToken()}`,

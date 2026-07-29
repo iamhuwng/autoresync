@@ -75,6 +75,30 @@ const operationFingerprint = (action: string, input: Record<string, unknown>): s
 const encodedBytes = (value: unknown): number =>
   new TextEncoder().encode(JSON.stringify(value)).byteLength;
 
+const normalizeRtdbRecord = (value: unknown): unknown => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const record = clone(value) as Record<string, any>;
+  const binding = record.binding;
+  if (!binding || typeof binding !== 'object' || Array.isArray(binding)) return record;
+  if (Array.isArray(binding.outline)) {
+    binding.outline.forEach((node: Record<string, unknown>) => {
+      if (!Object.hasOwn(node, 'parentNodeKey')) node.parentNodeKey = null;
+    });
+  }
+  if (binding.scope && typeof binding.scope === 'object') {
+    binding.scope.nodeKeys ??= [];
+    binding.scope.placementIds ??= [];
+  }
+  if (Array.isArray(binding.sourceSet?.sources)) {
+    binding.sourceSet.sources.forEach((source: Record<string, any>) => {
+      if (source.localPageScope && typeof source.localPageScope === 'object') {
+        source.localPageScope.pages ??= [];
+      }
+    });
+  }
+  return record;
+};
+
 const validRecord = (value: unknown, expectedId?: string): value is BookDeliveryRecord => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const record = value as BookDeliveryRecord;
@@ -133,8 +157,9 @@ const parseScope = (value: unknown): DeliveryScope => {
     const entries = Object.entries(source.records as Record<string, unknown>);
     if (entries.length > MAX_RECORDS_PER_SCOPE) throw new Error('book_delivery_record_capacity_exceeded');
     for (const [bindingId, record] of entries) {
-      if (!ID.test(bindingId) || !validRecord(record, bindingId)) throw new Error('invalid_book_delivery_record');
-      records[bindingId] = clone(record);
+      const normalized = normalizeRtdbRecord(record);
+      if (!ID.test(bindingId) || !validRecord(normalized, bindingId)) throw new Error('invalid_book_delivery_record');
+      records[bindingId] = clone(normalized);
     }
   }
   const operations: Record<string, PersistedOperation> = {};
@@ -261,6 +286,7 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
       env: { ...options.env, GOOGLE_SA_KEY: keyJson },
       fetchImpl: options.fetchImpl ?? globalThis.fetch,
       getAccessToken: options.getAccessToken,
+      firebaseAuthToken: Boolean(options.getAccessToken),
     });
   }
 
@@ -268,7 +294,7 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     assertId(bindingId, 'binding_id');
     const index = parseIndex(await this.rtdb.readValue(bindingPath(bindingId)));
     if (!index) return null;
-    const value = await this.rtdb.readValue(recordPath(index, bindingId));
+    const value = normalizeRtdbRecord(await this.rtdb.readValue(recordPath(index, bindingId)));
     return validRecord(value, bindingId) ? clone(value) : null;
   }
 
@@ -282,9 +308,9 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
   async resolveCurrent(recipientId: string, contextId: string): Promise<BookDeliveryResolvedEntitlement | null> {
     const pointer = await this.readCurrent(recipientId, contextId);
     if (!pointer) return null;
-    const value = await this.rtdb.readValue(
+    const value = normalizeRtdbRecord(await this.rtdb.readValue(
       `${scopePath(recipientId, contextId)}/records/${pointer.bindingId}`,
-    );
+    ));
     if (!validRecord(value, pointer.bindingId)
       || value.status !== 'active'
       || value.binding.revision !== pointer.bindingRevision) return null;

@@ -9,6 +9,7 @@ import {
   type BookAssemblyPublicationRouteOptions,
 } from './book-assembly/publication-route-handlers.ts';
 import { createBookRuntimeWorkerHandlers } from './book-runtime/worker.ts';
+import { createBookHomeworkWorkerHandlers } from './book-homework/worker.ts';
 import { createTeacherAssemblyPreviewWorker } from './book-delivery/teacher-assembly-preview-worker.js';
 import type {
   BookRouteParams,
@@ -70,6 +71,7 @@ export interface BookRouteHandlersOptions {
   readonly assemblySuccessorHandlers?: Record<string, unknown>;
   readonly assemblyMappingRevisionHandlers?: Record<string, unknown>;
   readonly runtimeHandlers?: Record<string, unknown>;
+  readonly homeworkHandlers?: Record<string, unknown>;
   readonly documentHandler?: BookRouteHandler;
   readonly teacherDocumentHandler?: BookRouteHandler;
   readonly futureHandlers?: BookRouteHandlerMap;
@@ -96,6 +98,7 @@ export const createBookRouteHandlers = (
   const assemblySuccessor = options.assemblySuccessorHandlers ?? {};
   const assemblyMappingRevision = options.assemblyMappingRevisionHandlers ?? {};
   const runtime = options.runtimeHandlers ?? createBookRuntimeWorkerHandlers();
+  const homework = options.homeworkHandlers ?? createBookHomeworkWorkerHandlers();
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
     ['create', 'activate', 'supersede', 'revoke'], 'bookDelivery', () => []);
@@ -126,6 +129,8 @@ export const createBookRouteHandlers = (
     'activityVersion',
     'interactionId',
   ]);
+  addFactoryHandlers(handlers, homework, ['homeworkAssignmentCommand'], 'futureSeam', () => ['assignmentId']);
+  addFactoryHandlers(handlers, homework, ['homeworkStudentProjection'], 'futureSeam', () => ['assignmentId']);
 
   const documentHandler = options.documentHandler ?? unavailableDocumentHandler;
   const teacherPreviewWorker = createTeacherAssemblyPreviewWorker();

@@ -1004,6 +1004,15 @@ function isAssignmentError(value: unknown): value is AssignmentError {
         typeof value.message === 'string';
 }
 
+function isBookHomeworkPayload(value: Record<string, unknown>): boolean {
+    const contentRef = isRecord(value.contentRef) ? value.contentRef : null;
+    return value.assignmentKind === 'book_activity_bundle'
+        || Object.hasOwn(value, 'bookManifest')
+        || value.mode === 'book'
+        || contentRef?.contentKind === 'book_activity_bundle'
+        || contentRef?.contentKind === 'book';
+}
+
 export async function handleCreateHomeworkAssignment(
     request: Request,
     env: WorkerEnv
@@ -1020,6 +1029,13 @@ export async function handleCreateHomeworkAssignment(
         }
 
         const body = parsedBody as CreateHomeworkAssignmentRequest;
+        if (isBookHomeworkPayload(parsedBody)) {
+            return errorResponse(assignmentError(
+                'WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED',
+                'Book Homework must use the canonical Book Worker route.',
+                400,
+            ));
+        }
         const accessToken = await getFirebaseAccessToken(env.GOOGLE_SA_KEY);
         const user = await readRtdb<Record<string, any>>(env, accessToken, 'users/' + auth.uid);
         const role = String(user?.role ?? '').trim();

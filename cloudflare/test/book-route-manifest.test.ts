@@ -27,7 +27,7 @@ describe('canonical Book route contract catalog', () => {
 
   it('registers all future boundaries as disabled seams', () => {
     const future = canonicalBookRouteManifest.filter((route) => route.source === 'future-seam');
-    expect(future).toHaveLength(7);
+    expect(future).toHaveLength(8);
     expect(new Set(future.map((route) => route.domain))).toEqual(new Set([
       'homework', 'evaluation-history', 'integrity', 'notifications',
       'impact-snapshot', 'updates', 'replacement-cleanup',
@@ -64,6 +64,12 @@ describe('canonical Book route contract catalog', () => {
       identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
       credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
       gateEnv: 'BOOK_HOMEWORK_ROUTES_ENABLED',
+      source: 'future-seam',
+    }));
+    expect(canonicalBookRouteManifest.find((route) => route.id === 'book.homework.student-projection')).toEqual(expect.objectContaining({
+      identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
+      gateEnv: 'BOOK_HOMEWORK_READ_ROUTES_ENABLED',
       source: 'future-seam',
     }));
   });
