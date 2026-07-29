@@ -376,3 +376,50 @@ export interface MaterialBookPublicProjection {
   readonly approvedBy: string;
   readonly nodes: readonly MaterialBookPublicProjectionNode[];
 }
+
+export type ContentCatalogSelection =
+  | { readonly kind: 'catalog' }
+  | { readonly kind: 'book'; readonly bookId: string }
+  | {
+      readonly kind: 'section' | 'chapter' | 'unit';
+      readonly bookId: string;
+      readonly nodeId: string;
+    }
+  | {
+      readonly kind: 'activity';
+      readonly bookId: string;
+      readonly nodeId: string;
+      readonly placementId: string;
+      readonly activityId: string;
+      readonly activityVersionId: string;
+    };
+
+export type ContentCatalogPublicState =
+  | 'metadata-only'
+  | 'tree-public-runtime-blocked'
+  | 'playable';
+
+export interface ContentCatalogSafeCapabilities {
+  readonly preview: boolean;
+  readonly launch: boolean;
+  readonly sourceAssisted: boolean;
+}
+
+export interface ContentCatalogSafeReadiness {
+  readonly publication: 'trusted' | 'untrusted' | 'revoked' | 'replaced';
+  readonly source: 'ready' | 'blocked' | 'revoked' | 'replaced';
+  readonly entitlement: 'active' | 'none' | 'revoked';
+}
+
+export interface ContentCatalogResolvedSelection {
+  readonly selection: Exclude<ContentCatalogSelection, { readonly kind: 'catalog' }>;
+  readonly title: string;
+  readonly parent: ContentCatalogSelection;
+  readonly state: ContentCatalogPublicState;
+  readonly capabilities: ContentCatalogSafeCapabilities;
+  readonly readiness: ContentCatalogSafeReadiness;
+  readonly provenance: {
+    readonly adapterId: string;
+    readonly adapterVersion: number;
+  };
+}
