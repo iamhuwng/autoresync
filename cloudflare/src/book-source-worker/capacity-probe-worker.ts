@@ -2,27 +2,50 @@ import { createCapacityProbeProviderFromEnv } from './capacity-probe-provider';
 import { readProviderTotalsWorkUnit, type ProviderReconciliationCursor } from './provider-reconciliation';
 import {
   createTrustedFirebaseRtdbServiceAccountAccessTokenProvider,
+  createTrustedFirebaseSourceUploadRtdbTransaction,
 } from '../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction';
 import {
   getBookSourceUploadProviderTotals,
+  SourceUploadRtdbRepository,
+  validateBookSourceUploadAccountState,
 } from '../../../src/services/book-source-delivery/sourceUpload.rtdbRepository';
+import {
+  reconcileProviderTotals,
+} from './provider-reconciliation';
+import type { ProviderReconciliationSnapshot } from './capacity-ledger';
 
 const PATH = '/internal/book-source-capacity/reconciliation-page';
 const MAX_BODY_BYTES = 64 * 1_024;
 const MAX_LEDGER_RESPONSE_BYTES = 32 * 1024 * 1024;
 const BODY_READ_TIMEOUT_MS = 5_000;
+const FIREBASE_READ_TIMEOUT_MS = 10_000;
 const TOKEN_TTL_MS = 10 * 60 * 1_000;
 const TOKEN_VERSION = 'book-source-capacity-v1';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-interface ExpectedTotals { readonly totalBytes: number; readonly objectCount: number; }
+interface ExpectedTotals {
+  readonly totalBytes: number;
+  readonly objectCount: number;
+  readonly revision: number;
+}
 interface ContinuationPayload { readonly v: string; readonly exp: number; readonly expected: ExpectedTotals; readonly cursor: ProviderReconciliationCursor; }
 type ExpectedTotalsReader = (env: Record<string, unknown>) => Promise<ExpectedTotals>;
+type ReconciliationSnapshotWriter = (
+  env: Record<string, unknown>,
+  input: {
+    readonly expectedRevision: number;
+    readonly snapshot: ProviderReconciliationSnapshot;
+  },
+) => Promise<void>;
 
 export const getCanonicalCapacityExpectedTotals = (state: unknown): ExpectedTotals => {
-  if (state === null) throw new Error('invalid');
-  return getBookSourceUploadProviderTotals(state);
+  if (state === null || state === undefined) throw new Error('invalid');
+  const validated = validateBookSourceUploadAccountState(state);
+  return Object.freeze({
+    ...getBookSourceUploadProviderTotals(validated),
+    revision: validated.revision,
+  });
 };
 
 const noStore = (status: number, value: Record<string, string>): Response => new Response(JSON.stringify(value), {
@@ -78,6 +101,23 @@ const readBoundedResponse = async (response: Response): Promise<unknown> => {
     throw new Error('invalid');
   }
 };
+const createTimeoutFetch = (
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+): typeof fetch => async (input, init) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const inheritedSignal = init?.signal;
+  const abortInherited = () => controller.abort();
+  if (inheritedSignal?.aborted) controller.abort();
+  else inheritedSignal?.addEventListener('abort', abortInherited, { once: true });
+  try {
+    return await fetchImpl(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+    inheritedSignal?.removeEventListener('abort', abortInherited);
+  }
+};
 const createDefaultExpectedTotalsReader = (
   fetchImpl: typeof fetch,
 ): ExpectedTotalsReader => async (env) => {
@@ -91,12 +131,13 @@ const createDefaultExpectedTotalsReader = (
   }
   const accountId = required(env, 'BOOK_SOURCE_CAPACITY_ACCOUNT_ID');
   if (!/^[A-Za-z0-9_:@-]{1,256}$/u.test(accountId)) throw new Error('invalid');
+  const boundedFetch = createTimeoutFetch(fetchImpl, FIREBASE_READ_TIMEOUT_MS);
   const accessTokenProvider = createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
     serviceAccountEmail: required(env, 'BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL'),
     serviceAccountPrivateKey: required(env, 'BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY'),
-    fetchImpl,
+    fetchImpl: boundedFetch,
   });
-  const response = await fetchImpl(
+  const response = await boundedFetch(
     `${databaseUrl.toString().replace(/\/$/u, '')}/book_source_upload_accounts/${accountId}.json`,
     {
       headers: {
@@ -107,6 +148,28 @@ const createDefaultExpectedTotalsReader = (
   if (!response.ok) throw new Error('invalid');
   const state = await readBoundedResponse(response);
   return getCanonicalCapacityExpectedTotals(state);
+};
+const createDefaultReconciliationSnapshotWriter = (
+  fetchImpl: typeof fetch,
+): ReconciliationSnapshotWriter => async (env, input) => {
+  const accessTokenProvider = createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
+    serviceAccountEmail: required(env, 'BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL'),
+    serviceAccountPrivateKey: required(env, 'BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY'),
+    fetchImpl,
+  });
+  const repository = new SourceUploadRtdbRepository(
+    createTrustedFirebaseSourceUploadRtdbTransaction({
+      databaseUrl: required(env, 'FIREBASE_DATABASE_URL'),
+      accessTokenProvider,
+      fetchImpl,
+    }),
+    {},
+  );
+  await repository.recordProviderReconciliation({
+    accountId: required(env, 'BOOK_SOURCE_CAPACITY_ACCOUNT_ID'),
+    expectedRevision: input.expectedRevision,
+    snapshot: input.snapshot,
+  });
 };
 const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
   const actual = Object.keys(value).sort(); const expected = [...keys].sort();
@@ -169,8 +232,11 @@ const payloadValid = (value: unknown): value is ContinuationPayload => {
   const payload = record(value); const expected = record(payload?.expected);
   return payload !== null && exactKeys(payload, ['v', 'exp', 'expected', 'cursor'])
     && payload.v === TOKEN_VERSION && isSafeCount(payload.exp) && expected !== null
-    && exactKeys(expected, ['totalBytes', 'objectCount'])
-    && isSafeCount(expected.totalBytes) && isSafeCount(expected.objectCount) && cursorValid(payload.cursor);
+    && exactKeys(expected, ['totalBytes', 'objectCount', 'revision'])
+    && isSafeCount(expected.totalBytes)
+    && isSafeCount(expected.objectCount)
+    && isSafeCount(expected.revision)
+    && cursorValid(payload.cursor);
 };
 const keyFor = async (secret: string): Promise<CryptoKey> => {
   const raw = decodeBase64Url(secret);
@@ -237,6 +303,7 @@ export interface CapacityProbeWorkerOptions {
   readonly bodyReadTimeoutMs?: number;
   readonly fetchImpl?: typeof fetch;
   readonly readExpectedTotals?: ExpectedTotalsReader;
+  readonly writeReconciliationSnapshot?: ReconciliationSnapshotWriter;
   /** Test-only observation seam. Production default never logs caught errors. */
   readonly onError?: (error: unknown) => void;
 }
@@ -246,6 +313,8 @@ export const createCapacityProbeWorker = (
 ) => {
   const readExpectedTotals = options.readExpectedTotals
     ?? createDefaultExpectedTotalsReader(options.fetchImpl ?? fetch);
+  const writeReconciliationSnapshot = options.writeReconciliationSnapshot
+    ?? createDefaultReconciliationSnapshotWriter(options.fetchImpl ?? fetch);
   return {
   async fetch(request: Request, env: Record<string, unknown>): Promise<Response> {
     try {
@@ -276,8 +345,16 @@ export const createCapacityProbeWorker = (
         const continuationToken = await seal(cursorSecret, { v: TOKEN_VERSION, exp: now + TOKEN_TTL_MS, expected, cursor: work.cursor });
         return noStore(200, { state: 'continue', continuationToken });
       }
-      const healthy = work.totals.totalBytes === expected.totalBytes && work.totals.objectCount === expected.objectCount;
-      return noStore(200, { state: 'complete', status: healthy ? 'healthy' : 'drift' });
+      const snapshot = reconcileProviderTotals({
+        expected,
+        observed: work.totals,
+        completedAt: new Date(now).toISOString(),
+      });
+      await writeReconciliationSnapshot(env, {
+        expectedRevision: expected.revision,
+        snapshot,
+      });
+      return noStore(200, { state: 'complete', status: snapshot.status });
     } catch (error) {
       if (options.onError) options.onError(error);
       else reportFailure(error);

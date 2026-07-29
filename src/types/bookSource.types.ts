@@ -41,8 +41,53 @@ export interface BookSourceCapacityUsage {
   readonly temporaryBytes: number;
 }
 
+export interface BookSourceProviderReconciliationSnapshot {
+  readonly status: 'healthy' | 'drift';
+  readonly totalBytes: number;
+  readonly objectCount: number;
+  readonly completedAt: string;
+}
+
+export interface BookSourceUploadAccountCapacityState extends Pick<
+  BookSourceCapacityUsage,
+  'trackedAccountBytes' | 'temporaryBytes'
+> {
+  /**
+   * Trusted provider snapshot. Absence is valid for migration/readback but
+   * must never authorize a new provider upload.
+   */
+  readonly providerReconciliation?: BookSourceProviderReconciliationSnapshot;
+}
+
 export type BookSourceUploadKind = 'initial' | 'replacement';
-export type BookSourceUploadStatus = 'reserved' | 'verified_completed' | 'released';
+export type BookSourceUploadStatus =
+  | 'reserved'
+  | 'cleanup_pending'
+  | 'verified_completed'
+  | 'released';
+
+export type BookSourceUploadCleanupReason =
+  | 'cancel_requested'
+  | 'expired'
+  | 'unverifiable';
+
+export interface BookSourceUploadCleanupState {
+  readonly reason: BookSourceUploadCleanupReason;
+  readonly requestedAt: string;
+  readonly attempt: number;
+  readonly nextRetryAt: string;
+  readonly lastErrorCode?: string;
+  readonly providerFileId?: string;
+  readonly providerFileVersionId?: string;
+  readonly leaseOwner?: string;
+  readonly leaseExpiresAt?: string;
+}
+
+export interface BookSourceCommittedVersionReconciliationState {
+  readonly attempt: number;
+  readonly nextRetryAt: string;
+  readonly lastErrorCode: string;
+}
 
 /**
  * Reservation identity is immutable once issued. It is the idempotency key
@@ -72,10 +117,15 @@ export interface BookSourceUploadOperation extends BookSourceUploadReservation {
   /** Provider file/version identity is absent until trusted completion verifies it. */
   readonly verifiedStorage?: BookSourceVersionStorageIdentity;
   readonly completedAt?: string;
+  readonly cleanup?: BookSourceUploadCleanupState;
+  /** Retry state for deleting uncommitted siblings while preserving this committed version. */
+  readonly versionReconciliation?: BookSourceCommittedVersionReconciliationState;
+  readonly releasedAt?: string;
+  readonly releaseProof?: 'exact_version_deleted' | 'provider_absent';
 }
 
 export interface BookSourceUploadAccountState {
   readonly revision: number;
-  readonly capacity: Pick<BookSourceCapacityUsage, 'trackedAccountBytes' | 'temporaryBytes'>;
+  readonly capacity: BookSourceUploadAccountCapacityState;
   readonly operations: Readonly<Record<string, BookSourceUploadOperation>>;
 }

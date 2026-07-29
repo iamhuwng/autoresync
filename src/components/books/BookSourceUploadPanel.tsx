@@ -13,7 +13,7 @@ import type {
 } from '../../services/book-source-delivery/sourceUpload.client';
 import './BookSourceUploadPanel.css';
 
-type ActivePhase = 'idle' | 'uploading' | 'verifying' | 'failed';
+type ActivePhase = 'idle' | 'uploading' | 'verifying' | 'reconciling' | 'failed';
 
 export type BookSourceUploadAction =
   | 'book_source_upload_started'
@@ -21,6 +21,9 @@ export type BookSourceUploadAction =
   | 'book_source_upload_completion_retry_started'
   | 'book_source_upload_canceled'
   | 'book_source_upload_cancel_request_failed'
+  | 'book_source_upload_cleanup_retry_started'
+  | 'book_source_upload_cleanup_released'
+  | 'book_source_upload_cleanup_retry_failed'
   | 'book_source_upload_restored'
   | 'book_source_upload_verified'
   | 'book_source_upload_failed';
@@ -206,14 +209,44 @@ const BookSourceUploadPanel = ({
     }
   };
 
-  const busy = activePhase === 'uploading' || activePhase === 'verifying';
+  const retryCleanup = async () => {
+    setActivePhase('reconciling');
+    setError('');
+    onAction?.('book_source_upload_cleanup_retry_started');
+    toast.info('Retrying exact upload cleanup.');
+    try {
+      const status = await workflow.retryCleanup(bookId);
+      await restore();
+      setActivePhase('idle');
+      if (status === 'released') {
+        onAction?.('book_source_upload_cleanup_released');
+        toast.success('Upload cleanup confirmed. Reserved capacity was released.');
+      } else {
+        onAction?.('book_source_upload_cleanup_retry_failed');
+        toast.warning('Cleanup remains pending. Reserved capacity is still held safely.');
+      }
+    } catch {
+      await restore();
+      setActivePhase('failed');
+      setError('Cleanup is still pending. Retry when the provider is available.');
+      onAction?.('book_source_upload_cleanup_retry_failed');
+      toast.error('Could not finish upload cleanup. Reserved capacity remains held.');
+    }
+  };
+
+  const busy = activePhase === 'uploading'
+    || activePhase === 'verifying'
+    || activePhase === 'reconciling';
   const canStart = allowFreshUpload && selection !== null && saved === null && !busy;
   const canRetryBytes = allowFreshUpload
     && selection !== null
     && (saved?.phase === 'reserved' || saved?.phase === 'cancel_requested')
     && !busy;
   const canRetryCompletion = saved?.phase === 'completion_pending' && !busy;
-  const canRequestCleanup = saved !== null && saved.phase !== 'verified' && !busy;
+  const canRequestCleanup = saved !== null
+    && saved.phase !== 'verified'
+    && saved.phase !== 'cancel_requested'
+    && !busy;
 
   return (
     <section
@@ -268,14 +301,18 @@ const BookSourceUploadPanel = ({
         <div className="book-source-upload__progress" role="status">
           <div>
             <span>
-              {activePhase === 'verifying'
+              {activePhase === 'reconciling'
+                ? 'Reconciling the exact unfinished provider version'
+                : activePhase === 'verifying'
                 ? 'Verifying immutable provider metadata'
                 : progress.percent >= 100
                   ? 'PDF byte stream complete — awaiting exact B2 confirmation'
                   : 'Streaming PDF bytes to the exact B2 destination'}
             </span>
             <span>
-              {activePhase === 'verifying'
+              {activePhase === 'reconciling'
+                ? 'Reserved capacity stays held until cleanup is proven'
+                : activePhase === 'verifying'
                 ? `${Math.round(progress.percent)}%`
                 : `${progress.loadedBytes} / ${progress.totalBytes} bytes (${Math.round(progress.percent)}%)`}
             </span>
@@ -323,7 +360,12 @@ const BookSourceUploadPanel = ({
         )}
         {canRequestCleanup && (
           <button type="button" onClick={() => void cancel()}>
-            {saved.phase === 'cancel_requested' ? 'Retry cleanup request' : 'Request cleanup'}
+            Request cleanup
+          </button>
+        )}
+        {saved?.phase === 'cancel_requested' && (
+          <button type="button" disabled={busy} onClick={() => void retryCleanup()}>
+            Retry cleanup
           </button>
         )}
       </div>

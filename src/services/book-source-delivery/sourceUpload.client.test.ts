@@ -250,4 +250,43 @@ describe('sourceUpload.client', () => {
       reservationId: 'reservation-1',
     })).resolves.toBeUndefined();
   });
+
+  it('uses bound GET status and POST reconcile lifecycle routes', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(Response.json({
+        reservationId: 'reservation-1',
+        bookId: 'book-1',
+        sourceVersionId: 'source-version-1',
+        status: 'cleanup_pending',
+        retryKind: 'cleanup',
+      }))
+      .mockResolvedValueOnce(Response.json({
+        reservationId: 'reservation-1',
+        bookId: 'book-1',
+        sourceVersionId: 'source-version-1',
+        status: 'released',
+        retryKind: 'none',
+      }));
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+    const command = { bookId: 'book-1', reservationId: 'reservation-1' };
+    await expect(client.status(command)).resolves.toMatchObject({
+      status: 'cleanup_pending',
+    });
+    await expect(client.reconcile(command)).resolves.toMatchObject({
+      status: 'released',
+    });
+    expect(fetchImpl.mock.calls[0]).toEqual([
+      'https://control.example/v1/book-source/books/book-1/upload/reservation-1/status',
+      expect.objectContaining({ method: 'GET' }),
+    ]);
+    expect(fetchImpl.mock.calls[0]?.[1]).not.toHaveProperty('body');
+    expect(fetchImpl.mock.calls[1]).toEqual([
+      'https://control.example/v1/book-source/books/book-1/upload/reservation-1/reconcile',
+      expect.objectContaining({ method: 'POST', body: '{}' }),
+    ]);
+  });
 });

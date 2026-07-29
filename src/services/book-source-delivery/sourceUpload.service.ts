@@ -61,6 +61,7 @@ export interface SourceUploadProviderPort {
 }
 
 const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
+const SAFE_OBJECT_KEY_PREFIX = /^(?!\/)(?!.*(?:^|\/)\.\.?\/)[A-Za-z0-9!$&'()*+,=:@._\/-]{1,768}\/$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const PDF_CONTENT_TYPE = 'application/pdf';
 const DEFAULT_RESERVATION_TTL_MS = 15 * 60 * 1_000;
@@ -90,6 +91,7 @@ export type SourceUploadControlErrorCode =
   | 'active_artifact_conflict'
   | 'reservation_not_found'
   | 'reservation_released'
+  | 'cleanup_pending'
   | 'stale_cas'
   | 'reservation_conflict'
   | 'provider_authorization_mismatch'
@@ -126,6 +128,7 @@ export interface SourceUploadDeploymentConfig {
   readonly storageLocationId: string;
   readonly providerKind: string;
   readonly privateBucketId: string;
+  readonly objectKeyPrefix?: string;
 }
 
 export type SourceUploadAccountStateReader =
@@ -199,7 +202,7 @@ export interface SourceUploadControl {
 type ResolvedDependencies = {
   readonly authority: SourceUploadBookManagementAuthority;
   readonly rolloutGate: SourceUploadRolloutGate;
-  readonly deployment: SourceUploadDeploymentConfig;
+  readonly deployment: SourceUploadDeploymentConfig & { readonly objectKeyPrefix: string };
   readonly accountStateReader: SourceUploadAccountStateReader;
   readonly repository: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
   readonly provider: SourceUploadProviderPort;
@@ -291,6 +294,10 @@ const resolveDependencies = (input: SourceUploadControlDependencies): ResolvedDe
     deployment.providerKind,
     deployment.privateBucketId,
   ]) assertSafeIdentifier(value);
+  const objectKeyPrefix = deployment.objectKeyPrefix ?? 'book-source/';
+  if (!SAFE_OBJECT_KEY_PREFIX.test(objectKeyPrefix)) {
+    throw new SourceUploadControlError('invalid_deployment');
+  }
   const reservationTtlMs = input.reservationTtlMs ?? DEFAULT_RESERVATION_TTL_MS;
   if (!Number.isSafeInteger(reservationTtlMs) || reservationTtlMs <= 0 || reservationTtlMs > MAX_RESERVATION_TTL_MS) {
     throw new SourceUploadControlError('invalid_deployment');
@@ -300,7 +307,7 @@ const resolveDependencies = (input: SourceUploadControlDependencies): ResolvedDe
   return {
     authority,
     rolloutGate: input.rolloutGate,
-    deployment,
+    deployment: Object.freeze({ ...deployment, objectKeyPrefix }),
     accountStateReader,
     repository,
     provider,
@@ -387,13 +394,13 @@ const stableDigest = (value: string): string => {
   return `${left.toString(16).padStart(8, '0')}${right.toString(16).padStart(8, '0')}`;
 };
 
-const derivedIdentity = (input: BeginSourceUploadInput) => {
+const derivedIdentity = (input: BeginSourceUploadInput, objectKeyPrefix: string) => {
   const key = input.idempotencyKey.toLowerCase();
   const digest = stableDigest(`${input.actorId}\u0000${input.bookId}\u0000${key}`);
   return Object.freeze({
     reservationId: `reservation-${digest}`,
     sourceVersionId: `source-version-${stableDigest(`${input.bookId}\u0000${input.actorId}\u0000${key}`)}`,
-    providerObjectKey: `book-source/${input.actorId}/${input.bookId}/${digest}.pdf`,
+    providerObjectKey: `${objectKeyPrefix}${input.actorId}/${input.bookId}/${digest}.pdf`,
   });
 };
 
@@ -573,11 +580,12 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
   await authorizeBook(resolved.authority, input.actorId, input.bookId);
   await assertUploadGate(resolved.rolloutGate);
   const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
-  const identity = derivedIdentity(input);
+  const identity = derivedIdentity(input, resolved.deployment.objectKeyPrefix);
   const existing = state.operations[identity.reservationId];
   if (existing) {
     if (!sameRequest(existing, input)) throw new SourceUploadControlError('idempotency_conflict');
     if (existing.status === 'released') throw new SourceUploadControlError('reservation_released');
+    if (existing.status === 'cleanup_pending') throw new SourceUploadControlError('cleanup_pending');
     if (existing.status === 'verified_completed') throw new SourceUploadControlError('reservation_conflict');
     const reservation: ReserveSourceUploadInput = {
       accountId: resolved.deployment.accountId,
@@ -614,7 +622,8 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
     );
   }
   if (Object.values(state.operations).some((operation) =>
-    operation.status === 'reserved' && operation.bookId === input.bookId)) {
+    (operation.status === 'reserved' || operation.status === 'cleanup_pending')
+      && operation.bookId === input.bookId)) {
     throw new SourceUploadControlError('active_artifact_conflict');
   }
   const createdAt = nowIso(resolved.clock);
@@ -661,6 +670,7 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUp
     throw new SourceUploadControlError('reservation_not_found');
   }
   if (operation.status === 'released') throw new SourceUploadControlError('reservation_released');
+  if (operation.status === 'cleanup_pending') throw new SourceUploadControlError('cleanup_pending');
   let expected: BookSourceVersionStorageIdentity;
   try {
     expected = createBookSourceVersionStorageIdentity({

@@ -92,6 +92,7 @@ const workflow = (
     },
   })),
   requestCancellation: vi.fn(async () => true),
+  retryCleanup: vi.fn(async () => 'released' as const),
 });
 
 afterEach(() => {
@@ -319,8 +320,11 @@ describe('BookSourceUploadPanel', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', {
-      name: 'Retry cleanup request',
+      name: 'Retry cleanup',
     }));
-    await waitFor(() => expect(client.requestCancellation).toHaveBeenCalledWith('book-1'));
+    await waitFor(() => expect(client.retryCleanup).toHaveBeenCalledWith('book-1'));
+    expect(toast.success).toHaveBeenCalledWith(
+      'Upload cleanup confirmed. Reserved capacity was released.',
+    );
   });
 });

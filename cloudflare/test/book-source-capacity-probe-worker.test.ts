@@ -5,15 +5,18 @@ import {
 } from '../src/book-source-worker/capacity-probe-worker';
 
 const workerErrors: unknown[] = [];
-const readZeroExpectedTotals = vi.fn(async () => ({ totalBytes: 0, objectCount: 0 }));
+const readZeroExpectedTotals = vi.fn(async () => ({ totalBytes: 0, objectCount: 0, revision: 0 }));
+const writeReconciliationSnapshot = vi.fn(async () => undefined);
 const worker = createCapacityProbeWorker({
   onError: (error) => workerErrors.push(error),
   readExpectedTotals: readZeroExpectedTotals,
+  writeReconciliationSnapshot,
 });
 
 beforeEach(() => {
   workerErrors.length = 0;
   readZeroExpectedTotals.mockClear();
+  writeReconciliationSnapshot.mockClear();
 });
 
 const key = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY';
@@ -76,10 +79,12 @@ describe('Book Source capacity probe worker', () => {
         : Response.json({ files: [{ action: 'upload', fileId: 'second', fileName: 'b.pdf', contentLength: 6 }] });
     });
     vi.stubGlobal('fetch', fetcher);
-    const readExpectedTotals = vi.fn(async () => ({ totalBytes: 10, objectCount: 2 }));
+    const readExpectedTotals = vi.fn(async () => ({ totalBytes: 10, objectCount: 2, revision: 7 }));
+    const writeSnapshot = vi.fn(async () => undefined);
     const exactWorker = createCapacityProbeWorker({
       onError: (error) => workerErrors.push(error),
       readExpectedTotals,
+      writeReconciliationSnapshot: writeSnapshot,
     });
     const first = await exactWorker.fetch(request({}), env());
     expect(first.status).toBe(200);
@@ -91,6 +96,17 @@ describe('Book Source capacity probe worker', () => {
     expect(await second.json()).toEqual({ state: 'complete', status: 'healthy' });
     expect(fetcher).toHaveBeenCalledTimes(4);
     expect(readExpectedTotals).toHaveBeenCalledTimes(1);
+    expect(writeSnapshot).toHaveBeenCalledWith(
+      env(),
+      expect.objectContaining({
+        expectedRevision: 7,
+        snapshot: expect.objectContaining({
+          status: 'healthy',
+          totalBytes: 10,
+          objectCount: 2,
+        }),
+      }),
+    );
     const driftFetcher = vi.fn<typeof fetch>(async (url) => (
       String(url).includes('b2_authorize_account')
         ? authorize()
@@ -103,12 +119,48 @@ describe('Book Source capacity probe worker', () => {
     expect(driftFetcher).toHaveBeenCalledTimes(2);
     expect(workerErrors).toEqual([]);
     expect(await drift.json()).toEqual({ state: 'complete', status: 'drift' });
+    expect(writeReconciliationSnapshot).toHaveBeenCalledWith(
+      env(),
+      expect.objectContaining({
+        expectedRevision: 0,
+        snapshot: expect.objectContaining({
+          status: 'drift',
+          totalBytes: 1,
+          objectCount: 1,
+        }),
+      }),
+    );
     expect(JSON.stringify(firstBody)).not.toMatch(/capacity-key-secret|private-bucket|b2-token|totalBytes|objectCount/iu);
     vi.unstubAllGlobals();
   });
 
   it('fails closed when the canonical RTDB capacity ledger is absent', () => {
     expect(() => getCanonicalCapacityExpectedTotals(null)).toThrow('invalid');
+  });
+
+  it('fails closed when the reconciled provider snapshot cannot be persisted', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (url) => (
+      String(url).includes('b2_authorize_account')
+        ? authorize()
+        : Response.json({ files: [] })
+    ));
+    vi.stubGlobal('fetch', fetcher);
+    const snapshotFailure = new Error('capacity snapshot CAS conflict');
+    const failingWorker = createCapacityProbeWorker({
+      onError: (error) => workerErrors.push(error),
+      readExpectedTotals: readZeroExpectedTotals,
+      writeReconciliationSnapshot: async () => {
+        throw snapshotFailure;
+      },
+    });
+
+    const response = await failingWorker.fetch(request({}), env());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ code: 'unavailable' });
+    expect(workerErrors).toEqual([snapshotFailure]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
   });
 
   it('round-trips the maximum 256-page sealed cursor without raw cursor growth', async () => {
@@ -145,7 +197,8 @@ describe('Book Source capacity probe worker', () => {
     vi.stubGlobal('fetch', fetcher);
     const failureWorker = createCapacityProbeWorker({
       onError: (error) => workerErrors.push(error),
-      readExpectedTotals: async () => ({ totalBytes: 1, objectCount: 1 }),
+      readExpectedTotals: async () => ({ totalBytes: 1, objectCount: 1, revision: 1 }),
+      writeReconciliationSnapshot,
     });
     const failure = await failureWorker.fetch(request({}), env());
     expect(await failure.json()).toEqual({ code: 'unavailable' });
@@ -160,7 +213,8 @@ describe('Book Source capacity probe worker', () => {
       new Response('B2 diagnostic capacity-key-secret', { status: 500 }));
     vi.stubGlobal('fetch', fetcher);
     const productionWorker = createCapacityProbeWorker({
-      readExpectedTotals: async () => ({ totalBytes: 0, objectCount: 0 }),
+      readExpectedTotals: async () => ({ totalBytes: 0, objectCount: 0, revision: 0 }),
+      writeReconciliationSnapshot,
     });
 
     const failure = await productionWorker.fetch(
@@ -188,7 +242,8 @@ describe('Book Source capacity probe worker', () => {
     let now = Date.parse('2026-07-23T00:00:00.000Z');
     const expiryWorker = createCapacityProbeWorker({
       now: () => now,
-      readExpectedTotals: async () => ({ totalBytes: 0, objectCount: 0 }),
+      readExpectedTotals: async () => ({ totalBytes: 0, objectCount: 0, revision: 0 }),
+      writeReconciliationSnapshot,
     });
     const fetcher = vi.fn<typeof fetch>(async (url) => (
       String(url).includes('b2_authorize_account')
@@ -239,6 +294,7 @@ describe('Book Source capacity probe worker', () => {
     const stalledWorker = createCapacityProbeWorker({
       bodyReadTimeoutMs: 10,
       readExpectedTotals: readZeroExpectedTotals,
+      writeReconciliationSnapshot,
     });
     const stalled = new Request(
       'https://worker.test/internal/book-source-capacity/reconciliation-page',

@@ -143,6 +143,9 @@ const createHarness = (options: {
     completeVerified,
     authorizeUpload,
     verifyCompletedObject,
+    setState: (next: BookSourceUploadAccountState) => {
+      state = next;
+    },
     setGate: (allowed: boolean) => {
       gateAllowed = allowed;
     },
@@ -166,6 +169,32 @@ describe('provider-neutral Source Upload control domain', () => {
     expect(replay.status).toBe('replayed');
     expect(Object.keys(first).sort()).toEqual(['expiresAt', 'requiredHeaders', 'reservationId', 'sourceVersionId', 'status', 'uploadUrl']);
     expect(JSON.stringify(first)).not.toMatch(/(?:bucket|location|objectKey|credential|secret|bytes)/iu);
+  });
+
+  it('never reauthorizes or completes an operation after cleanup begins', async () => {
+    const harness = createHarness();
+    const begin = await harness.control.begin(BEGIN_INPUT);
+    const state = harness.state();
+    harness.setState({
+      ...state,
+      operations: {
+        ...state.operations,
+        [begin.reservationId]: {
+          ...state.operations[begin.reservationId]!,
+          status: 'cleanup_pending',
+          cleanup: {
+            reason: 'cancel_requested',
+            requestedAt: NOW.toISOString(),
+            attempt: 0,
+            nextRetryAt: NOW.toISOString(),
+          },
+        },
+      },
+    });
+    await expectCode(harness.control.begin(BEGIN_INPUT), 'cleanup_pending');
+    await expectCode(harness.control.complete(completionInput(begin.reservationId)), 'cleanup_pending');
+    expect(harness.authorizeUpload).toHaveBeenCalledTimes(1);
+    expect(harness.verifyCompletedObject).not.toHaveBeenCalled();
   });
 
   it('requires current management authority and the begin-only rollout gate', async () => {

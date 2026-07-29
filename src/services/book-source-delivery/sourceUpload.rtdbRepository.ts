@@ -1,8 +1,10 @@
 import type {
   BookSourceChecksum,
   BookSourceUploadAccountState,
+  BookSourceUploadCleanupReason,
   BookSourceUploadKind,
   BookSourceUploadOperation,
+  BookSourceProviderReconciliationSnapshot,
   BookSourceVersionStorageIdentity,
 } from '../../types/bookSource.types';
 import {
@@ -41,6 +43,22 @@ const OPERATION_KEYS = [
   'status',
   'verifiedStorage',
   'completedAt',
+  'cleanup',
+  'versionReconciliation',
+  'releasedAt',
+  'releaseProof',
+] as const;
+
+const CLEANUP_KEYS = [
+  'reason',
+  'requestedAt',
+  'attempt',
+  'nextRetryAt',
+  'lastErrorCode',
+  'providerFileId',
+  'providerFileVersionId',
+  'leaseOwner',
+  'leaseExpiresAt',
 ] as const;
 
 export interface ReserveSourceUploadInput {
@@ -70,6 +88,66 @@ export interface CompleteSourceUploadInput {
   /** Trusted completion inspection, never a browser assertion. */
   readonly verifiedStorage: BookSourceVersionStorageIdentity;
   readonly verifiedAt: string;
+}
+
+export interface RequestSourceUploadCleanupInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly reservationId: string;
+  readonly ownerId: string;
+  readonly reason: BookSourceUploadCleanupReason;
+  readonly requestedAt: string;
+  readonly providerFileId?: string;
+  readonly providerFileVersionId?: string;
+}
+
+export interface ClaimSourceUploadCleanupInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly reservationId: string;
+  readonly leaseOwner: string;
+  readonly claimedAt: string;
+  readonly leaseExpiresAt: string;
+}
+
+export interface FailSourceUploadCleanupInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly reservationId: string;
+  readonly leaseOwner: string;
+  readonly failedAt: string;
+  readonly nextRetryAt: string;
+  readonly errorCode: string;
+}
+
+export interface ReleaseSourceUploadInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly reservationId: string;
+  readonly leaseOwner: string;
+  readonly releasedAt: string;
+  readonly proof: 'exact_version_deleted' | 'provider_absent';
+}
+
+export interface RecordSourceProviderReconciliationInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly snapshot: BookSourceProviderReconciliationSnapshot;
+}
+
+export interface RecordCommittedVersionReconciliationFailureInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly reservationId: string;
+  readonly failedAt: string;
+  readonly nextRetryAt: string;
+  readonly errorCode: string;
+}
+
+export interface ClearCommittedVersionReconciliationFailureInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly reservationId: string;
 }
 
 export interface SourceUploadRtdbRepositoryOptions {
@@ -146,6 +224,101 @@ export class SourceUploadRtdbRepository {
     return requireCommitted(result.committed, result.value);
   }
 
+  async recordProviderReconciliation(
+    input: RecordSourceProviderReconciliationInput,
+  ): Promise<BookSourceUploadAccountState> {
+    assertRtdbKey(input.accountId, 'accountId');
+    assertProviderReconciliationSnapshot(input.snapshot);
+    if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
+      throw new SourceUploadConflictError('invalid provider reconciliation revision.');
+    }
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) {
+          throw new SourceUploadConflictError('upload account state does not exist.');
+        }
+        const state = normalizePersistedState(current);
+        assertState(state);
+        return nextState(state, state.operations, state.capacity.trackedAccountBytes, input.snapshot);
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
+  async recordCommittedVersionReconciliationFailure(
+    input: RecordCommittedVersionReconciliationFailureInput,
+  ): Promise<BookSourceUploadAccountState> {
+    assertRtdbKey(input.accountId, 'accountId');
+    assertRtdbKey(input.reservationId, 'reservationId');
+    assertIso(input.failedAt, 'failedAt');
+    assertIso(input.nextRetryAt, 'nextRetryAt');
+    if (!Number.isSafeInteger(input.expectedRevision)
+      || input.expectedRevision < 0
+      || Date.parse(input.nextRetryAt) <= Date.parse(input.failedAt)
+      || !/^[a-z0-9_]{1,80}$/u.test(input.errorCode)) {
+      throw new SourceUploadConflictError('invalid committed-version reconciliation retry.');
+    }
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) throw new SourceUploadConflictError('upload account state does not exist.');
+        const state = normalizePersistedState(current);
+        assertState(state);
+        const operation = state.operations[input.reservationId];
+        if (!operation || operation.status !== 'verified_completed') {
+          throw new SourceUploadConflictError('committed upload reconciliation is unavailable.');
+        }
+        return nextState(state, {
+          ...state.operations,
+          [input.reservationId]: Object.freeze({
+            ...operation,
+            versionReconciliation: Object.freeze({
+              attempt: (operation.versionReconciliation?.attempt ?? 0) + 1,
+              nextRetryAt: input.nextRetryAt,
+              lastErrorCode: input.errorCode,
+            }),
+          }),
+        });
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
+  async clearCommittedVersionReconciliationFailure(
+    input: ClearCommittedVersionReconciliationFailureInput,
+  ): Promise<BookSourceUploadAccountState> {
+    assertRtdbKey(input.accountId, 'accountId');
+    assertRtdbKey(input.reservationId, 'reservationId');
+    if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
+      throw new SourceUploadConflictError('invalid committed-version reconciliation revision.');
+    }
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) throw new SourceUploadConflictError('upload account state does not exist.');
+        const state = normalizePersistedState(current);
+        assertState(state);
+        const operation = state.operations[input.reservationId];
+        if (!operation || operation.status !== 'verified_completed') {
+          throw new SourceUploadConflictError('committed upload reconciliation is unavailable.');
+        }
+        if (operation.versionReconciliation === undefined) return state;
+        return nextState(state, {
+          ...state.operations,
+          [input.reservationId]: Object.freeze({
+            ...operation,
+            versionReconciliation: undefined,
+          }),
+        });
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
   async completeVerified(input: CompleteSourceUploadInput): Promise<BookSourceUploadAccountState> {
     if (!isIsoDate(input.verifiedAt)) throw new SourceVersionError('verifiedAt must be a UTC ISO date.');
     const verifiedStorage = createBookSourceVersionStorageIdentity(input.verifiedStorage);
@@ -183,6 +356,157 @@ export class SourceUploadRtdbRepository {
     });
     return requireCommitted(result.committed, result.value);
   }
+
+  async requestCleanup(input: RequestSourceUploadCleanupInput): Promise<BookSourceUploadAccountState> {
+    assertRtdbKey(input.accountId, 'accountId');
+    assertRtdbKey(input.reservationId, 'reservationId');
+    assertSafeId(input.ownerId, 'ownerId');
+    assertCleanupReason(input.reason);
+    assertIso(input.requestedAt, 'requestedAt');
+    assertOptionalProviderIdentity(input.providerFileId, input.providerFileVersionId);
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) throw new SourceUploadConflictError('upload account state does not exist.');
+        const state = normalizePersistedState(current);
+        assertState(state);
+        const operation = state.operations[input.reservationId];
+        if (!operation || operation.ownerId !== input.ownerId) {
+          throw new SourceUploadConflictError('upload reservation owner mismatch.');
+        }
+        if (operation.status === 'verified_completed') {
+          throw new SourceUploadConflictError('verified upload cannot enter cleanup.');
+        }
+        if (operation.status === 'released') return state;
+        if (operation.status === 'cleanup_pending') {
+          if (operation.cleanup?.reason !== input.reason
+            || operation.cleanup.providerFileId !== input.providerFileId
+            || operation.cleanup.providerFileVersionId !== input.providerFileVersionId) {
+            throw new SourceUploadConflictError('cleanup request identity is immutable.');
+          }
+          return state;
+        }
+        const cleanup = Object.freeze({
+          reason: input.reason,
+          requestedAt: input.requestedAt,
+          attempt: 0,
+          nextRetryAt: input.providerFileId === undefined
+            && Date.parse(operation.expiresAt) > Date.parse(input.requestedAt)
+            ? operation.expiresAt
+            : input.requestedAt,
+          ...(input.providerFileId === undefined ? {} : {
+            providerFileId: input.providerFileId,
+            providerFileVersionId: input.providerFileVersionId,
+          }),
+        });
+        return nextState(state, {
+          ...state.operations,
+          [input.reservationId]: Object.freeze({
+            ...operation,
+            status: 'cleanup_pending' as const,
+            cleanup,
+          }),
+        });
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
+  async claimCleanup(input: ClaimSourceUploadCleanupInput): Promise<BookSourceUploadAccountState> {
+    assertCleanupLeaseInput(input);
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) throw new SourceUploadConflictError('upload account state does not exist.');
+        const state = normalizePersistedState(current);
+        assertState(state);
+        const operation = state.operations[input.reservationId];
+        if (!operation || operation.status !== 'cleanup_pending' || !operation.cleanup) {
+          throw new SourceUploadConflictError('upload cleanup is not pending.');
+        }
+        const claimedAt = Date.parse(input.claimedAt);
+        if (Date.parse(operation.cleanup.nextRetryAt) > claimedAt
+          || (operation.cleanup.leaseExpiresAt !== undefined
+            && Date.parse(operation.cleanup.leaseExpiresAt) > claimedAt)) {
+          throw new SourceUploadConflictError('upload cleanup lease is unavailable.');
+        }
+        return nextState(state, {
+          ...state.operations,
+          [input.reservationId]: Object.freeze({
+            ...operation,
+            cleanup: Object.freeze({
+              ...operation.cleanup,
+              attempt: operation.cleanup.attempt + 1,
+              leaseOwner: input.leaseOwner,
+              leaseExpiresAt: input.leaseExpiresAt,
+            }),
+          }),
+        });
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
+  async failCleanup(input: FailSourceUploadCleanupInput): Promise<BookSourceUploadAccountState> {
+    assertCleanupResultInput(input, input.failedAt);
+    assertIso(input.nextRetryAt, 'nextRetryAt');
+    if (Date.parse(input.nextRetryAt) <= Date.parse(input.failedAt)
+      || !/^[a-z0-9_]{1,80}$/u.test(input.errorCode)) {
+      throw new SourceUploadConflictError('invalid cleanup retry metadata.');
+    }
+    return this.finishCleanupLease(input, (operation) => Object.freeze({
+      ...operation,
+      cleanup: Object.freeze({
+        ...operation.cleanup!,
+        nextRetryAt: input.nextRetryAt,
+        lastErrorCode: input.errorCode,
+        leaseOwner: undefined,
+        leaseExpiresAt: undefined,
+      }),
+    }));
+  }
+
+  async releaseCleaned(input: ReleaseSourceUploadInput): Promise<BookSourceUploadAccountState> {
+    assertCleanupResultInput(input, input.releasedAt);
+    if (input.proof !== 'exact_version_deleted' && input.proof !== 'provider_absent') {
+      throw new SourceUploadConflictError('invalid cleanup release proof.');
+    }
+    return this.finishCleanupLease(input, (operation) => Object.freeze({
+      ...operation,
+      status: 'released' as const,
+      cleanup: undefined,
+      releasedAt: input.releasedAt,
+      releaseProof: input.proof,
+    }));
+  }
+
+  private async finishCleanupLease(
+    input: Pick<FailSourceUploadCleanupInput, 'accountId' | 'expectedRevision' | 'reservationId' | 'leaseOwner'>,
+    update: (operation: BookSourceUploadOperation) => BookSourceUploadOperation,
+  ): Promise<BookSourceUploadAccountState> {
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) throw new SourceUploadConflictError('upload account state does not exist.');
+        const state = normalizePersistedState(current);
+        assertState(state);
+        const operation = state.operations[input.reservationId];
+        if (operation?.status === 'released') return state;
+        if (!operation || operation.status !== 'cleanup_pending'
+          || operation.cleanup?.leaseOwner !== input.leaseOwner) {
+          throw new SourceUploadConflictError('upload cleanup lease mismatch.');
+        }
+        return nextState(state, {
+          ...state.operations,
+          [input.reservationId]: update(operation),
+        });
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
 }
 
 export const sourceUploadAccountPath = (accountId: string): string =>
@@ -211,14 +535,29 @@ export function getBookSourceUploadProviderTotals(
   return Object.freeze({ totalBytes, objectCount: completed.length });
 }
 
+export function validateBookSourceUploadAccountState(
+  value: unknown,
+): BookSourceUploadAccountState {
+  const state = normalizePersistedState(value as BookSourceUploadAccountState);
+  assertState(state);
+  return state;
+}
+
 function nextState(
   state: BookSourceUploadAccountState,
   operations: Readonly<Record<string, BookSourceUploadOperation>>,
   trackedAccountBytes = state.capacity.trackedAccountBytes,
+  providerReconciliation = state.capacity.providerReconciliation,
 ): BookSourceUploadAccountState {
   return Object.freeze({
     revision: state.revision + 1,
-    capacity: Object.freeze({ trackedAccountBytes, temporaryBytes: state.capacity.temporaryBytes }),
+    capacity: Object.freeze({
+      trackedAccountBytes,
+      temporaryBytes: state.capacity.temporaryBytes,
+      ...(providerReconciliation === undefined ? {} : {
+        providerReconciliation: Object.freeze({ ...providerReconciliation }),
+      }),
+    }),
     operations: Object.freeze(operations),
   });
 }
@@ -270,9 +609,13 @@ function assertState(state: BookSourceUploadAccountState): void {
       !Number.isSafeInteger(state.revision) ||
       (state.revision as number) < 0 ||
       !isPlainRecord(state.capacity) ||
-      !hasOnlyKeys(state.capacity, ['trackedAccountBytes', 'temporaryBytes']) ||
+      (!hasOnlyKeys(state.capacity, ['trackedAccountBytes', 'temporaryBytes']) &&
+        !hasOnlyKeys(state.capacity, ['trackedAccountBytes', 'temporaryBytes', 'providerReconciliation'])) ||
       !isPlainRecord(operations)) {
     throw new SourceUploadConflictError('invalid upload account state.');
+  }
+  if (state.capacity.providerReconciliation !== undefined) {
+    assertProviderReconciliationSnapshot(state.capacity.providerReconciliation);
   }
   const entries = Object.entries(operations);
   if (entries.length > MAX_SOURCE_UPLOAD_OPERATIONS) {
@@ -280,6 +623,7 @@ function assertState(state: BookSourceUploadAccountState): void {
   }
   const sourceVersionIds = new Set<string>();
   const providerObjectKeys = new Set<string>();
+  let verifiedBytes = 0;
   for (const [reservationId, operation] of entries) {
     assertRtdbKey(reservationId, 'reservationId');
     assertOperation(operation);
@@ -290,8 +634,31 @@ function assertState(state: BookSourceUploadAccountState): void {
     }
     sourceVersionIds.add(operation.sourceVersionId);
     providerObjectKeys.add(operation.providerObjectKey);
+    if (operation.status === 'verified_completed') verifiedBytes += operation.byteSize;
+  }
+  if (!Number.isSafeInteger(verifiedBytes)
+    || state.capacity.trackedAccountBytes < verifiedBytes) {
+    throw new SourceUploadConflictError('tracked provider bytes undercount verified operations.');
   }
   calculateBookSourceCapacityUsage({ ...state.capacity, operations: state.operations });
+}
+
+function assertProviderReconciliationSnapshot(
+  value: unknown,
+): asserts value is BookSourceProviderReconciliationSnapshot {
+  if (!isPlainRecord(value)
+    || !hasOnlyKeys(value, ['status', 'totalBytes', 'objectCount', 'completedAt'])
+    || (value.status !== 'healthy' && value.status !== 'drift')
+    || typeof value.totalBytes !== 'number'
+    || !Number.isSafeInteger(value.totalBytes)
+    || value.totalBytes < 0
+    || typeof value.objectCount !== 'number'
+    || !Number.isSafeInteger(value.objectCount)
+    || value.objectCount < 0
+    || typeof value.completedAt !== 'string'
+    || !isIsoDate(value.completedAt)) {
+    throw new SourceUploadConflictError('invalid provider reconciliation snapshot.');
+  }
 }
 
 function assertOperation(value: unknown): asserts value is BookSourceUploadOperation {
@@ -315,6 +682,7 @@ function assertOperation(value: unknown): asserts value is BookSourceUploadOpera
     throw new SourceUploadConflictError('invalid upload operation kind.');
   }
   if (value.status !== 'reserved' &&
+      value.status !== 'cleanup_pending' &&
       value.status !== 'verified_completed' &&
       value.status !== 'released') {
     throw new SourceUploadConflictError('invalid upload operation status.');
@@ -333,9 +701,9 @@ function assertOperation(value: unknown): asserts value is BookSourceUploadOpera
       Date.parse(value.expiresAt) <= Date.parse(value.createdAt)) {
     throw new SourceUploadConflictError('invalid upload operation metadata.');
   }
-  if (value.status === 'reserved' &&
-      (value.verifiedStorage !== undefined || value.completedAt !== undefined)) {
-    throw new SourceUploadConflictError('reserved upload cannot contain completion identity.');
+  if ((value.status === 'reserved' || value.status === 'cleanup_pending' || value.status === 'released')
+      && (value.verifiedStorage !== undefined || value.completedAt !== undefined)) {
+    throw new SourceUploadConflictError('unverified upload cannot contain completion identity.');
   }
   if (value.status === 'verified_completed') {
     if (value.verifiedStorage === undefined ||
@@ -352,7 +720,117 @@ function assertOperation(value: unknown): asserts value is BookSourceUploadOpera
       value as unknown as BookSourceUploadOperation,
       storage,
     );
+    if (value.versionReconciliation !== undefined) {
+      assertCommittedVersionReconciliationState(value.versionReconciliation);
+    }
+  } else if (value.versionReconciliation !== undefined) {
+    throw new SourceUploadConflictError(
+      'only a verified upload can contain version reconciliation state.',
+    );
   }
+  if (value.status === 'cleanup_pending') {
+    assertCleanupState(value.cleanup);
+    if (value.releasedAt !== undefined || value.releaseProof !== undefined) {
+      throw new SourceUploadConflictError('pending cleanup cannot contain release proof.');
+    }
+  } else if (value.cleanup !== undefined) {
+    throw new SourceUploadConflictError('only pending cleanup can contain cleanup state.');
+  }
+  if (value.status === 'released') {
+    if (typeof value.releasedAt !== 'string'
+      || !isIsoDate(value.releasedAt)
+      || (value.releaseProof !== 'exact_version_deleted' && value.releaseProof !== 'provider_absent')) {
+      throw new SourceUploadConflictError('released upload requires exact cleanup proof.');
+    }
+  } else if (value.releasedAt !== undefined || value.releaseProof !== undefined) {
+    throw new SourceUploadConflictError('only released upload can contain release proof.');
+  }
+}
+
+function assertCommittedVersionReconciliationState(value: unknown): void {
+  if (!isPlainRecord(value)
+    || !hasOnlyKeys(value, ['attempt', 'nextRetryAt', 'lastErrorCode'])
+    || !Number.isSafeInteger(value.attempt)
+    || (value.attempt as number) < 1
+    || typeof value.nextRetryAt !== 'string'
+    || !isIsoDate(value.nextRetryAt)
+    || typeof value.lastErrorCode !== 'string'
+    || !/^[a-z0-9_]{1,80}$/u.test(value.lastErrorCode)) {
+    throw new SourceUploadConflictError('invalid committed-version reconciliation state.');
+  }
+}
+
+function assertCleanupState(value: unknown): void {
+  if (!isPlainRecord(value) || !hasOnlyKeys(value, CLEANUP_KEYS)) {
+    throw new SourceUploadConflictError('invalid upload cleanup state.');
+  }
+  assertCleanupReason(value.reason);
+  if (typeof value.requestedAt !== 'string' || !isIsoDate(value.requestedAt)
+    || typeof value.nextRetryAt !== 'string' || !isIsoDate(value.nextRetryAt)
+    || Date.parse(value.nextRetryAt) < Date.parse(value.requestedAt)
+    || !Number.isSafeInteger(value.attempt) || (value.attempt as number) < 0) {
+    throw new SourceUploadConflictError('invalid upload cleanup retry state.');
+  }
+  assertOptionalProviderIdentity(value.providerFileId, value.providerFileVersionId);
+  if (value.lastErrorCode !== undefined
+    && (typeof value.lastErrorCode !== 'string' || !/^[a-z0-9_]{1,80}$/u.test(value.lastErrorCode))) {
+    throw new SourceUploadConflictError('invalid upload cleanup error code.');
+  }
+  const hasLeaseOwner = value.leaseOwner !== undefined;
+  const hasLeaseExpiry = value.leaseExpiresAt !== undefined;
+  if (hasLeaseOwner !== hasLeaseExpiry) {
+    throw new SourceUploadConflictError('upload cleanup lease is incomplete.');
+  }
+  if (hasLeaseOwner) {
+    assertSafeId(value.leaseOwner, 'leaseOwner');
+    if (typeof value.leaseExpiresAt !== 'string' || !isIsoDate(value.leaseExpiresAt)
+      || Date.parse(value.leaseExpiresAt) <= Date.parse(value.requestedAt)) {
+      throw new SourceUploadConflictError('invalid upload cleanup lease.');
+    }
+  }
+}
+
+function assertCleanupReason(value: unknown): asserts value is BookSourceUploadCleanupReason {
+  if (value !== 'cancel_requested' && value !== 'expired' && value !== 'unverifiable') {
+    throw new SourceUploadConflictError('invalid cleanup reason.');
+  }
+}
+
+function assertOptionalProviderIdentity(fileId: unknown, versionId: unknown): void {
+  if ((fileId === undefined) !== (versionId === undefined)) {
+    throw new SourceUploadConflictError('cleanup provider identity is incomplete.');
+  }
+  if (fileId !== undefined) {
+    assertSafeId(fileId, 'providerFileId');
+    assertSafeId(versionId, 'providerFileVersionId');
+  }
+}
+
+function assertIso(value: unknown, label: string): asserts value is string {
+  if (typeof value !== 'string' || !isIsoDate(value)) {
+    throw new SourceUploadConflictError(`${label} must be a UTC ISO date.`);
+  }
+}
+
+function assertCleanupLeaseInput(input: ClaimSourceUploadCleanupInput): void {
+  assertRtdbKey(input.accountId, 'accountId');
+  assertRtdbKey(input.reservationId, 'reservationId');
+  assertSafeId(input.leaseOwner, 'leaseOwner');
+  assertIso(input.claimedAt, 'claimedAt');
+  assertIso(input.leaseExpiresAt, 'leaseExpiresAt');
+  if (Date.parse(input.leaseExpiresAt) <= Date.parse(input.claimedAt)) {
+    throw new SourceUploadConflictError('cleanup lease must expire after claim.');
+  }
+}
+
+function assertCleanupResultInput(
+  input: Pick<FailSourceUploadCleanupInput, 'accountId' | 'expectedRevision' | 'reservationId' | 'leaseOwner'>,
+  completedAt: unknown,
+): void {
+  assertRtdbKey(input.accountId, 'accountId');
+  assertRtdbKey(input.reservationId, 'reservationId');
+  assertSafeId(input.leaseOwner, 'leaseOwner');
+  assertIso(completedAt, 'cleanup result time');
 }
 
 function assertTrustedCompletionMatchesReservation(operation: BookSourceUploadOperation, storage: BookSourceVersionStorageIdentity): void {

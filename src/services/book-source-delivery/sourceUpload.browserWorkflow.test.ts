@@ -58,6 +58,20 @@ const setup = () => {
       sourceVersionId: 'source-version-1',
     })),
     requestCancellation: vi.fn(async () => undefined),
+    status: vi.fn(async () => ({
+      reservationId: 'reservation-1',
+      bookId: 'book-1',
+      sourceVersionId: 'source-version-1',
+      status: 'cleanup_pending' as const,
+      retryKind: 'cleanup' as const,
+    })),
+    reconcile: vi.fn(async () => ({
+      reservationId: 'reservation-1',
+      bookId: 'book-1',
+      sourceVersionId: 'source-version-1',
+      status: 'released' as const,
+      retryKind: 'none' as const,
+    })),
   };
   const directUpload = vi.fn(async () => ({
     providerFileId: '4_file',
@@ -105,6 +119,77 @@ describe('sourceUpload.browserWorkflow', () => {
     expect(JSON.stringify(harness.state.get())).not.toMatch(/signature|token|headers|%PDF/iu);
   });
 
+  it('reloads server cleanup status and settles cleanup without PDF bytes', async () => {
+    const harness = setup();
+    await harness.state.port.save({
+      schemaVersion: 1,
+      bookId: 'book-1',
+      operationId: '11111111-1111-4111-8111-111111111111',
+      reservationId: 'reservation-1',
+      sourceVersionId: 'source-version-1',
+      sourceKey: 'main',
+      kind: 'initial',
+      displayFilename: 'book.pdf',
+      exactByteSize: 8,
+      sha256Hex: 'a'.repeat(64),
+      phase: 'cancel_requested',
+    });
+    await expect(harness.workflow.load('book-1')).resolves.toMatchObject({
+      phase: 'cancel_requested',
+    });
+    await expect(harness.workflow.retryCleanup('book-1')).resolves.toBe('released');
+    await expect(harness.state.port.load('book-1')).resolves.toBeNull();
+    expect(harness.control.reconcile).toHaveBeenCalledWith({
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+    });
+    expect(harness.directUpload).not.toHaveBeenCalled();
+  });
+
+  it('restores verified server state and clears released server state on reload', async () => {
+    const operation = {
+      schemaVersion: 1 as const,
+      bookId: 'book-1',
+      operationId: '11111111-1111-4111-8111-111111111111',
+      reservationId: 'reservation-1',
+      sourceVersionId: 'source-version-1',
+      sourceKey: 'main',
+      kind: 'initial' as const,
+      displayFilename: 'book.pdf',
+      exactByteSize: 8,
+      sha256Hex: 'a'.repeat(64),
+      phase: 'cancel_requested' as const,
+    };
+    const verified = setup();
+    await verified.state.port.save(operation);
+    verified.control.status.mockResolvedValueOnce({
+      reservationId: 'reservation-1',
+      bookId: 'book-1',
+      sourceVersionId: 'source-version-1',
+      status: 'verified_completed',
+      retryKind: 'none',
+    });
+    await expect(verified.workflow.load('book-1')).resolves.toMatchObject({
+      phase: 'verified',
+    });
+    expect(verified.state.port.save).toHaveBeenLastCalledWith(expect.objectContaining({
+      phase: 'verified',
+    }));
+
+    const released = setup();
+    await released.state.port.save(operation);
+    released.control.status.mockResolvedValueOnce({
+      reservationId: 'reservation-1',
+      bookId: 'book-1',
+      sourceVersionId: 'source-version-1',
+      status: 'released',
+      retryKind: 'none',
+    });
+    await expect(released.workflow.load('book-1')).resolves.toBeNull();
+    expect(released.state.port.clear).toHaveBeenCalledWith('book-1');
+    expect(released.directUpload).not.toHaveBeenCalled();
+  });
+
   it('persists completion-only recovery and never uploads bytes again', async () => {
     const harness = setup();
     const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
@@ -140,7 +225,7 @@ describe('sourceUpload.browserWorkflow', () => {
     });
   });
 
-  it('reuses one operation and reservation for byte retry after reload', async () => {
+  it('cancels an ambiguous upload and forbids byte retry until cleanup', async () => {
     const harness = setup();
     const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
     const claim = await inspect(file);
@@ -148,19 +233,32 @@ describe('sourceUpload.browserWorkflow', () => {
     await expect(harness.workflow.start({
       bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
     })).rejects.toThrow('network');
-    expect(harness.state.get()).toMatchObject({ phase: 'reserved' });
-
-    await harness.workflow.retryBytes({
-      bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
-    });
-    expect(harness.control.begin).toHaveBeenCalledTimes(2);
-    expect(harness.control.begin.mock.calls[0]?.[0].operationId)
-      .toBe(harness.control.begin.mock.calls[1]?.[0].operationId);
-    expect(harness.state.get()).toMatchObject({
-      phase: 'verified',
+    expect(harness.state.get()).toMatchObject({ phase: 'cancel_requested' });
+    expect(harness.control.requestCancellation).toHaveBeenCalledWith({
+      bookId: 'book-1',
       reservationId: 'reservation-1',
-      sourceVersionId: 'source-version-1',
     });
+
+    await expect(harness.workflow.retryBytes({
+      bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
+    })).rejects.toMatchObject({ code: 'invalid_operation' });
+    expect(harness.control.begin).toHaveBeenCalledTimes(1);
+    expect(harness.directUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps ambiguous upload canceled when the cancellation request also fails', async () => {
+    const harness = setup();
+    const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
+    const claim = await inspect(file);
+    harness.directUpload.mockRejectedValueOnce(new Error('network'));
+    harness.control.requestCancellation.mockRejectedValueOnce(new Error('offline'));
+    await expect(harness.workflow.start({
+      bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
+    })).rejects.toThrow('network');
+    expect(harness.state.get()).toMatchObject({ phase: 'cancel_requested' });
+    await expect(harness.workflow.retryBytes({
+      bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
+    })).rejects.toMatchObject({ code: 'invalid_operation' });
   });
 
   it('rejects stale File identity and prevents duplicate verified source start', async () => {
@@ -236,7 +334,7 @@ describe('sourceUpload.browserWorkflow', () => {
     expect(harness.state.get()).toMatchObject({ phase: 'cancel_requested' });
   });
 
-  it('retries a canceled operation while rejecting its stale byte attempt', async () => {
+  it('forbids byte retry while a canceled provider attempt can still settle', async () => {
     const harness = setup();
     const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
     const claim = await inspect(file);
@@ -265,14 +363,14 @@ describe('sourceUpload.browserWorkflow', () => {
       kind: 'initial',
       file,
       claim,
-    })).resolves.toMatchObject({ state: { phase: 'verified' } });
+    })).rejects.toMatchObject({ code: 'invalid_operation' });
 
     resolveStaleUpload({
       providerFileId: '4_stale_file',
       providerFileVersionId: '4_stale_version',
     });
     await expect(staleAttempt).rejects.toMatchObject({ name: 'AbortError' });
-    expect(harness.control.complete).toHaveBeenCalledTimes(1);
-    expect(harness.state.get()).toMatchObject({ phase: 'verified' });
+    expect(harness.control.complete).not.toHaveBeenCalled();
+    expect(harness.state.get()).toMatchObject({ phase: 'cancel_requested' });
   });
 });

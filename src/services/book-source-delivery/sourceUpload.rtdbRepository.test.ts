@@ -37,6 +37,55 @@ describe('SourceUploadRtdbRepository', () => {
     expect(replacement.operations['reservation-2']).toMatchObject({ sourceKey: 'unit-1', kind: 'replacement' });
   });
 
+  it('persists a trusted provider reconciliation snapshot with account CAS', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const reconciled = await repository.recordProviderReconciliation({
+      accountId: 'account-1',
+      expectedRevision: 0,
+      snapshot: {
+        status: 'healthy',
+        totalBytes: 0,
+        objectCount: 0,
+        completedAt: '2026-07-23T00:01:00.000Z',
+      },
+    });
+
+    expect(reconciled).toMatchObject({
+      revision: 1,
+      capacity: {
+        trackedAccountBytes: 0,
+        temporaryBytes: 0,
+        providerReconciliation: {
+          status: 'healthy',
+          totalBytes: 0,
+          objectCount: 0,
+          completedAt: '2026-07-23T00:01:00.000Z',
+        },
+      },
+    });
+    await expect(repository.recordProviderReconciliation({
+      accountId: 'account-1',
+      expectedRevision: 0,
+      snapshot: {
+        status: 'drift',
+        totalBytes: 1,
+        objectCount: 1,
+        completedAt: '2026-07-23T00:02:00.000Z',
+      },
+    })).rejects.toThrow('compare-and-set conflict');
+    await expect(repository.recordProviderReconciliation({
+      accountId: 'account-1',
+      expectedRevision: 1,
+      snapshot: {
+        status: 'healthy',
+        totalBytes: -1,
+        objectCount: 0,
+        completedAt: '2026-07-23T00:02:00.000Z',
+      },
+    })).rejects.toThrow('invalid provider reconciliation snapshot');
+  });
+
   it('allows exact 500 MiB / 9 GB reservation, rejects overflow, and counts replacement overlap', async () => {
     const memory = createMemoryTransaction({
       trackedAccountBytes: BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES - BOOK_SOURCE_MAX_PDF_BYTES,
@@ -96,7 +145,7 @@ describe('SourceUploadRtdbRepository', () => {
     expect(() => getBookSourceUploadProviderTotals({
       ...completed,
       capacity: { trackedAccountBytes: 9, temporaryBytes: 0 },
-    })).toThrow('tracked provider bytes do not match verified operations');
+    })).toThrow('tracked provider bytes undercount verified operations');
   });
 
   it('rejects malformed persisted state and map-key identity before mutation', async () => {
@@ -228,6 +277,107 @@ describe('SourceUploadRtdbRepository', () => {
     } as BookSourceUploadAccountState);
     const state = await createRepository(memory.transaction).reserve(reservation());
     expect(state.operations['reservation-1']?.status).toBe('reserved');
+  });
+
+  it('leases cleanup with CAS and releases capacity exactly once after exact proof', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    await repository.reserve(reservation());
+    const pending = await repository.requestCleanup({
+      accountId: 'account-1',
+      expectedRevision: 1,
+      reservationId: 'reservation-1',
+      ownerId: 'teacher-1',
+      reason: 'cancel_requested',
+      requestedAt: '2026-07-23T00:01:00.000Z',
+      providerFileId: 'file-1',
+      providerFileVersionId: 'version-1',
+    });
+    expect(pending.operations['reservation-1']).toMatchObject({
+      status: 'cleanup_pending',
+      cleanup: { attempt: 0, providerFileVersionId: 'version-1' },
+    });
+    const claimed = await repository.claimCleanup({
+      accountId: 'account-1',
+      expectedRevision: 2,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-1',
+      claimedAt: '2026-07-23T00:01:00.000Z',
+      leaseExpiresAt: '2026-07-23T00:02:00.000Z',
+    });
+    await expect(repository.claimCleanup({
+      accountId: 'account-1',
+      expectedRevision: claimed.revision,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-2',
+      claimedAt: '2026-07-23T00:01:30.000Z',
+      leaseExpiresAt: '2026-07-23T00:02:30.000Z',
+    })).rejects.toThrow('lease is unavailable');
+    const takeover = await repository.claimCleanup({
+      accountId: 'account-1',
+      expectedRevision: claimed.revision,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-2',
+      claimedAt: '2026-07-23T00:02:00.000Z',
+      leaseExpiresAt: '2026-07-23T00:03:00.000Z',
+    });
+    expect(takeover.operations['reservation-1']?.cleanup).toMatchObject({
+      attempt: 2,
+      leaseOwner: 'reconciler-2',
+    });
+    await expect(repository.releaseCleaned({
+      accountId: 'account-1',
+      expectedRevision: takeover.revision,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-1',
+      releasedAt: '2026-07-23T00:02:01.000Z',
+      proof: 'exact_version_deleted',
+    })).rejects.toThrow('upload cleanup lease mismatch');
+    const released = await repository.releaseCleaned({
+      accountId: 'account-1',
+      expectedRevision: takeover.revision,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-2',
+      releasedAt: '2026-07-23T00:02:01.000Z',
+      proof: 'exact_version_deleted',
+    });
+    expect(released.operations['reservation-1']).toMatchObject({
+      status: 'released',
+      releaseProof: 'exact_version_deleted',
+    });
+    expect(released.capacity.trackedAccountBytes).toBe(0);
+    expect(await repository.releaseCleaned({
+      accountId: 'account-1',
+      expectedRevision: released.revision,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-2',
+      releasedAt: '2026-07-23T00:02:01.000Z',
+      proof: 'exact_version_deleted',
+    })).toBe(released);
+  });
+
+  it('never proves absence while an issued upload authorization can still finish', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    await repository.reserve(reservation());
+    const pending = await repository.requestCleanup({
+      accountId: 'account-1',
+      expectedRevision: 1,
+      reservationId: 'reservation-1',
+      ownerId: 'teacher-1',
+      reason: 'cancel_requested',
+      requestedAt: '2026-07-23T00:01:00.000Z',
+    });
+    expect(pending.operations['reservation-1']?.cleanup?.nextRetryAt)
+      .toBe('2026-07-23T00:05:00.000Z');
+    await expect(repository.claimCleanup({
+      accountId: 'account-1',
+      expectedRevision: pending.revision,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-1',
+      claimedAt: '2026-07-23T00:01:30.000Z',
+      leaseExpiresAt: '2026-07-23T00:02:30.000Z',
+    })).rejects.toThrow('lease is unavailable');
   });
 });
 

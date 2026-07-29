@@ -15,6 +15,7 @@ import {
   type BeginSourceUploadResult,
   type CompleteSourceUploadCommand,
   type CompleteSourceUploadResult,
+  type SourceUploadLifecycleStatus,
   type SourceUploadSafeOperationState,
   type SourceUploadStatePort,
 } from './sourceUpload.client';
@@ -38,7 +39,17 @@ export interface SourceUploadControlPort {
   requestCancellation(command: {
     readonly bookId: string;
     readonly reservationId: string;
+    readonly providerFileId?: string;
+    readonly providerFileVersionId?: string;
   }): Promise<void>;
+  status(command: {
+    readonly bookId: string;
+    readonly reservationId: string;
+  }): Promise<SourceUploadLifecycleStatus>;
+  reconcile(command: {
+    readonly bookId: string;
+    readonly reservationId: string;
+  }): Promise<SourceUploadLifecycleStatus>;
 }
 
 export interface SourceUploadBrowserTransport {
@@ -72,6 +83,7 @@ export interface SourceUploadBrowserWorkflow {
   retryBytes(input: StartSourceUploadInput): Promise<SourceUploadWorkflowResult>;
   retryCompletion(bookId: string): Promise<SourceUploadWorkflowResult>;
   requestCancellation(bookId: string): Promise<boolean>;
+  retryCleanup(bookId: string): Promise<'cleanup_pending' | 'released'>;
 }
 
 export interface SourceUploadBrowserWorkflowOptions {
@@ -202,15 +214,33 @@ export const createSourceUploadBrowserWorkflow = (
     authority: BeginSourceUploadResult['upload'],
     attemptGeneration: number,
   ): Promise<SourceUploadWorkflowResult> => {
-    const identity = await upload({
-      file: input.file,
-      claim: input.claim,
-      authority,
-      allowedB2Origins: options.allowedB2Origins,
-    }, {
-      signal: input.signal,
-      onProgress: input.onProgress,
-    });
+    let identity: SourceUploadProviderIdentity;
+    try {
+      identity = await upload({
+        file: input.file,
+        claim: input.claim,
+        authority,
+        allowedB2Origins: options.allowedB2Origins,
+      }, {
+        signal: input.signal,
+        onProgress: input.onProgress,
+      });
+    } catch (error) {
+      const canceled = Object.freeze({
+        ...state,
+        phase: 'cancel_requested' as const,
+      });
+      await options.state.save(canceled);
+      try {
+        await options.control.requestCancellation({
+          bookId: state.bookId,
+          reservationId: state.reservationId,
+        });
+      } catch {
+        // Ambiguous provider state remains locally visible and capacity stays held.
+      }
+      throw error;
+    }
     if (isCanceled(state, attemptGeneration, input.signal)) abort();
     const pending = pendingState(state, identity);
     await options.state.save(pending);
@@ -225,7 +255,28 @@ export const createSourceUploadBrowserWorkflow = (
   };
 
   return {
-    load: (bookId) => options.state.load(bookId),
+    async load(bookId) {
+      const local = await options.state.load(bookId);
+      if (!local || local.phase !== 'cancel_requested') return local;
+      try {
+        const remote = await options.control.status({
+          bookId,
+          reservationId: local.reservationId,
+        });
+        if (remote.status === 'released') {
+          await options.state.clear(bookId);
+          return null;
+        }
+        if (remote.status === 'verified_completed') {
+          const verified = Object.freeze({ ...local, phase: 'verified' as const });
+          await options.state.save(verified);
+          return verified;
+        }
+      } catch {
+        // Offline reload keeps the safe local cleanup state visible.
+      }
+      return local;
+    },
 
     async start(input) {
       if (!exactSelection(input)) throw new SourceUploadWorkflowError('stale_file');
@@ -253,7 +304,7 @@ export const createSourceUploadBrowserWorkflow = (
       const existing = await options.state.load(input.bookId);
       if (
         !existing
-        || (existing.phase !== 'reserved' && existing.phase !== 'cancel_requested')
+        || existing.phase !== 'reserved'
         || existing.sourceKey !== input.sourceKey
         || existing.kind !== input.kind
       ) {
@@ -305,11 +356,31 @@ export const createSourceUploadBrowserWorkflow = (
         await options.control.requestCancellation({
           bookId,
           reservationId: existing.reservationId,
+          ...(existing.providerFileId && existing.providerFileVersionId ? {
+            providerFileId: existing.providerFileId,
+            providerFileVersionId: existing.providerFileVersionId,
+          } : {}),
         });
         return true;
       } catch {
         return false;
       }
+    },
+
+    async retryCleanup(bookId) {
+      const existing = await options.state.load(bookId);
+      if (!existing || existing.phase !== 'cancel_requested') {
+        throw new SourceUploadWorkflowError('invalid_operation');
+      }
+      const result = await options.control.reconcile({
+        bookId,
+        reservationId: existing.reservationId,
+      });
+      if (result.status !== 'cleanup_pending' && result.status !== 'released') {
+        throw new SourceUploadClientError('invalid_response', 502);
+      }
+      if (result.status === 'released') await options.state.clear(bookId);
+      return result.status;
     },
   };
 };
