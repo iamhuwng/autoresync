@@ -94,4 +94,25 @@ describe('Ticket 38B1 notification producer inventory', () => {
             }
         }
     });
+
+    it('requires #97 producers to use the trusted seam with explicit authority', () => {
+        const owned = [
+            ['src/services/writingSubmissionService.ts', 'writing'],
+            ['src/services/thcsWritingGrading.service.ts', 'thcs-grading'],
+            ['src/hooks/monitor/useMonitorControls.ts', 'monitor'],
+            ['src/services/sessionManager.js', 'session'],
+            ['src/components/writing-practice/WritingPracticeView.tsx', 'writing'],
+            ['src/components/practice/THCSPracticeView.tsx', 'thcs-practice'],
+            ['src/components/thcs-student/THCSTestLayout.tsx', 'thcs-practice'],
+            ['src/components/thcs-editor/THCSHomeworkAssignDialog.tsx', 'thcs-practice'],
+        ];
+        for (const [relativeFile, producerFamily] of owned) {
+            const source = readFileSync(join(root, relativeFile), 'utf8');
+            expect(source, relativeFile).not.toContain('notificationService');
+            expect(source, relativeFile).toContain('notificationProducerClient');
+            expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
+            expect(source, relativeFile).toContain('authorityRecordId');
+            expect(source, relativeFile).toContain('operationKey');
+        }
+    });
 });

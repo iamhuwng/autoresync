@@ -24,6 +24,7 @@ import {
 import { ref, get, push, set, update } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database, firestore as db } from './firebase';
+import { buildRoute } from '../constants/routes';
 import { deepRemoveUndefined } from './draftCloudService';
 import { withRestoreGuard } from './restoreGuard';
 import type {
@@ -38,7 +39,7 @@ import type {
     WritingTaskGradingResult,
     IELTSWritingTest,
 } from '../types/ielts-writing.types';
-import { notifyWritingGraded, notifyWritingSubmitted } from './notificationService';
+import { createTrustedNotification } from './notificationProducerClient';
 import { markHomeworkSubmissionGraded } from './homeworkSubmissionService';
 import type { ResultContext } from '../types/solo.types';
 import { resolveResultOwnership } from './resultOwnershipResolver';
@@ -77,6 +78,10 @@ const WRITING_RESET_RTDB_ROOTS = [
     'test_results_solo_practice_by_student',
     'writing_grading_locks',
 ] as const;
+
+const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
+const isTrustedNotificationIdentifier = (value: unknown): value is string =>
+    typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
 
 type WritingResultAcademicContext = {
     courseId?: string | null;
@@ -1258,14 +1263,23 @@ export const publishGrading = withRestoreGuard<{
             });
         }
 
-        if (!options.skipNotification) {
-            await notifyWritingGraded(
-                submission.studentId,
-                submission.id,
-                submission.testMeta.testTitle,
-                publishedGrading.overallBand,
-                publishedGrading.teacherName
-            ).catch((error) => {
+        if (
+            !options.skipNotification
+            && isTrustedNotificationIdentifier(submission.studentId)
+            && isTrustedNotificationIdentifier(submission.id)
+            && typeof submission.testMeta.testTitle === 'string'
+            && submission.testMeta.testTitle.trim()
+        ) {
+            await createTrustedNotification({
+                producerFamily: 'writing',
+                authorityRecordId: submission.id,
+                recipientId: submission.studentId,
+                operationKey: `writing-graded:${submission.id}:${publishedGrading.auditVersion}`,
+                type: 'success',
+                title: '\uD83D\uDCCA Writing Graded',
+                message: `${publishedGrading.teacherName ? `${publishedGrading.teacherName} has` : 'Your teacher has'} graded your essay "${submission.testMeta.testTitle}". Overall Band: ${publishedGrading.overallBand.toFixed(1)}`,
+                link: buildRoute('STUDENT_ACADEMIC_RECORD'),
+            }).catch((error) => {
                 console.warn('[WritingSubmission] Non-blocking writing graded notification failed', error);
             });
         }
@@ -1857,12 +1871,23 @@ export const autoSubmitFromRTDB = withRestoreGuard(
         console.log('✅ Writing auto-submitted:', resultId, 'for student:', studentName);
 
         // Fire notification (non-blocking)
-        notifyWritingSubmitted(
-            studentUid,
-            resultId,
-            testData.metadata.title,
-            'class-session'
-        ).catch(err => console.warn('[autoSubmitFromRTDB] Notification failed:', err));
+        if (
+            isTrustedNotificationIdentifier(studentUid)
+            && isTrustedNotificationIdentifier(resultId)
+            && typeof testData.metadata.title === 'string'
+            && testData.metadata.title.trim()
+        ) {
+            void createTrustedNotification({
+                producerFamily: 'writing',
+                authorityRecordId: resultId,
+                recipientId: studentUid,
+                operationKey: `writing-submitted:${resultId}`,
+                type: 'success',
+                title: '\u270D\uFE0F Writing Submitted',
+                message: `Your class session essay for "${testData.metadata.title}" has been submitted. A teacher will review it soon.`,
+                link: buildRoute('STUDENT_ACADEMIC_RECORD'),
+            }).catch(err => console.warn('[autoSubmitFromRTDB] Notification failed:', err));
+        }
     } catch (error) {
         console.error('❌ Failed to auto-submit writing:', error);
     }

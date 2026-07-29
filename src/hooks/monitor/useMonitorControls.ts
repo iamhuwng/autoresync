@@ -25,6 +25,8 @@ import type { AntiCheatConfig } from '../../types/integrity.types';
 import { autoSubmitDisconnectedStudents, identifyDisconnectedStudents, identifyUnsubmittedStudents, autoSubmitAllUnsubmittedStudents } from '../../utils/monitor';
 import { cacheSessionStudentSafeTestData } from '../../services/testStorage';
 import type { ReviewReleaseState } from '../../types/releaseState.types';
+import { buildRoute } from '../../constants/routes';
+import { createTrustedBulkNotifications } from '../../services/notificationProducerClient';
 
 function resolveCanonicalSessionTeacherId(session: TestSession | null): string | undefined {
   const createdByUserId = typeof (session as any)?.createdByUserId === 'string'
@@ -43,6 +45,39 @@ function resolveCanonicalSessionTeacherId(session: TestSession | null): string |
 
   return undefined;
 }
+
+async function notifyMonitorClassStudents(input: {
+  classId: string;
+  sessionCode: string;
+  operationKey: string;
+  type: 'info' | 'success';
+  title: string;
+  message: string;
+  link: string;
+}): Promise<void> {
+  const snapshot = await get(ref(database, `classes/${input.classId}/students`));
+  if (!snapshot.exists()) return;
+  const students = snapshot.val();
+  const studentIds = students && typeof students === 'object' ? Object.keys(students).filter(Boolean) : [];
+  if (studentIds.length === 0) return;
+
+  await createTrustedBulkNotifications(studentIds, {
+    producerFamily: 'monitor',
+    authorityRecordId: input.sessionCode,
+    operationKey: input.operationKey,
+    type: input.type,
+    title: input.title,
+    message: input.message,
+    link: input.link,
+  });
+}
+
+const sessionCompletionMarker = (session: TestSession | null): string => {
+  const marker = (session as any)?.lastTestCompletedAt;
+  return typeof marker === 'number' && Number.isSafeInteger(marker) && marker >= 0
+    ? String(marker)
+    : 'initial';
+};
 
 function extractMonitorTestQuestions(testRecord: any): any[] | null {
   if (!testRecord) {
@@ -346,22 +381,27 @@ export function useMonitorControls(
       const linkedClassId = (session as any)?.linkedClassId;
       const testId = (session as any)?.testId;
       if (linkedClassId && testId) {
-        import('../../services/notificationService').then(({ sendTestStartedNotifications }) => {
-          import('firebase/database').then(({ get: getDb, ref: dbRef }) => {
-            import('../../services/firebase').then(({ database: db }) => {
-              getDb(dbRef(db, `tests/${testId}/title`))
-                .then(snap => {
-                  const testName: string = snap.exists() ? snap.val() : testId;
-                  sendTestStartedNotifications(linkedClassId, sessionCode!, testName)
-                    .catch((err: Error) => console.warn('[Controls] Test-started feed notification failed:', err));
-                })
-                .catch(() => {
-                  sendTestStartedNotifications(linkedClassId, sessionCode!, testId)
-                    .catch((err: Error) => console.warn('[Controls] Test-started feed notification failed:', err));
-                });
-            });
+        const operationKey = `test-started:${sessionCode}:${testId}:${sessionCompletionMarker(session)}`;
+        get(ref(database, `tests/${testId}/title`)).then(snap => {
+          const testName: string = snap.exists() ? snap.val() : testId;
+          return notifyMonitorClassStudents({
+            classId: linkedClassId,
+            sessionCode: sessionCode!,
+            operationKey,
+            type: 'info',
+            title: '📝 Test Started',
+            message: `"${testName}" has started in your class. Join now if you haven't already.`,
+            link: buildRoute('STUDENT_WAITING', { gameSessionId: sessionCode }),
           });
-        }).catch((err: Error) => console.warn('[Controls] Could not load notificationService:', err));
+        }).catch(() => notifyMonitorClassStudents({
+          classId: linkedClassId,
+          sessionCode: sessionCode!,
+          operationKey,
+          type: 'info',
+          title: '📝 Test Started',
+          message: `"${testId}" has started in your class. Join now if you haven't already.`,
+          link: buildRoute('STUDENT_WAITING', { gameSessionId: sessionCode }),
+        })).catch((err: Error) => console.warn('[Controls] Test-started feed notification failed:', err));
       }
     } catch (error) {
       console.error('❌ [Controls] Error starting test:', error);
@@ -849,11 +889,20 @@ export function useMonitorControls(
 
       // Fire-and-forget: notify class students that the test session has ended
       if (savedLinkedClassId && currentTestId) {
-        import('../../services/notificationService').then(({ sendTestEndedNotifications }) => {
-          const testName = savedTestTitle || currentTestId;
-          sendTestEndedNotifications(savedLinkedClassId, sessionCode!, testName)
-            .catch((err: Error) => console.warn('[Controls] Test-ended feed notification failed:', err));
-        }).catch((err: Error) => console.warn('[Controls] Could not load notificationService:', err));
+        const testName = savedTestTitle || currentTestId;
+        const startMarker = typeof (session as any)?.startTime === 'number'
+          && Number.isSafeInteger((session as any).startTime)
+          ? String((session as any).startTime)
+          : sessionCompletionMarker(session);
+        void notifyMonitorClassStudents({
+          classId: savedLinkedClassId,
+          sessionCode: sessionCode!,
+          operationKey: `test-ended:${sessionCode}:${currentTestId}:${startMarker}`,
+          type: 'success',
+          title: '✅ Test Completed',
+          message: `"${testName}" session has ended. View your results.`,
+          link: buildRoute('STUDENT_ACADEMIC_RECORD'),
+        }).catch((err: Error) => console.warn('[Controls] Test-ended feed notification failed:', err));
       }
 
       // Navigate based on redirectToResults flag

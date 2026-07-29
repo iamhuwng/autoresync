@@ -28,11 +28,20 @@ import {
   ownerSessionIndexPath,
   resolveSessionOwnerId,
 } from './sessionOwnerIndex';
+import { buildRoute } from '../constants/routes';
+import { createTrustedBulkNotifications } from './notificationProducerClient';
 
 // Session expiration time (24 hours in milliseconds)
 const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
 const MAX_EXTENSION_HOURS = 24 * 7;
 const MAX_EXPIRY_FROM_NOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+const getClassStudentIds = async (classId) => {
+  const snapshot = await get(ref(database, `classes/${classId}/students`));
+  if (!snapshot.exists()) return [];
+  const students = snapshot.val();
+  return students && typeof students === 'object' ? Object.keys(students).filter(Boolean) : [];
+};
 
 const addOwnerIndexUpdate = (updates, sessionCode, session, now) => {
   const ownerId = resolveSessionOwnerId(session);
@@ -239,18 +248,24 @@ export async function createSession({ testId, mode = SessionMode.TEST, settings 
 
     // Fire-and-forget: notify enrolled class students that a new session is available
     if (classId) {
-      const sessionMode = 'test';
-      import('./notificationService').then(({ sendSessionOpenedNotifications }) => {
-        // Optionally fetch className for a better message
-        get(ref(database, `classes/${classId}/name`)).then(snap => {
-          const className = snap.exists() ? snap.val() : undefined;
-          sendSessionOpenedNotifications(classId, sessionCode, sessionMode, className)
-            .catch(err => console.warn('[Session] Feed notification failed (non-blocking):', err));
-        }).catch(() => {
-          sendSessionOpenedNotifications(classId, sessionCode, sessionMode)
-            .catch(err => console.warn('[Session] Feed notification failed (non-blocking):', err));
+      const classNamePromise = get(ref(database, `classes/${classId}/name`))
+        .then(snapshot => snapshot.exists() ? snapshot.val() : 'Your class')
+        .catch(() => 'Your class');
+      void Promise.all([
+        classNamePromise,
+        getClassStudentIds(classId),
+      ]).then(async ([className, studentIds]) => {
+        if (studentIds.length === 0) return;
+        await createTrustedBulkNotifications(studentIds, {
+          producerFamily: 'session',
+          authorityRecordId: sessionCode,
+          operationKey: `session-opened:${sessionCode}`,
+          type: 'info',
+          title: '📚 New Session Available',
+          message: `${className} has a new test session ready. Join with code ${sessionCode}.`,
+          link: buildRoute('STUDENT_WAITING', { gameSessionId: sessionCode }),
         });
-      }).catch(err => console.warn('[Session] Could not load notificationService:', err));
+      }).catch(err => console.warn('[Session] Feed notification failed (non-blocking):', err));
     }
 
     return {

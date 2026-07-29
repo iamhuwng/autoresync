@@ -67,6 +67,25 @@ describe('notificationCommandClient', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+    it('accepts Firebase push IDs with a leading hyphen', async () => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            status: 'created',
+            operationId,
+            notificationId: operationId,
+        }), { status: 200 }));
+        const client = createNotificationCommandClient({
+            workerOrigin: 'https://worker.example',
+            getIdToken: async () => 'token',
+            fetchImpl,
+        });
+
+        await expect(client.create({
+            ...command,
+            recipientId: '-Ostudent-1',
+            authority: { kind: 'assignment', recordId: '-Oassignment-1' },
+        })).resolves.toMatchObject({ status: 'created' });
+    });
+
     it('fails closed on unsafe origins and invalid responses', async () => {
         expect(() => createNotificationCommandClient({
             workerOrigin: 'http://worker.example',

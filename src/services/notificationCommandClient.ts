@@ -4,7 +4,7 @@ import type {
 } from '../types/notification.types';
 
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
+const ID = /^[A-Za-z0-9_-]{1,128}$/u;
 const MAX_RESPONSE_BYTES = 32 * 1024;
 
 export const NOTIFICATION_COMMAND_PRODUCER_FAMILIES = [

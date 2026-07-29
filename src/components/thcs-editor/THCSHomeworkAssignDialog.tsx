@@ -18,8 +18,8 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { createHomework, type CreateHomeworkInput } from '../../services/homeworkManager';
-import { sendThcsHomeworkAssignedNotification } from '../../services/notificationService';
+import { createHomework, getHomeworkById, type CreateHomeworkInput } from '../../services/homeworkManager';
+import { createTrustedBulkNotifications } from '../../services/notificationProducerClient';
 import { ref, get } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { getClasses, getClass } from '../../services/classManager';
@@ -28,6 +28,7 @@ import { Button, Input, Textarea } from '../modern';
 import type { HomeworkContentRef, HomeworkTarget } from '../../types/homework.types';
 import type { AntiCheatPreset } from '../../types/integrity.types';
 import { getContextDefaults, resolvePreset } from '../../utils/antiCheatPresets';
+import { buildRoute } from '../../constants/routes';
 
 // ============================================================================
 // Types
@@ -271,13 +272,14 @@ export function THCSHomeworkAssignDialog({
                 },
             };
 
+            let homeworkId: string;
             if (createHomeworkAssignment) {
-                await createHomeworkAssignment({
+                homeworkId = await createHomeworkAssignment({
                     ...homeworkInput,
                     contentRef,
                 });
             } else {
-                await createHomework(homeworkInput);
+                homeworkId = await createHomework(homeworkInput);
             }
 
             // Note: thcsConfig is stored separately via homeworkManager extension (Task 2.4)
@@ -285,20 +287,32 @@ export function THCSHomeworkAssignDialog({
 
             // Phase 3 Task 3.1: Send THCS homework assigned notifications (fire-and-forget)
             try {
-                let notifyStudentIds: string[] = [];
-                if (targetType === 'class') {
-                    // Fetch student IDs from RTDB class
-                    const snapshot = await get(ref(database, `classes/${classId.trim()}/students`));
-                    if (snapshot.exists()) {
-                        notifyStudentIds = Object.keys(snapshot.val()).filter(Boolean);
-                    }
+                const canonicalHomework = await getHomeworkById(homeworkId);
+                if (!canonicalHomework) {
+                    console.warn('[THCSHomework] Canonical homework readback unavailable; notification suppressed.');
                 } else {
-                    notifyStudentIds = [...selectedStudentIds];
-                }
-                if (notifyStudentIds.length > 0) {
-                    sendThcsHomeworkAssignedNotification(
-                        notifyStudentIds, testId, testTitle, dueDate.getTime()
-                    ).catch(err => console.warn('[THCSHomework] Notification send failed (non-blocking):', err));
+                    let notifyStudentIds: string[] = [];
+                    if (canonicalHomework.target.type === 'class') {
+                        // Fetch student IDs from the canonical homework target's class.
+                        const snapshot = await get(ref(database, `classes/${canonicalHomework.target.classId}/students`));
+                        if (snapshot.exists()) {
+                            notifyStudentIds = Object.keys(snapshot.val()).filter(Boolean);
+                        }
+                    } else if ('studentIds' in canonicalHomework.target) {
+                        notifyStudentIds = canonicalHomework.target.studentIds.filter(Boolean);
+                    }
+                    if (notifyStudentIds.length > 0) {
+                        const dueDateStr = new Date(dueDate.getTime()).toLocaleDateString();
+                        void createTrustedBulkNotifications(notifyStudentIds, {
+                            producerFamily: 'thcs-practice',
+                            authorityRecordId: homeworkId,
+                            operationKey: `thcs-homework-assigned:${homeworkId}`,
+                            type: 'info',
+                            title: '📝 New THCS Homework Assigned',
+                            message: `Your teacher has assigned "${testTitle}". Due: ${dueDateStr}`,
+                            link: buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId }),
+                        }).catch(err => console.warn('[THCSHomework] Notification send failed (non-blocking):', err));
+                    }
                 }
             } catch (notifErr) {
                 console.warn('[THCSHomework] Notification setup failed (non-blocking):', notifErr);

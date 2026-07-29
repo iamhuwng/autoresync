@@ -14,13 +14,13 @@ const {
     mockClearUnresolvedResultVisibilityReport,
     mockUpsertUnresolvedResultVisibilityReport,
     mockMarkHomeworkSubmissionGraded,
-    mockNotifyWritingSubmitted,
+    mockCreateTrustedNotification,
 } = vi.hoisted(() => ({
     mockResolveResultOwnership: vi.fn(),
     mockClearUnresolvedResultVisibilityReport: vi.fn(),
     mockUpsertUnresolvedResultVisibilityReport: vi.fn(),
     mockMarkHomeworkSubmissionGraded: vi.fn(),
-    mockNotifyWritingSubmitted: vi.fn(),
+    mockCreateTrustedNotification: vi.fn(),
 }));
 
 vi.mock('./firebase', () => ({
@@ -58,8 +58,8 @@ vi.mock('./restoreGuard', () => ({
                 fn,
 }));
 
-vi.mock('./notificationService', () => ({
-    notifyWritingSubmitted: mockNotifyWritingSubmitted,
+vi.mock('./notificationProducerClient', () => ({
+    createTrustedNotification: mockCreateTrustedNotification,
 }));
 
 vi.mock('./homeworkSubmissionService', () => ({
@@ -112,7 +112,7 @@ describe('writingSubmissionService', () => {
         mockClearUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockUpsertUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockMarkHomeworkSubmissionGraded.mockResolvedValue(undefined);
-        mockNotifyWritingSubmitted.mockResolvedValue(undefined);
+        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
         (setDoc as any).mockResolvedValue(undefined);
         (set as any).mockResolvedValue(undefined);
         (deleteDoc as any).mockResolvedValue(undefined);
@@ -999,12 +999,16 @@ describe('writingSubmissionService', () => {
                 }),
             })
         );
-        expect(mockNotifyWritingSubmitted).toHaveBeenCalledWith(
-            'student-4',
-            'result-4',
-            'Auto Submit Writing',
-            'class-session'
-        );
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            producerFamily: 'writing',
+            authorityRecordId: 'result-4',
+            recipientId: 'student-4',
+            operationKey: 'writing-submitted:result-4',
+            type: 'success',
+            title: '\u270D\uFE0F Writing Submitted',
+            message: 'Your class session essay for "Auto Submit Writing" has been submitted. A teacher will review it soon.',
+            link: '/student/academic-record',
+        });
     });
 
     it('filters pending submissions by assignment metadata instead of grading.teacherId', async () => {
@@ -1036,6 +1040,33 @@ describe('writingSubmissionService', () => {
             id: 'submission-2',
             context: { assigningTeacherId: 'teacher-1' },
         });
+    });
+
+    it('fails closed for malformed trusted notification identities', async () => {
+        (push as any).mockReturnValue({ key: 'result-malformed' });
+        (get as any).mockImplementation((path: string) => {
+            if (path.includes('/writing')) {
+                return Promise.resolve({ val: () => ({}) });
+            }
+            return Promise.resolve({ exists: () => true, val: () => ({}) });
+        });
+
+        await autoSubmitFromRTDB(
+            'SESSION-MALFORMED',
+            'student/bad',
+            'Student Bad',
+            {
+                id: 'test-malformed',
+                testType: 'IELTS',
+                skill: 'Writing',
+                metadata: { title: 'Malformed Writing', duration: 60, format: 'task1-only' },
+                tasks: [],
+                createdBy: 'teacher-1',
+                ownerId: 'teacher-1',
+            } as any,
+        );
+
+        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
     });
 
     it('blocks publish when a pending comment draft is still open', async () => {
@@ -1319,10 +1350,19 @@ describe('writingSubmissionService', () => {
         const result = await publishGrading('submission-1', draft, {
             expectedDraftVersion: 1,
             expectedPublishedVersion: 0,
-            skipNotification: true,
         });
 
         expect(result.success).toBe(true);
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            producerFamily: 'writing',
+            authorityRecordId: 'submission-1',
+            recipientId: 'student-1',
+            operationKey: 'writing-graded:submission-1:1',
+            type: 'success',
+            title: '\uD83D\uDCCA Writing Graded',
+            message: 'Teacher One has graded your essay "IELTS Writing". Overall Band: 6.0',
+            link: '/student/academic-record',
+        });
         const compatibilityProjectionCall = (updateDoc as any).mock.calls.find(([_refPath, payload]: [string, any]) => Array.isArray(payload?.annotations));
         expect(compatibilityProjectionCall?.[1]?.annotations).toEqual([
             {

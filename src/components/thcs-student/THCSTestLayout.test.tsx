@@ -13,7 +13,7 @@ const {
     mockThcsResultToTestMarkingResult,
     mockSaveTestResult,
     mockGradeWritingQuestions,
-    mockSendThcsFullyGradedNotification,
+    mockCreateTrustedNotification,
     mockTriggerFormativeFeedbackForSavedResult,
     mockUpdateThcsProgress,
     mockShuffleTest,
@@ -28,7 +28,7 @@ const {
     mockThcsResultToTestMarkingResult: vi.fn(),
     mockSaveTestResult: vi.fn(),
     mockGradeWritingQuestions: vi.fn(),
-    mockSendThcsFullyGradedNotification: vi.fn(),
+    mockCreateTrustedNotification: vi.fn(),
     mockTriggerFormativeFeedbackForSavedResult: vi.fn(),
     mockUpdateThcsProgress: vi.fn(),
     mockShuffleTest: vi.fn(),
@@ -100,8 +100,8 @@ vi.mock('../../services/testResults.service', () => ({
     saveTestResult: (...args: unknown[]) => mockSaveTestResult(...args),
 }));
 
-vi.mock('../../services/notificationService', () => ({
-    sendThcsFullyGradedNotification: (...args: unknown[]) => mockSendThcsFullyGradedNotification(...args),
+vi.mock('../../services/notificationProducerClient', () => ({
+    createTrustedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
 }));
 
 vi.mock('../../services/resultFeedbackGeneration.service', () => ({
@@ -166,7 +166,7 @@ describe('THCSTestLayout', () => {
                     status: 'in-progress',
                     testId: 'thcs-test-1',
                     isPaused: false,
-                    startTime: 1_700_000_000_000,
+                    startTime: Date.now(),
                 }),
             });
             return vi.fn();
@@ -208,7 +208,7 @@ describe('THCSTestLayout', () => {
         });
         mockSaveTestResult.mockResolvedValue('result-session-1');
         mockGradeWritingQuestions.mockResolvedValue(undefined);
-        mockSendThcsFullyGradedNotification.mockResolvedValue(undefined);
+        mockCreateTrustedNotification.mockResolvedValue({ success: true });
         mockTriggerFormativeFeedbackForSavedResult.mockResolvedValue(undefined);
         mockUpdateThcsProgress.mockResolvedValue(undefined);
     });
@@ -276,6 +276,16 @@ describe('THCSTestLayout', () => {
                 }),
             }),
         );
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            producerFamily: 'thcs-practice',
+            authorityRecordId: 'result-session-1',
+            recipientId: 'student-1',
+            operationKey: 'thcs-fully-graded:result-session-1',
+            type: 'success',
+            title: '✅ Test Fully Graded',
+            message: 'All answers in "THCS Session Test" have been graded. Your score: 8.5/10.',
+            link: '/result/result-session-1',
+        });
     });
 
     it('does not forward testData.createdBy when saving class-session THCS results', async () => {

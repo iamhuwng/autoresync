@@ -9,7 +9,7 @@ import {
 } from '../../../../src/services/notificationCommandClient.ts';
 
 const MAX_BODY_BYTES = 16 * 1024;
-const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
+const ID = /^[A-Za-z0-9_-]{1,128}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const INTERNAL_PATH = /^\/(?!\/)[A-Za-z0-9._~!$&'()*+,;=:@%/-]{1,511}$/u;
 const TYPES = new Set<NotificationType>([

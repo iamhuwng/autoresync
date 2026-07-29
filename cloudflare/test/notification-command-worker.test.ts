@@ -132,6 +132,25 @@ describe('Ticket 38B1 trusted notification command seam', () => {
     expect(Object.keys(repository.snapshot())).toHaveLength(1);
   });
 
+  it('accepts Firebase push IDs with a leading hyphen', async () => {
+    const repository = new InMemoryNotificationCommandRepository();
+    const handlers = createNotificationCommandWorkerHandlers({
+      repository,
+      resolveRecipientAuthority: async () => '-Ostudent-1',
+      now: () => 1_722_220_000_000,
+    });
+    const result = await parse(await handlers.command({
+      request: request(body({
+        recipientId: '-Ostudent-1',
+        authority: { kind: 'assignment', recordId: '-Oassignment-1' },
+      })),
+      env: {},
+      uid: 'teacher-1',
+    }));
+
+    expect(result).toMatchObject({ status: 200, body: { status: 'created' } });
+  });
+
   it('fails before persistence for malformed, unauthorized, and unavailable commands', async () => {
     const repository = new InMemoryNotificationCommandRepository();
     const denied = createNotificationCommandWorkerHandlers({
