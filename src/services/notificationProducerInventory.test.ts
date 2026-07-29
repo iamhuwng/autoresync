@@ -14,7 +14,7 @@ const inventoryPath = join(
 );
 const sourceExtensions = /\.(?:js|jsx|ts|tsx)$/u;
 const testFile = /\.(?:test|spec)\.[^.]+$/u;
-const producerCall = /\b(?:createNotification|createBulkNotifications|send[A-Z]\w*Notification|send(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
+const producerCall = /\b(?:createNotification|createBulkNotifications|createTrustedNotification|createTrustedBulkNotifications|send[A-Z]\w*Notification|send(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
 
 const filesUnder = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
@@ -38,7 +38,8 @@ describe('Ticket 38B1 notification producer inventory', () => {
         const actual = filesUnder(sourceRoot)
             .filter((path) => {
                 const source = readFileSync(path, 'utf8');
-                return source.includes('notificationService') && producerCall.test(source);
+                return (source.includes('notificationService') || source.includes('notificationProducerClient'))
+                    && producerCall.test(source);
             })
             .map(relativePath)
             .sort();
@@ -66,5 +67,31 @@ describe('Ticket 38B1 notification producer inventory', () => {
             .sort();
 
         expect(rawNotificationPaths).toEqual([...allowed].sort());
+    });
+
+    it('requires #95 producers to use the trusted seam with explicit authority', () => {
+        const owned = [
+            ['src/components/course/RequestReviewList.tsx', 'enrollment'],
+            ['src/services/assignmentManager.ts', 'assignment'],
+            ['src/services/classManager.ts', 'class'],
+            ['src/services/courseAnnouncementService.ts', 'course-announcement'],
+            ['src/services/courseManager.ts', 'course'],
+            ['src/services/deadlineReminderService.ts', 'deadline'],
+            ['src/services/enrollmentManager.ts', 'enrollment'],
+            ['src/pages/TeacherHomeworkDetailPage.tsx', 'deadline'],
+        ];
+        for (const [relativeFile, producerFamily] of owned) {
+            const source = readFileSync(join(root, relativeFile), 'utf8');
+            expect(source, relativeFile).not.toContain('notificationService');
+            expect(source, relativeFile).toContain('notificationProducerClient');
+            if (relativeFile.endsWith('TeacherHomeworkDetailPage.tsx')) {
+                expect(source, relativeFile).toContain('sendTrustedHomeworkReminderNotification');
+            } else {
+                expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
+                expect(source, relativeFile).toContain('producerFamily');
+                expect(source, relativeFile).toContain('authorityRecordId');
+                expect(source, relativeFile).toContain('operationKey');
+            }
+        }
     });
 });

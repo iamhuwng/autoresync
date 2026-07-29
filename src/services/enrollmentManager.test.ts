@@ -17,15 +17,15 @@ import { ref, set, get, push, remove, update, query, orderByChild, equalTo } fro
 import { getCourse, getModulesByCourse, createModule, updateCourse } from './courseManager';
 import { getMaterialsByModule, linkMaterialToModule } from './materialLinkManager';
 import { getClass } from './classManager';
-import { createNotification } from './notificationService';
+import { createTrustedNotification } from './notificationProducerClient';
 
 // Mock dependencies
 vi.mock('./firebase', () => ({
     database: {}
 }));
 
-vi.mock('./notificationService', () => ({
-    createNotification: vi.fn()
+vi.mock('./notificationProducerClient', () => ({
+    createTrustedNotification: vi.fn()
 }));
 
 vi.mock('firebase/database', () => ({
@@ -286,8 +286,9 @@ describe('Expiration Management', () => {
 
         await sendExpirationWarning('c1', 'copy1');
 
-        expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
-            userId: 't1',
+        expect(createTrustedNotification).toHaveBeenCalledWith(expect.objectContaining({
+            producerFamily: 'enrollment',
+            recipientId: 't1',
             type: 'warning',
             message: expect.stringContaining('Math 101')
         }));
@@ -352,4 +353,3 @@ describe('syncCourseWithOriginal', () => {
         }));
     });
 });
-

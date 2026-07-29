@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-07-29T16:09:12+07:00",
+  "graphArtifact": "artifacts/prd0062-graph-20260729-ticket97-ownership-transfer.json",
+  "graphHash": "2dc823a3c05fd971081a5d81a90702b829177166454ce9a32e1df0c610aa1a95",
+  "issueCount": 112,
+  "openCount": 50,
+  "closedCount": 62,
+  "uniqueEdges": 309,
+  "graphClearFrontier": [49, 50, 76, 97, 106, 129, 130, 131, 132, 133],
+  "roadmapPhase": "operations",
+  "selectedPrimary": {
+    "number": 97,
+    "ticket": "38B3B",
+    "directPrerequisites": [94],
+    "transitivePrerequisites": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 74, 93, 94],
+    "allPrerequisitesClosed": true,
+    "acceptanceReadiness": "PASS after destination-first transfer of integrated browser/deployment proof to #134; local implementation gates executable",
+    "requiredAuthority": "local repository, focused x64 harness, existing #94 trusted-command seam, no activation/deployment authority",
+    "downstreamLeverage": 23,
+    "reason": "Earliest unresolved Operations notification-producer root after #95; independent producer family with local proof boundary now complete."
+  },
+  "candidateRejections": [
+    {"number": 49, "reason": "Private-B2 provisioning and direct-upload authority remain disabled."},
+    {"number": 50, "reason": "Private-B2 recovery authority remains disabled."},
+    {"number": 76, "reason": "Student workflow phase is later than current Operations phase; deployed submit/rollback proof is destination-owned."},
+    {"number": 106, "reason": "Teacher workflow phase is later than current Operations phase."},
+    {"number": 129, "reason": "Final-closure phase is not active; positive acceptance shares preserved #50A boundary."},
+    {"number": 130, "reason": "Final-closure phase is not active; positive acceptance shares preserved #50A boundary."},
+    {"number": 131, "reason": "Final-closure phase is not active; positive acceptance shares preserved #50A boundary."},
+    {"number": 132, "reason": "Final security-closure phase cannot start while implementation tickets remain open."},
+    {"number": 133, "reason": "Final recovery-closure phase cannot start while implementation tickets remain open."}
+  ],
+  "ownership": {
+    "source": "#97 local Writing/THCS/session/monitor producer adapters, command conformance, negative/regression proof, legacy readers, disabled-route fail-closed behavior",
+    "seam": "#94 trusted notification command/repository",
+    "route": "#59 generic route composition and deny probes",
+    "assembledRules": "#118 generated rules",
+    "integratedDeployment": "#134 destination-owned per-family staging/deployed/canary drills"
+  },
+  "constraints": {
+    "onePrimary": true,
+    "ticket50A": "all-six-deny/default-deny",
+    "ticket03B": "disabled",
+    "privateB2": "disabled/no values",
+    "trustedProductionGates": "disabled",
+    "full112Scope": true
+  }
+}

@@ -133,6 +133,24 @@ Runtime autosave boundary:
   from #75; #75's local browser proof remains limited to its focused fixture and
   client/state-machine contract.
 
+Notification producer boundary:
+
+- #95 retains local course/class/assignment/enrollment/course-announcement/
+  deadline producer adapters, bounded trusted-command conformance, recipient
+  authority derivation, deterministic operation identity, negative tests,
+  compatible readers/read-state behavior, and disabled-route fail-closed proof.
+- #97 retains the equivalent local Writing/THCS/session/monitor producer proof.
+- #134 owns the transferred integrated staging/deployed/canary proof: each
+  producer family persists through the #94 seam, readback proves recipient
+  authority and idempotent replay, authenticated role surfaces render safe
+  destinations and own read-state changes, and bounded cleanup/rollback leaves
+  compatible readers available. This destination proof does not block producer
+  closure and is not duplicated in #95 or #97.
+- #59 owns generic route composition and deny probes; #94 owns the trusted
+  command/repository seam; #118 owns assembled rules. No trusted route, #50A,
+  #03B, private-B2, or production activation is enabled merely for producer
+  proof.
+
 ## Browser cadence
 
 - Teacher flows use `http://localhost:5173`.

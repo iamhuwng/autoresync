@@ -19,7 +19,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { TeacherHeader } from '../components/navigation';
 import { resetStudentHomework } from '../services/homeworkSubmissionService';
 import { updateHomework, updateStudentOverride } from '../services/homeworkManager';
-import { sendHomeworkReminderNotification } from '../services/notificationService';
+import { sendTrustedHomeworkReminderNotification } from '../services/notificationProducerClient';
 import { reportingService } from '../services/reportingService';
 import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 import { database } from '../services/firebase';
@@ -526,16 +526,18 @@ function TeacherHomeworkDetailPage() {
         if (row.lastRemindedAt && Date.now() - row.lastRemindedAt < 24 * 60 * 60 * 1000) return;
 
         try {
+            const reminderAt = Date.now();
             await updateStudentOverride(homeworkId, row.studentId, {
                 reminderCount: (row.reminderCount ?? 0) + 1,
-                lastRemindedAt: Date.now(),
+                lastRemindedAt: reminderAt,
             });
             // PRD-0034 Task 16.0: Send actual notification to student
-            await sendHomeworkReminderNotification(
+            await sendTrustedHomeworkReminderNotification(
                 row.studentId,
                 homeworkId,
                 homework.title || homework.materialTitle,
                 profile?.displayName ?? undefined,
+                String(reminderAt),
             );
             toast.success(`Reminder sent to ${row.studentName}`);
             await refetch();
@@ -572,16 +574,18 @@ function TeacherHomeworkDetailPage() {
         try {
             const promises = eligible.map(async (row) => {
                 try {
+                    const reminderAt = Date.now();
                     await updateStudentOverride(homeworkId, row.studentId, {
                         reminderCount: (row.reminderCount ?? 0) + 1,
-                        lastRemindedAt: Date.now(),
+                        lastRemindedAt: reminderAt,
                     });
                     // Non-blocking notification
-                    sendHomeworkReminderNotification(
+                    sendTrustedHomeworkReminderNotification(
                         row.studentId,
                         homeworkId,
                         homework.title || homework.materialTitle,
                         profile?.displayName ?? undefined,
+                        String(reminderAt),
                     ).catch((err) => console.warn('[RemindAll] Notification failed for', row.studentId, err));
                     sentCount++;
                 } catch (err) {

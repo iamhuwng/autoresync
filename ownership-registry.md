@@ -298,6 +298,28 @@ disposable migration, identity/readback, cleanup, or operational rollback drill;
   behavior, retry/abort/resume, copied/anonymous/direct-B2 denial, and console
   review.
 
+## Notification producer transfer ledger
+
+- #95 owns course, class, assignment, enrollment, course-announcement, deadline,
+  and due-soon producer adapters; bounded trusted-command shape; recipient and
+  authority derivation; deterministic operation identity; local negative tests;
+  legacy-compatible reads/read-state behavior; and disabled-route fail-closed
+  proof.
+- #97 owns the corresponding Writing, THCS, session, and monitor producer
+  adapters and local trusted-command proof. Neither producer ticket owns
+  canonical top-level route composition, activated identity use, or deployed
+  notification drills.
+- #134 owns the destination proof transferred from #95/#97: bounded staging or
+  deployed/canary execution for every producer family, notification identity
+  and recipient-authority readback, deterministic replay/idempotency, role-port
+  rendering and safe destination/read-state behavior, active Worker/config/
+  identity/gate readback, disposable cleanup, and producer-command rollback.
+- The transferred proof is not a hard prerequisite of #95 or #97 closure. #59
+  retains generic notification route composition and deny-by-default route
+  probes; #94 retains the trusted command/repository seam; #118 retains
+  assembled generated-rules proof. Keep #50A all-deny, #03B disabled,
+  private-B2 disabled, and trusted actions deny-by-default.
+
 ## Dependency repair ledger
 
 - #64 consumes a typed preview-approval contract; #63 is a contributing

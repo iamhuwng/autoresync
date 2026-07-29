@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
-    Table, Group, Text, Button, ActionIcon,
-    Badge, Stack, Loader, Alert, Tooltip, Modal, TextInput
-} from '@mantine/core';
-import {
     IconCheck, IconX, IconClock, IconUser, IconCalendar
 } from '@tabler/icons-react';
 import { getRequestsByCourse, processCourseRequest } from '../../services/courseRequestManager';
 import { enrollStudentInCourse, unenrollStudent } from '../../services/enrollmentManager';
-import { createNotification } from '../../services/notificationService';
+import { createTrustedNotification } from '../../services/notificationProducerClient';
 import type { CourseRequest } from '../../types/course.types';
 import { useAuth } from '../../hooks/useAuth';
+import { toast } from '../modern';
 
 interface RequestReviewListProps {
     courseId: string;
@@ -69,8 +66,11 @@ export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId, 
             await processCourseRequest(request.id, 'approved', user.uid);
 
             // 3. Send Notification
-            await createNotification({
-                userId: request.studentId,
+            await createTrustedNotification({
+                producerFamily: 'enrollment',
+                authorityRecordId: request.id,
+                recipientId: request.studentId,
+                operationKey: `course-request-approved:${request.id}`,
                 type: 'success',
                 title: request.type === 'join' ? 'Enrollment Approved' : 'Unenrollment Approved',
                 message: request.type === 'join'
@@ -82,7 +82,7 @@ export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId, 
             // 4. Update UI
             setRequests(prev => prev.filter(r => r.id !== request.id));
         } catch (err) {
-            alert('Failed to approve request: ' + (err instanceof Error ? err.message : 'Unknown error'));
+            toast.error('Failed to approve request: ' + (err instanceof Error ? err.message : 'Unknown error'));
         } finally {
             setProcessing(null);
         }
@@ -95,8 +95,11 @@ export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId, 
             await processCourseRequest(denialRequest.id, 'denied', user.uid, rejectionReason);
 
             // Send Notification
-            await createNotification({
-                userId: denialRequest.studentId,
+            await createTrustedNotification({
+                producerFamily: 'enrollment',
+                authorityRecordId: denialRequest.id,
+                recipientId: denialRequest.studentId,
+                operationKey: `course-request-denied:${denialRequest.id}`,
                 type: 'info',
                 title: denialRequest.type === 'join' ? 'Enrollment Denied' : 'Unenrollment Denied',
                 message: `Your ${denialRequest.type} request for ${courseName || denialRequest.courseName || 'the course'} was denied.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`
@@ -106,123 +109,126 @@ export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId, 
             setDenialRequest(null);
             setRejectionReason('');
         } catch (err) {
-            alert('Failed to deny request');
+            toast.error('Failed to deny request');
         } finally {
             setProcessing(null);
         }
     };
 
-    if (loading) return <Loader size="sm" mt="md" />;
-    if (error) return <Alert color="red" mt="md">{error}</Alert>;
+    if (loading) return <p role="status" style={{ marginTop: '1rem' }}>Loading requests…</p>;
+    if (error) return <p role="alert" style={{ marginTop: '1rem', color: '#b91c1c' }}>{error}</p>;
 
     if (requests.length === 0) {
         return (
-            <Stack align="center" py="xl" gap="xs">
+            <div style={{ alignItems: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '3rem 0' }}>
                 <IconCheck size={48} color="#94a3b8" />
-                <Text fw={700} color="dimmed">No pending requests!</Text>
-                <Text size="xs" color="dimmed">All students are up to date.</Text>
-            </Stack>
+                <strong style={{ color: '#64748b' }}>No pending requests!</strong>
+                <span style={{ color: '#64748b', fontSize: '0.75rem' }}>All students are up to date.</span>
+            </div>
         );
     }
 
     return (
         <div style={{ marginTop: '1rem' }}>
-            <Table verticalSpacing="sm">
-                <Table.Thead>
-                    <Table.Tr>
-                        <Table.Th>Student</Table.Th>
-                        <Table.Th>Type</Table.Th>
-                        <Table.Th>Requested</Table.Th>
-                        <Table.Th>Expires</Table.Th>
-                        <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
-                    </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <thead>
+                    <tr>
+                        <th scope="col" style={{ textAlign: 'left' }}>Student</th>
+                        <th scope="col" style={{ textAlign: 'left' }}>Type</th>
+                        <th scope="col" style={{ textAlign: 'left' }}>Requested</th>
+                        <th scope="col" style={{ textAlign: 'left' }}>Expires</th>
+                        <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
                     {requests.map((request) => (
-                        <Table.Tr key={request.id}>
-                            <Table.Td>
-                                <Group gap="sm">
+                        <tr key={request.id}>
+                            <td>
+                                <div style={{ alignItems: 'center', display: 'flex', gap: '0.5rem' }}>
                                     <IconUser size={16} color="#64748b" />
                                     <div>
-                                        <Text size="sm" fw={600}>{request.studentName || 'Unknown Student'}</Text>
-                                        <Text size="xs" c="dimmed">{request.studentId}</Text>
+                                        <strong style={{ display: 'block', fontSize: '0.875rem' }}>{request.studentName || 'Unknown Student'}</strong>
+                                        <span style={{ color: '#64748b', display: 'block', fontSize: '0.75rem' }}>{request.studentId}</span>
                                     </div>
-                                </Group>
-                            </Table.Td>
-                            <Table.Td>
-                                <Badge
-                                    color={request.type === 'join' ? 'blue' : 'orange'}
-                                    variant="light"
-                                >
+                                </div>
+                            </td>
+                            <td>
+                                <span style={{ background: request.type === 'join' ? '#dbeafe' : '#ffedd5', borderRadius: '999px', color: request.type === 'join' ? '#1d4ed8' : '#c2410c', display: 'inline-block', fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
                                     {request.type === 'join' ? 'Enrollment' : 'Unenrollment'}
-                                </Badge>
-                            </Table.Td>
-                            <Table.Td>
-                                <Group gap={4}>
+                                </span>
+                            </td>
+                            <td>
+                                <div style={{ alignItems: 'center', display: 'flex', gap: '0.25rem' }}>
                                     <IconCalendar size={14} color="#94a3b8" />
-                                    <Text size="xs">{new Date(request.requestedAt).toLocaleDateString()}</Text>
-                                </Group>
-                            </Table.Td>
-                            <Table.Td>
-                                <Group gap={4}>
+                                    <span style={{ fontSize: '0.75rem' }}>{new Date(request.requestedAt).toLocaleDateString()}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div style={{ alignItems: 'center', display: 'flex', gap: '0.25rem' }}>
                                     <IconClock size={14} color={request.expiresAt < Date.now() ? 'red' : '#94a3b8'} />
-                                    <Text size="xs" color={request.expiresAt < Date.now() ? 'red' : 'dimmed'}>
+                                    <span style={{ color: request.expiresAt < Date.now() ? '#b91c1c' : '#64748b', fontSize: '0.75rem' }}>
                                         {new Date(request.expiresAt).toLocaleDateString()}
-                                    </Text>
-                                </Group>
-                            </Table.Td>
-                            <Table.Td>
-                                <Group justify="flex-end" gap="xs">
-                                    <Tooltip label="Approve">
-                                        <ActionIcon
-                                            variant="light"
-                                            color="green"
-                                            onClick={() => handleApprove(request)}
-                                            loading={processing === request.id}
-                                            disabled={!!processing}
-                                        >
-                                            <IconCheck size={16} />
-                                        </ActionIcon>
-                                    </Tooltip>
-                                    <Tooltip label="Deny">
-                                        <ActionIcon
-                                            variant="light"
-                                            color="red"
-                                            onClick={() => setDenialRequest(request)}
-                                            disabled={!!processing}
-                                        >
-                                            <IconX size={16} />
-                                        </ActionIcon>
-                                    </Tooltip>
-                                </Group>
-                            </Table.Td>
-                        </Table.Tr>
+                                    </span>
+                                </div>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                    <button
+                                        type="button"
+                                        aria-label="Approve request"
+                                        aria-busy={processing === request.id}
+                                        onClick={() => handleApprove(request)}
+                                        disabled={!!processing}
+                                        style={{ alignItems: 'center', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '4px', color: '#166534', cursor: 'pointer', display: 'inline-flex', justifyContent: 'center', minHeight: '44px', minWidth: '44px' }}
+                                    >
+                                        <IconCheck size={16} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-label="Deny request"
+                                        onClick={() => setDenialRequest(request)}
+                                        disabled={!!processing}
+                                        style={{ alignItems: 'center', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '4px', color: '#991b1b', cursor: 'pointer', display: 'inline-flex', justifyContent: 'center', minHeight: '44px', minWidth: '44px' }}
+                                    >
+                                        <IconX size={16} />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
                     ))}
-                </Table.Tbody>
-            </Table>
+                </tbody>
+            </table>
 
-            <Modal
-                opened={!!denialRequest}
+            <dialog
+                open={!!denialRequest}
+                aria-labelledby="deny-request-title"
                 onClose={() => setDenialRequest(null)}
-                title="Deny Request"
-                centered
+                onCancel={(event) => {
+                    event.preventDefault();
+                    setDenialRequest(null);
+                }}
+                style={{ border: '1px solid #cbd5e1', borderRadius: '6px', maxWidth: '32rem', padding: '1.25rem', width: 'calc(100% - 2rem)' }}
             >
-                <Stack gap="md">
-                    <Text size="sm">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <h2 id="deny-request-title" style={{ fontSize: '1.125rem', margin: 0 }}>Deny Request</h2>
+                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
                         Are you sure you want to deny the <strong>{denialRequest?.type}</strong> request from <strong>{denialRequest?.studentName}</strong>?
-                    </Text>
-                    <TextInput
-                        label="Rejection Reason (Optional)"
+                    </p>
+                    <label htmlFor="rejection-reason">Rejection Reason (Optional)</label>
+                    <input
+                        id="rejection-reason"
+                        type="text"
                         placeholder="e.g. Please complete prerequisite course first"
                         value={rejectionReason}
-                        onChange={(e) => setRejectionReason(e.currentTarget.value)}
+                        onChange={(event) => setRejectionReason(event.currentTarget.value)}
+                        style={{ border: '1px solid #94a3b8', borderRadius: '4px', minHeight: '44px', padding: '0.5rem' }}
                     />
-                    <Group justify="flex-end" mt="md">
-                        <Button variant="outline" color="gray" onClick={() => setDenialRequest(null)}>Cancel</Button>
-                        <Button color="red" onClick={handleDeny} loading={processing === denialRequest?.id}>Reject Request</Button>
-                    </Group>
-                </Stack>
-            </Modal>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={() => setDenialRequest(null)} style={{ background: 'transparent', border: '1px solid #94a3b8', borderRadius: '4px', minHeight: '44px', padding: '0.5rem 1rem' }}>Cancel</button>
+                        <button type="button" onClick={handleDeny} disabled={processing === denialRequest?.id} style={{ background: '#b91c1c', border: '1px solid #991b1b', borderRadius: '4px', color: '#fff', minHeight: '44px', padding: '0.5rem 1rem' }}>Reject Request</button>
+                    </div>
+                </div>
+            </dialog>
         </div>
     );
 };

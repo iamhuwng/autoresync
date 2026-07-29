@@ -27,10 +27,31 @@ cleanup are not content producers.
 | `src/services/thcsWritingGrading.service.ts` | #97 | thcs-grading |
 | `src/services/writingSubmissionService.ts` | #97 | writing |
 
+## Trusted producer seam and adapter ownership
+
+- #95 producer paths use `src/services/notificationProducerClient.ts`, which
+  emits bounded commands through #94 `notificationCommandClient.ts`.
+- No #95 producer sends arbitrary legacy metadata. Existing legacy metadata is
+  still readable; visible title/message/link semantics are retained while the
+  disabled route fails closed until #59/#134 activate the approved surface.
+
+## Destination-owned integrated proof
+
+The earlier staging/integrated browser requirement is destination-owned by
+#134: it covers bounded persistence/readback for every #95 producer family,
+deterministic replay, authenticated role rendering, safe destination
+resolution, own read-state mutation, active configuration readback, cleanup,
+and producer-command rollback. #95 retains local adapter, command-shape,
+recipient-authority, negative, compatible-reader, and disabled-route proof and
+does not claim deployed or activated notification behavior.
+
 ## Existing adapter helper ownership
 
 - #95: `sendHomeworkAssignedNotification`,
   `sendHomeworkDueSoonNotification`, `sendHomeworkReminderNotification`.
+- #95 trusted migration: `sendTrustedHomeworkReminderNotification` and the
+  generic `createTrustedNotification`/`createTrustedBulkNotifications` calls
+  in the owned producer paths.
 - #96: `sendFeedbackNotification`, `sendReviewedNotification`,
   `sendGradeUpdatedNotification`, `sendHomeworkSubmittedNotification`,
   `sendHomeworkGradedNotification`, `sendHomeworkResetNotification`.
@@ -55,5 +76,6 @@ exactly once here.
   work owned by #98.
 - `src/services/accountDeletionService.ts` deletes a departing user's own
   notification subtree; it creates no notification content.
-- New producer code must use `notificationCommandClient.ts`. No other
-  application path may write notification content directly.
+- New producer code must use `notificationProducerClient.ts` and therefore
+  `notificationCommandClient.ts`. No other application path may write
+  notification content directly.
