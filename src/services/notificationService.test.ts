@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     createNotification,
+    createBulkNotifications,
     getUserNotifications,
     getUnreadNotifications,
     markNotificationAsRead,
@@ -85,6 +86,79 @@ describe('notificationService', () => {
             expect(result.success).toBe(false);
             expect(result.error).toContain('Missing required fields');
         });
+
+        it('preserves legacy metadata for existing producers', async () => {
+            mockSet.mockResolvedValueOnce(undefined);
+
+            const result = await createNotification({
+                userId: 'user-123',
+                type: 'info',
+                title: 'Legacy',
+                message: 'Still supported',
+                metadata: { resultId: 'result-1', source: 'grading' },
+            });
+
+            expect(result.success).toBe(true);
+            expect(mockSet).toHaveBeenCalledWith(
+                'notifications/user-123/mock-notif-id',
+                expect.objectContaining({
+                    metadata: { resultId: 'result-1', source: 'grading' },
+                })
+            );
+        });
+
+        it('keeps structured Book writes disabled until the trusted producer is live', async () => {
+            const result = await createNotification({
+                userId: 'user-123',
+                type: 'info',
+                title: 'Book update',
+                message: 'Not active yet',
+                metadata: {
+                    schemaVersion: 1,
+                    kind: 'book',
+                    contextType: 'book',
+                    contextId: 'book-1',
+                    updateActionId: 'update-1',
+                    checkpointAvailable: true,
+                    deadlineClass: 'none',
+                    actionClass: 'open',
+                },
+            });
+
+            expect(result).toEqual({
+                success: false,
+                error: 'Structured Book notification writes are disabled',
+            });
+            expect(mockPush).not.toHaveBeenCalled();
+            expect(mockSet).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('createBulkNotifications', () => {
+        it('keeps structured Book fan-out writes disabled', async () => {
+            const result = await createBulkNotifications(['user-123'], {
+                type: 'info',
+                title: 'Book update',
+                message: 'Not active yet',
+                metadata: {
+                    schemaVersion: 1,
+                    kind: 'book',
+                    contextType: 'book',
+                    contextId: 'book-1',
+                    updateActionId: 'update-1',
+                    checkpointAvailable: true,
+                    deadlineClass: 'none',
+                    actionClass: 'open',
+                },
+            });
+
+            expect(result).toEqual({
+                success: false,
+                error: 'Structured Book notification writes are disabled',
+            });
+            expect(mockPush).not.toHaveBeenCalled();
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
     });
 
     describe('getUserNotifications', () => {
@@ -114,6 +188,31 @@ describe('notificationService', () => {
 
             const result = await getUserNotifications('user-123');
             expect(result).toEqual([]);
+        });
+
+        it('adapts invalid stored metadata without trusting it', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    'n1': {
+                        title: 'Stored notification',
+                        message: 'Legacy fields remain',
+                        metadata: { schemaVersion: 99, token: 'secret' },
+                        createdAt: 100,
+                    },
+                }),
+            });
+
+            const result = await getUserNotifications('user-123');
+
+            expect(result[0]).toEqual({
+                id: 'n1',
+                type: 'info',
+                title: 'Stored notification',
+                message: 'Legacy fields remain',
+                read: false,
+                createdAt: 100,
+            });
         });
     });
 

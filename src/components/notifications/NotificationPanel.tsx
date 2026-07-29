@@ -1,17 +1,43 @@
+import { useState } from 'react';
 import { IconInfoCircle, IconCheck, IconAlertTriangle, IconX, IconChecklist, IconSettings, IconMessageCircle } from '@tabler/icons-react';
-import { Notification } from '../../types/notification.types';
-import { useNavigate } from 'react-router-dom';
+import type { Notification } from '../../types/notification.types';
+import { parseNotificationMetadata } from '../../services/notificationMetadata';
+import type { NotificationDestinationResolution } from '../../services/notificationDestinationResolver';
 
 interface NotificationPanelProps {
     notifications: Notification[];
-    onMarkAsRead: (id: string) => void;
-    onMarkAllRead: () => void;
+    onMarkAsRead: (id: string) => void | Promise<void>;
+    onMarkAllRead: () => void | Promise<void>;
+    onOpenNotification?: (notification: Notification) => Promise<NotificationDestinationResolution>;
+    onSeeAll?: () => void;
     onClose?: () => void;
     onOpenSettings?: () => void;
 }
 
-const NotificationItem = ({ notification, onMarkAsRead, onClose }: { notification: Notification, onMarkAsRead: (id: string) => void, onClose?: () => void }) => {
-    const navigate = useNavigate();
+const blockedMessage = (reason: Extract<NotificationDestinationResolution, { status: 'blocked' }>['reason']) => {
+    switch (reason) {
+        case 'stale-destination': return 'This notification is no longer available.';
+        case 'unauthorized':
+        case 'unauthenticated': return 'This notification is not available for the current account.';
+        default: return 'This notification cannot be opened safely.';
+    }
+};
+
+const NotificationItem = ({
+    notification,
+    onMarkAsRead,
+    onOpenNotification,
+    onBlocked,
+    onClose,
+}: {
+    notification: Notification;
+    onMarkAsRead: (id: string) => void | Promise<void>;
+    onOpenNotification?: (notification: Notification) => Promise<NotificationDestinationResolution>;
+    onBlocked: (reason: Extract<NotificationDestinationResolution, { status: 'blocked' }>['reason']) => void;
+    onClose?: () => void;
+}) => {
+    const hasDestination = Boolean(notification.link)
+        || parseNotificationMetadata(notification.metadata).kind === 'book';
 
     const getIcon = () => {
         switch (notification.type) {
@@ -35,14 +61,19 @@ const NotificationItem = ({ notification, onMarkAsRead, onClose }: { notificatio
         }
     };
 
-    const handleClick = () => {
+    const handleClick = async () => {
         if (!notification.read) {
-            onMarkAsRead(notification.id);
+            await onMarkAsRead(notification.id);
         }
-        if (notification.link) {
-            navigate(notification.link);
-            if (onClose) onClose();
+        if (!hasDestination || !onOpenNotification) return;
+
+        const resolution = await onOpenNotification(notification);
+        if (resolution.status === 'blocked') {
+            onBlocked(resolution.reason);
+            return;
         }
+
+        onClose?.();
     };
 
     return (
@@ -51,13 +82,21 @@ const NotificationItem = ({ notification, onMarkAsRead, onClose }: { notificatio
                 padding: '0.75rem',
                 backgroundColor: notification.read ? 'transparent' : 'rgba(59,130,246,0.1)',
                 borderBottom: '1px solid #f1f5f9',
-                cursor: notification.link ? 'pointer' : 'default',
+                cursor: hasDestination ? 'pointer' : 'default',
                 transition: 'background-color 0.2s',
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: '0.75rem'
             }}
-            onClick={handleClick}
+            onClick={() => { void handleClick(); }}
+            onKeyDown={(event) => {
+                if (!hasDestination || (event.key !== 'Enter' && event.key !== ' ')) return;
+                event.preventDefault();
+                void handleClick();
+            }}
+            role={hasDestination ? 'button' : undefined}
+            tabIndex={hasDestination ? 0 : -1}
+            aria-label={hasDestination ? `Open notification: ${notification.title}` : undefined}
             className="notification-item"
         >
             <div style={{
@@ -88,10 +127,18 @@ const NotificationItem = ({ notification, onMarkAsRead, onClose }: { notificatio
     );
 };
 
-export function NotificationPanel({ notifications, onMarkAsRead, onMarkAllRead, onClose, onOpenSettings }: NotificationPanelProps) {
+export function NotificationPanel({
+    notifications,
+    onMarkAsRead,
+    onMarkAllRead,
+    onOpenNotification,
+    onSeeAll,
+    onClose,
+    onOpenSettings,
+}: NotificationPanelProps) {
     const unreadCount = notifications.filter(n => !n.read).length;
     const displayList = notifications;
-    const navigate = useNavigate();
+    const [blockedNotice, setBlockedNotice] = useState<string>();
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', width: 320, maxHeight: 500 }}>
@@ -101,12 +148,13 @@ export function NotificationPanel({ notifications, onMarkAsRead, onMarkAllRead, 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {unreadCount > 0 && (
                         <button
+                            type="button"
                             onClick={onMarkAllRead}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '0.25rem',
                                 border: 'none', background: 'transparent',
                                 color: '#3b82f6', fontSize: '0.75rem', fontWeight: 500,
-                                cursor: 'pointer', padding: '0.25rem 0.5rem', borderRadius: '0.25rem'
+                                cursor: 'pointer', padding: '0.25rem 0.5rem', minHeight: 44, borderRadius: '0.25rem'
                             }}
                         >
                             <IconChecklist size={14} /> Mark all read
@@ -114,11 +162,13 @@ export function NotificationPanel({ notifications, onMarkAsRead, onMarkAllRead, 
                     )}
                     {onOpenSettings && (
                         <button
+                            type="button"
                             onClick={onOpenSettings}
+                            aria-label="Notification settings"
                             style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 border: 'none', background: 'transparent', color: '#64748b',
-                                cursor: 'pointer', padding: '0.25rem', borderRadius: '0.25rem'
+                                cursor: 'pointer', padding: '0.25rem', minWidth: 44, minHeight: 44, borderRadius: '0.25rem'
                             }}
                         >
                             <IconSettings size={16} />
@@ -126,6 +176,12 @@ export function NotificationPanel({ notifications, onMarkAsRead, onMarkAllRead, 
                     )}
                 </div>
             </div>
+
+            {blockedNotice && (
+                <div role="status" aria-live="polite" style={{ padding: '0.5rem 0.75rem', color: '#92400e', backgroundColor: '#fffbeb', fontSize: '0.75rem' }}>
+                    {blockedNotice}
+                </div>
+            )}
 
             {/* List */}
             <div style={{ maxHeight: 400, overflowY: 'auto' }}>
@@ -143,6 +199,8 @@ export function NotificationPanel({ notifications, onMarkAsRead, onMarkAllRead, 
                                 key={notification.id}
                                 notification={notification}
                                 onMarkAsRead={onMarkAsRead}
+                                onOpenNotification={onOpenNotification}
+                                onBlocked={(reason) => setBlockedNotice(blockedMessage(reason))}
                                 onClose={onClose}
                             />
                         ))}
@@ -153,13 +211,14 @@ export function NotificationPanel({ notifications, onMarkAsRead, onMarkAllRead, 
             {/* Footer */}
             <div style={{ padding: '0.5rem', borderTop: '1px solid #e2e8f0' }}>
                 <button
+                    type="button"
                     onClick={() => {
                         console.log('📢 [NotificationPanel] User clicked "See All Activity" — navigating to dashboard feed.');
                         onClose?.();
-                        navigate('/student/dashboard?view=feed');
+                        onSeeAll?.();
                     }}
                     style={{
-                        width: '100%', padding: '0.5rem', border: 'none', background: 'transparent',
+                        width: '100%', minHeight: 44, padding: '0.5rem', border: 'none', background: 'transparent',
                         color: '#64748b', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
                         borderRadius: '0.25rem'
                     }}

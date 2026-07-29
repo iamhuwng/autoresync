@@ -10,8 +10,11 @@ import { database } from './firebase';
 import { buildRoute } from '../constants/routes';
 import type { Notification, NotificationCreate } from '../types/notification.types';
 import { withRestoreGuard } from './restoreGuard';
+import { adaptStoredNotification, parseNotificationMetadata } from './notificationMetadata';
 
 const NOTIFICATIONS_REF = 'notifications';
+/** Rollback switch: structured Book writes stay disabled until their trusted producer is live. */
+export const STRUCTURED_BOOK_WRITES_ENABLED = false;
 const buildStudentHomeworkLink = (homeworkId: string) =>
     buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId });
 const buildResultDetailLink = (resultId: string) =>
@@ -30,6 +33,14 @@ export const createNotification = withRestoreGuard(
             return { success: false, error: 'Missing required fields' };
         }
 
+        const parsedMetadata = parseNotificationMetadata(data.metadata);
+        if (parsedMetadata.kind === 'invalid') {
+            return { success: false, error: `Invalid notification metadata: ${parsedMetadata.reason}` };
+        }
+        if (parsedMetadata.kind === 'book' && !STRUCTURED_BOOK_WRITES_ENABLED) {
+            return { success: false, error: 'Structured Book notification writes are disabled' };
+        }
+
         const notificationId = push(ref(database, NOTIFICATIONS_REF)).key;
         if (!notificationId) {
             return { success: false, error: 'Failed to generate notification ID' };
@@ -44,7 +55,9 @@ export const createNotification = withRestoreGuard(
             read: false,
             createdAt: Date.now(),
             ...(data.link !== undefined && { link: data.link }),
-            ...(data.metadata !== undefined && { metadata: data.metadata }),
+            ...(data.metadata !== undefined && {
+                metadata: parsedMetadata.kind === 'book' ? parsedMetadata.metadata : data.metadata,
+            }),
         };
 
         await set(ref(database, `${NOTIFICATIONS_REF}/${data.userId}/${notificationId}`), notificationBody);
@@ -68,8 +81,10 @@ export async function getUserNotifications(userId: string): Promise<Notification
             return [];
         }
 
-        const notifications = snapshot.val();
-        const result = Object.values(notifications).sort((a: any, b: any) => b.createdAt - a.createdAt) as Notification[];
+        const notifications = snapshot.val() as Record<string, unknown>;
+        const result = Object.entries(notifications)
+            .map(([notificationId, value]) => adaptStoredNotification(value, notificationId))
+            .sort((a, b) => b.createdAt - a.createdAt);
         return result;
     } catch (error) {
         console.error('Error getting user notifications:', error);
@@ -152,8 +167,9 @@ export async function getPaginatedUserNotifications(
             return { notifications: [], hasMore: false, lastKey: undefined };
         }
 
-        const notifications = snapshot.val();
-        let notificationsArr = Object.values(notifications) as Notification[];
+        const notifications = snapshot.val() as Record<string, unknown>;
+        let notificationsArr = Object.entries(notifications)
+            .map(([notificationId, value]) => adaptStoredNotification(value, notificationId));
 
         // Sort newest first
         notificationsArr.sort((a, b) => b.createdAt - a.createdAt);
@@ -193,8 +209,10 @@ export function subscribeToNotifications(
             return;
         }
 
-        const notifications = snapshot.val();
-        const userNotifications = Object.values(notifications).sort((a: any, b: any) => b.createdAt - a.createdAt) as Notification[];
+        const notifications = snapshot.val() as Record<string, unknown>;
+        const userNotifications = Object.entries(notifications)
+            .map(([notificationId, value]) => adaptStoredNotification(value, notificationId))
+            .sort((a, b) => b.createdAt - a.createdAt);
         callback(userNotifications);
     });
 
@@ -231,7 +249,7 @@ export function subscribeToNewNotifications(
 
     const unsubscribe = onChildAdded(newNotificationsQuery, (snapshot) => {
         if (!snapshot.exists()) return;
-        const notification = snapshot.val() as Notification;
+        const notification = adaptStoredNotification(snapshot.val(), snapshot.key ?? undefined);
         callback(notification);
     });
 
@@ -251,6 +269,14 @@ export const createBulkNotifications = withRestoreGuard(
             return { success: false, error: 'Missing required fields or empty user list' };
         }
 
+        const parsedMetadata = parseNotificationMetadata(data.metadata);
+        if (parsedMetadata.kind === 'invalid') {
+            return { success: false, error: `Invalid notification metadata: ${parsedMetadata.reason}` };
+        }
+        if (parsedMetadata.kind === 'book' && !STRUCTURED_BOOK_WRITES_ENABLED) {
+            return { success: false, error: 'Structured Book notification writes are disabled' };
+        }
+
         const updates: Record<string, Notification> = {};
         const notificationIds: string[] = [];
         const now = Date.now();
@@ -267,7 +293,9 @@ export const createBulkNotifications = withRestoreGuard(
                 read: false,
                 createdAt: now,
                 ...(data.link !== undefined && { link: data.link }),
-                ...(data.metadata !== undefined && { metadata: data.metadata }),
+                ...(data.metadata !== undefined && {
+                    metadata: parsedMetadata.kind === 'book' ? parsedMetadata.metadata : data.metadata,
+                }),
             } as Notification;
 
             notificationIds.push(notificationId);
