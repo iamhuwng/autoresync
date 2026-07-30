@@ -6,6 +6,7 @@ import {
   BookRuntimeClientError,
   type BookRuntimeClient,
   type BookRuntimeDraftAddress,
+  type BookRuntimeSubmitActivityResult,
 } from '../../services/book-activity/activityRuntime.browser';
 import type { BookRuntimeDraftRecord } from '../../services/book-activity/activityRuntimeAttempt.types';
 
@@ -99,6 +100,8 @@ export interface BookActivityRuntimeController {
   readonly retry: () => Promise<BookRuntimeFlushResult>;
   readonly reload: () => Promise<void>;
   readonly discardLocal: () => Promise<void>;
+  readonly submitActivity: (interactionId: string) => Promise<BookRuntimeSubmitActivityResult>;
+  readonly terminalResult: BookRuntimeSubmitActivityResult | null;
 }
 
 interface PendingEntry {
@@ -206,6 +209,7 @@ export const useBookActivityRuntime = (
   );
   const [message, setMessage] = useState('');
   const [conflict, setConflict] = useState<BookRuntimeConflict | null>(null);
+  const [terminalResult, setTerminalResult] = useState<BookRuntimeSubmitActivityResult | null>(null);
   const pendingRef = useRef(new Map<string, PendingEntry>());
   const acknowledgedRef = useRef(new Map<string, AcknowledgedEntry>());
   const generationRef = useRef(0);
@@ -213,6 +217,8 @@ export const useBookActivityRuntime = (
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(new Set<string>());
+  const terminalByInteractionRef = useRef(new Map<string, BookRuntimeSubmitActivityResult>());
+  const submitPromiseRef = useRef(new Map<string, Promise<BookRuntimeSubmitActivityResult>>());
 
   const addressFor = useCallback((interactionId: string): BookRuntimeDraftAddress => ({
     ...optionsRef.current.address,
@@ -542,10 +548,58 @@ export const useBookActivityRuntime = (
     await reload();
   }, [reload, removeRecovery]);
 
+  const submitActivity = useCallback(async (
+    interactionId: string,
+  ): Promise<BookRuntimeSubmitActivityResult> => {
+    const existing = terminalByInteractionRef.current.get(interactionId);
+    if (existing) return existing;
+    const inFlight = submitPromiseRef.current.get(interactionId);
+    if (inFlight) return inFlight;
+    if (!optionsRef.current.interactionIds.includes(interactionId)) {
+      throw new BookRuntimeClientError('invalid_response');
+    }
+    const run = (async () => {
+      const flushed = await flush('submit');
+      if (!flushed.safeToLeave) {
+        throw new BookRuntimeClientError('network_failure');
+      }
+      const acknowledged = acknowledgedRef.current.get(interactionId);
+      if (!acknowledged) {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+      setRuntimeStatus('saving', 'Submitting Activity.');
+      const result = await optionsRef.current.client.submitActivity({
+        ...addressFor(interactionId),
+        operationId: randomId(),
+        draftOperationId: randomId(),
+        clientRevision: acknowledged.revision,
+        response: structuredClone(responses[interactionId]),
+      });
+      if (result.status !== 'accepted' && result.status !== 'replayed') {
+        throw new BookRuntimeClientError('conflict');
+      }
+      terminalByInteractionRef.current.set(interactionId, result);
+      setTerminalResult(result);
+      setRuntimeStatus('saved', result.resultStatus === 'pending_review'
+        ? 'Submitted for teacher review.'
+        : 'Activity submitted.');
+      return result;
+    })();
+    submitPromiseRef.current.set(interactionId, run);
+    try {
+      return await run;
+    } finally {
+      submitPromiseRef.current.delete(interactionId);
+    }
+  }, [addressFor, flush, responses, setRuntimeStatus]);
+
   useEffect(() => {
     generationRef.current += 1;
     pendingRef.current.clear();
     acknowledgedRef.current.clear();
+    terminalByInteractionRef.current.clear();
+    submitPromiseRef.current.clear();
+    setTerminalResult(null);
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     setResponses(optionsRef.current.initialResponses ?? {});
@@ -579,5 +633,7 @@ export const useBookActivityRuntime = (
     retry,
     reload,
     discardLocal,
+    submitActivity,
+    terminalResult,
   };
 };

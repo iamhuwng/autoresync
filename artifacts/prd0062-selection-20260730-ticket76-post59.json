@@ -1,0 +1,98 @@
+{
+  "generatedAt": "2026-07-30",
+  "selectionStatus": "SELECTED",
+  "roadmapPhase": "runtime",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket76-contract-repair.json",
+  "graphIssueHash": "8486fc7f5989cae9e4addaf8451f842687ec68dc4c8ec0baa449fd313f28ec01",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 48,
+    "closedCount": 64,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 76, 106, 129, 130, 131, 132, 133]
+  },
+  "selectedTicket": {
+    "number": 76,
+    "title": "PRD0062 28C — Submit terminal Activity attempts and immutable results",
+    "directPrerequisites": [74, 75],
+    "completeTransitivePrerequisites": [74, 75],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 40,
+    "acceptanceReadiness": {
+      "localWorkerRepositoryAndTransactionGates": "executable",
+      "localRulesFragmentGates": "executable",
+      "browserStudentPort": "required retained gate at http://localhost:5174",
+      "deployedCanary": "destination-owned by #134 and not a #76 closure gate",
+      "authority": "available for local implementation; no trusted or production activation requested"
+    },
+    "ownershipBoundary": {
+      "ticket76": "terminal submission, immutable attempt/result/completion/index proof, browser flush-before-submit, local rollback",
+      "ticket74": "runtime schema, authorization, repository CAS/idempotency/crash persistence, schedule policy",
+      "ticket134": "deployed/canary identity, generated-rules readback, disposable drill, cleanup, telemetry, rollback"
+    },
+    "selectionReason": "Earliest eligible Runtime-phase descendant after #59 closure, with all direct/transitive prerequisites formally CLOSED and the strongest verified downstream-unblock leverage among eligible candidates."
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Acceptance is not executable under the current safety policy: private-B2/03B and trusted activation remain disabled, and the ticket requires explicit remote authority, exact provider acceptance, cost/capacity, browser, cleanup, and rollback evidence."
+    },
+    {
+      "ticket": 106,
+      "title": "PRD0062 44 — Reference or fork public Book content",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Later Teacher/Operations roadmap work; the current Runtime phase still has eligible #76 with greater verified downstream leverage."
+    },
+    {
+      "ticket": 129,
+      "title": "PRD0062 51B2 — Run teacher updates, replacement, and results browser suite",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure browser reconciliation phase, not the current Runtime phase."
+    },
+    {
+      "ticket": 130,
+      "title": "PRD0062 51C1 — Run student runtime and persistence browser suite",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure browser reconciliation phase; selecting it would bypass the current Runtime implementation root #76."
+    },
+    {
+      "ticket": 131,
+      "title": "PRD0062 51C2 — Run student accessibility and device browser suite",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure browser reconciliation phase, not the current Runtime phase."
+    },
+    {
+      "ticket": 132,
+      "title": "PRD0062 51D1 — Run contract and security regressions",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure regression phase, not the current Runtime phase."
+    },
+    {
+      "ticket": 133,
+      "title": "PRD0062 51D2 — Run legacy, backup, and recovery regressions",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure regression phase, not the current Runtime phase."
+    }
+  ],
+  "safety": {
+    "ticket03B": "disabled",
+    "ticket50A": "all-six-deny/default-deny",
+    "trustedActions": "disabled",
+    "privateB2": "disabled",
+    "scope": "full 112-ticket graph preserved; exactly one primary selected"
+  }
+}

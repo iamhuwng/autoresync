@@ -40,6 +40,19 @@ const runtimeClient = (overrides: Partial<BookRuntimeClient> = {}): BookRuntimeC
       createdAt: '2026-07-28T00:00:00.000Z',
     },
   })),
+  submitActivity: vi.fn(async (input) => ({
+    status: 'accepted' as const,
+    resultStatus: 'submitted' as const,
+    completionStatus: 'completed' as const,
+    receipt: {
+      operationId: input.operationId,
+      fingerprint: '',
+      status: 'accepted' as const,
+      bindingId: input.bindingId,
+      attemptId: 'attempt-1',
+      createdAt: '2026-07-28T00:00:00.000Z',
+    },
+  })),
   ...overrides,
 });
 
@@ -329,5 +342,35 @@ describe('useBookActivityRuntime', () => {
     serverResponse = { text: 'reloaded' };
     await act(async () => { await result.current.reload(); });
     expect(result.current.responses).toEqual({ 'interaction-1': { text: 'reloaded' } });
+  });
+
+  it('flushes before terminal submission and reuses the immutable acknowledgement on double submit', async () => {
+    const client = runtimeClient();
+    const { result } = renderHook(() => useBookActivityRuntime({
+      client,
+      recipientId: 'student-1',
+      address,
+      interactionIds: ['interaction-1'],
+      storage: store(),
+      debounceMs: 60_000,
+      tabId: 'tab-1',
+    }));
+
+    await waitFor(() => expect(result.current.status).toBe('saved'));
+    act(() => { result.current.change('interaction-1', { text: 'final' }); });
+    let first;
+    await act(async () => { first = await result.current.submitActivity('interaction-1'); });
+    let second;
+    await act(async () => { second = await result.current.submitActivity('interaction-1'); });
+
+    expect(first).toEqual(expect.objectContaining({
+      status: 'accepted',
+      resultStatus: 'submitted',
+      completionStatus: 'completed',
+    }));
+    expect(second).toEqual(first);
+    expect(client.submitActivity).toHaveBeenCalledTimes(1);
+    expect(client.saveDraft).toHaveBeenCalledTimes(1);
+    expect(result.current.terminalResult).toEqual(first);
   });
 });

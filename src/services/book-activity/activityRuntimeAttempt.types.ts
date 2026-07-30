@@ -1,8 +1,12 @@
 import type { BookDeliveryBinding } from '../book-delivery/bookDelivery.types';
+import type { ActivityScoreResult } from '../../types/bookActivity.types';
 
 export type BookRuntimeCommandKind = 'state' | 'autosave' | 'submit';
 export type BookRuntimeCommandStatus = 'accepted' | 'replayed' | 'conflict' | 'denied';
 export type BookRuntimeScheduleOperationKind = BookRuntimeCommandKind | 'document';
+export type BookRuntimeScore =
+  | Extract<ActivityScoreResult, { status: 'scored' }>
+  | { status: 'review_required' };
 
 export interface BookRuntimeCommandPayload {
   readonly operationId: string;
@@ -48,12 +52,16 @@ export interface BookRuntimeAttemptRecord {
   readonly schemaVersion: 1;
   readonly attemptId: string;
   readonly bindingId: string;
+  readonly bindingRevision?: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
   readonly interactionId: string;
+  readonly attemptNumber?: number;
+  readonly sourceProvenance?: readonly BookRuntimeSourceProvenance[];
+  readonly feedbackRelease?: 'pending';
   readonly response: unknown;
   readonly createdByOperationId: string;
   readonly createdAt: string;
@@ -64,12 +72,17 @@ export interface BookRuntimeResultRecord {
   readonly resultId: string;
   readonly attemptId: string;
   readonly bindingId: string;
+  readonly bindingRevision?: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
   readonly interactionId: string;
+  readonly attemptNumber?: number;
+  readonly sourceProvenance?: readonly BookRuntimeSourceProvenance[];
+  readonly feedbackRelease?: 'pending';
+  readonly score?: BookRuntimeScore;
   readonly status: 'pending_review' | 'submitted';
   readonly createdByOperationId: string;
   readonly createdAt: string;
@@ -81,12 +94,15 @@ export interface BookRuntimeCompletionRecord {
   readonly attemptId: string;
   readonly resultId: string;
   readonly bindingId: string;
+  readonly bindingRevision?: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
   readonly interactionId: string;
+  readonly attemptNumber?: number;
+  readonly sourceProvenance?: readonly BookRuntimeSourceProvenance[];
   readonly status: 'completed';
   readonly createdByOperationId: string;
   readonly createdAt: string;
@@ -97,14 +113,22 @@ export interface BookRuntimeAttemptIndexRecord {
   readonly attemptId: string;
   readonly resultId: string;
   readonly bindingId: string;
+  readonly bindingRevision?: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
   readonly interactionId: string;
+  readonly attemptNumber?: number;
   readonly createdByOperationId: string;
   readonly createdAt: string;
+}
+
+export interface BookRuntimeSourceProvenance {
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly pages: readonly number[];
 }
 
 export interface BookRuntimeOperationReceipt {

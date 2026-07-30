@@ -241,6 +241,7 @@ type FixtureRuntimeMode = 'none' | 'failure' | 'conflict';
 let fixtureRuntimeMode: FixtureRuntimeMode = 'none';
 
 const FIXTURE_RUNTIME_STORE_KEY = 'prd0062-book-runtime-worker-fixture-v1';
+const FIXTURE_RUNTIME_TERMINAL_STORE_KEY = 'prd0062-book-runtime-terminal-fixture-v1';
 
 const componentPagesFromSearchParams = (searchParams: URLSearchParams): Readonly<Record<string, number>> => {
   const pages: Record<string, number> = {};
@@ -280,6 +281,40 @@ const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
     const key = [payload.contextId, payload.placementId, payload.interactionId].join(':');
     const records = await storage.get<Record<string, Record<string, unknown>>>(FIXTURE_RUNTIME_STORE_KEY) ?? {};
     const current = records[key];
+    if (payload.commandKind === 'submit') {
+      const terminals = await storage.get<Record<string, Record<string, unknown>>>(
+        FIXTURE_RUNTIME_TERMINAL_STORE_KEY,
+      ) ?? {};
+      const terminalKey = [payload.contextId, payload.placementId, payload.interactionId].join(':');
+      const existing = terminals[terminalKey];
+      if (existing) {
+        return new Response(JSON.stringify({ ...existing, status: 'replayed' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (!current || current.revision !== payload.clientRevision) {
+        return new Response(JSON.stringify({ code: 'runtime_submit_draft_unavailable' }), { status: 409 });
+      }
+      const result = {
+        status: 'accepted',
+        resultStatus: payload.activityId === 'activity-long' ? 'pending_review' : 'submitted',
+        completionStatus: 'completed',
+        receipt: {
+          operationId: payload.operationId,
+          status: 'accepted',
+          bindingId: payload.bindingId,
+          attemptId: `attempt-${payload.activityId}`,
+          createdAt: new Date().toISOString(),
+        },
+      };
+      terminals[terminalKey] = result;
+      await storage.set(FIXTURE_RUNTIME_TERMINAL_STORE_KEY, terminals);
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
     if (fixtureRuntimeMode === 'conflict') {
       fixtureRuntimeMode = 'none';
       records[key] = {
@@ -536,6 +571,37 @@ export default function BookRuntimeShellSmokePage() {
           type="button"
         >
           Force stale conflict
+        </button>
+        <button
+          aria-label={`Submit ${activeFixtureActivity.label}`}
+          data-testid="book-runtime-submit"
+          disabled={runtime.terminalResult !== null}
+          onClick={() => {
+            const interactionId = activeInteractionIds[0];
+            if (!interactionId) return;
+            trackAction('bookRuntimeSubmitActivity', {
+              activityId: activeFixtureActivity.activityId,
+            });
+            void runtime.submitActivity(interactionId)
+              .then((result) => {
+                if (result.resultStatus === 'pending_review') {
+                  toast.info('Activity submitted for teacher review.');
+                } else {
+                  toast.success('Activity submitted.');
+                }
+              })
+              .catch(() => {
+                toast.error('Could not submit Activity; your saved response remains available.');
+              });
+          }}
+          style={{ minHeight: 44 }}
+          type="button"
+        >
+          {runtime.terminalResult?.resultStatus === 'pending_review'
+            ? 'Submitted for review'
+            : runtime.terminalResult
+              ? 'Activity submitted'
+              : 'Submit Activity'}
         </button>
       </div>
       <BookRuntimeShell

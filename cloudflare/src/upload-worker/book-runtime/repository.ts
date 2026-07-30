@@ -8,6 +8,8 @@ import type {
   BookRuntimeOperationReceipt,
   BookRuntimeResultRecord,
   BookRuntimeTrustedCommandContext,
+  BookRuntimeSourceProvenance,
+  BookRuntimeScore,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 
@@ -22,6 +24,7 @@ export interface BookRuntimeRepository {
     readonly command: BookRuntimeCommandPayload;
     readonly context: BookRuntimeTrustedCommandContext;
     readonly attemptId: string;
+    readonly score?: BookRuntimeScore;
   }): Promise<BookRuntimeCommandResult>;
   listAttempts(input: {
     readonly recipientId: string;
@@ -48,6 +51,22 @@ export class BookRuntimeRepositoryError extends Error {
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
+
+const sourceProvenance = (
+  binding: BookDeliveryBinding,
+  placementId: string,
+): readonly BookRuntimeSourceProvenance[] => {
+  const placement = binding.placements.find((entry) => entry.placementId === placementId);
+  if (!placement) return [];
+  return placement.sourcePageScopes.flatMap((scope) => {
+    const source = binding.sourceSet.sources.find((entry) => entry.sourceKey === scope.sourceKey);
+    return source ? [{
+      sourceKey: source.sourceKey,
+      sourceVersionId: source.sourceVersionId,
+      pages: [...scope.pages],
+    }] : [];
+  });
+};
 
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
@@ -158,6 +177,7 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     readonly command: BookRuntimeCommandPayload;
     readonly context: BookRuntimeTrustedCommandContext;
     readonly attemptId: string;
+    readonly score?: BookRuntimeScore;
   }): Promise<BookRuntimeCommandResult> {
     const { command, context } = input;
     const existing = this.operations[command.operationId];
@@ -218,10 +238,30 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
       if (this.attempts[input.attemptId]) {
         throw new BookRuntimeRepositoryError('runtime_attempt_duplicate');
       }
+      if (Object.values(this.completions).some((completion) =>
+        completion.activityId === command.activityId
+        && completion.activityVersion === command.activityVersion
+        && completion.interactionId === command.interactionId)) {
+        return {
+          status: 'conflict',
+          receipt: {
+            operationId: command.operationId,
+            fingerprint: commandFingerprint,
+            status: 'conflict',
+            bindingId: command.bindingId,
+            createdAt: context.now,
+          },
+        };
+      }
+      const provenance = sourceProvenance(context.binding, command.placementId);
       const attempt: BookRuntimeAttemptRecord = {
         schemaVersion: 1,
         attemptId: input.attemptId,
         ...base,
+        bindingRevision: command.bindingRevision,
+        attemptNumber: 1,
+        sourceProvenance: provenance,
+        feedbackRelease: 'pending',
         response: clone(command.response),
         createdByOperationId: command.operationId,
         createdAt: context.now,
@@ -231,7 +271,12 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         resultId: `${input.attemptId}:result`,
         attemptId: input.attemptId,
         ...base,
-        status: 'pending_review',
+        bindingRevision: command.bindingRevision,
+        attemptNumber: 1,
+        sourceProvenance: provenance,
+        feedbackRelease: 'pending',
+        ...(input.score ? { score: clone(input.score) } : {}),
+        status: input.score?.status === 'scored' ? 'submitted' : 'pending_review',
         createdByOperationId: command.operationId,
         createdAt: context.now,
       };
@@ -241,6 +286,9 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         attemptId: input.attemptId,
         resultId: result.resultId,
         ...base,
+        bindingRevision: command.bindingRevision,
+        attemptNumber: 1,
+        sourceProvenance: provenance,
         status: 'completed',
         createdByOperationId: command.operationId,
         createdAt: context.now,
@@ -250,6 +298,8 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         attemptId: input.attemptId,
         resultId: result.resultId,
         ...base,
+        bindingRevision: command.bindingRevision,
+        attemptNumber: 1,
         createdByOperationId: command.operationId,
         createdAt: context.now,
       };
@@ -561,6 +611,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
     readonly command: BookRuntimeCommandPayload;
     readonly context: BookRuntimeTrustedCommandContext;
     readonly attemptId: string;
+    readonly score?: BookRuntimeScore;
   }): Promise<BookRuntimeCommandResult> {
     const { command, context } = input;
     durablePathId(command.bindingId, 'binding');
@@ -617,12 +668,16 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           schemaVersion: 1,
           attemptId: input.attemptId,
           bindingId: command.bindingId,
+          bindingRevision: command.bindingRevision,
           recipientId: context.binding.recipient.recipientId,
           contextId: command.contextId,
           placementId: command.placementId,
           activityId: command.activityId,
           activityVersion: command.activityVersion,
           interactionId: command.interactionId,
+          attemptNumber: 1,
+          sourceProvenance: sourceProvenance(context.binding, command.placementId),
+          feedbackRelease: 'pending',
           response: durableClone(command.response),
           createdByOperationId: command.operationId,
           createdAt: context.now,
@@ -632,13 +687,18 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           resultId: `${input.attemptId}:result`,
           attemptId: input.attemptId,
           bindingId: command.bindingId,
+          bindingRevision: command.bindingRevision,
           recipientId: context.binding.recipient.recipientId,
           contextId: command.contextId,
           placementId: command.placementId,
           activityId: command.activityId,
           activityVersion: command.activityVersion,
           interactionId: command.interactionId,
-          status: 'pending_review',
+          attemptNumber: 1,
+          sourceProvenance: sourceProvenance(context.binding, command.placementId),
+          feedbackRelease: 'pending',
+          ...(input.score ? { score: durableClone(input.score) } : {}),
+          status: input.score?.status === 'scored' ? 'submitted' : 'pending_review',
           createdByOperationId: command.operationId,
           createdAt: context.now,
         };
@@ -648,12 +708,15 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           attemptId: input.attemptId,
           resultId: resultRecord.resultId,
           bindingId: command.bindingId,
+          bindingRevision: command.bindingRevision,
           recipientId: context.binding.recipient.recipientId,
           contextId: command.contextId,
           placementId: command.placementId,
           activityId: command.activityId,
           activityVersion: command.activityVersion,
           interactionId: command.interactionId,
+          attemptNumber: 1,
+          sourceProvenance: sourceProvenance(context.binding, command.placementId),
           status: 'completed',
           createdByOperationId: command.operationId,
           createdAt: context.now,
@@ -663,12 +726,14 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           attemptId: input.attemptId,
           resultId: resultRecord.resultId,
           bindingId: command.bindingId,
+          bindingRevision: command.bindingRevision,
           recipientId: context.binding.recipient.recipientId,
           contextId: command.contextId,
           placementId: command.placementId,
           activityId: command.activityId,
           activityVersion: command.activityVersion,
           interactionId: command.interactionId,
+          attemptNumber: 1,
           createdByOperationId: command.operationId,
           createdAt: context.now,
         };

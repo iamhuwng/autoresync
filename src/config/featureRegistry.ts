@@ -93,6 +93,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'bookRuntimeAutosaveReload',
       'bookRuntimeAutosaveDiscard',
       'bookRuntimeMetricRecorded',
+      'bookRuntimeSubmitActivity',
     ],
     description: 'Student test-taking and practice sessions',
   },

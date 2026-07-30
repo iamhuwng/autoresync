@@ -32,8 +32,23 @@ export interface BookRuntimeSaveDraftResult {
   readonly receipt: BookRuntimeOperationReceipt;
 }
 
+export interface BookRuntimeSubmitActivityInput extends BookRuntimeDraftAddress {
+  readonly operationId: string;
+  readonly draftOperationId: string;
+  readonly clientRevision: number;
+  readonly response: unknown;
+}
+
+export interface BookRuntimeSubmitActivityResult {
+  readonly status: 'accepted' | 'replayed' | 'conflict' | 'denied';
+  readonly resultStatus: 'pending_review' | 'submitted';
+  readonly completionStatus: 'completed';
+  readonly receipt: BookRuntimeOperationReceipt;
+}
+
 export interface BookRuntimeClient {
   saveDraft(input: BookRuntimeSaveDraftInput): Promise<BookRuntimeSaveDraftResult>;
+  submitActivity(input: BookRuntimeSubmitActivityInput): Promise<BookRuntimeSubmitActivityResult>;
   readDraft(input: BookRuntimeDraftAddress): Promise<BookRuntimeDraftRecord | null>;
 }
 
@@ -385,6 +400,66 @@ export const createBookRuntimeClient = (
         throw new BookRuntimeClientError('invalid_response');
       }
       return { status, receipt: operationReceipt(result.receipt) };
+    },
+
+    async submitActivity(input) {
+      assertAddress(input);
+      if (!UUID.test(input.operationId) || !UUID.test(input.draftOperationId)) {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+      if (!Number.isSafeInteger(input.clientRevision) || input.clientRevision < 0) {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+      assertSafeResponse(input.response);
+
+      const flushed = await this.saveDraft({
+        ...input,
+        operationId: input.draftOperationId,
+      });
+      const acknowledgedRevision = flushed.receipt.draftRevision;
+      if (!Number.isSafeInteger(acknowledgedRevision) || (acknowledgedRevision as number) < 0) {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+
+      const body = await request('/book-runtime/commands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operationId: input.operationId,
+          commandKind: 'submit',
+          bindingId: input.bindingId,
+          bindingRevision: input.bindingRevision,
+          contextId: input.contextId,
+          placementId: input.placementId,
+          activityId: input.activityId,
+          activityVersion: input.activityVersion,
+          interactionId: input.interactionId,
+          clientRevision: acknowledgedRevision,
+          response: input.response,
+        }),
+      });
+      const result = record(body);
+      if (!result) throw new BookRuntimeClientError('invalid_response');
+      exactKeys(result, ['status', 'receipt', 'resultStatus', 'completionStatus']);
+      const status = result.status;
+      if (status !== 'accepted' && status !== 'replayed'
+        && status !== 'conflict' && status !== 'denied') {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+      if (result.resultStatus !== 'pending_review' && result.resultStatus !== 'submitted') {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+      if (result.completionStatus !== 'completed') {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+      const receipt = operationReceipt(result.receipt);
+      if (!receipt.attemptId) throw new BookRuntimeClientError('invalid_response');
+      return {
+        status,
+        resultStatus: result.resultStatus,
+        completionStatus: result.completionStatus,
+        receipt,
+      };
     },
 
     async readDraft(input) {

@@ -1,4 +1,5 @@
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import type { NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
 import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
@@ -31,6 +32,14 @@ export interface BookRuntimeCanonicalDependencies {
     readonly env: BookRuntimeCanonicalEnv;
   }) => Promise<BookDeliveryBinding | null>;
   readonly schedulePolicy: BookRuntimeSchedulePolicy;
+  readonly resolveActivity?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: number;
+    readonly interactionId: string;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<NormalizedActivity | null>;
 }
 
 export interface BookRuntimeCanonicalHandlersOptions {
@@ -54,6 +63,7 @@ const productionDependencies = (
       return resolved.record.binding;
     },
     schedulePolicy,
+    resolveActivity: undefined,
   };
 };
 
@@ -86,7 +96,11 @@ export const createBookRuntimeCanonicalHandlers = (
       readonly env: BookRuntimeCanonicalEnv;
       readonly uid: string;
     }) => withDependencies(input.env, async (dependencies) =>
-      createBookRuntimeWorkerHandlers(dependencies).command(input)),
+      createBookRuntimeWorkerHandlers({
+        ...dependencies,
+        ...(dependencies.resolveActivity ? { resolveActivity: dependencies.resolveActivity } : {}),
+        requireCanonicalDraftForSubmit: true,
+      }).command(input)),
     readDraft: (input: {
       readonly request: Request;
       readonly env: BookRuntimeCanonicalEnv;
