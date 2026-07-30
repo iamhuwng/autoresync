@@ -7,6 +7,27 @@ import {
 } from '../src/upload-worker/book-runtime/canonical.ts';
 import type { BookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
 
+const normalizedActivity = () => ({
+  schemaVersion: 1 as const,
+  title: 'Runtime activity',
+  taskProfile: null,
+  presentationMode: 'structured' as const,
+  contextRequirement: { mode: 'required' as const, acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Answer.' }],
+  stimulus: null,
+  assetRefs: [],
+  interaction: { family: 'text-entry' as const, variant: 'generic' },
+  answerRule: { defaultPoints: 1, normalization: 'exact' as const },
+  scoring: { mode: 'auto-where-possible' as const },
+  interactions: [{
+    family: 'text-entry' as const,
+    interactionId: 'interaction-1',
+    prompt: 'Answer',
+    itemIdentities: { family: 'text-entry' as const, itemIds: [] as const },
+    answerKey: { family: 'text-entry' as const, acceptedAnswers: ['draft'] },
+  }],
+});
+
 const binding = (): BookDeliveryBinding => ({
   schemaVersion: 3,
   bindingId: 'binding-1',
@@ -77,7 +98,8 @@ const dependencies = (runtimeRepository: BookRuntimeRepository): BookRuntimeCano
       ? binding()
       : null
   )),
-  schedulePolicy: { authorize: () => ({ allowed: true }) },
+  schedulePolicy: { authorize: () => ({ outcome: 'allowed' }) },
+  resolveActivity: async () => normalizedActivity(),
 });
 
 const env = {
@@ -102,7 +124,8 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
       createDependencies: () => ({
         repository: runtimeRepository,
         resolveBinding,
-        schedulePolicy: { authorize: () => ({ allowed: true }) },
+        schedulePolicy: { authorize: () => ({ outcome: 'allowed' }) },
+        resolveActivity: async () => normalizedActivity(),
       }),
     });
 

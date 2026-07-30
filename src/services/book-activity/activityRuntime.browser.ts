@@ -269,7 +269,7 @@ const draftFrom = (value: unknown): BookRuntimeDraftRecord | null => {
   const body = record(value);
   if (!body) throw new BookRuntimeClientError('invalid_response');
   exactKeys(body, [
-    'schemaVersion', 'bindingId', 'recipientId', 'contextId', 'placementId',
+    'schemaVersion', 'bindingId', 'bindingRevision', 'recipientId', 'contextId', 'placementId',
     'activityId', 'activityVersion', 'interactionId', 'revision', 'response',
     'updatedByOperationId', 'updatedAt',
   ]);
@@ -282,6 +282,7 @@ const draftFrom = (value: unknown): BookRuntimeDraftRecord | null => {
   return {
     schemaVersion: 1,
     bindingId: safeId(body.bindingId),
+    bindingRevision: positiveInteger(body.bindingRevision),
     recipientId: safeId(body.recipientId),
     contextId: safeId(body.contextId),
     placementId: safeId(body.placementId),

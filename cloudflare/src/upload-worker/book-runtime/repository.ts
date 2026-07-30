@@ -340,6 +340,22 @@ const draftKey = (input: {
   input.interactionId,
 ].join('/');
 
+const draftMatchesCommand = (
+  draft: BookRuntimeDraftRecord,
+  command: BookRuntimeCommandPayload,
+  recipientId: string,
+): boolean => (
+  draft.schemaVersion === 1
+  && draft.bindingId === command.bindingId
+  && draft.bindingRevision === command.bindingRevision
+  && draft.recipientId === recipientId
+  && draft.contextId === command.contextId
+  && draft.placementId === command.placementId
+  && draft.activityId === command.activityId
+  && draft.activityVersion === command.activityVersion
+  && draft.interactionId === command.interactionId
+);
+
 const fingerprint = (
   command: BookRuntimeCommandPayload,
   context: BookRuntimeTrustedCommandContext,
@@ -486,7 +502,8 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     } as const;
     const key = draftKey(base);
     const current = this.drafts[key];
-    if ((current?.revision ?? 0) !== command.clientRevision) {
+    if ((current && !draftMatchesCommand(current, command, recipientId))
+      || (current?.revision ?? 0) !== command.clientRevision) {
       const receipt: BookRuntimeOperationReceipt = {
         operationId: command.operationId,
         fingerprint: commandFingerprint,
@@ -614,6 +631,7 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     const draft: BookRuntimeDraftRecord = {
       schemaVersion: 1,
       ...base,
+      bindingRevision: command.bindingRevision,
       revision: (current?.revision ?? 0) + 1,
       response: clone(command.response),
       updatedByOperationId: command.operationId,
@@ -952,7 +970,13 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
       const replayed = durableReplay(scope, command.operationId, commandFingerprint);
       if (replayed) return replayed;
       const currentDraft = scope.draft;
-      if ((currentDraft?.revision ?? 0) !== command.clientRevision) {
+      if ((currentDraft
+        && !draftMatchesCommand(
+          currentDraft,
+          command,
+          context.binding.recipient.recipientId,
+        ))
+        || (currentDraft?.revision ?? 0) !== command.clientRevision) {
         return durableResponseForConflict(
           command.operationId,
           commandFingerprint,
@@ -1123,6 +1147,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
         const draft: BookRuntimeDraftRecord = {
           schemaVersion: 1,
           bindingId: command.bindingId,
+          bindingRevision: command.bindingRevision,
           recipientId: context.binding.recipient.recipientId,
           contextId: command.contextId,
           placementId: command.placementId,

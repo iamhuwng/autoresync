@@ -193,6 +193,27 @@ describe('Ticket 28A runtime repository', () => {
       context: { ...context(), now: '2026-07-27T00:01:00.000Z' },
       attemptId: 'attempt-2',
     })).resolves.toMatchObject({ status: 'conflict' });
+    await expect(repository.applyCommand({
+      command: command({
+        operationId: '00000000-0000-4000-8000-000000000078',
+        bindingRevision: 2,
+        clientRevision: 1,
+        response: { text: 'new binding' },
+      }),
+      context: {
+        ...context(),
+        binding: { ...binding(), revision: 2 },
+        now: '2026-07-27T00:02:00.000Z',
+      },
+      attemptId: 'attempt-3',
+    })).resolves.toMatchObject({ status: 'conflict' });
+    expect(repository.snapshot().drafts).toMatchObject({
+      'student-1/context-1/placement-1/interaction-1': {
+        bindingRevision: 1,
+        revision: 1,
+        response: { text: 'draft' },
+      },
+    });
   });
 
   it('appends immutable attempts/results and supports bounded indexed reads', async () => {
@@ -491,7 +512,25 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
       attemptId: 'attempt-durable',
     })).resolves.toMatchObject({
       status: 'accepted',
-      draft: { revision: 1 },
+      draft: { bindingRevision: 1, revision: 1 },
+    });
+    await expect(repository.applyCommand({
+      command: command({
+        operationId: '00000000-0000-4000-8000-000000000079',
+        bindingRevision: 2,
+        clientRevision: 1,
+      }),
+      context: {
+        ...context(),
+        binding: { ...binding(), revision: 2 },
+        now: '2026-07-27T00:00:30.000Z',
+      },
+      attemptId: 'attempt-stale-binding',
+    })).resolves.toMatchObject({ status: 'conflict' });
+    expect(firebase.values.get(
+      'book_runtime/scopes/student-1/context-1/placement-1/interaction-1',
+    )).toMatchObject({
+      draft: { bindingRevision: 1, revision: 1 },
     });
 
     const terminal = command({
@@ -647,6 +686,7 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
         draft: {
           schemaVersion: 1,
           bindingId: 'binding-1',
+          bindingRevision: 1,
           recipientId: 'student-1',
           contextId: 'context-1',
           placementId: 'placement-1',
@@ -772,6 +812,7 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
         draft: {
           schemaVersion: 1,
           bindingId: 'binding-1',
+          bindingRevision: 1,
           recipientId: 'student-1',
           contextId: 'context-1',
           placementId: 'placement-1',
@@ -825,6 +866,7 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
         draft: {
           schemaVersion: 1,
           bindingId: 'binding-1',
+          bindingRevision: 1,
           recipientId: 'student-1',
           contextId: 'context-1',
           placementId: 'placement-1',
@@ -877,6 +919,7 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
         draft: {
           schemaVersion: 1,
           bindingId: 'binding-1',
+          bindingRevision: 1,
           recipientId: 'student-1',
           contextId: 'context-1',
           placementId: 'placement-1',

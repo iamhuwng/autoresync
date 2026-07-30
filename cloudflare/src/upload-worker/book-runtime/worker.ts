@@ -3,10 +3,12 @@ import {
   authorizeRuntimeDraftRead,
   authorizeRuntimeCommand,
   BookRuntimeAuthorizationError,
+  revalidateRuntimeScheduleAuthorization,
   soloOnlyBookRuntimeSchedulePolicy,
   type BookRuntimeActor,
   type BookRuntimeDraftReadInput,
   type BookRuntimeSchedulePolicy,
+  type BookRuntimeSchedulePolicyInput,
 } from './authorization.ts';
 import {
   readBookRuntimeCommandPayload,
@@ -117,6 +119,20 @@ const stable = (value: unknown): string => {
   return JSON.stringify(value);
 };
 
+const draftMatchesContext = (
+  draft: Awaited<ReturnType<BookRuntimeRepository['readDraft']>>,
+  context: Awaited<ReturnType<typeof authorizeRuntimeDraftRead>>,
+): boolean => Boolean(draft
+  && draft.schemaVersion === 1
+  && draft.bindingId === context.binding.bindingId
+  && draft.bindingRevision === context.binding.revision
+  && draft.recipientId === context.actorUid
+  && draft.contextId === context.binding.context.contextId
+  && draft.placementId === context.placementId
+  && draft.activityId === context.activityId
+  && draft.activityVersion === context.activityVersion
+  && draft.interactionId === context.interactionId);
+
 export const createBookRuntimeWorkerHandlers = (
   options: BookRuntimeWorkerHandlersOptions = {},
 ) => {
@@ -147,20 +163,6 @@ export const createBookRuntimeWorkerHandlers = (
         throw new BookRuntimeWorkerError('book_runtime_repository_unavailable', 503);
       }
       const payload = await readBookRuntimeCommandPayload(input.request);
-      if (payload.commandKind === 'submit' && options.requireCanonicalDraftForSubmit) {
-        const draft = await options.repository?.readDraft({
-          recipientId: input.uid,
-          contextId: payload.contextId,
-          placementId: payload.placementId,
-          interactionId: payload.interactionId,
-        });
-        if (!draft || draft.revision !== payload.clientRevision) {
-          throw new BookRuntimeWorkerError('runtime_submit_draft_unavailable', 409);
-        }
-        if (stable(draft.response) !== stable(payload.response)) {
-          throw new BookRuntimeWorkerError('runtime_submit_draft_mismatch', 409);
-        }
-      }
       const [actor, binding] = await Promise.all([
         readActor({ uid: input.uid, env: input.env }),
         options.resolveBinding({
@@ -170,50 +172,67 @@ export const createBookRuntimeWorkerHandlers = (
           env: input.env,
         }),
       ]);
+      let resolvedActivity: NormalizedActivity | null = null;
+      const resolveTarget = options.resolveActivity
+        ? async (targetInput: Pick<BookRuntimeSchedulePolicyInput, 'actorUid' | 'binding' | 'target'>) => {
+          resolvedActivity = await options.resolveActivity?.({
+            binding: targetInput.binding,
+            placementId: targetInput.target.placementId,
+            activityId: targetInput.target.activityId,
+            activityVersion: targetInput.target.activityVersion,
+            interactionId: targetInput.target.interactionId,
+            env: input.env,
+          }) ?? null;
+          return resolvedActivity !== null
+            && resolvedActivity.interactions.some((interaction) =>
+              interaction.interactionId === targetInput.target.interactionId);
+        }
+        : undefined;
       const context = await authorizeRuntimeCommand(
         actor,
         payload,
         binding,
         schedulePolicy,
         now(),
+        resolveTarget,
       );
+      if (payload.commandKind === 'submit' && options.requireCanonicalDraftForSubmit) {
+        const draft = await options.repository.readDraft({
+          recipientId: context.actorUid,
+          contextId: payload.contextId,
+          placementId: payload.placementId,
+          interactionId: payload.interactionId,
+        });
+        if (!draftMatchesContext(draft, context)
+          || draft?.revision !== payload.clientRevision) {
+          throw new BookRuntimeWorkerError('runtime_submit_draft_unavailable', 409);
+        }
+        if (stable(draft.response) !== stable(payload.response)) {
+          throw new BookRuntimeWorkerError('runtime_submit_draft_mismatch', 409);
+        }
+      }
       let score: BookRuntimeScore | undefined;
       let attemptPolicy: BookRuntimeAttemptPolicy | undefined;
       if (payload.commandKind === 'submit') {
-        if (!options.resolveActivity) {
-          throw new BookRuntimeWorkerError('runtime_activity_unavailable', 503);
-        }
         if (!options.resolveAttemptPolicy) {
           throw new BookRuntimeWorkerError('runtime_attempt_policy_unavailable', 503);
         }
-        const [activity, resolvedAttemptPolicy] = await Promise.all([
-          options.resolveActivity({
-            binding,
-            placementId: payload.placementId,
-            activityId: payload.activityId,
-            activityVersion: payload.activityVersion,
-            interactionId: payload.interactionId,
-            env: input.env,
-          }),
-          options.resolveAttemptPolicy({
-            binding,
-            placementId: payload.placementId,
-            activityId: payload.activityId,
-            activityVersion: payload.activityVersion,
-            interactionId: payload.interactionId,
-            env: input.env,
-          }),
-        ]);
-        if (!activity
-          || !activity.interactions.some((interaction) =>
-            interaction.interactionId === payload.interactionId)) {
-          throw new BookRuntimeWorkerError('runtime_activity_unavailable', 409);
-        }
+        const resolvedAttemptPolicy = await options.resolveAttemptPolicy({
+          binding,
+          placementId: payload.placementId,
+          activityId: payload.activityId,
+          activityVersion: payload.activityVersion,
+          interactionId: payload.interactionId,
+          env: input.env,
+        });
         if (!resolvedAttemptPolicy) {
           throw new BookRuntimeWorkerError('runtime_attempt_policy_unavailable', 503);
         }
         attemptPolicy = resolvedAttemptPolicy;
-        const result = scoreActivity(activity, payload.response as ActivitySubmission);
+        if (!resolvedActivity) {
+          throw new BookRuntimeWorkerError('runtime_activity_unavailable', 503);
+        }
+        const result = scoreActivity(resolvedActivity, payload.response as ActivitySubmission);
         if (result.status === 'invalid') {
           throw new BookRuntimeWorkerError('runtime_submission_invalid', 409);
         }
@@ -221,9 +240,14 @@ export const createBookRuntimeWorkerHandlers = (
           ? result
           : { status: 'review_required' };
       }
+      const revalidatedContext = await revalidateRuntimeScheduleAuthorization(
+        context,
+        schedulePolicy,
+        now(),
+      );
       const result = await options.repository.applyCommand({
         command: payload,
-        context,
+        context: revalidatedContext,
         attemptId: allocateAttemptId({
           bindingId: payload.bindingId,
           operationId: payload.operationId,
@@ -236,7 +260,13 @@ export const createBookRuntimeWorkerHandlers = (
       if (error instanceof BookRuntimeCommandSchemaError
         || error instanceof BookRuntimeAuthorizationError
         || error instanceof BookRuntimeWorkerError) {
-        return json({ code: error.code }, error.status);
+        return json({
+          code: error.code,
+          ...(error instanceof BookRuntimeAuthorizationError
+            && error.currentScheduleAuthority
+            ? { currentScheduleAuthority: error.currentScheduleAuthority }
+            : {}),
+        }, error.status);
       }
       if (error instanceof BookRuntimeRepositoryError) {
         return json({ code: error.code }, 409);
@@ -285,17 +315,47 @@ export const createBookRuntimeWorkerHandlers = (
           env: input.env,
         }),
       ]);
-      const context = await authorizeRuntimeDraftRead(actor, readInput, binding, now());
+      const context = await authorizeRuntimeDraftRead(
+        actor,
+        readInput,
+        binding,
+        schedulePolicy,
+        now(),
+        options.resolveActivity
+          ? async (targetInput) => {
+            const activity = await options.resolveActivity?.({
+              binding: targetInput.binding,
+              placementId: targetInput.target.placementId,
+              activityId: targetInput.target.activityId,
+              activityVersion: targetInput.target.activityVersion,
+              interactionId: targetInput.target.interactionId,
+              env: input.env,
+            });
+            return activity !== null && activity !== undefined
+              && activity.interactions.some((interaction) =>
+                interaction.interactionId === targetInput.target.interactionId);
+          }
+          : undefined,
+      );
       const draft = await options.repository.readDraft({
         recipientId: context.actorUid,
         contextId: input.contextId,
         placementId: input.placementId,
         interactionId: input.interactionId,
       });
+      if (draft && !draftMatchesContext(draft, context)) {
+        throw new BookRuntimeWorkerError('runtime_draft_identity_stale', 409);
+      }
       return json({ draft });
     } catch (error) {
       if (error instanceof BookRuntimeAuthorizationError || error instanceof BookRuntimeWorkerError) {
-        return json({ code: error.code }, error.status);
+        return json({
+          code: error.code,
+          ...(error instanceof BookRuntimeAuthorizationError
+            && error.currentScheduleAuthority
+            ? { currentScheduleAuthority: error.currentScheduleAuthority }
+            : {}),
+        }, error.status);
       }
       if (error instanceof BookRuntimeRepositoryError) {
         return json({ code: error.code }, 409);

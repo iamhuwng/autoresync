@@ -10,6 +10,27 @@ import {
 
 const operationId = '00000000-0000-4000-8000-000000000074';
 
+const normalizedActivity = () => ({
+  schemaVersion: 1 as const,
+  title: 'Runtime activity',
+  taskProfile: null,
+  presentationMode: 'structured' as const,
+  contextRequirement: { mode: 'required' as const, acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Answer.' }],
+  stimulus: null,
+  assetRefs: [],
+  interaction: { family: 'text-entry' as const, variant: 'generic' },
+  answerRule: { defaultPoints: 1, normalization: 'exact' as const },
+  scoring: { mode: 'auto-where-possible' as const },
+  interactions: [{
+    family: 'text-entry' as const,
+    interactionId: 'interaction-1',
+    prompt: 'Answer',
+    itemIdentities: { family: 'text-entry' as const, itemIds: [] as const },
+    answerKey: { family: 'text-entry' as const, acceptedAnswers: ['draft'] },
+  }],
+});
+
 const binding = (): BookDeliveryBinding => ({
   schemaVersion: BOOK_DELIVERY_SCHEMA_VERSION,
   bindingId: 'binding-1',
@@ -89,6 +110,7 @@ describe('Ticket 28A runtime route integration', () => {
       runtimeHandlers: createBookRuntimeWorkerHandlers({
         repository,
         resolveBinding: async () => binding(),
+        resolveActivity: async () => normalizedActivity(),
         now: () => '2026-07-27T00:00:00.000Z',
       }),
     });

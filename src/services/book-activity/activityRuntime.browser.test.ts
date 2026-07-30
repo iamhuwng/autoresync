@@ -73,6 +73,7 @@ describe('Book Runtime browser client', () => {
         draft: {
           schemaVersion: 1,
           bindingId: 'binding-1',
+          bindingRevision: 3,
           recipientId: 'student-1',
           contextId: 'context-1',
           placementId: 'placement-1',
@@ -92,6 +93,7 @@ describe('Book Runtime browser client', () => {
     });
 
     await expect(client.readDraft(address)).resolves.toMatchObject({
+      bindingRevision: 3,
       revision: 2,
       response: { text: 'saved' },
     });
@@ -100,6 +102,34 @@ describe('Book Runtime browser client', () => {
     expect(fetchImpl.mock.calls[1]?.[0]).toBe(
       'https://runtime.example/book-runtime/drafts/binding-1/3/context-1/placement-1/activity-1/1/interaction-1',
     );
+  });
+
+  it('rejects a legacy draft response without an exact binding revision', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({
+      draft: {
+        schemaVersion: 1,
+        bindingId: 'binding-1',
+        recipientId: 'student-1',
+        contextId: 'context-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+        revision: 2,
+        response: { text: 'stale' },
+        updatedByOperationId: operationId,
+        updatedAt: '2026-07-28T00:00:00.000Z',
+      },
+    }));
+    const client = createBookRuntimeClient({
+      baseUrl: 'https://runtime.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+
+    await expect(client.readDraft(address)).rejects.toMatchObject<BookRuntimeClientError>({
+      code: 'invalid_response',
+    });
   });
 
   it('flushes an acknowledged draft before terminal submit and exposes pending review', async () => {

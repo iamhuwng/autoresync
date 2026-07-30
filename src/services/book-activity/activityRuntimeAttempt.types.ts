@@ -8,6 +8,25 @@ export type BookRuntimeScore =
   | Extract<ActivityScoreResult, { status: 'scored' }>
   | { status: 'review_required' };
 
+export interface BookRuntimeScheduleTarget {
+  readonly placementId: string;
+  readonly activityId: string;
+  readonly activityVersion: number;
+  readonly interactionId: string;
+}
+
+/**
+ * Bounded server-safe authority identity carried across the generic runtime
+ * authorization seam. Ticket 34B owns the effective-window payload itself.
+ */
+export interface BookRuntimeScheduleAuthority {
+  readonly scheduleSchemaVersion: number;
+  readonly resolverVersion: number;
+  readonly policyRevision: number;
+  readonly authorityRevision: number;
+  readonly evaluatedAt: string;
+}
+
 export interface BookRuntimeAttemptPolicy {
   readonly maxAttempts: number | null;
 }
@@ -35,11 +54,13 @@ export interface BookRuntimeTrustedCommandContext {
   readonly activityVersion: number;
   readonly interactionId: string;
   readonly now: string;
+  readonly scheduleAuthority?: BookRuntimeScheduleAuthority;
 }
 
 export interface BookRuntimeDraftRecord {
   readonly schemaVersion: 1;
   readonly bindingId: string;
+  readonly bindingRevision: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;

@@ -9,6 +9,9 @@ import {
   BOOK_DELIVERY_SCHEMA_VERSION,
   type BookDeliveryBinding,
 } from '../../src/services/book-delivery/bookDelivery.types.ts';
+import type {
+  BookRuntimeScheduleAuthority,
+} from '../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 
 const operationId = '00000000-0000-4000-8000-000000000074';
 
@@ -86,6 +89,37 @@ const parse = async (result: Awaited<ReturnType<ReturnType<typeof createBookRunt
   body: result.body,
 });
 
+const scheduleAuthority = (
+  authorityRevision = 1,
+): BookRuntimeScheduleAuthority => ({
+  scheduleSchemaVersion: 1,
+  resolverVersion: 1,
+  policyRevision: 1,
+  authorityRevision,
+  evaluatedAt: '2026-07-27T00:00:00.000Z',
+});
+
+const normalizedActivity = () => ({
+  schemaVersion: 1 as const,
+  title: 'Runtime activity',
+  taskProfile: null,
+  presentationMode: 'structured' as const,
+  contextRequirement: { mode: 'required' as const, acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Answer.' }],
+  stimulus: null,
+  assetRefs: [],
+  interaction: { family: 'text-entry' as const, variant: 'generic' },
+  answerRule: { defaultPoints: 1, normalization: 'exact' as const },
+  scoring: { mode: 'auto-where-possible' as const },
+  interactions: [{
+    family: 'text-entry' as const,
+    interactionId: 'interaction-1',
+    prompt: 'Answer',
+    itemIdentities: { family: 'text-entry' as const, itemIds: [] as const },
+    answerKey: { family: 'text-entry' as const, acceptedAnswers: ['draft'] },
+  }],
+});
+
 describe('Ticket 28A runtime Worker boundary', () => {
   it('revalidates binding, writes through repository, and returns privacy-safe receipt only', async () => {
     const repository = new InMemoryBookRuntimeRepository();
@@ -93,6 +127,7 @@ describe('Ticket 28A runtime Worker boundary', () => {
     const handlers = createBookRuntimeWorkerHandlers({
       repository,
       resolveBinding,
+      resolveActivity: async () => normalizedActivity(),
       now: () => '2026-07-27T00:00:00.000Z',
       allocateAttemptId: () => 'attempt-1',
     });
@@ -162,9 +197,14 @@ describe('Ticket 28A runtime Worker boundary', () => {
 
   it('reads only the authorized Activity draft through the Worker boundary', async () => {
     const repository = new InMemoryBookRuntimeRepository();
+    const schedulePolicy = {
+      authorize: vi.fn(() => ({ outcome: 'allowed' as const })),
+    };
     const handlers = createBookRuntimeWorkerHandlers({
       repository,
       resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedActivity(),
+      schedulePolicy,
       now: () => '2026-07-27T00:00:00.000Z',
     });
     await handlers.command({
@@ -193,6 +233,188 @@ describe('Ticket 28A runtime Worker boundary', () => {
           revision: 1,
         }),
       },
+    });
+    expect(schedulePolicy.authorize).toHaveBeenLastCalledWith(expect.objectContaining({
+      operation: 'state',
+      target: {
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+      },
+    }));
+  });
+
+  it('revalidates versioned Homework schedule authority immediately before mutation', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const homework = {
+      ...binding(),
+      context: {
+        ...binding().context,
+        kind: 'homework' as const,
+        entitlementBasis: 'assignment' as const,
+      },
+      schedulePolicy: {
+        policyId: 'homework-policy',
+        policyRevision: 1,
+        basis: 'immutable-reference' as const,
+      },
+    };
+    const schedulePolicy = {
+      authorize: vi.fn(() => ({
+        outcome: 'allowed' as const,
+        authority: scheduleAuthority(1),
+      })),
+      revalidate: vi.fn(() => ({
+        outcome: 'allowed' as const,
+        authority: {
+          ...scheduleAuthority(2),
+          privateReleaseAt: '2026-07-27T01:00:00.000Z',
+          privateExtensionOwner: 'student-1',
+        },
+      })),
+    };
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => homework,
+      resolveActivity: async () => normalizedActivity(),
+      schedulePolicy,
+      now: () => '2026-07-27T00:00:00.000Z',
+    });
+
+    await expect(parse(await handlers.command({
+      request: request(body()),
+      env: {},
+      uid: 'student-1',
+    }))).resolves.toEqual({
+      status: 409,
+      body: {
+        code: 'runtime_schedule_authority_stale',
+        currentScheduleAuthority: scheduleAuthority(2),
+      },
+    });
+    expect(schedulePolicy.revalidate).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'autosave',
+      previousAuthority: scheduleAuthority(1),
+      target: expect.objectContaining({ placementId: 'placement-1' }),
+    }));
+    expect(repository.snapshot()).toMatchObject({
+      drafts: {},
+      attempts: {},
+      operations: {},
+    });
+  });
+
+  it('fails closed before schedule or mutation when the Interaction is not in the Activity', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const readDraft = vi.spyOn(repository, 'readDraft');
+    const schedulePolicy = {
+      authorize: vi.fn(() => ({ outcome: 'allowed' as const })),
+    };
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => ({
+        ...normalizedActivity(),
+        interactions: [],
+      }),
+      schedulePolicy,
+    });
+
+    await expect(parse(await handlers.command({
+      request: request(body()),
+      env: {},
+      uid: 'student-1',
+    }))).resolves.toMatchObject({
+      status: 404,
+      body: { code: 'runtime_interaction_not_found' },
+    });
+    expect(schedulePolicy.authorize).not.toHaveBeenCalled();
+    expect(repository.snapshot()).toMatchObject({ drafts: {}, operations: {} });
+
+    await expect(parse(await handlers.readDraft({
+      request: new Request('https://worker.test/book-runtime/drafts'),
+      env: {},
+      uid: 'student-1',
+      bindingId: 'binding-1',
+      bindingRevision: '1',
+      contextId: 'context-1',
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersion: '1',
+      interactionId: 'interaction-1',
+    }))).resolves.toMatchObject({
+      status: 404,
+      body: { code: 'runtime_interaction_not_found' },
+    });
+    expect(schedulePolicy.authorize).not.toHaveBeenCalled();
+    expect(readDraft).not.toHaveBeenCalled();
+  });
+
+  it('fails closed without a target resolver before policy or repository access', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const applyCommand = vi.spyOn(repository, 'applyCommand');
+    const schedulePolicy = {
+      authorize: vi.fn(() => ({ outcome: 'allowed' as const })),
+    };
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      schedulePolicy,
+    });
+
+    await expect(parse(await handlers.command({
+      request: request(body()),
+      env: {},
+      uid: 'student-1',
+    }))).resolves.toEqual({
+      status: 503,
+      body: { code: 'runtime_target_resolver_unavailable' },
+    });
+    expect(schedulePolicy.authorize).not.toHaveBeenCalled();
+    expect(applyCommand).not.toHaveBeenCalled();
+  });
+
+  it('does not expose a stale draft whose stored Activity identity differs', async () => {
+    const repository = new InMemoryBookRuntimeRepository({
+      drafts: {
+        'student-1/context-1/placement-1/interaction-1': {
+          schemaVersion: 1,
+          bindingId: 'binding-1',
+          bindingRevision: 2,
+          recipientId: 'student-1',
+          contextId: 'context-1',
+          placementId: 'placement-1',
+          activityId: 'activity-1',
+          activityVersion: 1,
+          interactionId: 'interaction-1',
+          revision: 1,
+          response: { text: 'stale' },
+          updatedByOperationId: operationId,
+          updatedAt: '2026-07-27T00:00:00.000Z',
+        },
+      },
+    });
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedActivity(),
+    });
+
+    await expect(parse(await handlers.readDraft({
+      request: new Request('https://worker.test/book-runtime/drafts'),
+      env: {},
+      uid: 'student-1',
+      bindingId: 'binding-1',
+      bindingRevision: '1',
+      contextId: 'context-1',
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersion: '1',
+      interactionId: 'interaction-1',
+    }))).resolves.toEqual({
+      status: 409,
+      body: { code: 'runtime_draft_identity_stale' },
     });
   });
 });

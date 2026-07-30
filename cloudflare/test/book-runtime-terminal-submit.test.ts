@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBookRuntimeWorkerHandlers } from '../src/upload-worker/book-runtime/worker.ts';
 import { InMemoryBookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
 
@@ -214,6 +214,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
     const handlers = createBookRuntimeWorkerHandlers({
       repository,
       resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedActivity(),
       requireCanonicalDraftForSubmit: true,
     });
     const result = await handlers.command({
@@ -226,6 +227,34 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       body: { code: 'runtime_submit_draft_mismatch' },
       init: { status: 409 },
     });
+    expect(repository.snapshot().attempts).toEqual({});
+  });
+
+  it('rejects a forged submit Interaction before reading the canonical draft', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const readDraft = vi.spyOn(repository, 'readDraft');
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => ({
+        ...normalizedActivity(),
+        interactions: [],
+      }),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      requireCanonicalDraftForSubmit: true,
+    });
+
+    const result = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+
+    expect(result).toEqual({
+      body: { code: 'runtime_interaction_not_found' },
+      init: { status: 404 },
+    });
+    expect(readDraft).not.toHaveBeenCalled();
     expect(repository.snapshot().attempts).toEqual({});
   });
 
