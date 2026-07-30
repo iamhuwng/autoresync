@@ -254,6 +254,8 @@ export interface BookAssemblyActivityVersionReference {
   readonly activityVersionId: string;
   readonly activityId: string;
   readonly activityVersion: number;
+  /** Fingerprint of the canonical immutable Activity payload, when migrated. */
+  readonly canonicalPayloadFingerprint?: string;
 }
 
 export interface BookAssemblyActivityVersionRecord {
@@ -271,6 +273,14 @@ export interface BookAssemblyActivityVersionRecord {
   readonly createdByCommandId: string;
   readonly createdAt: string;
   readonly sourcePages: readonly SourceQualifiedPageIdentity[];
+  /** Fingerprint of the canonical immutable Activity payload, not mapping metadata. */
+  readonly canonicalPayloadFingerprint?: string;
+  /** Exact Book-publication safe projection that binds this reusable canonical version. */
+  readonly safeProjectionId?: string;
+  /** Immutable origin of the canonical payload; preserved across Book-publication reuse. */
+  readonly canonicalOriginManifestVersionId?: string;
+  readonly canonicalOriginPublicationId?: string;
+  readonly canonicalOriginOperationId?: string;
   readonly payloadFingerprint: string;
   readonly predecessorActivityVersionId?: string;
 }
@@ -399,6 +409,8 @@ export interface BookAssemblyPublicationPointer {
   readonly bookRevision: number;
   readonly sourceSetRevision: number;
   readonly inputFingerprint: string;
+  /** Exact idempotency fingerprint of the pointer-advancing command. */
+  readonly operationFingerprint?: string;
   readonly updatedAt: string;
   readonly updatedByCommandId: string;
 }

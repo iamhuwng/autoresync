@@ -11,12 +11,8 @@
       "book_activity/candidates/$candidateId/.write",
       "book_activity/drafts/$activityId/$draftId/.read",
       "book_activity/drafts/$activityId/$draftId/.write",
-      "book_activity/versions/$activityId/$versionId/.read",
-      "book_activity/versions/$activityId/$versionId/.write",
       "book_activity/history/$activityId/$historyId/.read",
       "book_activity/history/$activityId/$historyId/.write",
-      "book_activity/student_safe_projections/$activityId/$versionId/.read",
-      "book_activity/student_safe_projections/$activityId/$versionId/.write",
       "book_activity/current/$activityId/.read",
       "book_activity/current/$activityId/.write",
       "book_activity/activity_publish_operations/$operationId/.read",
@@ -27,9 +23,7 @@
       "users/$ownerId",
       "book_activity/candidates/$candidateId",
       "book_activity/drafts/$activityId/$draftId",
-      "book_activity/versions/$activityId/$versionId",
       "book_activity/history/$activityId/$historyId",
-      "book_activity/student_safe_projections/$activityId/$versionId",
       "book_activity/current/$activityId",
       "book_activity/activity_publish_operations/$operationId"
     ]
@@ -78,20 +72,6 @@
       "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_ownerId == newData.child('ownerId').val() && newData.child('activityId').val() == $activityId && newData.child('draftId').val() == $draftId && newData.child('revision').isNumber()"
     },
     {
-      "path": "book_activity/versions/$activityId/$versionId",
-      "rule": ".read",
-      "merge": "replace-exact-deny",
-      "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_ownerId == data.child('ownerId').val() && data.child('activityId').val() == $activityId"
-    },
-    {
-      "path": "book_activity/versions/$activityId/$versionId",
-      "rule": ".write",
-      "merge": "replace-exact-deny",
-      "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('activityId').val() == $activityId && newData.child('versionId').val() == $versionId && newData.child('lifecycle').val() == 'published' && newData.child('publishedAt').isNumber() && newData.child('content').exists()"
-    },
-    {
       "path": "book_activity/history/$activityId/$historyId",
       "rule": ".read",
       "merge": "replace-exact-deny",
@@ -104,20 +84,6 @@
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('activityId').val() == $activityId && newData.child('historyId').val() == $historyId && newData.child('versionId').isString() && newData.child('recordedAt').isNumber()"
-    },
-    {
-      "path": "book_activity/student_safe_projections/$activityId/$versionId",
-      "rule": ".read",
-      "merge": "replace-exact-deny",
-      "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_ownerId == data.child('ownerId').val() && data.child('activityId').val() == $activityId && data.child('versionId').val() == $versionId"
-    },
-    {
-      "path": "book_activity/student_safe_projections/$activityId/$versionId",
-      "rule": ".write",
-      "merge": "replace-exact-deny",
-      "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('activityId').val() == $activityId && newData.child('versionId').val() == $versionId && newData.child('projectionKind').val() == 'student-safe' && newData.child('content').exists() && !newData.child('answerKey').exists() && !newData.child('answer').exists() && !newData.child('authoring').exists() && !newData.child('validation').exists() && !newData.child('teacherNotes').exists() && !newData.child('sourceProvenance').exists() && !newData.child('privateObjectKey').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('content').child('teacherNotes').exists() && !newData.child('content').child('sourceProvenance').exists() && !newData.child('content').child('privateObjectKey').exists() && !newData.child('content').child('providerAuthority').exists() && !newData.child('content').child('credentials').exists()"
     },
     {
       "path": "book_activity/current/$activityId",

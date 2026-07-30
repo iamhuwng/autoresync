@@ -1,16 +1,28 @@
 import type {
+  BookAssemblyPreviewApprovalReference,
   BookAssemblyPublicationAdapterPlan,
 } from '../../../../src/types/bookAssembly.types.ts';
 import {
-  createBookAssemblyPublicationService,
+  fingerprintBookAssemblyPublishOperation,
+  fingerprintBookAssemblyRollbackOperation,
+  fingerprintBookAssemblyOperation,
   type BookAssemblyPublicationResult,
 } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
+import {
+  createCanonicalBookAssemblyPublicationService,
+} from '../../../../src/services/book-assembly/canonicalPublication.service.ts';
+import type {
+  CanonicalPublishedActivityVersionRecord,
+} from '../../../../src/services/book-assembly/canonicalActivityVersion.service.ts';
+import type {
+  CanonicalActivityVersionWriter,
+} from '../../../../src/services/book-assembly/canonicalPublicationRepository.ts';
 import type {
   BookAssemblyPublicationRepository,
 } from '../../../../src/services/book-assembly/publicationRepository.ts';
 
 const MAX_BODY_BYTES = 1_200_000;
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export class BookAssemblyPublicationWorkerError extends Error {
@@ -24,6 +36,56 @@ export interface BookAssemblyPublicationWorkerEnv {
   readonly BOOK_ASSEMBLY_PUBLICATION_ENABLED?: string;
   readonly readDatabaseValue?: (path: string) => Promise<unknown>;
 }
+
+export interface BookAssemblyPublicationAuthoritySnapshot {
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly candidateId: string;
+  readonly candidateRevision: number;
+  readonly bookRevision: number;
+  readonly sourceSetRevision: number;
+  readonly planFingerprint: string;
+  readonly previewApproval: (BookAssemblyPreviewApprovalReference & { readonly revoked: boolean }) | null;
+}
+
+export type BookAssemblyPublicationAuthorityGateResult =
+  | {
+    readonly status: 'current';
+    readonly snapshot: BookAssemblyPublicationAuthoritySnapshot;
+  }
+  | {
+    readonly status: 'denied';
+    readonly reason: 'stale' | 'preview-approval';
+  }
+  | {
+    readonly status: 'unavailable';
+  };
+
+export type BookAssemblyPublicationAuthorityGate = (input: {
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly candidateId: string;
+  readonly candidateRevision: number;
+  readonly bookRevision: number;
+  readonly sourceSetRevision: number;
+  readonly planFingerprint: string;
+  readonly previewApproval: BookAssemblyPreviewApprovalReference | null;
+  readonly now: string;
+}) => Promise<BookAssemblyPublicationAuthorityGateResult>;
+
+export const fingerprintBookAssemblyPublicationAuthorityPlan = (
+  plan: BookAssemblyPublicationAdapterPlan,
+): string => fingerprintBookAssemblyOperation({
+  ...plan,
+  ...(plan.previewApproval
+    ? {
+      previewApproval: {
+        ...plan.previewApproval,
+        approvedInputFingerprint: undefined,
+      },
+    }
+    : {}),
+});
 
 const plain = (value: unknown): Record<string, unknown> | null => (
   value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -107,6 +169,37 @@ const statusFor = (result: BookAssemblyPublicationResult): number => {
   return 422;
 };
 
+const recoverExistingOperation = (
+  repository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>,
+  input: {
+    readonly bookId: string;
+    readonly ownerId: string;
+    readonly operationId: string;
+    readonly fingerprint: string;
+  },
+): Promise<BookAssemblyPublicationResult | null> => repository.transaction(
+  input.bookId,
+  (scope) => {
+    const stored = scope.operations?.[input.operationId];
+    if (!stored) return { outcome: null, write: false };
+    if (stored.ownerId !== input.ownerId || stored.fingerprint !== input.fingerprint) {
+      return {
+        outcome: {
+          status: 'idempotency-conflict',
+          failureCode: 'idempotency-conflict',
+        },
+        write: false,
+      };
+    }
+    return {
+      outcome: { ...structuredClone(stored.result), status: 'replayed' },
+      write: false,
+    };
+  },
+  input.operationId,
+  input.fingerprint,
+);
+
 const assertOwner = (
   uid: string,
   ownerId: string,
@@ -116,11 +209,91 @@ const assertOwner = (
   }
 };
 
+const samePreviewApproval = (
+  left: BookAssemblyPreviewApprovalReference,
+  right: BookAssemblyPreviewApprovalReference,
+): boolean => left.approvalId === right.approvalId
+  && left.approvalRevision === right.approvalRevision
+  && left.approvedAt === right.approvedAt
+  && left.expiresAt === right.expiresAt
+  && left.approvedInputFingerprint === right.approvedInputFingerprint;
+
+const assertCurrentPublicationAuthority = async (
+  plan: BookAssemblyPublicationAdapterPlan,
+  now: string,
+  authorityGate: BookAssemblyPublicationAuthorityGate,
+): Promise<void> => {
+  const planFingerprint = fingerprintBookAssemblyPublicationAuthorityPlan(plan);
+  let result: BookAssemblyPublicationAuthorityGateResult;
+  try {
+    result = await authorityGate({
+      ownerId: plan.ownerId,
+      bookId: plan.bookId,
+      candidateId: plan.candidateId,
+      candidateRevision: plan.candidateRevision,
+      bookRevision: plan.bookRevision,
+      sourceSetRevision: plan.sourceSetRevision,
+      planFingerprint,
+      previewApproval: plan.previewApproval ?? null,
+      now,
+    });
+  } catch {
+    throw new BookAssemblyPublicationWorkerError('book_assembly_publication_authority_unavailable', 503);
+  }
+  if (result.status === 'unavailable') {
+    throw new BookAssemblyPublicationWorkerError('book_assembly_publication_authority_unavailable', 503);
+  }
+  if (result.status === 'denied') {
+    throw new BookAssemblyPublicationWorkerError(
+      result.reason === 'preview-approval'
+        ? 'book_assembly_publication_preview_approval_invalid'
+        : 'book_assembly_publication_authority_stale',
+      result.reason === 'preview-approval' ? 422 : 409,
+    );
+  }
+
+  const authority = result.snapshot;
+  if (authority.planFingerprint !== planFingerprint
+    || authority.ownerId !== plan.ownerId
+    || authority.bookId !== plan.bookId
+    || authority.candidateId !== plan.candidateId
+    || authority.candidateRevision !== plan.candidateRevision
+    || authority.bookRevision !== plan.bookRevision
+    || authority.sourceSetRevision !== plan.sourceSetRevision) {
+    throw new BookAssemblyPublicationWorkerError('book_assembly_publication_authority_stale', 409);
+  }
+
+  const approval = plan.previewApproval;
+  const currentApproval = authority.previewApproval;
+  if (!approval
+    || !currentApproval
+    || currentApproval.revoked
+    || approval.approvedInputFingerprint !== planFingerprint
+    || !samePreviewApproval(approval, currentApproval)) {
+    throw new BookAssemblyPublicationWorkerError('book_assembly_publication_preview_approval_invalid', 422);
+  }
+  const approvedAt = Date.parse(approval.approvedAt);
+  const expiresAt = Date.parse(approval.expiresAt);
+  const current = Date.parse(now);
+  if (!Number.isFinite(approvedAt)
+    || !Number.isFinite(expiresAt)
+    || !Number.isFinite(current)
+    || approvedAt > current
+    || expiresAt <= current) {
+    throw new BookAssemblyPublicationWorkerError('book_assembly_publication_preview_approval_invalid', 422);
+  }
+};
+
 export const createBookAssemblyPublicationWorkerHandlers = (options: {
   readonly repository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
+  readonly activityVersionWriter: CanonicalActivityVersionWriter;
+  readonly authorityGate: BookAssemblyPublicationAuthorityGate;
   readonly now?: () => string;
 }) => {
-  const service = createBookAssemblyPublicationService(options.repository);
+  const service = createCanonicalBookAssemblyPublicationService(
+    options.repository,
+    options.activityVersionWriter,
+  );
   const now = options.now ?? (() => new Date().toISOString());
   const authenticate = async (env: BookAssemblyPublicationWorkerEnv, uid: string): Promise<void> => {
     if (!env.readDatabaseValue) throw new BookAssemblyPublicationWorkerError('publication_auth_reader_missing', 503);
@@ -139,9 +312,6 @@ export const createBookAssemblyPublicationWorkerHandlers = (options: {
     }): Promise<{ body: unknown; init: ResponseInit }> {
       try {
         await authenticate(input.env, input.uid);
-        if (!enabled(input.env)) {
-          return { body: { code: 'book_assembly_publication_disabled' }, init: { status: 503 } };
-        }
         const body = exact(await readBody(input.request), [
           'operationId',
           'expectedCurrentPublicationId',
@@ -149,21 +319,57 @@ export const createBookAssemblyPublicationWorkerHandlers = (options: {
           'publicationId',
           'publicationRevision',
           'plan',
+          'canonicalActivityVersions',
         ]);
         const plan = plain(body.plan) as unknown as BookAssemblyPublicationAdapterPlan | null;
         if (!plan) throw new BookAssemblyPublicationWorkerError('invalid_publication_plan');
-        assertOwner(input.uid, plan.ownerId);
-        const result = await service.publish({
-          operationId: operationId(body.operationId),
-          expectedCurrentPublicationId: nullableId(
-            body.expectedCurrentPublicationId,
-            'invalid_expected_current_publication_id',
-          ),
-          manifestVersionId: id(body.manifestVersionId, 'invalid_manifest_version_id'),
-          publicationId: id(body.publicationId, 'invalid_publication_id'),
-          publicationRevision: integer(body.publicationRevision, 'invalid_publication_revision'),
+        if (!Array.isArray(body.canonicalActivityVersions)) {
+          throw new BookAssemblyPublicationWorkerError('invalid_canonical_activity_versions');
+        }
+        const ownerId = id(plan.ownerId, 'invalid_owner_id');
+        const bookId = id(plan.bookId, 'invalid_book_id');
+        assertOwner(input.uid, ownerId);
+        const parsedOperationId = operationId(body.operationId);
+        const expectedCurrentPublicationId = nullableId(
+          body.expectedCurrentPublicationId,
+          'invalid_expected_current_publication_id',
+        );
+        const manifestVersionId = id(body.manifestVersionId, 'invalid_manifest_version_id');
+        const publicationId = id(body.publicationId, 'invalid_publication_id');
+        const publicationRevision = integer(body.publicationRevision, 'invalid_publication_revision');
+        const operationFingerprint = fingerprintBookAssemblyPublishOperation({
+          expectedCurrentPublicationId,
+          manifestVersionId,
+          publicationId,
+          publicationRevision,
           plan,
-          now: now(),
+        });
+        const recovered = await recoverExistingOperation(options.repository, {
+          bookId,
+          ownerId,
+          operationId: parsedOperationId,
+          fingerprint: operationFingerprint,
+        });
+        if (recovered) {
+          return { body: recovered, init: { status: statusFor(recovered) } };
+        }
+        if (!enabled(input.env)) {
+          return { body: { code: 'book_assembly_publication_disabled' }, init: { status: 503 } };
+        }
+        const publicationNow = now();
+        await assertCurrentPublicationAuthority(plan, publicationNow, options.authorityGate);
+        const result = await service.publish({
+          operationId: parsedOperationId,
+          expectedCurrentPublicationId,
+          manifestVersionId,
+          publicationId,
+          publicationRevision,
+          plan,
+          canonicalActivityVersions: (
+            body.canonicalActivityVersions as unknown as readonly CanonicalPublishedActivityVersionRecord[]
+          ),
+          now: publicationNow,
+          operationFingerprint,
         });
         return { body: result, init: { status: statusFor(result) } };
       } catch (error) {
@@ -182,9 +388,6 @@ export const createBookAssemblyPublicationWorkerHandlers = (options: {
     }): Promise<{ body: unknown; init: ResponseInit }> {
       try {
         await authenticate(input.env, input.uid);
-        if (!enabled(input.env)) {
-          return { body: { code: 'book_assembly_publication_disabled' }, init: { status: 503 } };
-        }
         const body = exact(await readBody(input.request), [
           'operationId',
           'ownerId',
@@ -194,15 +397,38 @@ export const createBookAssemblyPublicationWorkerHandlers = (options: {
         ]);
         const ownerId = id(body.ownerId, 'invalid_owner_id');
         assertOwner(input.uid, ownerId);
-        const result = await service.rollback({
-          operationId: operationId(body.operationId),
+        const parsedOperationId = operationId(body.operationId);
+        const bookId = id(body.bookId, 'invalid_book_id');
+        const expectedCurrentPublicationId = id(
+          body.expectedCurrentPublicationId,
+          'invalid_expected_current_publication_id',
+        );
+        const targetPublicationId = id(body.targetPublicationId, 'invalid_target_publication_id');
+        const operationFingerprint = fingerprintBookAssemblyRollbackOperation({
+          operationId: parsedOperationId,
           ownerId,
-          bookId: id(body.bookId, 'invalid_book_id'),
-          expectedCurrentPublicationId: id(
-            body.expectedCurrentPublicationId,
-            'invalid_expected_current_publication_id',
-          ),
-          targetPublicationId: id(body.targetPublicationId, 'invalid_target_publication_id'),
+          bookId,
+          expectedCurrentPublicationId,
+          targetPublicationId,
+        });
+        const recovered = await recoverExistingOperation(options.repository, {
+          bookId,
+          ownerId,
+          operationId: parsedOperationId,
+          fingerprint: operationFingerprint,
+        });
+        if (recovered) {
+          return { body: recovered, init: { status: statusFor(recovered) } };
+        }
+        if (!enabled(input.env)) {
+          return { body: { code: 'book_assembly_publication_disabled' }, init: { status: 503 } };
+        }
+        const result = await service.rollback({
+          operationId: parsedOperationId,
+          ownerId,
+          bookId,
+          expectedCurrentPublicationId,
+          targetPublicationId,
           now: now(),
         });
         return { body: result, init: { status: statusFor(result) } };

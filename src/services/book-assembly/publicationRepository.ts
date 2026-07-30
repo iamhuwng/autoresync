@@ -36,6 +36,8 @@ export interface BookAssemblyPublicationRepository<Result = unknown> {
       readonly next?: BookAssemblyPublicationScope<Result>;
       readonly write: boolean;
     },
+    operationId?: string,
+    operationFingerprint?: string,
   ): Promise<T>;
   readScope(bookId: string): Promise<BookAssemblyPublicationScope<Result>>;
 }
@@ -63,6 +65,8 @@ implements BookAssemblyPublicationRepository<Result> {
       readonly next?: BookAssemblyPublicationScope<Result>;
       readonly write: boolean;
     },
+    _operationId?: string,
+    _operationFingerprint?: string,
   ): Promise<T> {
     const current = clone(this.scopes.get(bookId) ?? {});
     const result = mutate(current);

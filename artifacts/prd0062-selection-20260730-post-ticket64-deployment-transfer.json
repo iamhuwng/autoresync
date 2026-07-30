@@ -1,0 +1,87 @@
+{
+  "generatedAt": "2026-07-30T12:15:46.5933365Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-post-ticket64-deployment-transfer.json",
+  "issueHash": "61d571287e2bb6f22cb73c62599c2d32df3325068af8f846a2d4023cc8d512b7",
+  "issueCount": 112,
+  "openCount": 52,
+  "closedCount": 60,
+  "uniqueEdgeCount": 310,
+  "missingReferences": 0,
+  "duplicateEdges": 0,
+  "cycles": 0,
+  "topologicalCoverage": 112,
+  "roadmapPhase": "Runtime",
+  "graphClearFrontier": [49, 59, 64, 129, 131, 132, 133],
+  "selectedPrimary": {
+    "issue": 64,
+    "ticket": "16A",
+    "directPrerequisites": [31],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 65,
+    "acceptanceReadiness": "retained local gates executable; deployed/canary proof preserved destination-first in #134",
+    "requiredAuthority": [
+      "local implementation and focused production-equivalent tests",
+      "Firebase RTDB repository and rules-fragment design",
+      "no deployment, generated-rules activation, or trusted-capability activation"
+    ],
+    "selectionReason": "Earliest unresolved Runtime root and shared producer boundary. All prerequisites are closed, the retained acceptance gates are executable, and #64 must close before #65, #66, #68, and the canonical #59 runtime resolver can proceed."
+  },
+  "candidateDecisions": [
+    {
+      "issue": 49,
+      "decision": "rejected",
+      "reason": "Independent private-B2 activation family with leverage 2; current critical path remains the reopened Activity Version producer boundary."
+    },
+    {
+      "issue": 59,
+      "decision": "ineligible",
+      "reason": "Graph-clear but not acceptance-ready while #64 remains OPEN; its runtime resolver consumes #64's canonical immutable exact-version seam."
+    },
+    {
+      "issue": 64,
+      "decision": "selected",
+      "reason": "All direct/transitive prerequisites are closed, retained local authority is available, and downstream leverage is 65."
+    },
+    {
+      "issue": 65,
+      "decision": "ineligible",
+      "reason": "Direct prerequisite #64 is OPEN."
+    },
+    {
+      "issue": 66,
+      "decision": "ineligible",
+      "reason": "Direct prerequisite #64 is OPEN."
+    },
+    {
+      "issue": 68,
+      "decision": "ineligible",
+      "reason": "Direct prerequisite #64 is OPEN."
+    },
+    {
+      "issue": 129,
+      "decision": "ineligible",
+      "reason": "Final-closure phase and shared disabled #50A boundary; roadmap phase does not allow selection."
+    },
+    {
+      "issue": 131,
+      "decision": "ineligible",
+      "reason": "Final-closure phase and shared disabled #50A boundary; roadmap phase does not allow selection."
+    },
+    {
+      "issue": 132,
+      "decision": "ineligible",
+      "reason": "Final-closure phase and shared disabled #50A boundary; roadmap phase does not allow selection."
+    },
+    {
+      "issue": 133,
+      "decision": "ineligible",
+      "reason": "Final-closure phase and shared disabled #50A boundary; roadmap phase does not allow selection."
+    }
+  ],
+  "safetyState": {
+    "ticket03B": "disabled",
+    "ticket50A": "all-six-deny/default-deny",
+    "privateB2": "disabled",
+    "trustedActions": "disabled"
+  }
+}

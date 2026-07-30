@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import fragment from '../../../cloudflare/src/upload-worker/book-rules/fragments/19.json';
+import publicationFragment from '../../../cloudflare/src/upload-worker/book-rules/fragments/16A.json';
+
+const transferredPaths = [
+  'book_activity/versions/$activityId/$versionId',
+  'book_activity/student_safe_projections/$activityId/$versionId',
+] as const;
 
 const operation = (path: string, rule: '.read' | '.write') => {
   const found = fragment.operations.find((candidate) => candidate.path === path && candidate.rule === rule);
@@ -26,9 +32,7 @@ describe('PRD0062 #68 versioned Activity RTDB rule fragment', () => {
       'users/$ownerId',
       'book_activity/candidates/$candidateId',
       'book_activity/drafts/$activityId/$draftId',
-      'book_activity/versions/$activityId/$versionId',
       'book_activity/history/$activityId/$historyId',
-      'book_activity/student_safe_projections/$activityId/$versionId',
       'book_activity/current/$activityId',
       'book_activity/activity_publish_operations/$operationId',
     ]);
@@ -64,10 +68,7 @@ describe('PRD0062 #68 versioned Activity RTDB rule fragment', () => {
   });
 
   it('makes Activity Versions and history immutable create-only records', () => {
-    for (const path of [
-      'book_activity/versions/$activityId/$versionId',
-      'book_activity/history/$activityId/$historyId',
-    ]) {
+    for (const path of ['book_activity/history/$activityId/$historyId']) {
       const read = operation(path, '.read');
       const write = operation(path, '.write');
       expect(read.expression).toContain("data.child('ownerId').val()");
@@ -76,29 +77,35 @@ describe('PRD0062 #68 versioned Activity RTDB rule fragment', () => {
       expect(write.expression).not.toContain('auth.uid');
     }
 
-    expect(operation('book_activity/versions/$activityId/$versionId', '.write').expression)
-      .toContain("newData.child('lifecycle').val() == 'published'");
     expect(operation('book_activity/history/$activityId/$historyId', '.write').expression)
       .toContain("newData.child('versionId').isString()");
   });
 
-  it('allows only answer-safe immutable projection publication', () => {
-    const projection = operation('book_activity/student_safe_projections/$activityId/$versionId', '.write');
-    expect(projection.expression).toContain("newData.child('projectionKind').val() == 'student-safe'");
-    expect(projection.expression).toContain('!data.exists()');
-    for (const field of [
-      'answerKey',
-      'answer',
-      'authoring',
-      'validation',
-      'teacherNotes',
-      'sourceProvenance',
-      'privateObjectKey',
-      'providerAuthority',
-      'credentials',
-    ]) {
-      expect(projection.expression).toContain(`!newData.child('${field}').exists()`);
+  it('does not retain the transferred canonical locations', () => {
+    const generatedLocations = fragment.owner.generatedRuleLocations;
+    expect(new Set(generatedLocations).size).toBe(generatedLocations.length);
+    for (const path of transferredPaths) {
+      expect(fragment.operations.some((candidate) => candidate.path === path)).toBe(false);
+      expect(generatedLocations.some((location) => location.startsWith(`${path}/`))).toBe(false);
+      expect(publicationFragment.operations.filter((candidate) => candidate.path === path)).toHaveLength(2);
     }
+  });
+
+  it('keeps the root deny and all retained paths disabled-gate free', () => {
+    expect(operation('book_activity', '.read').expression).toBe('false');
+    expect(operation('book_activity', '.write').expression).toBe('false');
+    for (const candidate of scopedOperations()) {
+      expect(candidate.expression).not.toContain('book_activity_capabilities');
+      expect(candidate.expression).not.toMatch(/\|\|\s*true/);
+    }
+  });
+
+  it('has no duplicate generated locations with the destination fragment', () => {
+    const locations = [
+      ...fragment.owner.generatedRuleLocations,
+      ...publicationFragment.owner.generatedRuleLocations,
+    ];
+    expect(new Set(locations).size).toBe(locations.length);
   });
 
   it('restricts current pointer replacement to published versions and operation identity', () => {
@@ -120,9 +127,7 @@ describe('PRD0062 #68 versioned Activity RTDB rule fragment', () => {
     }
     for (const path of [
       'book_activity/drafts/$activityId/$draftId',
-      'book_activity/versions/$activityId/$versionId',
       'book_activity/history/$activityId/$historyId',
-      'book_activity/student_safe_projections/$activityId/$versionId',
       'book_activity/current/$activityId',
     ]) {
       expect(operation(path, '.read').expression).toContain('$activityId');

@@ -6,6 +6,7 @@ import type {
 export const createBookAssemblyPublicationPointer = (input: {
   readonly version: BookAssemblyImmutableManifestVersion;
   readonly operationId: string;
+  readonly operationFingerprint?: string;
   readonly now: string;
 }): BookAssemblyPublicationPointer => ({
   publicationId: input.version.publicationId,
@@ -14,6 +15,7 @@ export const createBookAssemblyPublicationPointer = (input: {
   bookRevision: input.version.bookRevision,
   sourceSetRevision: input.version.sourceSetRevision,
   inputFingerprint: input.version.inputFingerprint,
+  ...(input.operationFingerprint ? { operationFingerprint: input.operationFingerprint } : {}),
   updatedAt: input.now,
   updatedByCommandId: input.operationId,
 });

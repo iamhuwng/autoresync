@@ -4,7 +4,10 @@ import type {
   BookAssemblyManifestCandidate,
   BookAssemblyPublicationAdapterPlan,
 } from '../../types/bookAssembly.types';
-import { createBookAssemblyPublicationService } from './publicationTransaction.service';
+import {
+  bookAssemblyActivityVersionScopeKey,
+  createBookAssemblyPublicationService,
+} from './publicationTransaction.service';
 import { InMemoryBookAssemblyPublicationRepository } from './publicationRepository';
 
 const op = (suffix: string): string => `00000000-0000-4000-8000-${suffix.padStart(12, '0')}`;
@@ -195,7 +198,9 @@ describe('Book Assembly publication transaction service', () => {
     });
     const scope = await repository.readScope('book-1');
     expect(Object.keys(scope.versions ?? {})).toEqual(['manifest-v1']);
-    expect(Object.keys(scope.activityVersions ?? {})).toEqual(['publication-1:activity-1:v1']);
+    expect(Object.keys(scope.activityVersions ?? {})).toEqual([
+      bookAssemblyActivityVersionScopeKey('manifest-v1', 'publication-1:activity-1:v1'),
+    ]);
     expect(Object.keys(scope.activitySafeProjections ?? {})).toEqual(['publication-1:activity-1:safe']);
     expect(Object.keys(scope.placements ?? {})).toEqual(['publication-1:placement-1']);
     expect(Object.keys(scope.unitProjections ?? {})).toEqual(['publication-1:unit-1']);
@@ -203,6 +208,15 @@ describe('Book Assembly publication transaction service', () => {
     expect(scope.current?.publicationId).toBe('publication-1');
     expect(Object.keys(scope.operations ?? {})).toEqual([op('1')]);
     expect(JSON.stringify(scope.audits)).not.toMatch(/answer|credential|private_key|pdfBytes/iu);
+  });
+
+  it('uses a deterministic length-prefixed Activity Version reference key when IDs contain colons', () => {
+    const first = bookAssemblyActivityVersionScopeKey('manifest:a', 'activity');
+    const second = bookAssemblyActivityVersionScopeKey('manifest', 'a:activity');
+
+    expect(first).toBe('m10:manifest:aa8:activity');
+    expect(second).toBe('m8:manifesta10:a:activity');
+    expect(first).not.toBe(second);
   });
 
   it('rejects adapter plans that do not carry the complete atomic write set', async () => {
@@ -363,29 +377,93 @@ describe('Book Assembly publication transaction service', () => {
       now: '2026-07-27T00:01:00.000Z',
     });
 
-    const rolledBack = await service.rollback({
+    const rollbackInput = {
       operationId: op('9'),
       ownerId: 'teacher-1',
       bookId: 'book-1',
       expectedCurrentPublicationId: 'publication-2',
       targetPublicationId: 'publication-1',
       now: '2026-07-27T00:02:00.000Z',
-    });
+    };
+    const rolledBack = await service.rollback(rollbackInput);
 
     expect(rolledBack).toMatchObject({
       status: 'rolled-back',
       pointer: { publicationId: 'publication-1', manifestVersionId: 'manifest-v1' },
       audit: { action: 'rollback', status: 'committed' },
     });
+    await expect(service.rollback({
+      ...rollbackInput,
+      now: '2026-07-27T00:03:00.000Z',
+    })).resolves.toMatchObject({
+      status: 'replayed',
+      pointer: { publicationId: 'publication-1', manifestVersionId: 'manifest-v1' },
+    });
     const scope = await repository.readScope('book-1');
     expect(Object.keys(scope.versions ?? {}).sort()).toEqual(['manifest-v1', 'manifest-v2']);
     expect(Object.keys(scope.activityVersions ?? {}).sort()).toEqual([
-      'publication-1:activity-1:v1',
-      'publication-2:activity-1:v2',
+      bookAssemblyActivityVersionScopeKey('manifest-v1', 'publication-1:activity-1:v1'),
+      bookAssemblyActivityVersionScopeKey('manifest-v2', 'publication-2:activity-1:v2'),
     ]);
     expect(Object.keys(scope.deliveryPlans ?? {}).sort()).toEqual([
       'publication-1:delivery',
       'publication-2:delivery',
     ]);
+  });
+
+  it('does not roll back to a prepared version without its committed originating operation', async () => {
+    const sourceRepository = new InMemoryBookAssemblyPublicationRepository();
+    const sourceService = createBookAssemblyPublicationService(sourceRepository);
+    await sourceService.publish({
+      operationId: op('10'),
+      expectedCurrentPublicationId: null,
+      manifestVersionId: 'manifest-v1',
+      publicationId: 'publication-1',
+      publicationRevision: 1,
+      plan: adapterPlan({}, { operationId: op('10') }),
+      now: '2026-07-27T00:00:00.000Z',
+    });
+    await sourceService.publish({
+      operationId: op('11'),
+      expectedCurrentPublicationId: 'publication-1',
+      manifestVersionId: 'manifest-v2',
+      publicationId: 'publication-2',
+      publicationRevision: 2,
+      plan: adapterPlan({
+        studentSafeProjection: {
+          ...adapterPlan().studentSafeProjection,
+          publicationId: 'publication-2',
+          publicationRevision: 2,
+        },
+      }, { operationId: op('11'), publicationId: 'publication-2', publicationRevision: 2 }),
+      now: '2026-07-27T00:01:00.000Z',
+    });
+
+    const preparedScope = await sourceRepository.readScope('book-1');
+    const repository = new InMemoryBookAssemblyPublicationRepository({
+      'book-1': {
+        ...preparedScope,
+        operations: Object.fromEntries(
+          Object.entries(preparedScope.operations ?? {}).filter(([operationId]) => operationId !== op('10')),
+        ),
+      },
+    });
+    const service = createBookAssemblyPublicationService(repository);
+
+    await expect(service.rollback({
+      operationId: op('12'),
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      expectedCurrentPublicationId: 'publication-2',
+      targetPublicationId: 'publication-1',
+      now: '2026-07-27T00:02:00.000Z',
+    })).resolves.toMatchObject({
+      status: 'not-found',
+      failureCode: 'unknown-version',
+    });
+
+    await expect(repository.readScope('book-1')).resolves.toMatchObject({
+      current: preparedScope.current,
+    });
   });
 });

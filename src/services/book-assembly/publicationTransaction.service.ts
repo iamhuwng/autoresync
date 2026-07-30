@@ -62,7 +62,7 @@ export interface RollbackBookAssemblyPublicationInput {
   readonly now: string;
 }
 
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SENSITIVE_KEYS = [
   'answer',
@@ -114,6 +114,39 @@ const hasSensitiveKey = (value: unknown): boolean => {
 const sourceSetsEqual = (a: SourceSetCandidate, b: SourceSetCandidate): boolean => stable(a) === stable(b);
 const unique = (values: readonly string[]): boolean => new Set(values).size === values.length;
 const allIds = (values: readonly string[]): boolean => values.every(validId) && unique(values);
+export const bookAssemblyActivityVersionScopeKey = (
+  manifestVersionId: string,
+  activityVersionId: string,
+): string => `m${manifestVersionId.length}:${manifestVersionId}a${activityVersionId.length}:${activityVersionId}`;
+
+export const fingerprintBookAssemblyPublishOperation = (
+  input: Pick<
+    PublishBookAssemblyInput,
+    'expectedCurrentPublicationId'
+      | 'manifestVersionId'
+      | 'publicationId'
+      | 'publicationRevision'
+      | 'plan'
+  >,
+): string => fingerprintOf({
+  action: 'publish',
+  expectedCurrentPublicationId: input.expectedCurrentPublicationId,
+  manifestVersionId: input.manifestVersionId,
+  publicationId: input.publicationId,
+  publicationRevision: input.publicationRevision,
+  plan: input.plan,
+});
+
+export const fingerprintBookAssemblyRollbackOperation = (
+  input: Omit<RollbackBookAssemblyPublicationInput, 'now'>,
+): string => fingerprintOf({
+  action: 'rollback',
+  operationId: input.operationId,
+  ownerId: input.ownerId,
+  bookId: input.bookId,
+  expectedCurrentPublicationId: input.expectedCurrentPublicationId,
+  targetPublicationId: input.targetPublicationId,
+});
 
 const invalid = (
   failureCode: BookAssemblyPublicationFailureCode,
@@ -153,6 +186,7 @@ const assertCommonPublicationWriteSet = (
     || !validId(record.activityId)
     || !Number.isSafeInteger(record.activityVersion)
     || record.activityVersion <= 0
+    || !validId(record.canonicalPayloadFingerprint)
     || !unique(activityVersionReferenceIds))) {
     return invalid('invalid-publication-plan');
   }
@@ -242,11 +276,41 @@ const remember = (
   operationId: string,
   record: BookAssemblyPublicationOperationRecord<BookAssemblyPublicationResult>,
 ): void => {
-  const retained = Object.entries(scope.operations ?? {}).slice(-127);
   (scope as { operations?: Record<string, BookAssemblyPublicationOperationRecord<BookAssemblyPublicationResult>> }).operations = {
-    ...Object.fromEntries(retained),
+    ...(scope.operations ?? {}),
     [operationId]: record,
   };
+};
+
+const publicationIdentityMatches = (
+  record: {
+    readonly manifestVersionId?: string;
+    readonly publicationId?: string;
+    readonly publicationRevision?: number;
+  } | undefined,
+  version: BookAssemblyImmutableManifestVersion,
+): boolean => Boolean(record
+  && record.manifestVersionId === version.manifestVersionId
+  && record.publicationId === version.publicationId
+  && record.publicationRevision === version.publicationRevision);
+
+const hasCommittedOriginatingPublicationOperation = (
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+  version: BookAssemblyImmutableManifestVersion,
+  ownerId: string,
+): boolean => {
+  const operation = scope.operations?.[version.createdByCommandId];
+  const result = operation?.result;
+  return Boolean(operation
+    && operation.ownerId === ownerId
+    && result
+    && (result.status === 'published' || result.status === 'replayed')
+    && result.audit?.action === 'publish'
+    && result.audit.status === 'committed'
+    && result.audit.operationId === version.createdByCommandId
+    && publicationIdentityMatches(result.pointer, version)
+    && publicationIdentityMatches(result.version, version)
+    && publicationIdentityMatches(result.audit, version));
 };
 
 const replay = (
@@ -263,7 +327,7 @@ const replay = (
   return { ...clone(stored.result), status: 'replayed' };
 };
 
-const rejectUnlessPlanIsStrategyNeutral = (
+export const validateBookAssemblyPublicationInput = (
   input: PublishBookAssemblyInput,
 ): BookAssemblyPublicationResult | null => {
   const { plan } = input;
@@ -304,16 +368,9 @@ export const createBookAssemblyPublicationService = (
   repository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>,
 ) => ({
   publish: async (input: PublishBookAssemblyInput): Promise<BookAssemblyPublicationResult> => {
-    const rejected = rejectUnlessPlanIsStrategyNeutral(input);
+    const rejected = validateBookAssemblyPublicationInput(input);
     if (rejected) return rejected;
-    const fingerprint = input.operationFingerprint ?? fingerprintOf({
-      action: 'publish',
-      expectedCurrentPublicationId: input.expectedCurrentPublicationId,
-      manifestVersionId: input.manifestVersionId,
-      publicationId: input.publicationId,
-      publicationRevision: input.publicationRevision,
-      plan: input.plan,
-    });
+    const fingerprint = input.operationFingerprint ?? fingerprintBookAssemblyPublishOperation(input);
     return repository.transaction(input.plan.bookId, (scope) => {
       const replayed = replay(scope, input.plan.ownerId, input.operationId, fingerprint);
       if (replayed) return { outcome: replayed, write: false };
@@ -332,10 +389,12 @@ export const createBookAssemblyPublicationService = (
         return { outcome: output, next: scope, write: true };
       }
       const invalidActivityReference = (input.plan.atomicWrites.activityVersionRefs ?? []).some((reference) => {
-        const existing = scope.activityVersions?.[reference.activityVersionId];
+        const existing = Object.values(scope.activityVersions ?? {}).find((candidate) =>
+          candidate.activityId === reference.activityId
+          && candidate.activityVersionId === reference.activityVersionId
+          && candidate.activityVersion === reference.activityVersion
+          && candidate.canonicalPayloadFingerprint === reference.canonicalPayloadFingerprint);
         return !existing
-          || existing.activityId !== reference.activityId
-          || existing.activityVersion !== reference.activityVersion
           || existing.ownerId !== input.plan.ownerId
           || existing.bookId !== input.plan.bookId;
       });
@@ -346,7 +405,13 @@ export const createBookAssemblyPublicationService = (
         });
         return { outcome: output, next: scope, write: true };
       }
-      if (input.plan.atomicWrites.activityVersions.some((record) => scope.activityVersions?.[record.activityVersionId])
+      const activityVersionKeys = [
+        ...input.plan.atomicWrites.activityVersions.map((record) =>
+          bookAssemblyActivityVersionScopeKey(input.manifestVersionId, record.activityVersionId)),
+        ...(input.plan.atomicWrites.activityVersionRefs ?? []).map((record) =>
+          bookAssemblyActivityVersionScopeKey(input.manifestVersionId, record.activityVersionId)),
+      ];
+      if (activityVersionKeys.some((key) => scope.activityVersions?.[key])
         || input.plan.atomicWrites.activitySafeProjections.some((record) =>
           scope.activitySafeProjections?.[record.projectionId])
         || input.plan.atomicWrites.placements.some((record) => scope.placements?.[record.placementId])
@@ -388,6 +453,7 @@ export const createBookAssemblyPublicationService = (
       const pointer = createBookAssemblyPublicationPointer({
         version,
         operationId: input.operationId,
+        operationFingerprint: fingerprint,
         now: input.now,
       });
       const audit = createBookAssemblyPublicationAuditRecord({
@@ -405,10 +471,55 @@ export const createBookAssemblyPublicationService = (
         ...(scope.versions ?? {}),
         [version.manifestVersionId]: version,
       };
+      const safeProjectionFor = (activityId: string, activityVersionId: string) =>
+        input.plan.atomicWrites.activitySafeProjections.find((candidate) =>
+          candidate.activityId === activityId
+          && candidate.activityVersionId === activityVersionId);
+      const reusableRecords = (input.plan.atomicWrites.activityVersionRefs ?? []).map((reference) => {
+        const previous = Object.values(scope.activityVersions ?? {}).find((candidate) =>
+          candidate.activityId === reference.activityId
+          && candidate.activityVersionId === reference.activityVersionId
+          && candidate.activityVersion === reference.activityVersion
+          && candidate.canonicalPayloadFingerprint === reference.canonicalPayloadFingerprint)!;
+        const projection = safeProjectionFor(reference.activityId, reference.activityVersionId)!;
+        const placements = input.plan.atomicWrites.placements.filter((candidate) =>
+          candidate.activityId === reference.activityId
+          && candidate.activityVersionId === reference.activityVersionId);
+        const firstPlacement = placements[0]!;
+        return {
+          ...clone(previous),
+          manifestVersionId: input.manifestVersionId,
+          publicationId: input.publicationId,
+          publicationRevision: input.publicationRevision,
+          unitKey: firstPlacement.unitKey,
+          activityKey: firstPlacement.activityKey,
+          createdByCommandId: input.operationId,
+          createdAt: input.now,
+          sourcePages: clone(projection.sourcePages),
+          safeProjectionId: projection.projectionId,
+          payloadFingerprint: fingerprintOf({
+            activityId: reference.activityId,
+            activityVersionId: reference.activityVersionId,
+            manifestVersionId: input.manifestVersionId,
+            placementIds: projection.placementIds,
+            sourcePages: projection.sourcePages,
+          }),
+        } satisfies BookAssemblyActivityVersionRecord;
+      });
+      const freshRecords = input.plan.atomicWrites.activityVersions.map((record) => {
+        const projection = safeProjectionFor(record.activityId, record.activityVersionId)!;
+        return {
+          ...clone(record),
+          safeProjectionId: projection.projectionId,
+          canonicalOriginManifestVersionId: record.manifestVersionId,
+          canonicalOriginPublicationId: record.publicationId,
+          canonicalOriginOperationId: record.createdByCommandId,
+        } satisfies BookAssemblyActivityVersionRecord;
+      });
       (scope as { activityVersions?: Record<string, BookAssemblyActivityVersionRecord> }).activityVersions = {
         ...(scope.activityVersions ?? {}),
-        ...Object.fromEntries(input.plan.atomicWrites.activityVersions.map((record) => [
-          record.activityVersionId,
+        ...Object.fromEntries([...freshRecords, ...reusableRecords].map((record) => [
+          bookAssemblyActivityVersionScopeKey(record.manifestVersionId, record.activityVersionId),
           clone(record),
         ])),
       };
@@ -452,7 +563,7 @@ export const createBookAssemblyPublicationService = (
         createdAt: input.now,
       });
       return { outcome: output, next: scope, write: true };
-    });
+    }, input.operationId, fingerprint);
   },
 
   rollback: async (input: RollbackBookAssemblyPublicationInput): Promise<BookAssemblyPublicationResult> => {
@@ -463,7 +574,7 @@ export const createBookAssemblyPublicationService = (
       || !validId(input.targetPublicationId)) {
       return invalid('invalid-publication-plan');
     }
-    const fingerprint = fingerprintOf({ action: 'rollback', ...input });
+    const fingerprint = fingerprintBookAssemblyRollbackOperation(input);
     return repository.transaction(input.bookId, (scope) => {
       const replayed = replay(scope, input.ownerId, input.operationId, fingerprint);
       if (replayed) return { outcome: replayed, write: false };
@@ -476,7 +587,10 @@ export const createBookAssemblyPublicationService = (
       }
       const target = Object.values(scope.versions ?? {})
         .find((version) => version.publicationId === input.targetPublicationId);
-      if (!target || target.ownerId !== input.ownerId || target.bookId !== input.bookId) {
+      if (!target
+        || target.ownerId !== input.ownerId
+        || target.bookId !== input.bookId
+        || !hasCommittedOriginatingPublicationOperation(scope, target, input.ownerId)) {
         const output: BookAssemblyPublicationResult = { status: 'not-found', failureCode: 'unknown-version' };
         remember(scope, input.operationId, {
           ownerId: input.ownerId, fingerprint, result: output, createdAt: input.now,
@@ -486,6 +600,7 @@ export const createBookAssemblyPublicationService = (
       const pointer = createBookAssemblyPublicationPointer({
         version: target,
         operationId: input.operationId,
+        operationFingerprint: fingerprint,
         now: input.now,
       });
       const audit = createBookAssemblyPublicationAuditRecord({
@@ -511,6 +626,6 @@ export const createBookAssemblyPublicationService = (
         createdAt: input.now,
       });
       return { outcome: output, next: scope, write: true };
-    });
+    }, input.operationId, fingerprint);
   },
 });
