@@ -1,0 +1,100 @@
+{
+  "generatedAt": "2026-07-30",
+  "selectionStatus": "SELECTED",
+  "roadmapPhase": "student-workflow",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-post-ticket76-repair-closed.json",
+  "graphIssueHash": "7bf4157edf2d6d24220b9f32df1b7cbc4b4e44df9023553bc464c5626ff00129",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 47,
+    "closedCount": 65,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 77, 87, 91, 106, 129, 130, 131, 132, 133]
+  },
+  "selectedTicket": {
+    "number": 87,
+    "title": "PRD0062 34B - Enforce effective Book Homework windows",
+    "directPrerequisites": [76, 79, 83, 86],
+    "completeTransitivePrerequisites": [
+      25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+      44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65,
+      66, 72, 73, 74, 75, 76, 78, 79, 81, 82, 83, 84, 85, 86
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 32,
+    "acceptanceReadiness": {
+      "local": "Executable against the closed #83 schedule schema, #84 authority, #86 canonical Homework route, #74 runtime schedule seam, and #76 terminal aggregate.",
+      "browser": "Executable with Student quick-login at http://localhost:5174 using the required released, unreleased, overdue, late-allowed, and review fixtures.",
+      "preview": "User approved required controlled actions. Ticket uses existing Book Delivery/Runtime identities and a non-production disposable preview; live identity/config must be read back before any deployment claim.",
+      "ownership": "Owned schedule adapter/enforcement paths are currently clean. #87 consumes but does not duplicate #83 schedule editing, #84 authority storage, #86 route composition, or #76 terminal mutation ownership.",
+      "rollback": "Executable by disabling Book launch/mutation when trusted schedule resolution is unavailable; browser timestamps and cached projections remain non-authoritative.",
+      "safety": "No #03B, #50A, private-B2, production, or unrelated trusted capability activation is required."
+    },
+    "selectionReason": "All direct and transitive prerequisites are formally CLOSED. #87 is the earliest unresolved Student-workflow root/enabler with executable gates and the strongest verified downstream leverage (32) among current eligible phase candidates."
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "eligible": false,
+      "reason": "Graph-clear Foundation activation work remains acceptance-ineligible under the current remote state: private B2 is DISABLED, short-lived exact identities require current readback/refresh, and canonical provider/CORS/cost/cleanup/browser/rollback evidence is incomplete.",
+      "blocker": {
+        "owner": "#49 with Backblaze/Cloudflare operator authority",
+        "requiredAction": "Refresh/read back exact scoped identities and complete the approved partial-consolidation preview activation sequence with disposable data.",
+        "evidence": "Live #49 activation-state and partial-consolidation contract.",
+        "impact": "Private B2/03B remains disabled; this blocker family is independent from #87 schedule enforcement."
+      }
+    },
+    {
+      "ticket": 77,
+      "eligible": true,
+      "reason": "Not selected: graph-clear and locally implementable, but lower downstream leverage (29). #87 is the stronger Student-workflow enabler and establishes the trusted Homework window used by later launch, submit, and result-state behavior."
+    },
+    {
+      "ticket": 91,
+      "eligible": true,
+      "reason": "Not selected: graph-clear but later integrity/operations work with lower downstream leverage (23); it must not precede the shared schedule-authority root."
+    },
+    {
+      "ticket": 106,
+      "eligible": true,
+      "reason": "Not selected: later public-content reference/fork integration with downstream leverage 24, outside the current Student-workflow root."
+    },
+    {
+      "ticket": 129,
+      "eligible": false,
+      "reason": "Integration/final-closure suite; product implementation tickets remain open."
+    },
+    {
+      "ticket": 130,
+      "eligible": false,
+      "reason": "Integration/final-closure Student suite; current Student-workflow implementation roots remain open."
+    },
+    {
+      "ticket": 131,
+      "eligible": false,
+      "reason": "Integration/final-closure accessibility/device suite; current Student-workflow implementation roots remain open."
+    },
+    {
+      "ticket": 132,
+      "eligible": false,
+      "reason": "Integration/final-closure security suite; product implementation and activation gates remain open."
+    },
+    {
+      "ticket": 133,
+      "eligible": false,
+      "reason": "Integration/final-closure legacy/recovery suite; product implementation and activation gates remain open."
+    }
+  ],
+  "safety": {
+    "ticket03B": "disabled",
+    "ticket50A": "all-six-deny/default-deny",
+    "trustedActions": "disabled",
+    "privateB2": "disabled",
+    "scope": "Full 112-ticket scope preserved; exactly one primary selected."
+  }
+}
