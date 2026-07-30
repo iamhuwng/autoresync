@@ -596,7 +596,16 @@ const sequenceClock = (...values: string[]) => {
 const reservedState = async () => {
   let state: BookSourceUploadAccountState | null = {
     revision: 0,
-    capacity: { trackedAccountBytes: 0, temporaryBytes: 0 },
+    capacity: {
+      trackedAccountBytes: 0,
+      temporaryBytes: 0,
+      providerReconciliation: {
+        status: 'healthy',
+        totalBytes: 0,
+        objectCount: 0,
+        completedAt: '2026-07-23T00:01:00.000Z',
+      },
+    },
     operations: {},
   };
   const transaction: SourceUploadRtdbTransaction = async ({ expectedRevision, update }) => {

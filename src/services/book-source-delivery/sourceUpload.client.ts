@@ -53,17 +53,28 @@ export interface SourceUploadLifecycleStatus {
   readonly lastErrorCode?: string;
 }
 
-export interface SourceUploadSafeOperationState {
+interface SourceUploadSafeOperationBase {
   readonly schemaVersion: 1;
   readonly bookId: string;
   readonly operationId: string;
-  readonly reservationId: string;
-  readonly sourceVersionId: string;
   readonly sourceKey: string;
   readonly kind: BookSourceUploadKind;
   readonly displayFilename: string;
   readonly exactByteSize: number;
   readonly sha256Hex: string;
+}
+
+export interface SourceUploadBeginPendingState extends SourceUploadSafeOperationBase {
+  readonly phase: 'begin_pending';
+  readonly reservationId?: never;
+  readonly sourceVersionId?: never;
+  readonly providerFileId?: never;
+  readonly providerFileVersionId?: never;
+}
+
+export interface SourceUploadBoundOperationState extends SourceUploadSafeOperationBase {
+  readonly reservationId: string;
+  readonly sourceVersionId: string;
   readonly phase:
     | 'reserved'
     | 'completion_pending'
@@ -72,6 +83,10 @@ export interface SourceUploadSafeOperationState {
   readonly providerFileId?: string;
   readonly providerFileVersionId?: string;
 }
+
+export type SourceUploadSafeOperationState =
+  | SourceUploadBeginPendingState
+  | SourceUploadBoundOperationState;
 
 export interface SourceUploadStatePort {
   load(bookId: string): Promise<SourceUploadSafeOperationState | null>;
@@ -224,8 +239,6 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
     !Object.keys(candidate).every((key) => allowedKeys.has(key))
     || !safeId(candidate.bookId)
     || !safeId(candidate.operationId)
-    || !safeId(candidate.reservationId)
-    || !safeId(candidate.sourceVersionId)
     || !safeId(candidate.sourceKey)
     || (candidate.kind !== 'initial' && candidate.kind !== 'replacement')
     || !nonEmpty(candidate.displayFilename)
@@ -233,9 +246,33 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
     || (candidate.exactByteSize as number) < 1
     || typeof candidate.sha256Hex !== 'string'
     || !/^[a-f0-9]{64}$/u.test(candidate.sha256Hex)
-    || !['reserved', 'completion_pending', 'cancel_requested', 'verified']
+    || !['begin_pending', 'reserved', 'completion_pending', 'cancel_requested', 'verified']
       .includes(String(candidate.phase))
   ) {
+    return null;
+  }
+  if (candidate.phase === 'begin_pending') {
+    if (
+      candidate.reservationId !== undefined
+      || candidate.sourceVersionId !== undefined
+      || candidate.providerFileId !== undefined
+      || candidate.providerFileVersionId !== undefined
+    ) {
+      return null;
+    }
+    return Object.freeze({
+      schemaVersion: 1,
+      bookId: candidate.bookId,
+      operationId: candidate.operationId,
+      sourceKey: candidate.sourceKey,
+      kind: candidate.kind,
+      displayFilename: candidate.displayFilename,
+      exactByteSize: candidate.exactByteSize as number,
+      sha256Hex: candidate.sha256Hex,
+      phase: 'begin_pending',
+    } as SourceUploadBeginPendingState);
+  }
+  if (!safeId(candidate.reservationId) || !safeId(candidate.sourceVersionId)) {
     return null;
   }
   const identityRequired = candidate.phase === 'completion_pending';

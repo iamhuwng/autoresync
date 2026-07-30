@@ -101,6 +101,9 @@ const BookSourceUploadPanel = ({
   }, [bookId, onAction, workflow]);
 
   const finishVerified = (state: SourceUploadSafeOperationState) => {
+    if (state.phase !== 'verified') {
+      throw new Error('Source upload completed without verified state.');
+    }
     setSaved(state);
     setActivePhase('idle');
     setError('');
@@ -218,9 +221,11 @@ const BookSourceUploadPanel = ({
       const status = await workflow.retryCleanup(bookId);
       await restore();
       setActivePhase('idle');
-      if (status === 'released') {
+      if (status === 'released' || status === 'verified_completed') {
         onAction?.('book_source_upload_cleanup_released');
-        toast.success('Upload cleanup confirmed. Reserved capacity was released.');
+        toast.success(status === 'released'
+          ? 'Upload cleanup confirmed. Reserved capacity was released.'
+          : 'Upload verification and replay cleanup confirmed.');
       } else {
         onAction?.('book_source_upload_cleanup_retry_failed');
         toast.warning('Cleanup remains pending. Reserved capacity is still held safely.');
@@ -240,10 +245,11 @@ const BookSourceUploadPanel = ({
   const canStart = allowFreshUpload && selection !== null && saved === null && !busy;
   const canRetryBytes = allowFreshUpload
     && selection !== null
-    && (saved?.phase === 'reserved' || saved?.phase === 'cancel_requested')
+    && (saved?.phase === 'begin_pending' || saved?.phase === 'reserved')
     && !busy;
   const canRetryCompletion = saved?.phase === 'completion_pending' && !busy;
   const canRequestCleanup = saved !== null
+    && saved.phase !== 'begin_pending'
     && saved.phase !== 'verified'
     && saved.phase !== 'cancel_requested'
     && !busy;
@@ -288,11 +294,11 @@ const BookSourceUploadPanel = ({
           </div>
           <div>
             <dt>Reservation</dt>
-            <dd>{saved.reservationId}</dd>
+            <dd>{saved.phase === 'begin_pending' ? 'Not assigned yet' : saved.reservationId}</dd>
           </div>
           <div>
             <dt>Source Version</dt>
-            <dd>{saved.sourceVersionId}</dd>
+            <dd>{saved.phase === 'begin_pending' ? 'Not assigned yet' : saved.sourceVersionId}</dd>
           </div>
         </dl>
       )}
@@ -322,7 +328,8 @@ const BookSourceUploadPanel = ({
             max={100}
             value={progress.percent}
           />
-          {activePhase === 'uploading' && (
+          {activePhase === 'uploading'
+            && (saved?.phase === 'reserved' || progress.loadedBytes > 0) && (
             <button type="button" onClick={() => void cancel()}>
               Cancel upload
             </button>
@@ -344,7 +351,7 @@ const BookSourceUploadPanel = ({
             Upload PDF
           </button>
         )}
-        {(saved?.phase === 'reserved' || saved?.phase === 'cancel_requested') && (
+        {(saved?.phase === 'begin_pending' || saved?.phase === 'reserved') && (
           <button type="button" disabled={!canRetryBytes} onClick={() => void runBytes(true)}>
             Retry PDF bytes
           </button>

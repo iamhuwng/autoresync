@@ -234,6 +234,35 @@ describe('sourceUpload.client', () => {
     expect(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1')).toBeNull();
   });
 
+  it('persists a begin-pending replay identity without remote or provider authority', async () => {
+    const port = createSourceUploadSessionStatePort();
+    await port.save({
+      schemaVersion: 1,
+      bookId: 'book-1',
+      operationId: '11111111-1111-4111-8111-111111111111',
+      sourceKey: 'main',
+      kind: 'initial',
+      displayFilename: 'book.pdf',
+      exactByteSize: 42,
+      sha256Hex: 'a'.repeat(64),
+      phase: 'begin_pending',
+    });
+
+    await expect(port.load('book-1')).resolves.toEqual({
+      schemaVersion: 1,
+      bookId: 'book-1',
+      operationId: '11111111-1111-4111-8111-111111111111',
+      sourceKey: 'main',
+      kind: 'initial',
+      displayFilename: 'book.pdf',
+      exactByteSize: 42,
+      sha256Hex: 'a'.repeat(64),
+      phase: 'begin_pending',
+    });
+    expect(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1'))
+      .not.toMatch(/reservationId|sourceVersionId|provider|token|signature|headers|uploadUrl/iu);
+  });
+
   it('sends cancellation metadata only and never claims provider deletion', async () => {
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       expect(init?.body).toBe('{}');

@@ -38,22 +38,28 @@ const selection = {
 
 const operation = (
   phase: SourceUploadSafeOperationState['phase'],
-): SourceUploadSafeOperationState => ({
-  schemaVersion: 1,
-  bookId: 'book-1',
-  operationId: '11111111-1111-4111-8111-111111111111',
-  reservationId: 'reservation-1',
-  sourceVersionId: 'source-version-1',
-  sourceKey: 'main',
-  kind: 'initial',
-  displayFilename: 'book.pdf',
-  exactByteSize: 8,
-  sha256Hex: 'a'.repeat(64),
-  phase,
-  ...(phase === 'completion_pending' || phase === 'verified'
-    ? { providerFileId: '4_file', providerFileVersionId: '4_version' }
-    : {}),
-});
+): SourceUploadSafeOperationState => {
+  const base = {
+    schemaVersion: 1 as const,
+    bookId: 'book-1',
+    operationId: '11111111-1111-4111-8111-111111111111',
+    sourceKey: 'main',
+    kind: 'initial' as const,
+    displayFilename: 'book.pdf',
+    exactByteSize: 8,
+    sha256Hex: 'a'.repeat(64),
+  };
+  if (phase === 'begin_pending') return { ...base, phase };
+  return {
+    ...base,
+    reservationId: 'reservation-1',
+    sourceVersionId: 'source-version-1',
+    phase,
+    ...(phase === 'completion_pending' || phase === 'verified'
+      ? { providerFileId: '4_file', providerFileVersionId: '4_version' }
+      : {}),
+  };
+};
 
 const workflow = (
   loaded: SourceUploadSafeOperationState | null = null,
@@ -224,9 +230,17 @@ describe('BookSourceUploadPanel', () => {
   it('ignores a late verified result after the user cancels the active run', async () => {
     const client = workflow();
     let resolveStart!: (result: Awaited<ReturnType<typeof client.start>>) => void;
-    vi.mocked(client.start).mockReturnValueOnce(new Promise((resolve) => {
-      resolveStart = resolve;
-    }));
+    vi.mocked(client.start).mockImplementationOnce((input) => {
+      input.onProgress?.({
+        confirmed: false,
+        loadedBytes: 2,
+        totalBytes: 8,
+        percent: 25,
+      });
+      return new Promise((resolve) => {
+        resolveStart = resolve;
+      });
+    });
     render(
       <BookSourceUploadPanel
         allowFreshUpload
@@ -326,5 +340,36 @@ describe('BookSourceUploadPanel', () => {
     expect(toast.success).toHaveBeenCalledWith(
       'Upload cleanup confirmed. Reserved capacity was released.',
     );
+  });
+
+  it('offers same-operation byte replay only for begin-pending or reserved state', async () => {
+    const pendingBegin = workflow(operation('begin_pending'));
+    const { unmount } = render(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        immutablePublished={false}
+        selection={selection}
+        workflow={pendingBegin}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: 'Retry PDF bytes' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Request cleanup' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Not assigned yet')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Cancel upload' })).not.toBeInTheDocument();
+    unmount();
+
+    const cleanupPending = workflow(operation('cancel_requested'));
+    render(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        immutablePublished={false}
+        selection={selection}
+        workflow={cleanupPending}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: 'Retry cleanup' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Retry PDF bytes' })).not.toBeInTheDocument();
   });
 });
