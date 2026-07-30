@@ -105,6 +105,61 @@ describe('trusted Book Source capacity ledger', () => {
     })).rejects.toMatchObject({ code: 'stale_revision' });
   });
 
+  it('scopes initial source-key uniqueness to one Book while preserving account-global identities', async () => {
+    const previous = { ...reservation('previous', 100), sourceKey: 'main' };
+    const existing = state([
+      { reservation: previous, category: 'ready', providerReported: true },
+    ], 100, 1);
+    const otherBook = {
+      ...reservation('other-book', 50),
+      bookId: 'book_2',
+      sourceKey: previous.sourceKey,
+    };
+
+    const accepted = await reserveSourceCapacity({
+      store: new MemoryLedgerStore(existing),
+      expectedLedgerRevision: 7,
+      now,
+      reservation: otherBook,
+      category: 'pending',
+    });
+    expect(accepted.entries.at(-1)?.reservation).toMatchObject({
+      bookId: 'book_2',
+      sourceKey: 'main',
+    });
+
+    await expect(reserveSourceCapacity({
+      store: new MemoryLedgerStore(existing),
+      expectedLedgerRevision: 7,
+      now,
+      reservation: {
+        ...reservation('same-book'),
+        sourceKey: previous.sourceKey,
+      },
+      category: 'pending',
+    })).rejects.toMatchObject({ code: 'stale_revision' });
+    await expect(reserveSourceCapacity({
+      store: new MemoryLedgerStore(existing),
+      expectedLedgerRevision: 7,
+      now,
+      reservation: {
+        ...otherBook,
+        sourceVersionId: previous.sourceVersionId,
+      },
+      category: 'pending',
+    })).rejects.toMatchObject({ code: 'stale_revision' });
+    await expect(reserveSourceCapacity({
+      store: new MemoryLedgerStore(existing),
+      expectedLedgerRevision: 7,
+      now,
+      reservation: {
+        ...otherBook,
+        providerObjectKey: previous.providerObjectKey,
+      },
+      category: 'pending',
+    })).rejects.toMatchObject({ code: 'stale_revision' });
+  });
+
   it('fails stale local retry and concurrent CAS without overwriting newer state', async () => {
     const stale = new MemoryLedgerStore(state());
     await expect(reserveSourceCapacity({ store: stale, expectedLedgerRevision: 6, now, reservation: reservation('stale'), category: 'pending' }))

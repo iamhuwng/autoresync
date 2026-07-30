@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES, BOOK_SOURCE_MAX_PDF_BYTES, type BookSourceUploadAccountState } from '../../types/bookSource.types';
+import {
+  BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES,
+  BOOK_SOURCE_MAX_PDF_BYTES,
+  BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS,
+  type BookSourceUploadAccountState,
+} from '../../types/bookSource.types';
 import type { SourceUploadRtdbTransaction } from './sourceUpload.firebaseRtdbTransaction';
 import {
   SourceUploadRtdbRepository,
@@ -35,6 +40,188 @@ describe('SourceUploadRtdbRepository', () => {
       expectedRevision: 1, reservationId: 'reservation-2', sourceVersionId: 'source-2', providerObjectKey: 'private/book-1/source-2.pdf', kind: 'replacement',
     }));
     expect(replacement.operations['reservation-2']).toMatchObject({ sourceKey: 'unit-1', kind: 'replacement' });
+  });
+
+  it('scopes initial source keys to their Book instead of the whole storage account', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    await repository.reserve(reservation({ sourceKey: 'main' }));
+    const otherActiveBook = await repository.reserve(reservation({
+      expectedRevision: 1,
+      reservationId: 'reservation-2',
+      bookId: 'book-2',
+      sourceVersionId: 'source-2',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-2/source-2.pdf',
+    }));
+    expect(otherActiveBook.operations['reservation-2']).toMatchObject({
+      bookId: 'book-2',
+      sourceKey: 'main',
+      status: 'reserved',
+    });
+    await expect(repository.reserve(reservation({
+      expectedRevision: otherActiveBook.revision,
+      reservationId: 'reservation-same-book',
+      sourceVersionId: 'source-same-book',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-1/source-same-book.pdf',
+    }))).rejects.toThrow('sourceKey is already reserved');
+    const verified = await repository.completeVerified({
+      accountId: 'account-1',
+      expectedRevision: otherActiveBook.revision,
+      reservationId: 'reservation-1',
+      verifiedAt: '2026-07-23T00:01:00.000Z',
+      verifiedStorage: storage(),
+    });
+    const otherVerifiedBook = await repository.reserve(reservation({
+      expectedRevision: verified.revision,
+      reservationId: 'reservation-3',
+      bookId: 'book-3',
+      sourceVersionId: 'source-3',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-3/source-3.pdf',
+    }));
+    expect(otherVerifiedBook.operations['reservation-3']).toMatchObject({
+      bookId: 'book-3',
+      sourceKey: 'main',
+      status: 'reserved',
+    });
+
+    const cleanupMemory = createMemoryTransaction();
+    const cleanupRepository = createRepository(cleanupMemory.transaction);
+    await cleanupRepository.reserve(reservation({ sourceKey: 'main' }));
+    const cleanupPending = await cleanupRepository.requestCleanup({
+      accountId: 'account-1',
+      expectedRevision: 1,
+      reservationId: 'reservation-1',
+      ownerId: 'teacher-1',
+      reason: 'cancel_requested',
+      requestedAt: '2026-07-23T00:01:00.000Z',
+      providerFileId: 'file-1',
+      providerFileVersionId: 'version-1',
+    });
+    const otherCleanupPendingBook = await cleanupRepository.reserve(reservation({
+      expectedRevision: cleanupPending.revision,
+      reservationId: 'reservation-4',
+      bookId: 'book-4',
+      sourceVersionId: 'source-4',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-4/source-4.pdf',
+    }));
+    expect(otherCleanupPendingBook.operations['reservation-4']).toMatchObject({
+      bookId: 'book-4',
+      sourceKey: 'main',
+      status: 'reserved',
+    });
+
+    const claimed = await cleanupRepository.claimCleanup({
+      accountId: 'account-1',
+      expectedRevision: otherCleanupPendingBook.revision,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-1',
+      claimedAt: '2026-07-23T00:01:00.000Z',
+      leaseExpiresAt: '2026-07-23T00:02:00.000Z',
+    });
+    const released = await cleanupRepository.releaseCleaned({
+      accountId: 'account-1',
+      expectedRevision: claimed.revision,
+      reservationId: 'reservation-1',
+      leaseOwner: 'reconciler-1',
+      releasedAt: '2026-07-23T00:01:01.000Z',
+      proof: 'exact_version_deleted',
+    });
+    await expect(cleanupRepository.reserve(reservation({
+      expectedRevision: released.revision,
+      reservationId: 'reservation-same-book-released',
+      sourceVersionId: 'source-same-book-released',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-1/source-same-book-released.pdf',
+    }))).rejects.toThrow('sourceKey is already reserved');
+    await expect(cleanupRepository.reserve(reservation({
+      expectedRevision: released.revision,
+      reservationId: 'reservation-1',
+      bookId: 'book-5',
+      sourceVersionId: 'source-5',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-5/source-5.pdf',
+    }))).rejects.toThrow('reservation identity is immutable');
+    await expect(cleanupRepository.reserve(reservation({
+      expectedRevision: released.revision,
+      reservationId: 'reservation-global-source-version',
+      bookId: 'book-5',
+      sourceVersionId: 'source-1',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-5/global-source-version.pdf',
+    }))).rejects.toThrow('sourceVersionId is already reserved');
+    await expect(cleanupRepository.reserve(reservation({
+      expectedRevision: released.revision,
+      reservationId: 'reservation-global-provider-key',
+      bookId: 'book-5',
+      sourceVersionId: 'source-global-provider-key',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-1/source-1.pdf',
+    }))).rejects.toThrow('providerObjectKey is already reserved');
+
+    const otherBook = await cleanupRepository.reserve(reservation({
+      expectedRevision: released.revision,
+      reservationId: 'reservation-5',
+      bookId: 'book-5',
+      sourceVersionId: 'source-5',
+      sourceKey: 'main',
+      providerObjectKey: 'private/book-5/source-5.pdf',
+    }));
+
+    expect(otherBook.operations['reservation-5']).toMatchObject({
+      bookId: 'book-5',
+      sourceKey: 'main',
+      status: 'reserved',
+    });
+  });
+
+  it('fails closed when provider reconciliation is missing, drifted, stale, or future-dated', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    for (const providerReconciliation of [
+      undefined,
+      reconciliation({ status: 'drift' }),
+      reconciliation({ completedAt: '2026-07-22T23:45:59.999Z' }),
+      reconciliation({ completedAt: '2026-07-23T00:01:00.001Z' }),
+    ]) {
+      memory.setState({
+        revision: 0,
+        capacity: {
+          trackedAccountBytes: 0,
+          temporaryBytes: 0,
+          ...(providerReconciliation === undefined ? {} : { providerReconciliation }),
+        },
+        operations: {},
+      });
+      await expect(repository.reserve(reservation()))
+        .rejects.toThrow('current healthy provider reconciliation is required');
+    }
+  });
+
+  it('accepts the exact reconciliation freshness boundary and rejects one millisecond beyond it', async () => {
+    const memory = createMemoryTransaction();
+    const completedAt = '2026-07-23T00:01:00.000Z';
+    const exactBoundary = new Date(
+      Date.parse(completedAt) + BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS,
+    );
+    const accepted = await createRepository(memory.transaction, () => exactBoundary)
+      .reserve(reservation({
+        createdAt: exactBoundary.toISOString(),
+        expiresAt: new Date(exactBoundary.getTime() + 60_000).toISOString(),
+      }));
+    expect(accepted.operations['reservation-1']?.status).toBe('reserved');
+
+    const stale = createMemoryTransaction();
+    await expect(createRepository(
+      stale.transaction,
+      () => new Date(exactBoundary.getTime() + 1),
+    ).reserve(reservation({
+      createdAt: new Date(exactBoundary.getTime() + 1).toISOString(),
+      expiresAt: new Date(exactBoundary.getTime() + 60_001).toISOString(),
+    }))).rejects.toThrow('current healthy provider reconciliation is required');
   });
 
   it('persists a trusted provider reconciliation snapshot with account CAS', async () => {
@@ -273,7 +460,11 @@ describe('SourceUploadRtdbRepository', () => {
     const memory = createMemoryTransaction();
     memory.setState({
       revision: 0,
-      capacity: { trackedAccountBytes: 0, temporaryBytes: 0 },
+      capacity: {
+        trackedAccountBytes: 0,
+        temporaryBytes: 0,
+        providerReconciliation: reconciliation(),
+      },
     } as BookSourceUploadAccountState);
     const state = await createRepository(memory.transaction).reserve(reservation());
     expect(state.operations['reservation-1']?.status).toBe('reserved');
@@ -405,7 +596,10 @@ function createMemoryTransaction(
 } {
   let state: BookSourceUploadAccountState | null = initialCapacity === null ? null : {
     revision: 0,
-    capacity: initialCapacity,
+    capacity: {
+      ...initialCapacity,
+      providerReconciliation: reconciliation(),
+    },
     operations: {},
   };
   return {
@@ -417,6 +611,18 @@ function createMemoryTransaction(
       state = next as BookSourceUploadAccountState;
       return { committed: true, value: state };
     },
+  };
+}
+
+function reconciliation(
+  overrides: Partial<NonNullable<BookSourceUploadAccountState['capacity']['providerReconciliation']>> = {},
+): NonNullable<BookSourceUploadAccountState['capacity']['providerReconciliation']> {
+  return {
+    status: 'healthy',
+    totalBytes: 0,
+    objectCount: 0,
+    completedAt: '2026-07-23T00:01:00.000Z',
+    ...overrides,
   };
 }
 

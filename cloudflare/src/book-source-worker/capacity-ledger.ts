@@ -1,7 +1,10 @@
+import { BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS } from '../../../src/types/bookSource.types.ts';
+
 /** Trusted-only capacity contract. No browser code receives this state. */
 export const MAX_SOURCE_PDF_BYTES = 500 * 1024 * 1024;
 export const BOOK_PDF_ACCOUNT_CAPACITY_BYTES = 9_000_000_000;
-export const MAX_PROVIDER_RECONCILIATION_AGE_MS = 15 * 60 * 1_000;
+export const MAX_PROVIDER_RECONCILIATION_AGE_MS =
+  BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS;
 export const MAX_CAPACITY_LEDGER_ENTRIES = 10_000;
 
 export const CAPACITY_LEDGER_CATEGORIES = [
@@ -295,7 +298,9 @@ export const reserveSourceCapacity = async (input: ReserveSourceCapacityInput): 
   if (!hasCurrentHealthyReconciliation(state.providerReconciliation, input.now)) fail('provider_drift');
   if (state.entries.some((entry) => entry.reservation.sourceVersionId === input.reservation.sourceVersionId
     || entry.reservation.providerObjectKey === input.reservation.providerObjectKey
-    || (input.category !== 'replacement' && entry.reservation.sourceKey === input.reservation.sourceKey))) {
+    || (input.category !== 'replacement'
+      && entry.reservation.bookId === input.reservation.bookId
+      && entry.reservation.sourceKey === input.reservation.sourceKey))) {
     fail('stale_revision');
   }
   const accounted = getAccountedCapacityBytes(state);

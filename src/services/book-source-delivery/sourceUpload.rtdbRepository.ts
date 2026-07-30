@@ -7,6 +7,7 @@ import type {
   BookSourceProviderReconciliationSnapshot,
   BookSourceVersionStorageIdentity,
 } from '../../types/bookSource.types';
+import { BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS } from '../../types/bookSource.types';
 import {
   assertBookSourceCapacityAvailable,
   assertBookSourcePdfByteSize,
@@ -179,6 +180,7 @@ export class SourceUploadRtdbRepository {
         }
         const state = normalizePersistedState(current);
         assertState(state);
+        assertCurrentHealthyProviderReconciliation(state, this.now());
         const previous = state.operations[input.reservationId];
         if (previous) {
           if (!sameReservation(previous, input)) throw new SourceUploadConflictError('reservation identity is immutable.');
@@ -194,7 +196,9 @@ export class SourceUploadRtdbRepository {
           if (operation.providerObjectKey === input.providerObjectKey) {
             throw new SourceUploadConflictError('providerObjectKey is already reserved.');
           }
-          if (input.kind !== 'replacement' && operation.sourceKey === input.sourceKey) {
+          if (input.kind !== 'replacement'
+              && operation.bookId === input.bookId
+              && operation.sourceKey === input.sourceKey) {
             throw new SourceUploadConflictError('sourceKey is already reserved.');
           }
         }
@@ -658,6 +662,27 @@ function assertProviderReconciliationSnapshot(
     || typeof value.completedAt !== 'string'
     || !isIsoDate(value.completedAt)) {
     throw new SourceUploadConflictError('invalid provider reconciliation snapshot.');
+  }
+}
+
+function assertCurrentHealthyProviderReconciliation(
+  state: BookSourceUploadAccountState,
+  now: Date,
+): void {
+  const snapshot = state.capacity.providerReconciliation;
+  const nowMs = now.getTime();
+  const completedAtMs = snapshot === undefined
+    ? Number.NaN
+    : Date.parse(snapshot.completedAt);
+  if (snapshot === undefined
+    || snapshot.status !== 'healthy'
+    || !Number.isFinite(nowMs)
+    || !Number.isFinite(completedAtMs)
+    || completedAtMs > nowMs
+    || nowMs - completedAtMs > BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS) {
+    throw new SourceUploadConflictError(
+      'current healthy provider reconciliation is required before upload authorization.',
+    );
   }
 }
 
