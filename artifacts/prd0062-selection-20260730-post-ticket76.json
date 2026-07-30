@@ -1,0 +1,113 @@
+{
+  "generatedAt": "2026-07-30",
+  "selectionStatus": "SELECTED",
+  "roadmapPhase": "runtime",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-post-ticket76-closed.json",
+  "graphIssueHash": "20743ec96cbaf45ede1acd93585c37c6b85088e156827bdf078dd873a80b7c57",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 47,
+    "closedCount": 65,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 77, 87, 91, 106, 129, 130, 131, 132, 133]
+  },
+  "selectedTicket": {
+    "number": 77,
+    "title": "PRD0062 29 — Review grouped Activity attempts",
+    "directPrerequisites": [76],
+    "completeTransitivePrerequisites": [
+      25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+      44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65,
+      66, 72, 73, 74, 75, 76
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 29,
+    "acceptanceReadiness": {
+      "prerequisites": "All direct and transitive prerequisites are formally CLOSED.",
+      "localProjectionAndVisibility": "Executable under the repository harness and existing result-authority seams.",
+      "browserStudentPort": "Executable at http://localhost:5174 with the authenticated Student quick-login surface.",
+      "browserTeacherPort": "Executable at http://localhost:5173 with the authenticated Teacher quick-login surface.",
+      "deployment": "Controlled preview evidence is authorized for this in-scope runtime work; no production or trusted gate activation is implied.",
+      "ownership": "Result grouping/visibility is owned by #77; immutable terminal record creation remains closed #76; deployed/canary proof remains destination-owned by the final closure contract.",
+      "authority": "Available for local implementation and controlled preview verification; #03B, #50A, and trusted actions remain disabled."
+    },
+    "selectionReason": "Earliest unresolved Runtime result/enabler after #76 closure. Its complete prerequisite chain is closed, its acceptance seams are executable under current authority, and it unblocks 29 downstream tickets without bypassing an unresolved root."
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Ineligible under the acceptance gate: private-B2/03B and trusted activation remain disabled, while remote provider, exact identity, CORS, cost, browser, cleanup, and rollback evidence require activation authority not available from graph-clear status alone."
+    },
+    {
+      "ticket": 87,
+      "title": "PRD0062 34B — Enforce effective Book Homework windows",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Not selected as the current earliest Runtime root/enabler. It is a later schedule-enforcement descendant with a higher-leverage but broader cross-boundary acceptance surface; selecting it before the unresolved result projection would skip the current Runtime order."
+    },
+    {
+      "ticket": 91,
+      "title": "PRD0062 37A — Capture bounded pre-submit Book integrity signals",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Not selected as the current earliest Runtime root/enabler. Its integrity-event route, policy, and preview deployment proof are a later cross-cutting concern; no ownership transfer or authority exception was approved at this checkpoint."
+    },
+    {
+      "ticket": 106,
+      "title": "PRD0062 44 — Reference or fork public Book content",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Teacher-workflow roadmap phase; the current phase is Runtime and #77 is the earliest unresolved eligible Runtime root/enabler."
+    },
+    {
+      "ticket": 129,
+      "title": "PRD0062 51B2 — Run teacher updates, replacement, and results browser suite",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure phase; selecting it would bypass unresolved Runtime result work."
+    },
+    {
+      "ticket": 130,
+      "title": "PRD0062 51C1 — Run student runtime and persistence browser suite",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure phase; selecting it would bypass the Runtime result implementation and its full acceptance evidence."
+    },
+    {
+      "ticket": 131,
+      "title": "PRD0062 51C2 — Run student accessibility and device browser suite",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure phase; selecting it would bypass unresolved Runtime result work."
+    },
+    {
+      "ticket": 132,
+      "title": "PRD0062 51D1 — Run contract and security regressions",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure phase; selecting it would bypass unresolved Runtime result work."
+    },
+    {
+      "ticket": 133,
+      "title": "PRD0062 51D2 — Run legacy, backup, and recovery regressions",
+      "graphStatus": "graph-clear",
+      "eligible": false,
+      "reason": "Final-closure phase; selecting it would bypass unresolved Runtime result work."
+    }
+  ],
+  "safety": {
+    "ticket03B": "disabled",
+    "ticket50A": "all-six-deny/default-deny",
+    "trustedActions": "disabled",
+    "privateB2": "disabled",
+    "scope": "Full 112-ticket graph preserved; exactly one primary selected."
+  }
+}
