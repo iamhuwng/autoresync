@@ -8,7 +8,7 @@ import {
   createBookAssemblyPublicationRouteHandlers,
   type BookAssemblyPublicationRouteOptions,
 } from './book-assembly/publication-route-handlers.ts';
-import { createBookRuntimeWorkerHandlers } from './book-runtime/worker.ts';
+import { createBookRuntimeCanonicalHandlers } from './book-runtime/canonical.ts';
 import { createBookHomeworkWorkerHandlers } from './book-homework/worker.ts';
 import { createTeacherAssemblyPreviewWorker } from './book-delivery/teacher-assembly-preview-worker.js';
 import type {
@@ -97,7 +97,7 @@ export const createBookRouteHandlers = (
   const assemblyPublication = createBookAssemblyPublicationRouteHandlers(options.assemblyPublication);
   const assemblySuccessor = options.assemblySuccessorHandlers ?? {};
   const assemblyMappingRevision = options.assemblyMappingRevisionHandlers ?? {};
-  const runtime = options.runtimeHandlers ?? createBookRuntimeWorkerHandlers();
+  const runtime = options.runtimeHandlers ?? createBookRuntimeCanonicalHandlers();
   const homework = options.homeworkHandlers ?? createBookHomeworkWorkerHandlers();
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,

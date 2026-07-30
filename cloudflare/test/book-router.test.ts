@@ -212,7 +212,7 @@ describe('canonical Book router core', () => {
     })(request('/v1/book-delivery/document/route-key', { method: 'GET' }), env());
 
     expect(response?.status).toBe(503);
-    expect(await response?.json()).toEqual({ code: 'book_document_route_unavailable' });
+    expect(await response?.json()).toEqual({ code: 'document_configuration_unavailable' });
   });
 
   it('bounds unclaimed request bodies and serialized handler responses', async () => {

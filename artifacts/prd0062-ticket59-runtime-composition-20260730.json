@@ -1,0 +1,63 @@
+{
+  "ticket": 59,
+  "title": "09D canonical Book Worker durable runtime-consumer composition",
+  "date": "2026-07-30",
+  "baseCommit": "30009f9eff5b749b894c31d06a6f7e315da5f340",
+  "status": "ready_for_closure",
+  "implemented": [
+    "Default canonical route composition now registers Book Runtime handlers through a #59-owned lazy production seam.",
+    "Each request constructs the dedicated FirebaseRestBookRuntimeRepository from BOOK_RUNTIME_SERVICE_IDENTITY and BOOK_RUNTIME_GOOGLE_SA_KEY.",
+    "Each request constructs the dedicated FirebaseRestBookDeliveryRepository and resolves only the authenticated recipient's current binding and matching bindingId.",
+    "The existing #74 worker owns schema, authorization, CAS, idempotency, persistence, and schedule enforcement; #59 does not duplicate those rules.",
+    "Missing runtime or Delivery credentials fail closed before repository mutation.",
+    "The existing BOOK_RUNTIME_ROUTES_ENABLED gate, generic auth/rate/CORS/body/response checks, and dedicated identity declarations remain unchanged and disabled in wrangler.jsonc."
+  ],
+  "verification": {
+    "focusedCanonicalAndRouteSuite": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-router.test.ts test/book-worker-integration.test.ts test/book-runtime-canonical-composition.test.ts test/book-runtime-route-integration.test.ts test/book-route-manifest.test.ts test/book-publication-route-handlers.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "result": "6 files, 56 tests passed, no type errors"
+    },
+    "runtimeRegressionSuite": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-runtime-command-schema.test.ts test/book-runtime-authorization.test.ts test/book-runtime-repository.test.ts test/book-runtime-worker.test.ts test/book-runtime-route-integration.test.ts test/book-route-manifest.test.ts test/book-publication-route-handlers.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "result": "7 files, 50 tests passed, no type errors"
+    },
+    "wranglerDryRun": {
+      "command": "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run --config wrangler.jsonc",
+      "result": "passed; canonical Worker bundle generated; all Book/runtime/trusted gates read back disabled"
+    },
+    "topLevelWorkerIntegration": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-worker-integration.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "result": "1 file, 4 tests passed, no type errors"
+    },
+    "lint": "passed for #59 touched source/test paths",
+    "utf8": "passed for #59 touched text paths",
+    "diffCheck": "passed for #59 touched paths"
+  },
+  "ownership": {
+    "ticket59": [
+      "canonical route composition",
+      "runtime repository and Delivery repository injection seam",
+      "generic route boundary and fail-closed configuration handling"
+    ],
+    "ticket74": [
+      "runtime repository implementation",
+      "CAS/idempotency/crash/immutable persistence",
+      "runtime authorization and schedule-policy contract"
+    ],
+    "ticket118": [
+      "assembled generated-rules proof and deployment hash/readback"
+    ],
+    "ticket134": [
+      "activated deployed/canary runtime identity, disposable data, telemetry, cleanup, and operational rollback"
+    ]
+  },
+  "safety": {
+    "bookRuntimeRoutesEnabled": "disabled",
+    "trustedActions": "disabled",
+    "ticket03B": "disabled",
+    "ticket50A": "all-six-deny/default-deny",
+    "privateB2": "disabled",
+    "deployment": "not performed",
+    "browser": "not required for retained #59 local composition; positive deployed/canary proof remains destination-owned"
+  }
+}
