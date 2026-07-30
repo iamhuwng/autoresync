@@ -23,6 +23,7 @@ import {
 import { createCapacityProbeWorker } from './capacity-probe-worker';
 
 const MAX_ACCOUNT_STATE_BYTES = 32 * 1024 * 1024;
+const MAX_SCHEDULED_CAPACITY_WORK_UNITS = 4;
 const CAPACITY_RECONCILIATION_PATH = '/internal/book-source-capacity/reconciliation-page';
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 
@@ -31,6 +32,8 @@ interface ReconciliationWorkerEnv extends BackblazeB2ExactVersionCleanupEnv, Rec
   readonly BOOK_SOURCE_RECONCILIATION_ACTION_STATE?: string;
   readonly BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE?: string;
   readonly BOOK_SOURCE_RECONCILIATION_DIAGNOSTICS?: string;
+  readonly BOOK_SOURCE_CAPACITY_PROBE_STATE?: string;
+  readonly BOOK_SOURCE_CAPACITY_PROBE_TOKEN?: string;
   readonly BOOK_SOURCE_UPLOAD_ACCOUNT_ID: string;
   readonly BOOK_SOURCE_RECONCILIATION_LEASE_OWNER: string;
   readonly BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL: string;
@@ -125,11 +128,26 @@ const failureCode = (error: unknown): string => {
 interface ReconciliationRuntime {
   readonly readAccountState: () => Promise<BookSourceUploadAccountState | null>;
   readonly reconciler: ReturnType<typeof createSourceUploadReconciler>;
+  readonly repository: Pick<
+    SourceUploadRtdbRepository,
+    'recordProviderReconciliationContinuation' | 'clearProviderReconciliationContinuation'
+  >;
+}
+
+interface CapacityRuntime {
+  readonly readAccountState: () => Promise<BookSourceUploadAccountState | null>;
+  readonly repository: Pick<
+    SourceUploadRtdbRepository,
+    'recordProviderReconciliationContinuation' | 'clearProviderReconciliationContinuation'
+  >;
 }
 
 type ReconciliationRuntimeFactory = (
   env: ReconciliationWorkerEnv,
 ) => Promise<ReconciliationRuntime> | ReconciliationRuntime;
+type CapacityRuntimeFactory = (
+  env: ReconciliationWorkerEnv,
+) => Promise<CapacityRuntime> | CapacityRuntime;
 
 const scheduledCandidate = (
   state: BookSourceUploadAccountState | null,
@@ -151,11 +169,34 @@ const scheduledCandidate = (
     .sort((left, right) => left.reservationId.localeCompare(right.reservationId))[0];
 };
 
+const readCapacityProbeResult = async (
+  response: Response,
+): Promise<
+  | { readonly state: 'continue'; readonly continuationToken: string }
+  | { readonly state: 'complete'; readonly status: 'healthy' | 'drift' }
+> => {
+  if (!response.ok) throw new Error(`capacity_probe_${response.status}`);
+  const value = record(await response.json());
+  if (value?.state === 'continue'
+    && typeof value.continuationToken === 'string'
+    && /^[A-Za-z0-9_-]{1,65536}$/u.test(value.continuationToken)
+    && Object.keys(value).length === 2) {
+    return { state: 'continue', continuationToken: value.continuationToken };
+  }
+  if (value?.state === 'complete'
+    && (value.status === 'healthy' || value.status === 'drift')
+    && Object.keys(value).length === 2) {
+    return { state: 'complete', status: value.status };
+  }
+  throw new Error('capacity_probe_invalid_response');
+};
+
 export const createBookSourceReconciliationWorker = (
   fetchImpl: typeof fetch = fetch,
   now: () => Date = () => new Date(),
   capacityProbe = createCapacityProbeWorker({ fetchImpl }),
   runtimeFactory?: ReconciliationRuntimeFactory,
+  capacityRuntimeFactory?: CapacityRuntimeFactory,
 ) => {
   const createRuntime: ReconciliationRuntimeFactory = runtimeFactory ?? (async (env) => {
     const accountId = required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID);
@@ -227,8 +268,47 @@ export const createBookSourceReconciliationWorker = (
     return {
       readAccountState,
       reconciler: createSourceUploadReconciler(dependencies),
+      repository,
     };
   });
+  const createCapacityRuntime: CapacityRuntimeFactory = capacityRuntimeFactory
+    ?? (runtimeFactory
+      ? async (env) => {
+          const runtime = await runtimeFactory(env);
+          return {
+            readAccountState: runtime.readAccountState,
+            repository: runtime.repository,
+          };
+        }
+      : async (env) => {
+          const accountId = required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID);
+          const baseUrl = databaseUrl(required(env.FIREBASE_DATABASE_URL));
+          const accessTokenProvider = createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
+            serviceAccountEmail: required(env.BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL),
+            serviceAccountPrivateKey: required(
+              env.BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY,
+            ).replace(/\\n/gu, '\n'),
+            fetchImpl,
+          });
+          const repository = new SourceUploadRtdbRepository(
+            createTrustedFirebaseSourceUploadRtdbTransaction({
+              databaseUrl: baseUrl,
+              accessTokenProvider,
+              fetchImpl,
+            }),
+            { now },
+          );
+          const readAccountState = async () => {
+            const response = await fetchImpl(
+              `${baseUrl}/${sourceUploadAccountPath(accountId)}.json`,
+              { headers: { Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}` } },
+            );
+            if (!response.ok) throw new Error('account_state_unavailable');
+            const value = await readBoundedJson(response);
+            return value === null ? null : validateBookSourceUploadAccountState(value);
+          };
+          return { readAccountState, repository };
+        });
 
   return {
   async fetch(request: Request, env: ReconciliationWorkerEnv): Promise<Response> {
@@ -265,24 +345,81 @@ export const createBookSourceReconciliationWorker = (
     _context: ExecutionContext,
   ): Promise<void> {
     if (env.BOOK_SOURCE_RECONCILIATION_STATE?.trim() !== 'enabled'
-      || env.BOOK_SOURCE_RECONCILIATION_ACTION_STATE?.trim() !== 'enabled'
       || env.BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE?.trim() !== 'enabled') {
       return;
     }
-    try {
-      const runtime = await createRuntime(env);
-      const at = now();
-      const candidate = scheduledCandidate(await runtime.readAccountState(), at);
-      if (!candidate) return;
-      await runtime.reconciler.reconcile({
-        actorId: candidate.ownerId,
-        bookId: candidate.bookId,
-        reservationId: candidate.reservationId,
-      });
-    } catch (error) {
-      console.error('book_source_reconciliation_scheduled_failure', {
-        code: failureCode(error),
-      });
+    const at = now();
+
+    if (env.BOOK_SOURCE_RECONCILIATION_ACTION_STATE?.trim() === 'enabled') {
+      try {
+        const runtime = await createRuntime(env);
+        const candidate = scheduledCandidate(await runtime.readAccountState(), at);
+        if (candidate) {
+          await runtime.reconciler.reconcile({
+            actorId: candidate.ownerId,
+            bookId: candidate.bookId,
+            reservationId: candidate.reservationId,
+          });
+        }
+      } catch (error) {
+        console.error('book_source_reconciliation_scheduled_failure', {
+          code: failureCode(error),
+        });
+      }
+    }
+
+    if (env.BOOK_SOURCE_CAPACITY_PROBE_STATE?.trim() === 'enabled') {
+      try {
+        const runtime = await createCapacityRuntime(env);
+        const state = await runtime.readAccountState();
+        if (state) {
+          let continuation = state.capacity.providerReconciliationContinuation;
+          for (let unit = 0; unit < MAX_SCHEDULED_CAPACITY_WORK_UNITS; unit += 1) {
+            const response = await capacityProbe.fetch(
+              new Request(`https://book-source-reconciliation.internal${CAPACITY_RECONCILIATION_PATH}`, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${required(env.BOOK_SOURCE_CAPACITY_PROBE_TOKEN)}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(continuation === undefined
+                  ? {}
+                  : { continuationToken: continuation.token }),
+              }),
+              env,
+            );
+            if (response.status === 400 && continuation !== undefined) {
+              await runtime.repository.clearProviderReconciliationContinuation({
+                accountId: required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID),
+                expectedRevision: state.revision,
+                expectedContinuationToken: continuation.token,
+              });
+              break;
+            }
+            const result = await readCapacityProbeResult(response);
+            if (result.state === 'complete') break;
+            await runtime.repository.recordProviderReconciliationContinuation({
+              accountId: required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID),
+              expectedRevision: state.revision,
+              ...(continuation === undefined ? {} : {
+                expectedContinuationToken: continuation.token,
+              }),
+              continuation: {
+                token: result.continuationToken,
+                updatedAt: at.toISOString(),
+              },
+            });
+            continuation = {
+              token: result.continuationToken,
+              updatedAt: at.toISOString(),
+            };
+          }
+        }
+      } catch (error) {
+        console.error('book_source_capacity_scheduled_failure', {
+          code: failureCode(error),
+        });
+      }
     }
   },
   };

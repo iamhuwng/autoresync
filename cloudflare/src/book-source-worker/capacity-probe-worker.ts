@@ -69,6 +69,14 @@ const decodeBase64Url = (value: string): Uint8Array | null => {
 const required = (env: Record<string, unknown>, name: string): string => {
   const value = env[name]; if (typeof value !== 'string' || !value.trim()) throw new Error('invalid'); return value.trim();
 };
+const configuredMaxPages = (env: Record<string, unknown>): number => {
+  const value = env.BOOK_SOURCE_CAPACITY_MAX_PROVIDER_PAGES;
+  if (value === undefined) return 256;
+  if (typeof value !== 'string' || !/^\d{1,3}$/u.test(value)) throw new Error('invalid');
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 256) throw new Error('invalid');
+  return parsed;
+};
 const readBoundedResponse = async (response: Response): Promise<unknown> => {
   const declaredLength = response.headers.get('content-length');
   if (declaredLength !== null
@@ -340,7 +348,11 @@ export const createCapacityProbeWorker = (
         const continuation = await unseal(cursorSecret, body.continuationToken, now); if (!continuation) return unavailable(400);
         expected = continuation.expected; cursor = continuation.cursor;
       } else return unavailable(400);
-      const work = await readProviderTotalsWorkUnit({ provider: createCapacityProbeProviderFromEnv(env), cursor });
+      const work = await readProviderTotalsWorkUnit({
+        provider: createCapacityProbeProviderFromEnv(env),
+        cursor,
+        maxPages: configuredMaxPages(env),
+      });
       if (work.state === 'continue') {
         const continuationToken = await seal(cursorSecret, { v: TOKEN_VERSION, exp: now + TOKEN_TTL_MS, expected, cursor: work.cursor });
         return noStore(200, { state: 'continue', continuationToken });

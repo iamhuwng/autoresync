@@ -42,6 +42,56 @@ describe('SourceUploadRtdbRepository', () => {
     expect(replacement.operations['reservation-2']).toMatchObject({ sourceKey: 'unit-1', kind: 'replacement' });
   });
 
+  it('persists bounded provider scan progress without advancing the domain revision', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const progressed = await repository.recordProviderReconciliationContinuation({
+      accountId: 'account-1',
+      expectedRevision: 0,
+      continuation: {
+        token: 'sealed_cursor_1',
+        updatedAt: '2026-07-23T00:01:00.000Z',
+      },
+    });
+    expect(progressed).toMatchObject({
+      revision: 0,
+      capacity: {
+        providerReconciliationContinuation: {
+          token: 'sealed_cursor_1',
+        },
+      },
+    });
+
+    const reserved = await repository.reserve(reservation());
+    expect(reserved.revision).toBe(1);
+    expect(reserved.capacity.providerReconciliationContinuation).toBeUndefined();
+
+    const progressedAgain = await repository.recordProviderReconciliationContinuation({
+      accountId: 'account-1',
+      expectedRevision: 1,
+      continuation: {
+        token: 'sealed_cursor_2',
+        updatedAt: '2026-07-23T00:02:00.000Z',
+      },
+    });
+    await expect(repository.recordProviderReconciliationContinuation({
+      accountId: 'account-1',
+      expectedRevision: 1,
+      continuation: {
+        token: 'stale_writer_cursor',
+        updatedAt: '2026-07-23T00:02:01.000Z',
+      },
+    })).rejects.toThrow('continuation compare-and-set conflict');
+    const cleared = await repository.clearProviderReconciliationContinuation({
+      accountId: 'account-1',
+      expectedRevision: 1,
+      expectedContinuationToken: 'sealed_cursor_2',
+    });
+    expect(progressedAgain.revision).toBe(1);
+    expect(cleared.revision).toBe(1);
+    expect(cleared.capacity.providerReconciliationContinuation).toBeUndefined();
+  });
+
   it('scopes initial source keys to their Book instead of the whole storage account', async () => {
     const memory = createMemoryTransaction();
     const repository = createRepository(memory.transaction);

@@ -31,6 +31,7 @@ export interface BookSourceVersionMetadata {
 
 export const BOOK_SOURCE_MAX_PDF_BYTES = 500 * 1024 * 1024;
 export const BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES = 9_000_000_000;
+export const BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS = 15 * 60 * 1_000;
 
 /** All byte categories required by the account-capacity invariant. */
 export interface BookSourceCapacityUsage {
@@ -48,6 +49,12 @@ export interface BookSourceProviderReconciliationSnapshot {
   readonly completedAt: string;
 }
 
+export interface BookSourceProviderReconciliationContinuation {
+  /** Opaque, authenticated cursor emitted by the bounded provider probe. */
+  readonly token: string;
+  readonly updatedAt: string;
+}
+
 export interface BookSourceUploadAccountCapacityState extends Pick<
   BookSourceCapacityUsage,
   'trackedAccountBytes' | 'temporaryBytes'
@@ -57,6 +64,11 @@ export interface BookSourceUploadAccountCapacityState extends Pick<
    * must never authorize a new provider upload.
    */
   readonly providerReconciliation?: BookSourceProviderReconciliationSnapshot;
+  /**
+   * Service-only progress for a multi-page provider scan. Domain mutations
+   * clear this value so a scan can never complete against a stale revision.
+   */
+  readonly providerReconciliationContinuation?: BookSourceProviderReconciliationContinuation;
 }
 
 export type BookSourceUploadKind = 'initial' | 'replacement';

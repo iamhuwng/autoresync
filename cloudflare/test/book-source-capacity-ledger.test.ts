@@ -339,6 +339,18 @@ describe('bounded provider reconciliation', () => {
       cursor: { ...cursor(), continuation: 'skip-to-middle' },
     })).rejects.toMatchObject({ code: 'reconciliation_bound_exceeded' });
     expect(arbitraryCursorCalls).toBe(0);
+    await expect(readProviderTotalsWorkUnit({
+      provider: {
+        readAccountTotalsPage: async () => ({
+          ...location,
+          totalBytes: 1,
+          objectCount: 1,
+          continuation: 'deployment-object-limit',
+        }),
+      } as never,
+      cursor: cursor(),
+      maxPages: 1,
+    })).rejects.toMatchObject({ code: 'reconciliation_bound_exceeded' });
     expect(() => reconcileProviderTotals({
       expected: { totalBytes: 0, objectCount: 0 },
       observed: { totalBytes: 0, objectCount: 0 },

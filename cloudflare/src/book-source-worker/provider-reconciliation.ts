@@ -83,16 +83,19 @@ export const readProviderTotalsWorkUnit = async (input: {
   readonly provider: Pick<SourceProviderPort, 'readAccountTotalsPage'>;
   readonly cursor: ProviderReconciliationCursor;
   readonly maxPageSize?: number;
+  readonly maxPages?: number;
 }): Promise<ProviderReconciliationWorkResult> => {
   const maxPageSize = input.maxPageSize ?? SOURCE_PROVIDER_ACCOUNT_TOTALS_MAX_PAGE_SIZE;
+  const maxPages = input.maxPages ?? PROVIDER_RECONCILIATION_MAX_PAGES;
   if (!Number.isSafeInteger(maxPageSize) || maxPageSize < 1 || maxPageSize > SOURCE_PROVIDER_ACCOUNT_TOTALS_MAX_PAGE_SIZE
+    || !Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > PROVIDER_RECONCILIATION_MAX_PAGES
     || typeof input.cursor.storageLocationId !== 'string'
     || !SAFE_IDENTIFIER.test(input.cursor.storageLocationId)
     || typeof input.cursor.privateBucketId !== 'string'
     || !SAFE_IDENTIFIER.test(input.cursor.privateBucketId)
     || !safeInteger(input.cursor.accumulatedBytes) || !safeInteger(input.cursor.accumulatedObjectCount)
     || !Number.isSafeInteger(input.cursor.pagesRead) || input.cursor.pagesRead < 0
-    || input.cursor.pagesRead >= PROVIDER_RECONCILIATION_MAX_PAGES
+    || input.cursor.pagesRead >= maxPages
     || input.cursor.seenContinuationFingerprints.length !== input.cursor.pagesRead
     || input.cursor.seenContinuationFingerprints.some((fingerprint) =>
       typeof fingerprint !== 'string' || !CONTINUATION_FINGERPRINT.test(fingerprint))
@@ -119,7 +122,7 @@ export const readProviderTotalsWorkUnit = async (input: {
   if (page.continuation === undefined) return Object.freeze({
     state: 'complete', totals: Object.freeze({ totalBytes, objectCount }),
   });
-  if (input.cursor.pagesRead + 1 >= PROVIDER_RECONCILIATION_MAX_PAGES) fail('reconciliation_bound_exceeded');
+  if (input.cursor.pagesRead + 1 >= maxPages) fail('reconciliation_bound_exceeded');
   return Object.freeze({
     state: 'continue',
     cursor: Object.freeze({

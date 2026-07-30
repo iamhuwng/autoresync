@@ -59,6 +59,7 @@ describe('Book Source capacity probe worker', () => {
         body: '{}',
       }), env()],
       [request({}), { ...env(), BOOK_SOURCE_CAPACITY_ENVIRONMENT: 'production' }],
+      [request({}), { ...env(), BOOK_SOURCE_CAPACITY_MAX_PROVIDER_PAGES: '0' }],
       [request({}), {}],
     ] as const;
     for (const [input, bindings] of cases) {
@@ -67,6 +68,32 @@ describe('Book Source capacity probe worker', () => {
       expect(await response.json()).toEqual({ code: 'unavailable' });
     }
     expect(fetcher).not.toHaveBeenCalled(); vi.unstubAllGlobals();
+  });
+
+  it('fails closed when the deployment object-page budget is exceeded', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (url) => (
+      String(url).includes('b2_authorize_account')
+        ? authorize()
+        : Response.json({
+          files: [{ action: 'upload', fileId: 'first', fileName: 'a.pdf', contentLength: 1 }],
+          nextFileName: 'b.pdf',
+          nextFileId: 'next',
+        })
+    ));
+    vi.stubGlobal('fetch', fetcher);
+
+    const response = await worker.fetch(request({}), {
+      ...env(),
+      BOOK_SOURCE_CAPACITY_MAX_PROVIDER_PAGES: '1',
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ code: 'unavailable' });
+    expect(workerErrors).toEqual([
+      expect.objectContaining({ code: 'reconciliation_bound_exceeded' }),
+    ]);
+    expect(writeReconciliationSnapshot).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it('does exactly one provider page per request; continuation is sealed and result leaks no B2/totals/config', async () => {

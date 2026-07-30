@@ -4,6 +4,7 @@ import type {
   BookSourceUploadCleanupReason,
   BookSourceUploadKind,
   BookSourceUploadOperation,
+  BookSourceProviderReconciliationContinuation,
   BookSourceProviderReconciliationSnapshot,
   BookSourceVersionStorageIdentity,
 } from '../../types/bookSource.types';
@@ -136,6 +137,19 @@ export interface RecordSourceProviderReconciliationInput {
   readonly snapshot: BookSourceProviderReconciliationSnapshot;
 }
 
+export interface RecordSourceProviderReconciliationContinuationInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly expectedContinuationToken?: string;
+  readonly continuation: BookSourceProviderReconciliationContinuation;
+}
+
+export interface ClearSourceProviderReconciliationContinuationInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  readonly expectedContinuationToken: string;
+}
+
 export interface RecordCommittedVersionReconciliationFailureInput {
   readonly accountId: string;
   readonly expectedRevision: number;
@@ -246,6 +260,61 @@ export class SourceUploadRtdbRepository {
         const state = normalizePersistedState(current);
         assertState(state);
         return nextState(state, state.operations, state.capacity.trackedAccountBytes, input.snapshot);
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
+  async recordProviderReconciliationContinuation(
+    input: RecordSourceProviderReconciliationContinuationInput,
+  ): Promise<BookSourceUploadAccountState> {
+    assertRtdbKey(input.accountId, 'accountId');
+    assertExpectedRevision(input.expectedRevision);
+    assertOptionalProviderReconciliationToken(input.expectedContinuationToken);
+    assertProviderReconciliationContinuation(input.continuation);
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) {
+          throw new SourceUploadConflictError('upload account state does not exist.');
+        }
+        const state = normalizePersistedState(current);
+        assertState(state);
+        if (state.capacity.providerReconciliationContinuation?.token
+          !== input.expectedContinuationToken) {
+          throw new SourceUploadConflictError(
+            'provider reconciliation continuation compare-and-set conflict.',
+          );
+        }
+        return withProviderReconciliationContinuation(state, input.continuation);
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
+  async clearProviderReconciliationContinuation(
+    input: ClearSourceProviderReconciliationContinuationInput,
+  ): Promise<BookSourceUploadAccountState> {
+    assertRtdbKey(input.accountId, 'accountId');
+    assertExpectedRevision(input.expectedRevision);
+    assertOptionalProviderReconciliationToken(input.expectedContinuationToken);
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) {
+          throw new SourceUploadConflictError('upload account state does not exist.');
+        }
+        const state = normalizePersistedState(current);
+        assertState(state);
+        if (state.capacity.providerReconciliationContinuation?.token
+          !== input.expectedContinuationToken) {
+          throw new SourceUploadConflictError(
+            'provider reconciliation continuation compare-and-set conflict.',
+          );
+        }
+        return withProviderReconciliationContinuation(state, undefined);
       },
     });
     return requireCommitted(result.committed, result.value);
@@ -561,8 +630,28 @@ function nextState(
       ...(providerReconciliation === undefined ? {} : {
         providerReconciliation: Object.freeze({ ...providerReconciliation }),
       }),
+      // Any domain revision change invalidates an in-progress provider scan.
     }),
     operations: Object.freeze(operations),
+  });
+}
+
+function withProviderReconciliationContinuation(
+  state: BookSourceUploadAccountState,
+  continuation: BookSourceProviderReconciliationContinuation | undefined,
+): BookSourceUploadAccountState {
+  return Object.freeze({
+    ...state,
+    capacity: Object.freeze({
+      trackedAccountBytes: state.capacity.trackedAccountBytes,
+      temporaryBytes: state.capacity.temporaryBytes,
+      ...(state.capacity.providerReconciliation === undefined ? {} : {
+        providerReconciliation: Object.freeze({ ...state.capacity.providerReconciliation }),
+      }),
+      ...(continuation === undefined ? {} : {
+        providerReconciliationContinuation: Object.freeze({ ...continuation }),
+      }),
+    }),
   });
 }
 
@@ -607,19 +696,33 @@ function assertReservationInput(input: ReserveSourceUploadInput, now: Date): voi
 
 function assertState(state: BookSourceUploadAccountState): void {
   const operations = state.operations ?? {};
+  const capacityKeys = isPlainRecord(state.capacity)
+    ? Object.keys(state.capacity)
+    : [];
   if (!isPlainRecord(state) ||
       (!hasOnlyKeys(state, ['revision', 'capacity', 'operations']) &&
         !hasOnlyKeys(state, ['revision', 'capacity'])) ||
       !Number.isSafeInteger(state.revision) ||
       (state.revision as number) < 0 ||
       !isPlainRecord(state.capacity) ||
-      (!hasOnlyKeys(state.capacity, ['trackedAccountBytes', 'temporaryBytes']) &&
-        !hasOnlyKeys(state.capacity, ['trackedAccountBytes', 'temporaryBytes', 'providerReconciliation'])) ||
+      !capacityKeys.includes('trackedAccountBytes') ||
+      !capacityKeys.includes('temporaryBytes') ||
+      capacityKeys.some((key) => ![
+        'trackedAccountBytes',
+        'temporaryBytes',
+        'providerReconciliation',
+        'providerReconciliationContinuation',
+      ].includes(key)) ||
       !isPlainRecord(operations)) {
     throw new SourceUploadConflictError('invalid upload account state.');
   }
   if (state.capacity.providerReconciliation !== undefined) {
     assertProviderReconciliationSnapshot(state.capacity.providerReconciliation);
+  }
+  if (state.capacity.providerReconciliationContinuation !== undefined) {
+    assertProviderReconciliationContinuation(
+      state.capacity.providerReconciliationContinuation,
+    );
   }
   const entries = Object.entries(operations);
   if (entries.length > MAX_SOURCE_UPLOAD_OPERATIONS) {
@@ -645,6 +748,32 @@ function assertState(state: BookSourceUploadAccountState): void {
     throw new SourceUploadConflictError('tracked provider bytes undercount verified operations.');
   }
   calculateBookSourceCapacityUsage({ ...state.capacity, operations: state.operations });
+}
+
+function assertExpectedRevision(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new SourceUploadConflictError('invalid provider reconciliation revision.');
+  }
+}
+
+function assertProviderReconciliationContinuation(
+  value: unknown,
+): asserts value is BookSourceProviderReconciliationContinuation {
+  if (!isPlainRecord(value)
+    || !hasOnlyKeys(value, ['token', 'updatedAt'])
+    || typeof value.token !== 'string'
+    || !/^[A-Za-z0-9_-]{1,65536}$/u.test(value.token)
+    || typeof value.updatedAt !== 'string'
+    || !isIsoDate(value.updatedAt)) {
+    throw new SourceUploadConflictError('invalid provider reconciliation continuation.');
+  }
+}
+
+function assertOptionalProviderReconciliationToken(value: unknown): void {
+  if (value !== undefined
+    && (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,65536}$/u.test(value))) {
+    throw new SourceUploadConflictError('invalid provider reconciliation continuation.');
+  }
 }
 
 function assertProviderReconciliationSnapshot(

@@ -9,12 +9,13 @@
   "account_id": "e41db829dabe9993f03674afdfd56510",
   "observability": { "enabled": true },
   "triggers": {
-    "crons": ["*/15 * * * *"]
+    "crons": ["*/5 * * * *"]
   },
   "vars": {
     "BOOK_SOURCE_UPLOAD_ACCOUNT_ID": "book_b2_primary",
     "BOOK_SOURCE_CAPACITY_ACCOUNT_ID": "book_b2_primary",
     "BOOK_SOURCE_CAPACITY_ENVIRONMENT": "staging",
+    "BOOK_SOURCE_CAPACITY_MAX_PROVIDER_PAGES": "8",
     "BOOK_SOURCE_RECONCILIATION_LEASE_OWNER": "prd0062-preview-reconciler",
     "BOOK_SOURCE_RECONCILIATION_DIAGNOSTICS": "enabled",
     "FIREBASE_DATABASE_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
