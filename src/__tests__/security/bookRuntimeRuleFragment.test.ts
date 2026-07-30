@@ -7,31 +7,41 @@ describe('Ticket 28A Book Runtime rules fragment', () => {
     expect(fragment28A.owner.generatedRuleLocations).toEqual([
       'book_runtime/.read',
       'book_runtime/.write',
-      'book_runtime/drafts/$recipientId/$contextId/$placementId/$interactionId/.read',
-      'book_runtime/drafts/$recipientId/$contextId/$placementId/$interactionId/.write',
-      'book_runtime/attempts/$attemptId/.read',
-      'book_runtime/attempts/$attemptId/.write',
-      'book_runtime/results/$resultId/.read',
-      'book_runtime/results/$resultId/.write',
-      'book_runtime/operations/$operationId/.read',
-      'book_runtime/operations/$operationId/.write',
-      'book_runtime/indexes/$recipientId/$contextId/$placementId/$attemptId/.read',
-      'book_runtime/indexes/$recipientId/$contextId/$placementId/$attemptId/.write',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/.read',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/.write',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/.read',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/draft/.read',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/draft/.write',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/attempts/$attemptId/.read',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/attempts/$attemptId/.write',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/results/$resultId/.read',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/results/$resultId/.write',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/completions/$completionId/.read',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/completions/$completionId/.write',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/operations/$operationId/.read',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/operations/$operationId/.write',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/indexes/$attemptId/.read',
+      'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/indexes/$attemptId/.write',
     ]);
     expect(fragment28A.operations.find((operation) =>
       operation.path === 'book_runtime' && operation.rule === '.write')?.expression).toBe('false');
     expect(fragment28A.operations.find((operation) =>
-      operation.path === 'book_runtime/indexes' && operation.rule === '.write')?.expression).toBe('false');
+      operation.path === 'book_runtime/scopes' && operation.rule === '.write')?.expression).toBe('false');
+    expect(fragment28A.operations.find((operation) =>
+      operation.path === 'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId'
+      && operation.rule === '.write')?.expression).toContain('auth.token.book_runtime_service == true');
   });
 
   it('allows only scoped runtime service identity writes and blocks sensitive payload fields', () => {
     const draftWrite = fragment28A.operations.find((operation) =>
-      operation.path === 'book_runtime/drafts/$recipientId/$contextId/$placementId/$interactionId'
+      operation.path === 'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/draft'
       && operation.rule === '.write');
     const attemptWrite = fragment28A.operations.find((operation) =>
-      operation.path === 'book_runtime/attempts/$attemptId' && operation.rule === '.write');
+      operation.path === 'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/attempts/$attemptId'
+      && operation.rule === '.write');
     const operationWrite = fragment28A.operations.find((operation) =>
-      operation.path === 'book_runtime/operations/$operationId' && operation.rule === '.write');
+      operation.path === 'book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/operations/$operationId'
+      && operation.rule === '.write');
 
     expect(draftWrite?.expression).toContain('auth.token.book_runtime_service == true');
     expect(draftWrite?.expression).toContain("newData.child('recipientId').val() == $recipientId");

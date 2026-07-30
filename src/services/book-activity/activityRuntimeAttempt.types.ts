@@ -75,6 +75,38 @@ export interface BookRuntimeResultRecord {
   readonly createdAt: string;
 }
 
+export interface BookRuntimeCompletionRecord {
+  readonly schemaVersion: 1;
+  readonly completionId: string;
+  readonly attemptId: string;
+  readonly resultId: string;
+  readonly bindingId: string;
+  readonly recipientId: string;
+  readonly contextId: string;
+  readonly placementId: string;
+  readonly activityId: string;
+  readonly activityVersion: number;
+  readonly interactionId: string;
+  readonly status: 'completed';
+  readonly createdByOperationId: string;
+  readonly createdAt: string;
+}
+
+export interface BookRuntimeAttemptIndexRecord {
+  readonly schemaVersion: 1;
+  readonly attemptId: string;
+  readonly resultId: string;
+  readonly bindingId: string;
+  readonly recipientId: string;
+  readonly contextId: string;
+  readonly placementId: string;
+  readonly activityId: string;
+  readonly activityVersion: number;
+  readonly interactionId: string;
+  readonly createdByOperationId: string;
+  readonly createdAt: string;
+}
+
 export interface BookRuntimeOperationReceipt {
   readonly operationId: string;
   readonly fingerprint: string;
@@ -90,5 +122,7 @@ export interface BookRuntimeCommandResult {
   readonly draft?: BookRuntimeDraftRecord;
   readonly attempt?: BookRuntimeAttemptRecord;
   readonly result?: BookRuntimeResultRecord;
+  readonly completion?: BookRuntimeCompletionRecord;
+  readonly index?: BookRuntimeAttemptIndexRecord;
   readonly receipt: BookRuntimeOperationReceipt;
 }

@@ -7,24 +7,30 @@
     "generatedRuleLocations": [
       "book_runtime/.read",
       "book_runtime/.write",
-      "book_runtime/drafts/$recipientId/$contextId/$placementId/$interactionId/.read",
-      "book_runtime/drafts/$recipientId/$contextId/$placementId/$interactionId/.write",
-      "book_runtime/attempts/$attemptId/.read",
-      "book_runtime/attempts/$attemptId/.write",
-      "book_runtime/results/$resultId/.read",
-      "book_runtime/results/$resultId/.write",
-      "book_runtime/operations/$operationId/.read",
-      "book_runtime/operations/$operationId/.write",
-      "book_runtime/indexes/$recipientId/$contextId/$placementId/$attemptId/.read",
-      "book_runtime/indexes/$recipientId/$contextId/$placementId/$attemptId/.write"
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/.read",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/.write",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/.read",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/draft/.read",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/draft/.write",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/attempts/$attemptId/.read",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/attempts/$attemptId/.write",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/results/$resultId/.read",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/results/$resultId/.write",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/completions/$completionId/.read",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/completions/$completionId/.write",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/operations/$operationId/.read",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/operations/$operationId/.write",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/indexes/$attemptId/.read",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/indexes/$attemptId/.write"
     ],
     "serviceIdentity": "book_runtime_service",
     "leastPrivilegePaths": [
-      "book_runtime/drafts/$recipientId/$contextId",
-      "book_runtime/attempts/$attemptId",
-      "book_runtime/results/$resultId",
-      "book_runtime/operations/$operationId",
-      "book_runtime/indexes/$recipientId/$contextId"
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/attempts",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/results",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/completions",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/operations",
+      "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/indexes"
     ]
   },
   "operations": [
@@ -43,84 +49,119 @@
       "expression": "false"
     },
     {
-      "path": "book_runtime/drafts/$recipientId/$contextId/$placementId/$interactionId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/draft",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId"
     },
     {
-      "path": "book_runtime/drafts/$recipientId/$contextId/$placementId/$interactionId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/draft",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId && newData.child('schemaVersion').val() == 1 && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('placementId').val() == $placementId && newData.child('interactionId').val() == $interactionId && newData.child('revision').isNumber() && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
     },
     {
-      "path": "book_runtime/attempts/$attemptId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/attempts/$attemptId",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == data.child('recipientId').val()"
     },
     {
-      "path": "book_runtime/attempts/$attemptId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/attempts/$attemptId",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true && !data.exists() && newData.child('attemptId').val() == $attemptId && newData.child('schemaVersion').val() == 1 && newData.child('recipientId').val() == auth.token.book_runtime_recipientId && newData.child('createdByOperationId').isString() && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
     },
     {
-      "path": "book_runtime/results/$resultId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/results/$resultId",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == data.child('recipientId').val()"
     },
     {
-      "path": "book_runtime/results/$resultId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/results/$resultId",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true && !data.exists() && newData.child('resultId').val() == $resultId && newData.child('schemaVersion').val() == 1 && newData.child('recipientId').val() == auth.token.book_runtime_recipientId && newData.child('createdByOperationId').isString() && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
     },
     {
-      "path": "book_runtime/operations/$operationId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/operations/$operationId",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true"
     },
     {
-      "path": "book_runtime/operations/$operationId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/operations/$operationId",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true && !data.exists() && newData.child('operationId').val() == $operationId && newData.child('fingerprint').isString() && newData.child('status').isString() && !newData.child('response').exists() && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
     },
     {
-      "path": "book_runtime/indexes",
-      "rule": ".read",
-      "merge": "replace-exact-deny",
-      "requiresExistingRule": false,
-      "expression": "false"
-    },
-    {
-      "path": "book_runtime/indexes",
-      "rule": ".write",
-      "merge": "replace-exact-deny",
-      "requiresExistingRule": false,
-      "expression": "false"
-    },
-    {
-      "path": "book_runtime/indexes/$recipientId/$contextId/$placementId/$attemptId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId"
     },
     {
-      "path": "book_runtime/indexes/$recipientId/$contextId/$placementId/$attemptId",
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId"
+    },
+    {
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+    },
+    {
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/completions/$completionId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId"
+    },
+    {
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/completions/$completionId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_runtime_service == true && !data.exists() && newData.child('completionId').val() == $completionId && newData.child('schemaVersion').val() == 1 && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('placementId').val() == $placementId && newData.child('interactionId').val() == $interactionId && newData.child('status').val() == 'completed' && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+    },
+    {
+      "path": "book_runtime/scopes",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_runtime/scopes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/indexes/$attemptId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId"
+    },
+    {
+      "path": "book_runtime/scopes/$recipientId/$contextId/$placementId/$interactionId/indexes/$attemptId",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
