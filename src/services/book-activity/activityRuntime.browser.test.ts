@@ -123,6 +123,7 @@ describe('Book Runtime browser client', () => {
           status: 'accepted',
           bindingId: 'binding-1',
           attemptId: 'attempt-1',
+          attemptNumber: 2,
           createdAt: '2026-07-28T00:00:01.000Z',
         },
       }));
@@ -142,7 +143,7 @@ describe('Book Runtime browser client', () => {
       status: 'accepted',
       resultStatus: 'pending_review',
       completionStatus: 'completed',
-      receipt: { attemptId: 'attempt-1' },
+      receipt: { attemptId: 'attempt-1', attemptNumber: 2 },
     });
 
     const draftRequest = fetchImpl.mock.calls[0]?.[1] as RequestInit;
@@ -179,6 +180,45 @@ describe('Book Runtime browser client', () => {
           operationId,
           status: 'accepted',
           bindingId: 'binding-1',
+          createdAt: '2026-07-28T00:00:01.000Z',
+        },
+      }));
+    const client = createBookRuntimeClient({
+      baseUrl: 'https://runtime.example',
+      getIdToken: async () => 'firebase-token',
+      fetchImpl,
+    });
+
+    await expect(client.submitActivity({
+      ...address,
+      operationId,
+      draftOperationId,
+      clientRevision: 0,
+      response: { text: 'final response' },
+    })).rejects.toMatchObject<BookRuntimeClientError>({ code: 'invalid_response' });
+  });
+
+  it('rejects a terminal response without a stable attempt number', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        status: 'accepted',
+        receipt: {
+          operationId: draftOperationId,
+          status: 'accepted',
+          bindingId: 'binding-1',
+          draftRevision: 1,
+          createdAt: '2026-07-28T00:00:00.000Z',
+        },
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        status: 'accepted',
+        resultStatus: 'pending_review',
+        completionStatus: 'completed',
+        receipt: {
+          operationId,
+          status: 'accepted',
+          bindingId: 'binding-1',
+          attemptId: 'attempt-1',
           createdAt: '2026-07-28T00:00:01.000Z',
         },
       }));

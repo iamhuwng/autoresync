@@ -8,6 +8,10 @@ export type BookRuntimeScore =
   | Extract<ActivityScoreResult, { status: 'scored' }>
   | { status: 'review_required' };
 
+export interface BookRuntimeAttemptPolicy {
+  readonly maxAttempts: number | null;
+}
+
 export interface BookRuntimeCommandPayload {
   readonly operationId: string;
   readonly commandKind: BookRuntimeCommandKind;
@@ -52,16 +56,19 @@ export interface BookRuntimeAttemptRecord {
   readonly schemaVersion: 1;
   readonly attemptId: string;
   readonly bindingId: string;
-  readonly bindingRevision?: number;
+  readonly bindingRevision: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
   readonly interactionId: string;
-  readonly attemptNumber?: number;
-  readonly sourceProvenance?: readonly BookRuntimeSourceProvenance[];
-  readonly feedbackRelease?: 'pending';
+  readonly activityVersionId: string;
+  readonly acknowledgedDraftRevision: number;
+  readonly attemptNumber: number;
+  readonly pageGroupKeys: readonly string[];
+  readonly sourceProvenance: readonly BookRuntimeSourceProvenance[];
+  readonly feedbackRelease: 'pending';
   readonly response: unknown;
   readonly createdByOperationId: string;
   readonly createdAt: string;
@@ -72,16 +79,19 @@ export interface BookRuntimeResultRecord {
   readonly resultId: string;
   readonly attemptId: string;
   readonly bindingId: string;
-  readonly bindingRevision?: number;
+  readonly bindingRevision: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
   readonly interactionId: string;
-  readonly attemptNumber?: number;
-  readonly sourceProvenance?: readonly BookRuntimeSourceProvenance[];
-  readonly feedbackRelease?: 'pending';
+  readonly activityVersionId: string;
+  readonly acknowledgedDraftRevision: number;
+  readonly attemptNumber: number;
+  readonly pageGroupKeys: readonly string[];
+  readonly sourceProvenance: readonly BookRuntimeSourceProvenance[];
+  readonly feedbackRelease: 'pending';
   readonly score?: BookRuntimeScore;
   readonly status: 'pending_review' | 'submitted';
   readonly createdByOperationId: string;
@@ -94,15 +104,18 @@ export interface BookRuntimeCompletionRecord {
   readonly attemptId: string;
   readonly resultId: string;
   readonly bindingId: string;
-  readonly bindingRevision?: number;
+  readonly bindingRevision: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
   readonly interactionId: string;
-  readonly attemptNumber?: number;
-  readonly sourceProvenance?: readonly BookRuntimeSourceProvenance[];
+  readonly activityVersionId: string;
+  readonly acknowledgedDraftRevision: number;
+  readonly attemptNumber: number;
+  readonly pageGroupKeys: readonly string[];
+  readonly sourceProvenance: readonly BookRuntimeSourceProvenance[];
   readonly status: 'completed';
   readonly createdByOperationId: string;
   readonly createdAt: string;
@@ -113,14 +126,17 @@ export interface BookRuntimeAttemptIndexRecord {
   readonly attemptId: string;
   readonly resultId: string;
   readonly bindingId: string;
-  readonly bindingRevision?: number;
+  readonly bindingRevision: number;
   readonly recipientId: string;
   readonly contextId: string;
   readonly placementId: string;
   readonly activityId: string;
   readonly activityVersion: number;
   readonly interactionId: string;
-  readonly attemptNumber?: number;
+  readonly activityVersionId: string;
+  readonly acknowledgedDraftRevision: number;
+  readonly attemptNumber: number;
+  readonly pageGroupKeys: readonly string[];
   readonly createdByOperationId: string;
   readonly createdAt: string;
 }
@@ -138,6 +154,7 @@ export interface BookRuntimeOperationReceipt {
   readonly bindingId?: string;
   readonly draftRevision?: number;
   readonly attemptId?: string;
+  readonly attemptNumber?: number;
   readonly createdAt: string;
 }
 

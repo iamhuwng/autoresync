@@ -1,5 +1,8 @@
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import type { NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
+import type {
+  BookRuntimeAttemptPolicy,
+} from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
@@ -40,6 +43,14 @@ export interface BookRuntimeCanonicalDependencies {
     readonly interactionId: string;
     readonly env: BookRuntimeCanonicalEnv;
   }) => Promise<NormalizedActivity | null>;
+  readonly resolveAttemptPolicy?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: number;
+    readonly interactionId: string;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<BookRuntimeAttemptPolicy | null>;
 }
 
 export interface BookRuntimeCanonicalHandlersOptions {
@@ -64,6 +75,7 @@ const productionDependencies = (
     },
     schedulePolicy,
     resolveActivity: undefined,
+    resolveAttemptPolicy: undefined,
   };
 };
 
@@ -99,6 +111,9 @@ export const createBookRuntimeCanonicalHandlers = (
       createBookRuntimeWorkerHandlers({
         ...dependencies,
         ...(dependencies.resolveActivity ? { resolveActivity: dependencies.resolveActivity } : {}),
+        ...(dependencies.resolveAttemptPolicy
+          ? { resolveAttemptPolicy: dependencies.resolveAttemptPolicy }
+          : {}),
         requireCanonicalDraftForSubmit: true,
       }).command(input)),
     readDraft: (input: {

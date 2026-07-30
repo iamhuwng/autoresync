@@ -21,7 +21,10 @@ import type {
   ActivitySubmission,
   NormalizedActivity,
 } from '../../../../src/types/bookActivity.types.ts';
-import type { BookRuntimeScore } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import type {
+  BookRuntimeAttemptPolicy,
+  BookRuntimeScore,
+} from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 
 export interface BookRuntimeWorkerEnv {
   readonly [key: string]: unknown;
@@ -61,6 +64,14 @@ export interface BookRuntimeWorkerHandlersOptions {
     readonly interactionId: string;
     readonly env: BookRuntimeWorkerEnv;
   }) => Promise<NormalizedActivity | null>;
+  readonly resolveAttemptPolicy?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: number;
+    readonly interactionId: string;
+    readonly env: BookRuntimeWorkerEnv;
+  }) => Promise<BookRuntimeAttemptPolicy | null>;
 }
 
 const json = (
@@ -79,6 +90,9 @@ const sanitizeResult = (result: Awaited<ReturnType<BookRuntimeRepository['applyC
     bindingId: result.receipt.bindingId,
     draftRevision: result.receipt.draftRevision,
     attemptId: result.receipt.attemptId,
+    ...(result.receipt.attemptNumber === undefined
+      ? {}
+      : { attemptNumber: result.receipt.attemptNumber }),
     createdAt: result.receipt.createdAt,
   },
   ...(result.result === undefined ? {} : {
@@ -164,23 +178,41 @@ export const createBookRuntimeWorkerHandlers = (
         now(),
       );
       let score: BookRuntimeScore | undefined;
+      let attemptPolicy: BookRuntimeAttemptPolicy | undefined;
       if (payload.commandKind === 'submit') {
         if (!options.resolveActivity) {
           throw new BookRuntimeWorkerError('runtime_activity_unavailable', 503);
         }
-        const activity = await options.resolveActivity({
-          binding,
-          placementId: payload.placementId,
-          activityId: payload.activityId,
-          activityVersion: payload.activityVersion,
-          interactionId: payload.interactionId,
-          env: input.env,
-        });
+        if (!options.resolveAttemptPolicy) {
+          throw new BookRuntimeWorkerError('runtime_attempt_policy_unavailable', 503);
+        }
+        const [activity, resolvedAttemptPolicy] = await Promise.all([
+          options.resolveActivity({
+            binding,
+            placementId: payload.placementId,
+            activityId: payload.activityId,
+            activityVersion: payload.activityVersion,
+            interactionId: payload.interactionId,
+            env: input.env,
+          }),
+          options.resolveAttemptPolicy({
+            binding,
+            placementId: payload.placementId,
+            activityId: payload.activityId,
+            activityVersion: payload.activityVersion,
+            interactionId: payload.interactionId,
+            env: input.env,
+          }),
+        ]);
         if (!activity
           || !activity.interactions.some((interaction) =>
             interaction.interactionId === payload.interactionId)) {
           throw new BookRuntimeWorkerError('runtime_activity_unavailable', 409);
         }
+        if (!resolvedAttemptPolicy) {
+          throw new BookRuntimeWorkerError('runtime_attempt_policy_unavailable', 503);
+        }
+        attemptPolicy = resolvedAttemptPolicy;
         const result = scoreActivity(activity, payload.response as ActivitySubmission);
         if (result.status === 'invalid') {
           throw new BookRuntimeWorkerError('runtime_submission_invalid', 409);
@@ -196,6 +228,7 @@ export const createBookRuntimeWorkerHandlers = (
           bindingId: payload.bindingId,
           operationId: payload.operationId,
         }),
+        ...(attemptPolicy ? { attemptPolicy } : {}),
         ...(score ? { score } : {}),
       });
       return json(sanitizeResult(result), statusFor(result.status));

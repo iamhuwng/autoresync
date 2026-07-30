@@ -1,4 +1,5 @@
 import type {
+  BookRuntimeAttemptPolicy,
   BookRuntimeAttemptRecord,
   BookRuntimeAttemptIndexRecord,
   BookRuntimeCommandPayload,
@@ -11,6 +12,7 @@ import type {
   BookRuntimeSourceProvenance,
   BookRuntimeScore,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 
 export interface BookRuntimeRepository {
@@ -24,6 +26,7 @@ export interface BookRuntimeRepository {
     readonly command: BookRuntimeCommandPayload;
     readonly context: BookRuntimeTrustedCommandContext;
     readonly attemptId: string;
+    readonly attemptPolicy?: BookRuntimeAttemptPolicy;
     readonly score?: BookRuntimeScore;
   }): Promise<BookRuntimeCommandResult>;
   listAttempts(input: {
@@ -52,21 +55,73 @@ export class BookRuntimeRepositoryError extends Error {
 
 const clone = <T>(value: T): T => structuredClone(value);
 
-const sourceProvenance = (
+interface BookRuntimeTerminalProvenance {
+  readonly activityVersionId: string;
+  readonly pageGroupKeys: readonly string[];
+  readonly sourceProvenance: readonly BookRuntimeSourceProvenance[];
+}
+
+const terminalProvenance = (
   binding: BookDeliveryBinding,
   placementId: string,
-): readonly BookRuntimeSourceProvenance[] => {
+): BookRuntimeTerminalProvenance => {
   const placement = binding.placements.find((entry) => entry.placementId === placementId);
-  if (!placement) return [];
-  return placement.sourcePageScopes.flatMap((scope) => {
+  if (!placement
+    || !placement.activityVersionId
+    || !Array.isArray(placement.pageGroupKeys)
+    || !Array.isArray(placement.sourcePageScopes)
+    || (placement.contextMode === 'required'
+      && (placement.pageGroupKeys.length === 0 || placement.sourcePageScopes.length === 0))
+    || (placement.contextMode === 'none'
+      && (placement.pageGroupKeys.length > 0 || placement.sourcePageScopes.length > 0))) {
+    throw new BookRuntimeRepositoryError('runtime_terminal_provenance_invalid');
+  }
+  const sourceProvenance = placement.sourcePageScopes.map((scope) => {
     const source = binding.sourceSet.sources.find((entry) => entry.sourceKey === scope.sourceKey);
-    return source ? [{
+    if (!source) {
+      throw new BookRuntimeRepositoryError('runtime_terminal_provenance_invalid');
+    }
+    return {
       sourceKey: source.sourceKey,
       sourceVersionId: source.sourceVersionId,
       pages: [...scope.pages],
-    }] : [];
+    };
   });
+  return {
+    activityVersionId: placement.activityVersionId,
+    pageGroupKeys: [...placement.pageGroupKeys],
+    sourceProvenance,
+  };
 };
+
+const assertAttemptPolicy = (
+  policy: BookRuntimeAttemptPolicy | undefined,
+): BookRuntimeAttemptPolicy => {
+  if (!policy
+    || (policy.maxAttempts !== null
+      && (!Number.isSafeInteger(policy.maxAttempts)
+        || policy.maxAttempts <= 0
+        || policy.maxAttempts > 50))) {
+    throw new BookRuntimeRepositoryError('runtime_attempt_policy_invalid');
+  }
+  return policy;
+};
+
+const deniedAttemptLimit = (
+  operationId: string,
+  commandFingerprint: string,
+  bindingId: string,
+  now: string,
+): BookRuntimeCommandResult => ({
+  status: 'denied',
+  receipt: {
+    operationId,
+    fingerprint: commandFingerprint,
+    status: 'denied',
+    bindingId,
+    createdAt: now,
+  },
+});
 
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
@@ -86,6 +141,191 @@ const hash = (value: unknown): string => {
     state = (state * prime) & 0xffffffffffffffffn;
   }
   return `fnv1a64:${state.toString(16).padStart(16, '0')}`;
+};
+
+interface BookRuntimeTerminalAggregate {
+  readonly attempts: Readonly<Record<string, BookRuntimeAttemptRecord>>;
+  readonly results: Readonly<Record<string, BookRuntimeResultRecord>>;
+  readonly completions: Readonly<Record<string, BookRuntimeCompletionRecord>>;
+  readonly indexes: Readonly<Record<string, BookRuntimeAttemptIndexRecord>>;
+  readonly operations: Readonly<Record<string, BookRuntimeOperationReceipt>>;
+}
+
+const terminalSequenceMember = (
+  record: Pick<
+    BookRuntimeAttemptRecord,
+    'recipientId' | 'contextId' | 'placementId' | 'activityId' | 'activityVersion' | 'interactionId'
+  >,
+  command: BookRuntimeCommandPayload,
+  recipientId: string,
+): boolean => (
+  record.recipientId === recipientId
+  && record.contextId === command.contextId
+  && record.placementId === command.placementId
+  && record.activityId === command.activityId
+  && record.activityVersion === command.activityVersion
+  && record.interactionId === command.interactionId
+);
+
+const terminalRecordMatchesAttempt = (
+  record: BookRuntimeResultRecord | BookRuntimeCompletionRecord | BookRuntimeAttemptIndexRecord,
+  attempt: BookRuntimeAttemptRecord,
+): boolean => (
+  record.attemptId === attempt.attemptId
+  && record.bindingId === attempt.bindingId
+  && record.bindingRevision === attempt.bindingRevision
+  && record.recipientId === attempt.recipientId
+  && record.contextId === attempt.contextId
+  && record.placementId === attempt.placementId
+  && record.activityId === attempt.activityId
+  && record.activityVersion === attempt.activityVersion
+  && record.activityVersionId === attempt.activityVersionId
+  && record.interactionId === attempt.interactionId
+  && record.acknowledgedDraftRevision === attempt.acknowledgedDraftRevision
+  && record.attemptNumber === attempt.attemptNumber
+  && stable(record.pageGroupKeys) === stable(attempt.pageGroupKeys)
+  && record.createdByOperationId === attempt.createdByOperationId
+  && record.createdAt === attempt.createdAt
+);
+
+const assertTerminalAggregateIntegrity = (
+  aggregate: BookRuntimeTerminalAggregate,
+): void => {
+  for (const [key, attempt] of Object.entries(aggregate.attempts)) {
+    const result = aggregate.results[`${attempt.attemptId}:result`];
+    const completion = aggregate.completions[`${attempt.attemptId}:completion`];
+    const index = aggregate.indexes[attempt.attemptId];
+    const receipt = aggregate.operations[attempt.createdByOperationId];
+    if (key !== attempt.attemptId
+      || attempt.schemaVersion !== 1
+      || !Number.isSafeInteger(attempt.attemptNumber)
+      || attempt.attemptNumber <= 0
+      || !attempt.activityVersionId
+      || !Number.isSafeInteger(attempt.acknowledgedDraftRevision)
+      || attempt.acknowledgedDraftRevision < 0
+      || !Array.isArray(attempt.pageGroupKeys)
+      || !Array.isArray(attempt.sourceProvenance)
+      || !result
+      || result.schemaVersion !== 1
+      || result.resultId !== `${attempt.attemptId}:result`
+      || result.feedbackRelease !== attempt.feedbackRelease
+      || stable(result.sourceProvenance) !== stable(attempt.sourceProvenance)
+      || !completion
+      || completion.schemaVersion !== 1
+      || completion.completionId !== `${attempt.attemptId}:completion`
+      || completion.resultId !== result.resultId
+      || completion.status !== 'completed'
+      || stable(completion.sourceProvenance) !== stable(attempt.sourceProvenance)
+      || !index
+      || index.schemaVersion !== 1
+      || index.resultId !== result.resultId
+      || !receipt
+      || receipt.operationId !== attempt.createdByOperationId
+      || receipt.status !== 'accepted'
+      || receipt.bindingId !== attempt.bindingId
+      || receipt.attemptId !== attempt.attemptId
+      || receipt.attemptNumber !== attempt.attemptNumber
+      || receipt.createdAt !== attempt.createdAt
+      || !receipt.fingerprint
+      || !terminalRecordMatchesAttempt(result, attempt)
+      || !terminalRecordMatchesAttempt(completion, attempt)
+      || !terminalRecordMatchesAttempt(index, attempt)) {
+      throw new BookRuntimeRepositoryError('runtime_attempt_sequence_invalid');
+    }
+  }
+
+  const attempts = aggregate.attempts;
+  const hasOrphanOrMiskeyed = Object.entries(aggregate.results)
+    .some(([key, record]) => {
+      const attempt = attempts[record.attemptId];
+      return key !== `${record.attemptId}:result`
+        || !attempt
+        || !terminalRecordMatchesAttempt(record, attempt);
+    })
+    || Object.entries(aggregate.completions).some(([key, record]) => {
+      const attempt = attempts[record.attemptId];
+      return key !== `${record.attemptId}:completion`
+        || !attempt
+        || !terminalRecordMatchesAttempt(record, attempt);
+    })
+    || Object.entries(aggregate.indexes).some(([key, record]) => {
+      const attempt = attempts[record.attemptId];
+      return key !== record.attemptId
+        || !attempt
+        || !terminalRecordMatchesAttempt(record, attempt);
+    })
+    || Object.entries(aggregate.operations).some(([key, receipt]) => {
+      if (key !== receipt.operationId
+        || (receipt.attemptNumber !== undefined && receipt.attemptId === undefined)) {
+        return true;
+      }
+      if (receipt.attemptId === undefined) return false;
+      const attempt = attempts[receipt.attemptId];
+      return receipt.status !== 'accepted'
+        || !attempt
+        || attempt.createdByOperationId !== receipt.operationId
+        || attempt.bindingId !== receipt.bindingId
+        || attempt.attemptNumber !== receipt.attemptNumber
+        || attempt.createdAt !== receipt.createdAt
+        || !receipt.fingerprint;
+    });
+  if (hasOrphanOrMiskeyed) {
+    throw new BookRuntimeRepositoryError('runtime_attempt_sequence_invalid');
+  }
+};
+
+const nextAttemptNumber = (
+  aggregate: BookRuntimeTerminalAggregate,
+  command: BookRuntimeCommandPayload,
+  recipientId: string,
+  activityVersionId: string,
+): number => {
+  assertTerminalAggregateIntegrity(aggregate);
+  const entries = Object.entries(aggregate.attempts)
+    .filter(([, attempt]) =>
+      terminalSequenceMember(attempt, command, recipientId)
+      && attempt.activityVersionId === activityVersionId);
+  const sorted = entries
+    .map(([, attempt]) => attempt.attemptNumber)
+    .sort((left, right) => left - right);
+  if (new Set(sorted).size !== sorted.length
+    || sorted.some((value, index) => value !== index + 1)) {
+    throw new BookRuntimeRepositoryError('runtime_attempt_sequence_invalid');
+  }
+  return sorted.length + 1;
+};
+
+const terminalIdsAvailable = (
+  aggregate: BookRuntimeTerminalAggregate,
+  attemptId: string,
+): boolean => (
+  aggregate.attempts[attemptId] === undefined
+  && aggregate.results[`${attemptId}:result`] === undefined
+  && aggregate.completions[`${attemptId}:completion`] === undefined
+  && aggregate.indexes[attemptId] === undefined
+);
+
+const retainBoundedOperations = (
+  operations: Readonly<Record<string, BookRuntimeOperationReceipt>>,
+): Record<string, BookRuntimeOperationReceipt> => {
+  const entries = Object.entries(operations);
+  if (entries.length <= BOOK_RUNTIME_MAX_OPERATION_ENTRIES) return { ...operations };
+  const protectedKeys = new Set(entries
+    .filter(([, receipt]) => receipt.attemptId !== undefined || receipt.status === 'denied')
+    .map(([operationId]) => operationId));
+  if (protectedKeys.size > BOOK_RUNTIME_MAX_OPERATION_ENTRIES) {
+    throw new BookRuntimeRepositoryError('runtime_operation_capacity_exceeded');
+  }
+  const unprotectedSlots = BOOK_RUNTIME_MAX_OPERATION_ENTRIES - protectedKeys.size;
+  const unprotected = entries.filter(([operationId]) => !protectedKeys.has(operationId));
+  if (unprotectedSlots === 0 && unprotected.length > 0) {
+    throw new BookRuntimeRepositoryError('runtime_operation_capacity_exceeded');
+  }
+  const retainedUnprotected = new Set(unprotected
+    .slice(-unprotectedSlots)
+    .map(([operationId]) => operationId));
+  return Object.fromEntries(entries.filter(([operationId]) =>
+    protectedKeys.has(operationId) || retainedUnprotected.has(operationId)));
 };
 
 const draftKey = (input: {
@@ -177,6 +417,7 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     readonly command: BookRuntimeCommandPayload;
     readonly context: BookRuntimeTrustedCommandContext;
     readonly attemptId: string;
+    readonly attemptPolicy?: BookRuntimeAttemptPolicy;
     readonly score?: BookRuntimeScore;
   }): Promise<BookRuntimeCommandResult> {
     const { command, context } = input;
@@ -192,21 +433,43 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
           }),
         };
       }
+      assertTerminalAggregateIntegrity({
+        attempts: this.attempts,
+        results: this.results,
+        completions: this.completions,
+        indexes: this.indexes,
+        operations: this.operations,
+      });
+      if (existing.status === 'denied') {
+        return { status: 'denied', receipt: clone(existing) };
+      }
       const replayed = clone({ ...existing, status: 'replayed' as const });
+      const attempt = existing.attemptId ? this.attempts[existing.attemptId] : undefined;
+      const result = existing.attemptId ? this.results[`${existing.attemptId}:result`] : undefined;
+      const completion = existing.attemptId
+        ? this.completions[`${existing.attemptId}:completion`]
+        : undefined;
+      const index = existing.attemptId ? this.indexes[existing.attemptId] : undefined;
+      if (existing.attemptId && (!attempt
+        || !result
+        || !completion
+        || !index
+        || existing.attemptNumber !== attempt.attemptNumber
+        || !terminalRecordMatchesAttempt(result, attempt)
+        || !terminalRecordMatchesAttempt(completion, attempt)
+        || !terminalRecordMatchesAttempt(index, attempt))) {
+        throw new BookRuntimeRepositoryError('runtime_operation_replay_incomplete');
+      }
       return {
         status: 'replayed',
         draft: existing.draftRevision !== undefined
           ? Object.values(this.drafts).find((draft) =>
             draft.updatedByOperationId === existing.operationId)
           : undefined,
-        attempt: existing.attemptId ? clone(this.attempts[existing.attemptId]) : undefined,
-        result: existing.attemptId ? clone(this.results[`${existing.attemptId}:result`]) : undefined,
-        completion: existing.attemptId
-          ? clone(this.completions[`${existing.attemptId}:completion`])
-          : undefined,
-        index: existing.attemptId
-          ? clone(this.indexes[`${existing.attemptId}:index`])
-          : undefined,
+        attempt: attempt ? clone(attempt) : undefined,
+        result: result ? clone(result) : undefined,
+        completion: completion ? clone(completion) : undefined,
+        index: index ? clone(index) : undefined,
         receipt: replayed,
       };
     }
@@ -235,32 +498,47 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     }
 
     if (command.commandKind === 'submit') {
-      if (this.attempts[input.attemptId]) {
+      const attemptPolicy = assertAttemptPolicy(input.attemptPolicy);
+      const aggregate = {
+        attempts: this.attempts,
+        results: this.results,
+        completions: this.completions,
+        indexes: this.indexes,
+        operations: this.operations,
+      };
+      if (!terminalIdsAvailable(aggregate, input.attemptId)) {
         throw new BookRuntimeRepositoryError('runtime_attempt_duplicate');
       }
-      if (Object.values(this.completions).some((completion) =>
-        completion.activityId === command.activityId
-        && completion.activityVersion === command.activityVersion
-        && completion.interactionId === command.interactionId)) {
-        return {
-          status: 'conflict',
-          receipt: {
-            operationId: command.operationId,
-            fingerprint: commandFingerprint,
-            status: 'conflict',
-            bindingId: command.bindingId,
-            createdAt: context.now,
-          },
-        };
+      const provenance = terminalProvenance(context.binding, command.placementId);
+      const attemptNumber = nextAttemptNumber(
+        aggregate,
+        command,
+        recipientId,
+        provenance.activityVersionId,
+      );
+      if (attemptPolicy.maxAttempts !== null && attemptNumber > attemptPolicy.maxAttempts) {
+        const denied = deniedAttemptLimit(
+          command.operationId,
+          commandFingerprint,
+          command.bindingId,
+          context.now,
+        );
+        this.operations = retainBoundedOperations({
+          ...this.operations,
+          [command.operationId]: denied.receipt,
+        });
+        return denied;
       }
-      const provenance = sourceProvenance(context.binding, command.placementId);
       const attempt: BookRuntimeAttemptRecord = {
         schemaVersion: 1,
         attemptId: input.attemptId,
         ...base,
         bindingRevision: command.bindingRevision,
-        attemptNumber: 1,
-        sourceProvenance: provenance,
+        activityVersionId: provenance.activityVersionId,
+        acknowledgedDraftRevision: command.clientRevision,
+        attemptNumber,
+        pageGroupKeys: provenance.pageGroupKeys,
+        sourceProvenance: provenance.sourceProvenance,
         feedbackRelease: 'pending',
         response: clone(command.response),
         createdByOperationId: command.operationId,
@@ -272,8 +550,11 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         attemptId: input.attemptId,
         ...base,
         bindingRevision: command.bindingRevision,
-        attemptNumber: 1,
-        sourceProvenance: provenance,
+        activityVersionId: provenance.activityVersionId,
+        acknowledgedDraftRevision: command.clientRevision,
+        attemptNumber,
+        pageGroupKeys: provenance.pageGroupKeys,
+        sourceProvenance: provenance.sourceProvenance,
         feedbackRelease: 'pending',
         ...(input.score ? { score: clone(input.score) } : {}),
         status: input.score?.status === 'scored' ? 'submitted' : 'pending_review',
@@ -287,8 +568,11 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         resultId: result.resultId,
         ...base,
         bindingRevision: command.bindingRevision,
-        attemptNumber: 1,
-        sourceProvenance: provenance,
+        activityVersionId: provenance.activityVersionId,
+        acknowledgedDraftRevision: command.clientRevision,
+        attemptNumber,
+        pageGroupKeys: provenance.pageGroupKeys,
+        sourceProvenance: provenance.sourceProvenance,
         status: 'completed',
         createdByOperationId: command.operationId,
         createdAt: context.now,
@@ -299,7 +583,10 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         resultId: result.resultId,
         ...base,
         bindingRevision: command.bindingRevision,
-        attemptNumber: 1,
+        activityVersionId: provenance.activityVersionId,
+        acknowledgedDraftRevision: command.clientRevision,
+        attemptNumber,
+        pageGroupKeys: provenance.pageGroupKeys,
         createdByOperationId: command.operationId,
         createdAt: context.now,
       };
@@ -309,13 +596,18 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         status: 'accepted',
         bindingId: command.bindingId,
         attemptId: input.attemptId,
+        attemptNumber,
         createdAt: context.now,
       };
+      const nextOperations = retainBoundedOperations({
+        ...this.operations,
+        [command.operationId]: clone(receipt),
+      });
       this.attempts[input.attemptId] = clone(attempt);
       this.results[result.resultId] = clone(result);
       this.completions[completion.completionId] = clone(completion);
       this.indexes[index.attemptId] = clone(index);
-      this.operations[command.operationId] = clone(receipt);
+      this.operations = nextOperations;
       return { status: 'accepted', attempt, result, completion, index, receipt };
     }
 
@@ -335,8 +627,12 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
       draftRevision: draft.revision,
       createdAt: context.now,
     };
+    const nextOperations = retainBoundedOperations({
+      ...this.operations,
+      [command.operationId]: clone(receipt),
+    });
     this.drafts[key] = clone(draft);
-    this.operations[command.operationId] = clone(receipt);
+    this.operations = nextOperations;
     return { status: 'accepted', draft, receipt };
   }
 }
@@ -345,7 +641,7 @@ export const BOOK_RUNTIME_ROOT = 'book_runtime';
 const BOOK_RUNTIME_MAX_RETRIES = 5;
 const BOOK_RUNTIME_MAX_SCOPE_BYTES = 512 * 1024;
 const BOOK_RUNTIME_MAX_SCOPE_ENTRIES = 128;
-const BOOK_RUNTIME_MAX_OPERATION_ENTRIES = 256;
+const BOOK_RUNTIME_MAX_OPERATION_ENTRIES = 128;
 const BOOK_RUNTIME_DEFAULT_TIMEOUT_MS = 8_000;
 const BOOK_RUNTIME_PATH_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 
@@ -439,6 +735,19 @@ const durableReplay = (
       receipt: durableOperationReceipt({ ...existing, status: 'conflict' }),
     };
   }
+  assertTerminalAggregateIntegrity({
+    attempts: scope.attempts ?? {},
+    results: scope.results ?? {},
+    completions: scope.completions ?? {},
+    indexes: scope.indexes ?? {},
+    operations: scope.operations ?? {},
+  });
+  if (existing.status === 'denied') {
+    return {
+      status: 'denied',
+      receipt: durableOperationReceipt(existing),
+    };
+  }
   const attempt = existing.attemptId === undefined
     ? undefined
     : Object.values(scope.attempts ?? {}).find((candidate) => candidate.attemptId === existing.attemptId);
@@ -451,6 +760,16 @@ const durableReplay = (
   const index = attempt === undefined
     ? undefined
     : scope.indexes?.[attempt.attemptId];
+  if (existing.attemptId !== undefined && (!attempt
+    || !result
+    || !completion
+    || !index
+    || existing.attemptNumber !== attempt.attemptNumber
+    || !terminalRecordMatchesAttempt(result, attempt)
+    || !terminalRecordMatchesAttempt(completion, attempt)
+    || !terminalRecordMatchesAttempt(index, attempt))) {
+    throw new BookRuntimeRepositoryError('runtime_operation_replay_incomplete');
+  }
   return {
     status: 'replayed',
     attempt: attempt && durableClone(attempt),
@@ -611,6 +930,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
     readonly command: BookRuntimeCommandPayload;
     readonly context: BookRuntimeTrustedCommandContext;
     readonly attemptId: string;
+    readonly attemptPolicy?: BookRuntimeAttemptPolicy;
     readonly score?: BookRuntimeScore;
   }): Promise<BookRuntimeCommandResult> {
     const { command, context } = input;
@@ -644,6 +964,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
       const next: Record<string, unknown> = { ...scope };
       let output: BookRuntimeCommandResult;
       if (command.commandKind === 'submit') {
+        const attemptPolicy = assertAttemptPolicy(input.attemptPolicy);
         if (!currentDraft) {
           return durableResponseForConflict(
             command.operationId,
@@ -652,17 +973,41 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
             context.now,
           );
         }
-        if (Object.values(scope.completions ?? {}).some((completion) =>
-          completion.activityId === command.activityId
-          && completion.activityVersion === command.activityVersion
-          && completion.interactionId === command.interactionId)) {
-          return durableResponseForConflict(
+        const aggregate = {
+          attempts: scope.attempts ?? {},
+          results: scope.results ?? {},
+          completions: scope.completions ?? {},
+          indexes: scope.indexes ?? {},
+          operations: scope.operations ?? {},
+        };
+        if (!terminalIdsAvailable(aggregate, input.attemptId)) {
+          throw new BookRuntimeRepositoryError('runtime_attempt_duplicate');
+        }
+        const provenance = terminalProvenance(context.binding, command.placementId);
+        const terminalAttemptNumber = nextAttemptNumber(
+          aggregate,
+          command,
+          context.binding.recipient.recipientId,
+          provenance.activityVersionId,
+        );
+        if (attemptPolicy.maxAttempts !== null
+          && terminalAttemptNumber > attemptPolicy.maxAttempts) {
+          const denied = deniedAttemptLimit(
             command.operationId,
             commandFingerprint,
             command.bindingId,
             context.now,
-            currentDraft.revision,
           );
+          next.operations = retainBoundedOperations({
+            ...(scope.operations ?? {}),
+            [command.operationId]: denied.receipt,
+          });
+          if (durableEncodedBytes(next) > BOOK_RUNTIME_MAX_SCOPE_BYTES) {
+            throw new BookRuntimeRepositoryError('runtime_scope_capacity_exceeded');
+          }
+          this.assertWriteIdentity();
+          if (await this.rtdb.writeIfMatch(path, next, current.etag)) return denied;
+          continue;
         }
         const attemptRecord: BookRuntimeAttemptRecord = {
           schemaVersion: 1,
@@ -674,9 +1019,12 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           placementId: command.placementId,
           activityId: command.activityId,
           activityVersion: command.activityVersion,
+          activityVersionId: provenance.activityVersionId,
           interactionId: command.interactionId,
-          attemptNumber: 1,
-          sourceProvenance: sourceProvenance(context.binding, command.placementId),
+          acknowledgedDraftRevision: command.clientRevision,
+          attemptNumber: terminalAttemptNumber,
+          pageGroupKeys: provenance.pageGroupKeys,
+          sourceProvenance: provenance.sourceProvenance,
           feedbackRelease: 'pending',
           response: durableClone(command.response),
           createdByOperationId: command.operationId,
@@ -693,9 +1041,12 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           placementId: command.placementId,
           activityId: command.activityId,
           activityVersion: command.activityVersion,
+          activityVersionId: provenance.activityVersionId,
           interactionId: command.interactionId,
-          attemptNumber: 1,
-          sourceProvenance: sourceProvenance(context.binding, command.placementId),
+          acknowledgedDraftRevision: command.clientRevision,
+          attemptNumber: terminalAttemptNumber,
+          pageGroupKeys: provenance.pageGroupKeys,
+          sourceProvenance: provenance.sourceProvenance,
           feedbackRelease: 'pending',
           ...(input.score ? { score: durableClone(input.score) } : {}),
           status: input.score?.status === 'scored' ? 'submitted' : 'pending_review',
@@ -714,9 +1065,12 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           placementId: command.placementId,
           activityId: command.activityId,
           activityVersion: command.activityVersion,
+          activityVersionId: provenance.activityVersionId,
           interactionId: command.interactionId,
-          attemptNumber: 1,
-          sourceProvenance: sourceProvenance(context.binding, command.placementId),
+          acknowledgedDraftRevision: command.clientRevision,
+          attemptNumber: terminalAttemptNumber,
+          pageGroupKeys: provenance.pageGroupKeys,
+          sourceProvenance: provenance.sourceProvenance,
           status: 'completed',
           createdByOperationId: command.operationId,
           createdAt: context.now,
@@ -732,8 +1086,11 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           placementId: command.placementId,
           activityId: command.activityId,
           activityVersion: command.activityVersion,
+          activityVersionId: provenance.activityVersionId,
           interactionId: command.interactionId,
-          attemptNumber: 1,
+          acknowledgedDraftRevision: command.clientRevision,
+          attemptNumber: terminalAttemptNumber,
+          pageGroupKeys: provenance.pageGroupKeys,
           createdByOperationId: command.operationId,
           createdAt: context.now,
         };
@@ -745,6 +1102,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
             status: 'accepted' as const,
             bindingId: command.bindingId,
             attemptId: input.attemptId,
+            attemptNumber: terminalAttemptNumber,
             createdAt: context.now,
           },
         };
@@ -752,7 +1110,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
         next.results = { ...(scope.results ?? {}), [resultRecord.resultId]: resultRecord };
         next.completions = { ...(scope.completions ?? {}), [completion.completionId]: completion };
         next.indexes = { ...(scope.indexes ?? {}), [index.attemptId]: index };
-        next.operations = operations;
+        next.operations = retainBoundedOperations(operations);
         output = {
           status: 'accepted',
           attempt: attemptRecord,
@@ -788,11 +1146,9 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
         next.operations = { ...(scope.operations ?? {}), [command.operationId]: receipt };
         output = { status: 'accepted', draft, receipt };
       }
-      const operations = next.operations as Record<string, BookRuntimeOperationReceipt>;
-      if (Object.keys(operations).length > BOOK_RUNTIME_MAX_OPERATION_ENTRIES) {
-        const retained = Object.entries(operations).slice(-BOOK_RUNTIME_MAX_OPERATION_ENTRIES);
-        next.operations = Object.fromEntries(retained);
-      }
+      next.operations = retainBoundedOperations(
+        next.operations as Record<string, BookRuntimeOperationReceipt>,
+      );
       if (durableEncodedBytes(next) > BOOK_RUNTIME_MAX_SCOPE_BYTES) {
         throw new BookRuntimeRepositoryError('runtime_scope_capacity_exceeded');
       }

@@ -233,7 +233,11 @@ const classify = (response: Response, body: unknown): BookRuntimeClientError => 
 const operationReceipt = (value: unknown): BookRuntimeOperationReceipt => {
   const body = record(value);
   if (!body) throw new BookRuntimeClientError('invalid_response');
-  exactKeys(body, ['operationId', 'status', 'bindingId', 'createdAt'], ['draftRevision', 'attemptId']);
+  exactKeys(
+    body,
+    ['operationId', 'status', 'bindingId', 'createdAt'],
+    ['draftRevision', 'attemptId', 'attemptNumber'],
+  );
   const operationId = body.operationId;
   if (typeof operationId !== 'string' || !UUID.test(operationId)) {
     throw new BookRuntimeClientError('invalid_response');
@@ -253,6 +257,9 @@ const operationReceipt = (value: unknown): BookRuntimeOperationReceipt => {
     createdAt: body.createdAt,
     ...(body.draftRevision === undefined ? {} : { draftRevision: nonNegativeInteger(body.draftRevision) }),
     ...(body.attemptId === undefined ? {} : { attemptId: safeId(body.attemptId) }),
+    ...(body.attemptNumber === undefined
+      ? {}
+      : { attemptNumber: positiveInteger(body.attemptNumber) }),
   };
   return receipt;
 };
@@ -453,7 +460,9 @@ export const createBookRuntimeClient = (
         throw new BookRuntimeClientError('invalid_response');
       }
       const receipt = operationReceipt(result.receipt);
-      if (!receipt.attemptId) throw new BookRuntimeClientError('invalid_response');
+      if (!receipt.attemptId || receipt.attemptNumber === undefined) {
+        throw new BookRuntimeClientError('invalid_response');
+      }
       return {
         status,
         resultStatus: result.resultStatus,

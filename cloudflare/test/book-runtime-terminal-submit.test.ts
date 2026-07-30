@@ -66,7 +66,7 @@ const binding = () => ({
     nodeKey: 'unit-1',
     order: 1,
     contextMode: 'required' as const,
-    pageGroupKeys: [],
+    pageGroupKeys: ['page-group-1'],
     sourcePageScopes: [{ sourceKey: 'source-1', pages: [1] }],
   }],
   schedulePolicy: { policyId: 'policy-1', policyRevision: 1, basis: 'immutable-reference' as const },
@@ -127,6 +127,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       repository,
       resolveBinding: async () => binding(),
       resolveActivity: async () => normalizedActivity(),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
       now: () => '2026-07-30T00:00:01.000Z',
       allocateAttemptId: () => 'attempt-submit',
       requireCanonicalDraftForSubmit: true,
@@ -148,6 +149,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
           status: 'accepted',
           bindingId: 'binding-1',
           attemptId: 'attempt-submit',
+          attemptNumber: 1,
           createdAt: '2026-07-30T00:00:01.000Z',
         },
       },
@@ -159,6 +161,9 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
         'attempt-submit': {
           bindingRevision: 1,
           attemptNumber: 1,
+          acknowledgedDraftRevision: 1,
+          activityVersionId: 'activity-version-1',
+          pageGroupKeys: ['page-group-1'],
           sourceProvenance: [{
             sourceKey: 'source-1',
             sourceVersionId: 'source-version-1',
@@ -220,6 +225,93 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
     expect(result).toEqual({
       body: { code: 'runtime_submit_draft_mismatch' },
       init: { status: 409 },
+    });
+    expect(repository.snapshot().attempts).toEqual({});
+  });
+
+  it('fails closed when the authoritative attempt policy is unavailable', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    await repository.applyCommand({
+      command: {
+        ...submit({
+          commandKind: 'autosave',
+          operationId: '00000000-0000-4000-8000-000000000077',
+          clientRevision: 0,
+          response: [{ interactionId: 'interaction-1', answer: 'final' }],
+        }),
+      } as never,
+      context: {
+        actorUid: 'student-1',
+        operationKind: 'autosave',
+        binding: binding(),
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+        now: '2026-07-30T00:00:00.000Z',
+      },
+      attemptId: 'attempt-autosave',
+    });
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedActivity(),
+      requireCanonicalDraftForSubmit: true,
+    });
+
+    const result = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+
+    expect(result).toEqual({
+      body: { code: 'runtime_attempt_policy_unavailable' },
+      init: { status: 503 },
+    });
+    expect(repository.snapshot().attempts).toEqual({});
+  });
+
+  it('fails closed when the authoritative attempt policy resolver returns no policy', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    await repository.applyCommand({
+      command: {
+        ...submit({
+          commandKind: 'autosave',
+          operationId: '00000000-0000-4000-8000-000000000077',
+          clientRevision: 0,
+          response: [{ interactionId: 'interaction-1', answer: 'final' }],
+        }),
+      } as never,
+      context: {
+        actorUid: 'student-1',
+        operationKind: 'autosave',
+        binding: binding(),
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+        now: '2026-07-30T00:00:00.000Z',
+      },
+      attemptId: 'attempt-autosave',
+    });
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedActivity(),
+      resolveAttemptPolicy: async () => null,
+      requireCanonicalDraftForSubmit: true,
+    });
+
+    const result = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+
+    expect(result).toEqual({
+      body: { code: 'runtime_attempt_policy_unavailable' },
+      init: { status: 503 },
     });
     expect(repository.snapshot().attempts).toEqual({});
   });
