@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-07-31T07:50:43Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260731-post-ticket65-closed.json",
+  "graphHash": "e1cae38872e3e2a91ad0c1a533e0a08540d3e0296c3ba63d7377ba82c092cf18",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 48,
+    "closedCount": 64,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Publication",
+  "graphClearFrontier": [
+    66,
+    68,
+    129,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 66,
+    "title": "PRD0062 17 — Publish one component-PDF Unit atomically",
+    "directPrerequisites": [
+      32,
+      64
+    ],
+    "closedPrerequisites": [
+      32,
+      64
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      30,
+      31,
+      32,
+      64
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 61,
+    "acceptanceReadiness": "All direct and transitive prerequisites are formally CLOSED. Ticket #64 provides the durable all-or-none canonical Activity Version boundary, and the completed #65 adapter supplies the immediately preceding strategy-specific publication proof without creating a graph dependency. The existing component-PDF adapter, route seam, teacher fixture, and default-deny controls make #66 the next executable Publication root.",
+    "requiredAuthority": [
+      "component-PDF publication adapter and its owned Worker/repository seams",
+      "read-only live issue and current-state configuration readback",
+      "teacher localhost:5173 quick-login fixture for ticket-owned browser proof",
+      "rollback limited to disabling the component publication adapter or an explicit trusted pointer rollback"
+    ],
+    "selectionReason": "#66 is the earliest unresolved Publication root after #65 closed, has the highest downstream leverage on the refreshed frontier, and is next in deterministic roadmap order. Its canonical repair is the component-PDF counterpart to the completed full-PDF producer; selecting any additional ticket would violate the exactly-one-primary rule."
+  },
+  "candidateRejections": [
+    {
+      "number": 68,
+      "reason": "Graph-clear but later Activity revision publication follows completion of both initial strategy-specific immutable Activity producers in deterministic roadmap order."
+    },
+    {
+      "numbers": [
+        129,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear only at the dependency-graph level. Final browser, accessibility, contract/security, legacy, backup, and recovery suites remain later roadmap work while component-PDF initial publication is incomplete."
+    }
+  ],
+  "governingSafety": {
+    "privateB2": "disabled",
+    "03B": "disabled",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny except an explicitly authorized bounded disposable acceptance gate",
+    "masterKey": "offline provisioning-only; never a runtime binding",
+    "selectionOnly": "No #66 implementation, gate enablement, deployment mutation, Firebase mutation, or issue mutation is performed by this snapshot."
+  }
+}
