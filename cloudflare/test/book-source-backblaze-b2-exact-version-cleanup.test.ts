@@ -22,13 +22,19 @@ const identity = {
   byteSize: 6,
 };
 
-const config = (fetcher: typeof fetch): BackblazeB2ExactVersionCleanupConfig => ({
+const config = (
+  fetcher: typeof fetch,
+  overrides: Partial<BackblazeB2ExactVersionCleanupConfig> = {},
+): BackblazeB2ExactVersionCleanupConfig => ({
+  endpoint: 'https://s3.us-west-004.backblazeb2.com',
+  region: 'us-west-004',
   storageLocationId: identity.storageLocationId,
   privateBucketId: identity.privateBucketId,
   privateBucketName: 'book-pdfs',
   objectKeyPrefix: 'book-source/originals/',
   deleteCredentials: { applicationKeyId: 'delete-key-id', applicationKey: 'delete-key-secret' },
   metadataCredentials: { applicationKeyId: 'metadata-key-id', applicationKey: 'metadata-key-secret' },
+  ...overrides,
   fetch: fetcher,
 });
 
@@ -113,12 +119,12 @@ const provider = (deleteResult: Response | (() => Response) = deleteResponse()):
 };
 
 describe('Backblaze B2 exact-version cleanup adapter', () => {
-  it('authorizes with dedicated deleteFiles capability and deletes exact recorded version', async () => {
+  it('authorizes against the configured regional B2 endpoint and deletes exact recorded version', async () => {
     const { adapter, calls } = provider();
 
     await expect(adapter.deleteExactVersion({ identity })).resolves.toBeUndefined();
     expect(calls).toHaveLength(2);
-    expect(calls[0]?.url).toBe('https://api.backblazeb2.com/b2api/v4/b2_authorize_account');
+    expect(calls[0]?.url).toBe('https://api004.backblazeb2.com/b2api/v4/b2_authorize_account');
     expect(atob(calls[0]?.headers.get('authorization')?.replace('Basic ', '') ?? '').split(':', 1)[0])
       .toBe('delete-key-id');
     expect(calls[1]?.url).toBe('https://api004.backblazeb2.com/b2api/v4/b2_delete_file_version');
@@ -127,6 +133,22 @@ describe('Backblaze B2 exact-version cleanup adapter', () => {
       fileName: identity.providerObjectKey,
       fileId: identity.providerFileId,
     });
+  });
+
+  it('rejects malformed or mismatched regional endpoint configuration before provider calls', () => {
+    const fetcher = vi.fn() as typeof fetch;
+    const cases: readonly Partial<BackblazeB2ExactVersionCleanupConfig>[] = [
+      { endpoint: 'https://s3.us-west-004.backblazeb2.com.evil.example' },
+      { endpoint: 'https://s3.us-west-004.backblazeb2.com:8443' },
+      { endpoint: 'https://s3.us-east-005.backblazeb2.com' },
+      { region: 'us-west-04' },
+    ];
+
+    for (const overrides of cases) {
+      expect(() => new BackblazeB2ExactVersionCleanupAdapter(config(fetcher, overrides)))
+        .toThrowError('source_provider_metadata_mismatch');
+    }
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it('uses manual redirect handling so credentials are never forwarded', async () => {

@@ -9,7 +9,7 @@ import {
 } from '../../../src/services/book-source-delivery/sourceProvider.port.ts';
 
 const PROVIDER_KIND = 'backblaze-b2-s3';
-const AUTHORIZATION_URL = 'https://api.backblazeb2.com/b2api/v4/b2_authorize_account';
+const AUTHORIZATION_PATH = '/b2api/v4/b2_authorize_account';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_TIMEOUT_MS = 30_000;
 const MAX_DELETE_PER_ATTEMPT = 20;
@@ -20,6 +20,7 @@ const MAX_LIST_ROWS_PER_ATTEMPT = LIST_PAGE_SIZE * MAX_LIST_PAGES_PER_ATTEMPT;
 const safeIdentifier = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const safeProviderId = /^[A-Za-z0-9._=-]{1,512}$/u;
 const safeObjectKey = /^(?!\/)(?!.*(?:^|\/)\.\.?\/)[A-Za-z0-9!$&'()*+,=:@._\/-]{1,1024}$/u;
+const safeRegion = /^[a-z0-9-]{1,64}$/u;
 const safeBucketId = /^[A-Za-z0-9_-]{1,160}$/u;
 const safeBucketName = /^[a-z0-9][a-z0-9.-]{4,61}[a-z0-9]$/u;
 const sha256Hex = /^[a-f0-9]{64}$/u;
@@ -30,6 +31,8 @@ export interface BackblazeB2DeleteApplicationKey {
 }
 
 export interface BackblazeB2ExactVersionCleanupConfig {
+  readonly endpoint: string;
+  readonly region: string;
   readonly storageLocationId: string;
   readonly privateBucketId: string;
   readonly privateBucketName: string;
@@ -40,6 +43,8 @@ export interface BackblazeB2ExactVersionCleanupConfig {
 }
 
 export interface BackblazeB2ExactVersionCleanupEnv {
+  readonly BOOK_SOURCE_B2_ENDPOINT: string;
+  readonly BOOK_SOURCE_B2_REGION: string;
   readonly BOOK_SOURCE_B2_STORAGE_LOCATION_ID: string;
   readonly BOOK_SOURCE_B2_PRIVATE_BUCKET_ID: string;
   readonly BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME: string;
@@ -92,8 +97,18 @@ const fail = (code: ConstructorParameters<typeof SourceProviderError>[0], retrya
   throw new SourceProviderError(code, retryable);
 };
 
-const validateConfig = (config: BackblazeB2ExactVersionCleanupConfig): void => {
-  if (!safeIdentifier.test(config.storageLocationId)
+const validateConfig = (config: BackblazeB2ExactVersionCleanupConfig): string => {
+  let endpoint: URL;
+  try {
+    endpoint = new URL(config.endpoint);
+  } catch {
+    fail('metadata_mismatch');
+  }
+  const cluster = /-(\d{3})$/u.exec(config.region)?.[1];
+  if (endpoint.protocol !== 'https:' || endpoint.port || endpoint.pathname !== '/' || endpoint.search || endpoint.hash
+    || endpoint.username || endpoint.password || endpoint.hostname !== `s3.${config.region}.backblazeb2.com`
+    || !safeRegion.test(config.region) || !cluster
+    || !safeIdentifier.test(config.storageLocationId)
     || !safeBucketId.test(config.privateBucketId)
     || !safeBucketName.test(config.privateBucketName)
     || !safeObjectKey.test(config.objectKeyPrefix)
@@ -108,6 +123,7 @@ const validateConfig = (config: BackblazeB2ExactVersionCleanupConfig): void => {
     || !requiredString(config.metadataCredentials.applicationKey)) {
     fail('metadata_mismatch');
   }
+  return `https://api${cluster}.backblazeb2.com${AUTHORIZATION_PATH}`;
 };
 
 const validateOptions = (options?: SourceProviderRequestOptions): number => {
@@ -169,6 +185,8 @@ export const createBackblazeB2ExactVersionCleanupAdapterFromEnv = (
   env: BackblazeB2ExactVersionCleanupEnv,
   options: Pick<BackblazeB2ExactVersionCleanupConfig, 'fetch'> = {},
 ): BackblazeB2ExactVersionCleanupAdapter => new BackblazeB2ExactVersionCleanupAdapter({
+  endpoint: requiredString(env.BOOK_SOURCE_B2_ENDPOINT),
+  region: requiredString(env.BOOK_SOURCE_B2_REGION),
   storageLocationId: requiredString(env.BOOK_SOURCE_B2_STORAGE_LOCATION_ID),
   privateBucketId: requiredString(env.BOOK_SOURCE_B2_PRIVATE_BUCKET_ID),
   privateBucketName: requiredString(env.BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME),
@@ -197,10 +215,11 @@ export const hasBackblazeB2ExactVersionCleanupConfiguration = (
 
 /** Ticket #50 cleanup authority: exact B2 versions only, never a key/latest selector. */
 export class BackblazeB2ExactVersionCleanupAdapter implements Pick<SourceProviderPort, 'deleteExactVersion'> {
+  private readonly authorizationUrl: string;
   private readonly fetcher: typeof fetch;
 
   constructor(private readonly config: BackblazeB2ExactVersionCleanupConfig) {
-    validateConfig(config);
+    this.authorizationUrl = validateConfig(config);
     this.fetcher = (config.fetch ?? fetch).bind(globalThis);
   }
 
@@ -534,7 +553,7 @@ export class BackblazeB2ExactVersionCleanupAdapter implements Pick<SourceProvide
     options: SourceProviderRequestOptions | undefined,
     timeoutMs: number,
   ): Promise<B2AuthorizedStorageApi> {
-    const response = await this.request(AUTHORIZATION_URL, {
+    const response = await this.request(this.authorizationUrl, {
       method: 'GET',
       headers: {
         Authorization: `Basic ${btoa(`${credentials.applicationKeyId}:${credentials.applicationKey}`)}`,
