@@ -1,7 +1,12 @@
 import {
-  createBookAssemblyPublicationService,
   type BookAssemblyPublicationResult,
 } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
+import {
+  createCanonicalBookAssemblyPublicationService,
+} from '../../../../src/services/book-assembly/canonicalPublication.service.ts';
+import type {
+  CanonicalActivityVersionWriter,
+} from '../../../../src/services/book-assembly/canonicalPublicationRepository.ts';
 import type {
   BookAssemblyPublicationRepository,
 } from '../../../../src/services/book-assembly/publicationRepository.ts';
@@ -11,6 +16,7 @@ import {
 } from '../../../../src/services/book-assembly/componentPdfPublication.command.ts';
 import type {
   ComponentPdfActivityLineage,
+  ComponentPdfValidatedActivityPayload,
 } from '../../../../src/services/book-assembly/componentPdfPublication.adapter.ts';
 import type {
   BookAssemblyBookAuthority,
@@ -19,9 +25,13 @@ import type {
 import type {
   BookAssemblyPreviewApprovalReference,
 } from '../../../../src/types/bookAssembly.types.ts';
+import type {
+  BookAssemblyPreviewApprovalRecord,
+} from '../../../../src/services/book-assembly/unitPreview.service.ts';
 
 const MAX_BODY_BYTES = 256_000;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export class ComponentPdfPublicationWorkerError extends Error {
   constructor(readonly code: string, readonly status = 400) {
@@ -87,6 +97,36 @@ const id = (value: unknown, code: string): string => {
   return value;
 };
 
+const operationId = (request: Request, allocate: () => string): string => {
+  const header = request.headers.get('Idempotency-Key');
+  if (header === null) return allocate();
+  if (!UUID.test(header)) {
+    throw new ComponentPdfPublicationWorkerError('invalid_operation_id');
+  }
+  return header;
+};
+
+const stable = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) =>
+      `${JSON.stringify(key)}:${stable(record[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
+
+const requestFingerprint = async (
+  uid: string,
+  body: Record<string, unknown>,
+): Promise<string> => {
+  const bytes = new TextEncoder().encode(stable({ uid, body }));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return `sha256:${[...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')}`;
+};
+
 const revision = (value: unknown, code: string): number => {
   if (!Number.isSafeInteger(value) || (value as number) < 0) {
     throw new ComponentPdfPublicationWorkerError(code);
@@ -133,11 +173,29 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
     bookId: string,
     unitKey: string,
   ) => Promise<Readonly<Record<string, ComponentPdfActivityLineage>>>;
+  readonly readActivities: (
+    input: {
+      readonly ownerId: string;
+      readonly bookId: string;
+      readonly unitKey: string;
+      readonly activityKeys: readonly string[];
+    },
+  ) => Promise<Readonly<Record<string, ComponentPdfValidatedActivityPayload>>>;
+  readonly readPreviewApproval: (
+    approvalId: string,
+  ) => Promise<(BookAssemblyPreviewApprovalRecord & { readonly revoked?: boolean }) | null>;
+  readonly sourceIsPreviewReady: (
+    input: { readonly bookId: string; readonly sourceVersionId: string },
+  ) => Promise<boolean>;
+  readonly activityVersionWriter: CanonicalActivityVersionWriter;
   readonly allocateOperationId?: () => string;
   readonly allocateId?: (kind: string, key: string) => string;
   readonly now?: () => string;
 }) => {
-  const service = createBookAssemblyPublicationService(options.repository);
+  const service = createCanonicalBookAssemblyPublicationService(
+    options.repository,
+    options.activityVersionWriter,
+  );
   const now = options.now ?? (() => new Date().toISOString());
   const allocateOperationId = options.allocateOperationId ?? (() => crypto.randomUUID());
   const allocateId = options.allocateId ?? ((kind, key) => `${kind}-${key}-${crypto.randomUUID()}`);
@@ -171,20 +229,50 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
           'expectedSourceSetRevision',
           'previewApproval',
         ]);
+        const requestOperationId = operationId(input.request, allocateOperationId);
+        const bookId = id(body.bookId, 'invalid_book_id');
+        const unitKey = id(body.unitKey, 'invalid_unit_key');
+        const candidateId = id(body.candidateId, 'invalid_candidate_id');
+        const fingerprint = await requestFingerprint(input.uid, body);
+        const stored = (await options.repository.readScope(bookId)).operations?.[requestOperationId];
+        if (stored) {
+          if (stored.ownerId !== input.uid || stored.fingerprint !== fingerprint) {
+            return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
+          }
+          if (stored.result.pointer && stored.result.version) {
+            const replayed: BookAssemblyPublicationResult = {
+              ...structuredClone(stored.result),
+              status: 'replayed',
+            };
+            return {
+              body: {
+                operationId: requestOperationId,
+                manifestVersionId: stored.result.pointer.manifestVersionId,
+                publicationId: stored.result.pointer.publicationId,
+                publicationRevision: stored.result.pointer.publicationRevision,
+                result: replayed,
+              },
+              init: { status: statusFor(replayed) },
+            };
+          }
+        }
         const command = createComponentPdfPublicationCommand({
           readAuthority: options.readAuthority,
           readCandidate: options.readCandidate,
           readLineage: options.readLineage,
+          readActivities: options.readActivities,
+          readPreviewApproval: options.readPreviewApproval,
+          sourceIsPreviewReady: options.sourceIsPreviewReady,
           publish: (request) => service.publish(request),
-          allocateOperationId,
+          allocateOperationId: () => requestOperationId,
           allocateId,
           now,
         });
         const receipt = await command({
           ownerId: input.uid,
-          bookId: id(body.bookId, 'invalid_book_id'),
-          unitKey: id(body.unitKey, 'invalid_unit_key'),
-          candidateId: id(body.candidateId, 'invalid_candidate_id'),
+          bookId,
+          unitKey,
+          candidateId,
           expectedCandidateRevision: revision(body.expectedCandidateRevision, 'invalid_expected_candidate_revision'),
           expectedCurrentPublicationId: nullableId(
             body.expectedCurrentPublicationId,
@@ -193,6 +281,7 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
           expectedBookRevision: revision(body.expectedBookRevision, 'invalid_expected_book_revision'),
           expectedSourceSetRevision: revision(body.expectedSourceSetRevision, 'invalid_expected_source_set_revision'),
           previewApproval: approval(body.previewApproval),
+          operationFingerprint: fingerprint,
         });
         return {
           body: receipt,

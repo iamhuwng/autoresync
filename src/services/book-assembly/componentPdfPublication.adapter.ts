@@ -3,13 +3,25 @@ import type {
   BookAssemblyCandidateRecord,
 } from './unitAssembly.types';
 import type {
+  BookAssemblyActivitySafeProjectionRecord,
+  BookAssemblyActivityVersionRecord,
   BookAssemblyManifestCandidate,
+  BookAssemblyPlacementRecord,
   BookAssemblyPreviewApprovalReference,
   BookAssemblyPublicationAdapterPlan,
   BookAssemblyPublicationAtomicWriteSet,
   BookSourceVersionAuthority,
+  ComponentPdfsSourceSetCandidate,
   SourceQualifiedPageIdentity,
 } from '../../types/bookAssembly.types';
+import type { NormalizedActivity } from '../../types/bookActivity.types';
+import { projectStudentActivity } from '../book-activity/activityProjection.service';
+import {
+  assertCanonicalPublishedActivityVersion,
+  createCanonicalActivityVersionFingerprint,
+  type CanonicalPublishedActivityVersionRecord,
+  type CanonicalPublishedActivityVersionRecordWithoutPayloadFingerprint,
+} from './canonicalActivityVersion.service';
 import { validateBookAssemblyManifestCandidate } from './manifestCandidate.service';
 import { resolveSourceQualifiedPage } from './sourcePageAuthority.service';
 
@@ -44,6 +56,19 @@ export interface ComponentPdfActivityLineage {
   readonly lastActivityVersion?: number;
 }
 
+export interface ComponentPdfValidatedActivityPayload {
+  readonly activityKey: string;
+  readonly ownerId: string;
+  readonly revision: number;
+  readonly lifecycle: 'draft' | 'validated' | 'saved';
+  readonly activity: NormalizedActivity;
+}
+
+export interface ComponentPdfPublicationAdapterOutput {
+  readonly plan: BookAssemblyPublicationAdapterPlan;
+  readonly canonicalActivityVersions: readonly CanonicalPublishedActivityVersionRecord[];
+}
+
 export interface CreateComponentPdfPublicationAdapterPlanInput {
   readonly operationId: string;
   readonly now: string;
@@ -56,6 +81,7 @@ export interface CreateComponentPdfPublicationAdapterPlanInput {
   readonly expectedSourceSetRevision: number;
   readonly ids: ComponentPdfPublicationIds;
   readonly previewApproval: BookAssemblyPreviewApprovalReference;
+  readonly activitiesByKey: Readonly<Record<string, ComponentPdfValidatedActivityPayload>>;
   readonly existingLineageByActivityKey?: Readonly<Record<string, ComponentPdfActivityLineage>>;
 }
 
@@ -120,10 +146,12 @@ const assertCurrentAuthority = (
   return candidate.manifest;
 };
 
-const assertComponentPdfSource = (
+const assertComponentPdfSource: (
   manifest: BookAssemblyManifestCandidate,
   authority: BookSourceVersionAuthority,
-): void => {
+) => asserts manifest is BookAssemblyManifestCandidate & {
+  readonly sourceSet: ComponentPdfsSourceSetCandidate;
+} = (manifest, authority) => {
   if (manifest.sourceSet.sourceStrategy !== 'component_pdfs' || manifest.sourceSet.sources.length === 0) {
     throw new ComponentPdfPublicationAdapterError('component_pdfs_requires_component_sources');
   }
@@ -184,24 +212,48 @@ const pagesForActivity = (
     }
   }
   if (pages.size === 0) throw new ComponentPdfPublicationAdapterError('component_pdfs_mapping_invalid');
+  const sourceOrder = new Map<string, number>(
+    manifest.sourceSet.sources.map(
+      (source): [string, number] => [source.sourceKey, source.sourceOrder],
+    ),
+  );
   return [...pages.values()].sort((left, right) =>
-    left.sourceKey.localeCompare(right.sourceKey) || left.physicalPageNumber - right.physicalPageNumber);
+    (sourceOrder.get(left.sourceKey) ?? Number.MAX_SAFE_INTEGER)
+      - (sourceOrder.get(right.sourceKey) ?? Number.MAX_SAFE_INTEGER)
+      || left.physicalPageNumber - right.physicalPageNumber);
 };
 
-const createAtomicWrites = (
+const createPublicationRecords = (
   input: CreateComponentPdfPublicationAdapterPlanInput,
   manifest: BookAssemblyManifestCandidate,
-): BookAssemblyPublicationAtomicWriteSet => {
+): {
+  readonly atomicWrites: BookAssemblyPublicationAtomicWriteSet;
+  readonly canonicalActivityVersions: readonly CanonicalPublishedActivityVersionRecord[];
+} => {
   const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
   if (!unit) throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_missing');
+  const expectedActivityKeys = new Set(unit.activitySlots.map((slot) => slot.activityKey));
+  if (Object.keys(input.activitiesByKey).some((key) => !expectedActivityKeys.has(key))) {
+    throw new ComponentPdfPublicationAdapterError('component_pdfs_activity_payload_mismatch');
+  }
   const placementIds: string[] = [];
   const allPages = new Map<string, SourceQualifiedPageIdentity>();
-  const activityVersions = [];
-  const activitySafeProjections = [];
-  const placements = [];
+  const activityVersions: BookAssemblyActivityVersionRecord[] = [];
+  const activitySafeProjections: BookAssemblyActivitySafeProjectionRecord[] = [];
+  const placements: BookAssemblyPlacementRecord[] = [];
+  const canonicalActivityVersions: CanonicalPublishedActivityVersionRecord[] = [];
   for (const slot of unit.activitySlots) {
     const ids = input.ids.activitiesByKey[slot.activityKey];
     if (!ids) throw new ComponentPdfPublicationAdapterError('component_pdfs_trusted_ids_missing');
+    const payload = input.activitiesByKey[slot.activityKey];
+    if (!payload) throw new ComponentPdfPublicationAdapterError('component_pdfs_activity_payload_missing');
+    if (payload.activityKey !== slot.activityKey
+      || payload.ownerId !== input.ownerId
+      || !['draft', 'validated', 'saved'].includes(payload.lifecycle)
+      || !Number.isSafeInteger(payload.revision)
+      || payload.revision < 1) {
+      throw new ComponentPdfPublicationAdapterError('component_pdfs_activity_payload_mismatch');
+    }
     const lineage = input.existingLineageByActivityKey?.[slot.activityKey];
     if (lineage && lineage.activityId !== ids.activityId) {
       throw new ComponentPdfPublicationAdapterError('component_pdfs_activity_lineage_mismatch');
@@ -214,6 +266,44 @@ const createAtomicWrites = (
     );
     for (const page of sourcePages) allPages.set(`${page.sourceKey}:${page.physicalPageNumber}`, page);
     placementIds.push(ids.placementId);
+    let canonical: CanonicalPublishedActivityVersionRecord;
+    try {
+      const canonicalWithoutFingerprint: CanonicalPublishedActivityVersionRecordWithoutPayloadFingerprint = {
+        schemaVersion: 1,
+        lifecycle: 'published',
+        activityId: ids.activityId,
+        activityVersionId: ids.activityVersionId,
+        activityVersion: ids.activityVersion,
+        ownerId: input.ownerId,
+        activity: payload.activity,
+        projection: projectStudentActivity(payload.activity),
+        ...(lineage?.lastActivityVersionId === undefined
+          ? {}
+          : { predecessorActivityVersionId: lineage.lastActivityVersionId }),
+        placementIds: [ids.placementId],
+        evidenceRefs: [],
+        sourceContextFingerprint: fingerprint(sourcePages),
+        createdByOperationId: input.operationId,
+        publishedAt: input.now,
+        provenance: {
+          kind: 'initial-book-publication',
+          bookId: input.authority.bookId,
+          manifestVersionId: input.ids.manifestVersionId,
+          publicationId: input.ids.publicationId,
+          publicationRevision: input.ids.publicationRevision,
+          unitKey: unit.unitKey,
+          activityKey: slot.activityKey,
+          sourcePages,
+        },
+      };
+      canonical = assertCanonicalPublishedActivityVersion({
+        ...canonicalWithoutFingerprint,
+        payloadFingerprint: createCanonicalActivityVersionFingerprint(canonicalWithoutFingerprint),
+      });
+    } catch {
+      throw new ComponentPdfPublicationAdapterError('component_pdfs_activity_payload_invalid');
+    }
+    canonicalActivityVersions.push(canonical);
     activityVersions.push({
       schemaVersion: 1 as const,
       activityId: ids.activityId,
@@ -229,6 +319,11 @@ const createAtomicWrites = (
       createdByCommandId: input.operationId,
       createdAt: input.now,
       sourcePages,
+      canonicalPayloadFingerprint: canonical.payloadFingerprint,
+      safeProjectionId: ids.projectionId,
+      canonicalOriginManifestVersionId: input.ids.manifestVersionId,
+      canonicalOriginPublicationId: input.ids.publicationId,
+      canonicalOriginOperationId: input.operationId,
       payloadFingerprint: fingerprint({
         activityKey: slot.activityKey,
         pageGroupKeys: slot.pageGroupKeys,
@@ -271,92 +366,125 @@ const createAtomicWrites = (
       sourcePages,
     });
   }
+  const sourceOrder = new Map<string, number>(
+    manifest.sourceSet.sources.map(
+      (source): [string, number] => [source.sourceKey, source.sourceOrder],
+    ),
+  );
   const sourcePages = [...allPages.values()].sort((left, right) =>
-    left.sourceKey.localeCompare(right.sourceKey) || left.physicalPageNumber - right.physicalPageNumber);
+    (sourceOrder.get(left.sourceKey) ?? Number.MAX_SAFE_INTEGER)
+      - (sourceOrder.get(right.sourceKey) ?? Number.MAX_SAFE_INTEGER)
+      || left.physicalPageNumber - right.physicalPageNumber);
   return {
-    activityVersions,
-    activitySafeProjections,
-    placements,
-    unitProjections: [{
-      schemaVersion: 1,
-      unitProjectionId: input.ids.unitProjectionId,
+    canonicalActivityVersions,
+    atomicWrites: {
+      activityVersions,
+      activitySafeProjections,
+      placements,
+      unitProjections: [{
+        schemaVersion: 1,
+        unitProjectionId: input.ids.unitProjectionId,
+        ownerId: input.ownerId,
+        bookId: input.authority.bookId,
+        manifestVersionId: input.ids.manifestVersionId,
+        publicationId: input.ids.publicationId,
+        publicationRevision: input.ids.publicationRevision,
+        unitKey: unit.unitKey,
+        placementIds,
+        sourcePages,
+        createdByCommandId: input.operationId,
+        createdAt: input.now,
+      }],
+      deliveryPlans: [{
+        schemaVersion: 1,
+        deliveryPlanId: input.ids.deliveryPlanId,
+        ownerId: input.ownerId,
+        bookId: input.authority.bookId,
+        manifestVersionId: input.ids.manifestVersionId,
+        publicationId: input.ids.publicationId,
+        publicationRevision: input.ids.publicationRevision,
+        sourceStrategy: 'component_pdfs',
+        sourceSet: manifest.sourceSet,
+        placementIds,
+        unitProjectionIds: [input.ids.unitProjectionId],
+        createdByCommandId: input.operationId,
+        createdAt: input.now,
+      }],
+    },
+  };
+};
+
+export const createComponentPdfPublicationAdapter = (
+  input: CreateComponentPdfPublicationAdapterPlanInput,
+): ComponentPdfPublicationAdapterOutput => {
+  const manifest: BookAssemblyManifestCandidate = assertCurrentAuthority(input);
+  assertComponentPdfSource(manifest, input.authority.sourceVersionAuthority);
+  assertPreviewApproval(input.previewApproval, input.now);
+  const orderedSources = [...manifest.sourceSet.sources]
+    .sort((left, right) => left.sourceOrder - right.sourceOrder);
+  const [firstSource, ...remainingSources] = orderedSources;
+  if (!firstSource) {
+    throw new ComponentPdfPublicationAdapterError('component_pdfs_requires_component_sources');
+  }
+  const publicationManifest: BookAssemblyManifestCandidate & {
+    readonly sourceSet: ComponentPdfsSourceSetCandidate;
+  } = {
+    ...manifest,
+    sourceSet: {
+      ...manifest.sourceSet,
+      sources: [firstSource, ...remainingSources],
+    },
+  };
+  const unit = publicationManifest.units.find((candidate) => candidate.unitKey === input.unitKey);
+  if (!unit) throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_missing');
+  const selectedManifest: BookAssemblyManifestCandidate = {
+    ...publicationManifest,
+    units: [unit],
+  };
+  const records = createPublicationRecords(input, publicationManifest);
+  return {
+    canonicalActivityVersions: records.canonicalActivityVersions,
+    plan: {
+      strategy: 'component_pdfs',
+      planId: input.ids.planId,
+      adapterTicket: '17',
       ownerId: input.ownerId,
       bookId: input.authority.bookId,
-      manifestVersionId: input.ids.manifestVersionId,
-      publicationId: input.ids.publicationId,
-      publicationRevision: input.ids.publicationRevision,
-      unitKey: unit.unitKey,
-      placementIds,
-      sourcePages,
-      createdByCommandId: input.operationId,
-      createdAt: input.now,
-    }],
-    deliveryPlans: [{
-      schemaVersion: 1,
-      deliveryPlanId: input.ids.deliveryPlanId,
-      ownerId: input.ownerId,
-      bookId: input.authority.bookId,
-      manifestVersionId: input.ids.manifestVersionId,
-      publicationId: input.ids.publicationId,
-      publicationRevision: input.ids.publicationRevision,
-      sourceStrategy: 'component_pdfs',
-      sourceSet: manifest.sourceSet,
-      placementIds,
-      unitProjectionIds: [input.ids.unitProjectionId],
-      createdByCommandId: input.operationId,
-      createdAt: input.now,
-    }],
+      candidateId: input.candidate.candidateId,
+      candidateRevision: input.candidate.revision,
+      bookRevision: input.authority.bookRevision,
+      sourceSetRevision: input.authority.sourceSetRevision,
+      sourceSet: publicationManifest.sourceSet,
+      manifest: selectedManifest,
+      studentSafeProjection: {
+        schemaVersion: 1,
+        bookId: input.authority.bookId,
+        publicationId: input.ids.publicationId,
+        publicationRevision: input.ids.publicationRevision,
+        sourceStrategy: 'component_pdfs',
+        sourceSet: publicationManifest.sourceSet,
+        units: [unit],
+      },
+      atomicWrites: records.atomicWrites,
+      previewApproval: input.previewApproval,
+    },
   };
 };
 
 export const createComponentPdfPublicationAdapterPlan = (
   input: CreateComponentPdfPublicationAdapterPlanInput,
-): BookAssemblyPublicationAdapterPlan => {
-  const manifest = assertCurrentAuthority(input);
-  assertComponentPdfSource(manifest, input.authority.sourceVersionAuthority);
-  assertPreviewApproval(input.previewApproval, input.now);
-  const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
-  if (!unit) throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_missing');
-  const selectedManifest: BookAssemblyManifestCandidate = {
-    ...manifest,
-    units: [unit],
-  };
-  return {
-    strategy: 'component_pdfs',
-    planId: input.ids.planId,
-    adapterTicket: '17',
-    ownerId: input.ownerId,
-    bookId: input.authority.bookId,
-    candidateId: input.candidate.candidateId,
-    candidateRevision: input.candidate.revision,
-    bookRevision: input.authority.bookRevision,
-    sourceSetRevision: input.authority.sourceSetRevision,
-    sourceSet: manifest.sourceSet,
-    manifest: selectedManifest,
-    studentSafeProjection: {
-      schemaVersion: 1,
-      bookId: input.authority.bookId,
-      publicationId: input.ids.publicationId,
-      publicationRevision: input.ids.publicationRevision,
-      sourceStrategy: 'component_pdfs',
-      sourceSet: manifest.sourceSet,
-      units: [unit],
-    },
-    atomicWrites: createAtomicWrites(input, manifest),
-    previewApproval: input.previewApproval,
-  };
-};
+): BookAssemblyPublicationAdapterPlan => createComponentPdfPublicationAdapter(input).plan;
 
-export const createComponentPdfPublicationCommandPlan = (
+export const createComponentPdfPublicationCommandOutput = (
   input: ComponentPdfPublicationCommandInput,
-): BookAssemblyPublicationAdapterPlan => {
+): ComponentPdfPublicationAdapterOutput => {
   const manifest = input.candidate.manifest;
   if (manifest === null) throw new ComponentPdfPublicationAdapterError('component_pdfs_candidate_not_validated');
   const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
   if (!unit) throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_missing');
   const publicationId = input.allocateId('publication', input.candidate.candidateId);
   const publicationRevision = 1;
-  return createComponentPdfPublicationAdapterPlan({
+  return createComponentPdfPublicationAdapter({
     ...input,
     ids: {
       planId: input.allocateId('plan', input.candidate.candidateId),
@@ -379,3 +507,7 @@ export const createComponentPdfPublicationCommandPlan = (
     },
   });
 };
+
+export const createComponentPdfPublicationCommandPlan = (
+  input: ComponentPdfPublicationCommandInput,
+): BookAssemblyPublicationAdapterPlan => createComponentPdfPublicationCommandOutput(input).plan;

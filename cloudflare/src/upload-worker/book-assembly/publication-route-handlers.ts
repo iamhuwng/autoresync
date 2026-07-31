@@ -6,6 +6,7 @@ import type {
 } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import type {
   ComponentPdfActivityLineage,
+  ComponentPdfValidatedActivityPayload,
 } from '../../../../src/services/book-assembly/componentPdfPublication.adapter.ts';
 import type {
   FullPdfActivityLineage,
@@ -91,6 +92,18 @@ export interface ComponentPdfPublicationRoutePorts {
   readonly readLineage?: (
     context: Omit<Required<BookAssemblyPublicationReaderContext>, 'candidateId'>,
   ) => Promise<Readonly<Record<string, ComponentPdfActivityLineage>>>;
+  readonly readActivities: (
+    context: BookAssemblyPublicationReaderContext & {
+      readonly ownerId: string;
+      readonly activityKeys: readonly string[];
+    },
+  ) => Promise<Readonly<Record<string, ComponentPdfValidatedActivityPayload>>>;
+  readonly readPreviewApproval: (
+    context: { readonly env: BookRouterEnv; readonly approvalId: string },
+  ) => Promise<(BookAssemblyPreviewApprovalRecord & { readonly revoked?: boolean }) | null>;
+  readonly sourceIsPreviewReady: (
+    context: BookAssemblyPublicationReaderContext & { readonly sourceVersionId: string },
+  ) => Promise<boolean>;
 }
 
 export interface BookAssemblyPublicationRouteOptions {
@@ -237,6 +250,9 @@ const createComponentPdfHandler = (
     try {
       worker = createComponentPdfPublicationWorkerHandlers({
         repository: (options.repositoryFactory ?? defaultRepositoryFactory)(input.env),
+        activityVersionWriter: (
+          options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
+        )(input.env),
         readCandidate: (bookId, unitKey, candidateId) => readCandidate(
           options,
           input,
@@ -246,6 +262,22 @@ const createComponentPdfHandler = (
           ports.readCandidate,
         ),
         readAuthority: (bookId) => ports.readAuthority({ env: input.env, bookId }),
+        readActivities: ({ ownerId, bookId, unitKey, activityKeys }) => ports.readActivities({
+          env: input.env,
+          bookId,
+          unitKey,
+          ownerId,
+          activityKeys,
+        }),
+        readPreviewApproval: (approvalId) => ports.readPreviewApproval({
+          env: input.env,
+          approvalId,
+        }),
+        sourceIsPreviewReady: ({ bookId, sourceVersionId }) => ports.sourceIsPreviewReady({
+          env: input.env,
+          bookId,
+          sourceVersionId,
+        }),
         ...(ports.readLineage ? {
           readLineage: (bookId: string, unitKey: string) => ports.readLineage!({
             env: input.env,

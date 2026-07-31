@@ -6,6 +6,7 @@ import { createComponentPdfPublicationCommand } from '../services/book-assembly/
 import { createFullPdfPublicationCommand } from '../services/book-assembly/fullPdfPublication.command';
 import { createCanonicalBookAssemblyPublicationService } from '../services/book-assembly/canonicalPublication.service';
 import { InMemoryCanonicalActivityVersionRepository } from '../services/book-assembly/canonicalPublicationRepository';
+import type { CanonicalPublishedActivityVersionRecord } from '../services/book-assembly/canonicalActivityVersion.service';
 import {
   InMemoryBookAssemblyPublicationRepository,
   type BookAssemblyPublicationScope,
@@ -301,6 +302,40 @@ const ticket66Manifest: BookAssemblyManifestCandidate = {
   }],
 };
 
+const ticket66Activity = (suffix: 'a' | 'b'): NormalizedActivity => ({
+  schemaVersion: 1,
+  title: `Ticket 66 component ${suffix.toUpperCase()} Activity`,
+  taskProfile: null,
+  presentationMode: 'source-assisted',
+  contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+  instructions: [{ text: `Read the pinned component ${suffix.toUpperCase()} page.` }],
+  interaction: { family: 'choice', variant: 'v1' },
+  answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+  stimulus: null,
+  assetRefs: [],
+  interactions: [{
+    family: 'choice',
+    interactionId: `ticket66-choice-${suffix}`,
+    prompt: `Choose the component ${suffix.toUpperCase()} answer.`,
+    options: ['Supported', 'Unsupported'],
+    sourceAssisted: {
+      questionLabel: suffix.toUpperCase(),
+      sourceExerciseLabel: `Ticket 66 component ${suffix.toUpperCase()}`,
+      accessiblePrompt: `Choose one answer from component ${suffix.toUpperCase()}.`,
+      responseShape: 'single-choice',
+    },
+    itemIdentities: {
+      family: 'choice',
+      optionIds: [`ticket66-${suffix}-supported`, `ticket66-${suffix}-unsupported`],
+    },
+    answerKey: {
+      family: 'choice',
+      acceptedOptionItemIds: [`ticket66-${suffix}-supported`],
+    },
+  }],
+  scoring: { mode: 'auto-where-possible' },
+});
+
 const ticket70FullManifest: BookAssemblyManifestCandidate = {
   ...initialManifest,
   units: [{
@@ -376,6 +411,10 @@ type Ticket65PublicationSummary = {
   readonly unitProjectionCount: number;
   readonly deliveryPlanCount: number;
   readonly laterUnitPublished: boolean;
+  readonly componentOrder: readonly string[];
+  readonly componentOwners: readonly string[];
+  readonly sourceVersionIds: readonly string[];
+  readonly canonicalReadbacks: readonly string[];
 };
 
 const emptyTicket65PublicationSummary: Ticket65PublicationSummary = {
@@ -386,20 +425,62 @@ const emptyTicket65PublicationSummary: Ticket65PublicationSummary = {
   unitProjectionCount: 0,
   deliveryPlanCount: 0,
   laterUnitPublished: false,
+  componentOrder: [],
+  componentOwners: [],
+  sourceVersionIds: [],
+  canonicalReadbacks: [],
 };
 
 const summarizePublicationScope = (
   scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
-): Ticket65PublicationSummary => ({
-  publicationId: scope.current?.publicationId ?? null,
-  versionCount: Object.keys(scope.versions ?? {}).length,
-  activityVersionCount: Object.keys(scope.activityVersions ?? {}).length,
-  placementCount: Object.keys(scope.placements ?? {}).length,
-  unitProjectionCount: Object.keys(scope.unitProjections ?? {}).length,
-  deliveryPlanCount: Object.keys(scope.deliveryPlans ?? {}).length,
-  laterUnitPublished: Object.values(scope.unitProjections ?? {})
-    .some((projection) => projection.unitKey === 'unit-later-incomplete'),
-});
+  canonicalRecords: readonly CanonicalPublishedActivityVersionRecord[] = [],
+): Ticket65PublicationSummary => {
+  const manifest = scope.current
+    ? scope.versions?.[scope.current.manifestVersionId]
+    : undefined;
+  const sources = [...(manifest?.manifest.sourceSet.sources ?? [])]
+    .sort((left, right) => left.sourceOrder - right.sourceOrder);
+  return {
+    publicationId: scope.current?.publicationId ?? null,
+    versionCount: Object.keys(scope.versions ?? {}).length,
+    activityVersionCount: Object.keys(scope.activityVersions ?? {}).length,
+    placementCount: Object.keys(scope.placements ?? {}).length,
+    unitProjectionCount: Object.keys(scope.unitProjections ?? {}).length,
+    deliveryPlanCount: Object.keys(scope.deliveryPlans ?? {}).length,
+    laterUnitPublished: Object.values(scope.unitProjections ?? {})
+      .some((projection) => projection.unitKey === 'unit-later-incomplete'),
+    componentOrder: sources.map((source) => source.sourceKey),
+    componentOwners: sources.map((source) => `${source.sourceKey}=${source.ownerNodeKey}`),
+    sourceVersionIds: sources.map((source) => source.sourceVersionId),
+    canonicalReadbacks: [...canonicalRecords]
+      .sort((left, right) => left.activityId.localeCompare(right.activityId))
+      .map((record) => [
+        record.activityId,
+        record.activityVersionId,
+        String(record.activityVersion),
+        record.ownerId,
+        record.createdByOperationId,
+        record.payloadFingerprint,
+        record.placementIds.join('+'),
+        (record.provenance.kind === 'initial-book-publication'
+          ? record.provenance.sourcePages
+          : [])
+          .map((page) => `${page.sourceKey}@${page.sourceVersionId}:${page.physicalPageNumber}`)
+          .join('+'),
+        record.activity.interactions.map((interaction) => interaction.interactionId).join('+'),
+        record.provenance.kind === 'initial-book-publication'
+          ? [
+            record.provenance.bookId,
+            record.provenance.manifestVersionId,
+            record.provenance.publicationId,
+            String(record.provenance.publicationRevision),
+            record.provenance.unitKey,
+            record.provenance.activityKey,
+          ].join('@')
+          : 'revision',
+      ].join('|')),
+  };
+};
 
 const encodePublicationSummary = (
   summary: Ticket65PublicationSummary,
@@ -429,6 +510,18 @@ const decodePublicationSummary = (
       unitProjectionCount: typeof parsed.unitProjectionCount === 'number' && Number.isSafeInteger(parsed.unitProjectionCount) ? parsed.unitProjectionCount : 0,
       deliveryPlanCount: typeof parsed.deliveryPlanCount === 'number' && Number.isSafeInteger(parsed.deliveryPlanCount) ? parsed.deliveryPlanCount : 0,
       laterUnitPublished: parsed.laterUnitPublished === true,
+      componentOrder: Array.isArray(parsed.componentOrder)
+        ? parsed.componentOrder.filter((value): value is string => typeof value === 'string')
+        : [],
+      componentOwners: Array.isArray(parsed.componentOwners)
+        ? parsed.componentOwners.filter((value): value is string => typeof value === 'string')
+        : [],
+      sourceVersionIds: Array.isArray(parsed.sourceVersionIds)
+        ? parsed.sourceVersionIds.filter((value): value is string => typeof value === 'string')
+        : [],
+      canonicalReadbacks: Array.isArray(parsed.canonicalReadbacks)
+        ? parsed.canonicalReadbacks.filter((value): value is string => typeof value === 'string')
+        : [],
     };
   } catch {
     return emptyTicket65PublicationSummary;
@@ -656,9 +749,12 @@ export default function BookAssemblyWorkspaceSmokePage() {
     };
   }, [fixture, setSearchParams, ticket50CleanupReleased, ticket50Fixture]);
 
-  const persistPublicationScope = useCallback((scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>) => {
+  const persistPublicationScope = useCallback((
+    scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+    canonicalRecords: readonly CanonicalPublishedActivityVersionRecord[] = [],
+  ) => {
     setPublicationScope(scope);
-    const summary = summarizePublicationScope(scope);
+    const summary = summarizePublicationScope(scope, canonicalRecords);
     setPublicationSummary(summary);
     const nextParams: Record<string, string> = { fixture };
     if (candidate) nextParams.candidate = encodeCandidate(candidate);
@@ -886,13 +982,43 @@ export default function BookAssemblyWorkspaceSmokePage() {
           sourceVersions.find((source) => source.sourceVersionId === sourceVersionId),
       },
     };
+    const activitiesByKey = {
+      'activity-ticket66-a': ticket66Activity('a'),
+      'activity-ticket66-b': ticket66Activity('b'),
+    };
+    const approvalRecord = createPreviewApproval({
+      approvalId: previewApproval,
+      approvalRevision: 1,
+      actorId: OWNER_ID,
+      approvedAt: '2026-07-26T00:00:00.000Z',
+      expiresAt: '2026-07-28T00:00:00.000Z',
+      preview: createCandidateUnitPreview({
+        candidate,
+        sourceVersions,
+        sourceIsPreviewReady: () => true,
+        activitiesByKey,
+        registryVersion: 'ticket66-local-fixture-v1',
+      }),
+      canonicalActivitiesByKey: activitiesByKey,
+    });
+    const activityVersions = new InMemoryCanonicalActivityVersionRepository();
     const command = createComponentPdfPublicationCommand({
       readAuthority: async () => authority,
       readCandidate: async () => candidate,
       readLineage: async () => ({}),
+      readActivities: async () => Object.fromEntries(
+        Object.entries(activitiesByKey).map(([activityKey, activity]) => [activityKey, {
+          activityKey,
+          ownerId: OWNER_ID,
+          revision: 1,
+          lifecycle: 'draft' as const,
+          activity,
+        }]),
+      ),
+      readPreviewApproval: async () => approvalRecord,
+      sourceIsPreviewReady: async () => true,
       publish: async (input) => {
-        const service = await import('../services/book-assembly/publicationTransaction.service');
-        return service.createBookAssemblyPublicationService(repository).publish(input);
+        return createCanonicalBookAssemblyPublicationService(repository, activityVersions).publish(input);
       },
       allocateOperationId: () => globalThis.crypto.randomUUID(),
       allocateId: (kind, key) => `${kind}:${key}:ticket66`,
@@ -916,7 +1042,17 @@ export default function BookAssemblyWorkspaceSmokePage() {
         },
       });
       const nextScope = await repository.readScope(BOOK_ID);
-      persistPublicationScope(nextScope);
+      const canonicalRecords = await Promise.all(
+        Object.values(nextScope.activityVersions ?? {}).map((reference) =>
+          activityVersions.readPrepared(reference)),
+      );
+      if (canonicalRecords.some((record) => record === null)) {
+        throw new Error('Component-PDF canonical Activity readback failed.');
+      }
+      persistPublicationScope(
+        nextScope,
+        canonicalRecords.filter((record): record is CanonicalPublishedActivityVersionRecord => record !== null),
+      );
       const message = `Published component-PDF Unit ${receipt.publicationId}.`;
       setPublicationMessage(message);
       toast.success(message);
@@ -1070,12 +1206,29 @@ export default function BookAssemblyWorkspaceSmokePage() {
         <section aria-label="Ticket 66 publication state">
           <h2>Component-PDF publication fixture</h2>
           <p>Trusted command layer allocates operation and publication IDs before adapter execution.</p>
-          <p data-testid="ticket66-component-order">Component order: component-a, component-b</p>
+          <p data-testid="ticket66-component-order">
+            Component order: {(publicationSummary.publicationId
+              ? publicationSummary.componentOrder
+              : [...ticket66Manifest.sourceSet.sources]
+                .sort((left, right) => left.sourceOrder - right.sourceOrder)
+                .map((source) => source.sourceKey)).join(', ')}
+          </p>
           <p data-testid="ticket66-component-owners">
-            Component owners: component-a=section-component-a, component-b=section-component-a
+            Component owners: {(publicationSummary.publicationId
+              ? publicationSummary.componentOwners
+              : [...ticket66Manifest.sourceSet.sources]
+                .sort((left, right) => left.sourceOrder - right.sourceOrder)
+                .map((source) => `${source.sourceKey}=${source.ownerNodeKey}`)).join(', ')}
           </p>
           <p data-testid="ticket66-source-pins">
-            Source Versions: source-component-a, source-component-b
+            Source Versions: {(publicationSummary.publicationId
+              ? publicationSummary.sourceVersionIds
+              : [...ticket66Manifest.sourceSet.sources]
+                .sort((left, right) => left.sourceOrder - right.sourceOrder)
+                .map((source) => source.sourceVersionId)).join(', ')}
+          </p>
+          <p data-testid="ticket66-canonical-readbacks">
+            Canonical Activity readbacks: {publicationSummary.canonicalReadbacks.join('; ')}
           </p>
           <p data-testid="ticket66-current-publication">
             Current publication: {publicationSummary.publicationId ?? 'none'}

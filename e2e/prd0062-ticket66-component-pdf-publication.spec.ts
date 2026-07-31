@@ -53,6 +53,21 @@ test('PRD0062 #66 publishes one component-PDF Unit through local trusted command
   await expect(page.getByTestId('ticket66-unit-projection-count')).toContainText('1');
   await expect(page.getByTestId('ticket66-delivery-plan-count')).toContainText('1');
   await expect(page.getByTestId('ticket66-later-unit-state')).toContainText('no');
+  await expect(page.getByTestId('ticket66-component-order')).toContainText('component-a, component-b');
+  await expect(page.getByTestId('ticket66-component-owners'))
+    .toContainText('component-a=section-component-a, component-b=section-component-a');
+  await expect(page.getByTestId('ticket66-source-pins')).toContainText('source-component-a, source-component-b');
+  await expect(page.getByTestId('ticket66-canonical-readbacks'))
+    .toContainText('activity:activity-ticket66-a:ticket66');
+  await expect(page.getByTestId('ticket66-canonical-readbacks'))
+    .toContainText('activity:activity-ticket66-b:ticket66');
+  await expect(page.getByTestId('ticket66-canonical-readbacks'))
+    .toContainText('component-a@source-component-a:1');
+  await expect(page.getByTestId('ticket66-canonical-readbacks'))
+    .toContainText('component-b@source-component-b:1');
+  await expect(page.getByTestId('ticket66-canonical-readbacks')).toContainText('fnv1a64:');
+  await expect(page.getByTestId('ticket66-canonical-readbacks'))
+    .toContainText('prd0062-ticket56-book@manifest-version:candidate-ticket56:ticket66@publication:candidate-ticket56:ticket66@1@unit-component-a@activity-ticket66-a');
   await expect(page.getByTestId('ticket66-publication-message'))
     .toContainText('Published component-PDF Unit publication:candidate-ticket56:ticket66.');
   await expect(page.getByRole('status').filter({
@@ -63,6 +78,14 @@ test('PRD0062 #66 publishes one component-PDF Unit through local trusted command
   await expect(page.getByTestId('ticket66-current-publication')).toContainText('publication:candidate-ticket56:ticket66');
   await expect(page.getByTestId('ticket66-version-count')).toContainText('1');
   await expect(page.getByTestId('ticket66-later-unit-state')).toContainText('no');
+  await expect(page.getByTestId('ticket66-component-order')).toContainText('component-a, component-b');
+  await expect(page.getByTestId('ticket66-component-owners'))
+    .toContainText('component-a=section-component-a, component-b=section-component-a');
+  await expect(page.getByTestId('ticket66-source-pins')).toContainText('source-component-a, source-component-b');
+  await expect(page.getByTestId('ticket66-canonical-readbacks'))
+    .toContainText('activity:activity-ticket66-a:ticket66');
+  await expect(page.getByTestId('ticket66-canonical-readbacks'))
+    .toContainText('activity:activity-ticket66-b:ticket66');
   expect(consoleErrors).toEqual([]);
 
   await mkdir(ARTIFACT_DIR, { recursive: true });

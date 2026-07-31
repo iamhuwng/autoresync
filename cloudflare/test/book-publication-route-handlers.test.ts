@@ -140,20 +140,35 @@ const body = () => ({
   },
 });
 
-const currentApproval = () => createPreviewApproval({
+const currentApproval = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => createPreviewApproval({
   approvalId: 'approval-1',
   approvalRevision: 1,
   actorId: 'teacher-1',
   approvedAt: '2026-07-27T12:00:00.000Z',
   expiresAt: '2026-07-27T14:00:00.000Z',
   preview: createCandidateUnitPreview({
-    candidate: candidate('full_pdf'),
-    sourceVersions: [{
-      sourceVersionId: 'source-v1',
-      bookId: 'book-1',
-      physicalPageCount: 12,
-      verifiedUsable: true,
-    }],
+    candidate: candidate(strategy),
+    sourceVersions: strategy === 'full_pdf'
+      ? [{
+          sourceVersionId: 'source-v1',
+          bookId: 'book-1',
+          physicalPageCount: 12,
+          verifiedUsable: true,
+        }]
+      : [
+          {
+            sourceVersionId: 'source-a-v1',
+            bookId: 'book-1',
+            physicalPageCount: 12,
+            verifiedUsable: true,
+          },
+          {
+            sourceVersionId: 'source-b-v1',
+            bookId: 'book-1',
+            physicalPageCount: 12,
+            verifiedUsable: true,
+          },
+        ],
     sourceIsPreviewReady: () => true,
     activitiesByKey: { 'slot-a': activity() },
     registryVersion: 'registry-1',
@@ -163,6 +178,11 @@ const currentApproval = () => createPreviewApproval({
 
 const fullPdfApprovalPorts = {
   readPreviewApproval: async () => currentApproval(),
+  sourceIsPreviewReady: async () => true,
+};
+
+const componentPdfApprovalPorts = {
+  readPreviewApproval: async () => currentApproval('component_pdfs'),
   sourceIsPreviewReady: async () => true,
 };
 
@@ -209,9 +229,11 @@ describe('Book publication route composition', () => {
   it.each(['full_pdf', 'component_pdfs'] as const)('publishes through the injected repository for %s', async (strategy) => {
     const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>();
     const transaction = vi.spyOn(repository, 'transaction');
+    const activityVersionWriter = new InMemoryCanonicalActivityVersionRepository();
+    const prepare = vi.spyOn(activityVersionWriter, 'prepare');
     const handlers = createBookAssemblyPublicationRouteHandlers({
       repositoryFactory: vi.fn(() => repository),
-      activityVersionWriterFactory: () => new InMemoryCanonicalActivityVersionRepository(),
+      activityVersionWriterFactory: () => activityVersionWriter,
       allocateOperationId: () => operationId,
       allocateId: (kind, key) => `${kind}:${key}`,
       now: () => now,
@@ -226,6 +248,8 @@ describe('Book publication route composition', () => {
         componentPdf: {
           readAuthority: async () => authority(strategy),
           readCandidate: async () => candidate(strategy),
+          readActivities,
+          ...componentPdfApprovalPorts,
         },
       }),
     });
@@ -253,8 +277,13 @@ describe('Book publication route composition', () => {
       'book-1',
       expect.any(Function),
       operationId,
-      expect.stringMatching(/^fnv1a64:/u),
+      expect.stringMatching(
+        strategy === 'component_pdfs'
+          ? /^sha256:[0-9a-f]{64}$/u
+          : /^fnv1a64:/u,
+      ),
     );
+    expect(prepare).toHaveBeenCalledOnce();
   });
 
   it.each([
