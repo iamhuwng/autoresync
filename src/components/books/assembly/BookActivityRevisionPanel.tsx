@@ -110,7 +110,7 @@ const BookActivityRevisionPanel = ({
     try {
       const now = new Date().toISOString();
       const result = await publisher.publish({
-        operationId: `ticket68-${Date.now()}`,
+        operationId: crypto.randomUUID(),
         ownerId: current.ownerId,
         candidate: preview.candidate,
         previewApproval: {

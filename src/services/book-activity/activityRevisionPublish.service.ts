@@ -17,8 +17,8 @@ import { validateEditableActivity } from './activitySchema.service';
 export { buildActivityRevisionPrompt } from '../book-assembly/unitPrompt.service';
 
 const ID = /^[A-Za-z0-9_-]{1,160}$/u;
-const VERSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
-const OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const VERSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
+const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const FINGERPRINT_ID = /^fnv1a64:[0-9a-f]{16}$/u;
 const MAX_CONTEXT_BYTES = 16 * 1024;
 const MAX_CANDIDATE_BYTES = 256 * 1024;
@@ -268,6 +268,8 @@ const candidateFingerprint = (
   sourceContext: candidate.sourceContext,
   editable: candidate.editable,
   normalized: candidate.normalized,
+  projection: candidate.projection,
+  semanticImpact: candidate.semanticImpact,
   placementIds: candidate.placementIds,
   evidenceRefs: candidate.evidenceRefs,
   sourceEvidenceRefs: candidate.sourceEvidenceRefs,
@@ -408,13 +410,19 @@ export const createActivityRevisionPublishService = (
 
   const publish = async (input: ActivityRevisionPublishInput): Promise<ActivityRevisionPublishResult> => {
     const now = input.now ?? new Date().toISOString();
+    const nowMs = Date.parse(now);
+    const approvedAtMs = Date.parse(input.previewApproval?.approvedAt ?? '');
+    const expiresAtMs = Date.parse(input.previewApproval?.expiresAt ?? '');
     if (!validId(input.ownerId) || !validId(input.candidate.activityId) || !validId(input.operationId, OPERATION_ID)) return { status: 'invalid', failureCode: 'invalid-publish-input' };
     if (!validId(input.candidate.expectedCurrentVersionId, VERSION_ID) || !validRevision(input.candidate.expectedCurrentVersion, 1)) return { status: 'invalid', failureCode: 'invalid-publish-input' };
     if (!input.previewApproval
       || input.previewApproval.approvalId !== input.candidate.fingerprint
       || !validId(input.previewApproval.approvalId, FINGERPRINT_ID)
-      || input.previewApproval.expiresAt <= now
-      || input.previewApproval.approvedAt > now) return { status: 'invalid', failureCode: 'preview-approval-invalid' };
+      || !Number.isFinite(nowMs)
+      || !Number.isFinite(approvedAtMs)
+      || !Number.isFinite(expiresAtMs)
+      || expiresAtMs <= nowMs
+      || approvedAtMs > nowMs) return { status: 'invalid', failureCode: 'preview-approval-invalid' };
     return repository.transaction<ActivityRevisionPublishResult>(input.candidate.activityId, (scope) => {
       const previousOperation = scope.operations?.[input.operationId];
       if (previousOperation) {

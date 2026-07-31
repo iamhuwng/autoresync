@@ -1,0 +1,85 @@
+{
+  "ticket": 68,
+  "issue": 68,
+  "title": "PRD0062 19 — Revise one Activity safely",
+  "stateBeforeClose": "OPEN",
+  "reopenRepair": {
+    "classification": "original durable-composition omission exposed by the later #64 immutable-version boundary",
+    "authoritativePrerequisites": [35, 63, 64],
+    "producerEvidenceReviewed": [65, 66],
+    "scope": "complete replacement revision under the same Activity ID"
+  },
+  "implementation": {
+    "candidateLifecycle": "#35 durable validated candidate and CAS lifecycle",
+    "preview": "#63 exact canonical preview and approval fingerprint",
+    "publication": "#64 canonical immutable Activity Version and student-safe projection writer",
+    "visibility": "bounded revision_control CAS advances the current pointer only after the canonical version and projection are prepared",
+    "recovery": "a failed projection preparation leaves an immutable, pointer-invisible remnant; retry with the same operation deterministically completes the same version and commits one pointer",
+    "rollback": "local rollback changes only the current pointer and retains every immutable version and operation record"
+  },
+  "verification": {
+    "focusedApp": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/book-activity/activityAuthoring.repository.test.ts src/services/book-activity/activityAuthoring.service.test.ts src/services/book-activity/activityRevisionPublish.service.test.ts src/services/book-assembly/unitPrompt.service.test.ts src/services/book-assembly/canonicalActivityVersion.service.test.ts src/components/books/assembly/BookActivityRevisionPanel.test.tsx src/__tests__/bookActivityAuthoringWorker.test.ts src/__tests__/security/bookActivityAuthoringRuleFragment.test.ts src/__tests__/security/bookActivityRevisionRuleFragment.test.ts --typecheck --reporter=dot",
+      "result": "9 files, 35 tests passed; no type errors"
+    },
+    "focusedWorker": {
+      "command": "node ../scripts/harness/run-tool.mjs vitest . run test/book-activity-revision-repository.test.ts test/book-activity-revision-worker.test.ts test/book-assembly-canonical-activity-version-repository.test.ts --typecheck --reporter=dot",
+      "result": "3 files, 35 tests passed; no type errors"
+    },
+    "publicationPreservation": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/__tests__/cloudflare/bookFullPdfPublicationWorker.test.ts src/__tests__/cloudflare/bookComponentPdfPublicationWorker.test.ts --typecheck --reporter=dot",
+      "result": "2 files, 9 tests passed; no type errors"
+    },
+    "browser": {
+      "command": "node node_modules/@playwright/test/cli.js test --config playwright.prd0062-ticket68.config.mjs",
+      "result": "4 tests passed across desktop and mobile teacher projects using http://localhost:5173",
+      "proof": [
+        "complete replacement input and exact preview",
+        "publish conflict recovery and immutable lineage",
+        "candidate persistence across reload",
+        "desktop and mobile 200% zoom"
+      ]
+    },
+    "lint": {
+      "command": "npm run lint -- --quiet",
+      "result": "passed, including Mantine boundary"
+    },
+    "productionBuild": {
+      "command": "npm run build",
+      "result": "passed; 9452 modules transformed and bundle budget passed"
+    }
+  },
+  "ownedAcceptanceProof": [
+    "complete replacement preserves required Interaction IDs and remints only changed topology",
+    "source context, source and answer evidence, placement IDs, and delivery context remain authoritative",
+    "two consecutive non-null-context revisions preserve the exact source-context fingerprint",
+    "operation identity, expected version, outcome, and idempotency metadata remain immutable across rollback",
+    "projection-preparation failure never advances revision_control and retry does not create a duplicate successor",
+    "historical attempt and result snapshots retain their old Activity Version and source provenance byte-for-byte",
+    "revision publication does not write Homework, Course, Class, Book publication, placement, notification, answer, attempt, result, grade, or delivery-context state",
+    "Mode 1, full-PDF publication, and component-PDF publication remain intact",
+    "revision rules remain root default-deny and validate append-only history/operation identity and shape"
+  ],
+  "explicitTransfers": {
+    "118": [
+      "generated database.rules.json composition",
+      "assembled emulator enforcement",
+      "generated-rules hash/readback and generated-rules rollback"
+    ],
+    "134": [
+      "deployment, canary publication, deployed identity/config/version readback, and emergency rollback"
+    ],
+    "73": [
+      "assembled student-shell proof for old-version attempts and current-version delivery"
+    ],
+    "59": [
+      "canonical assembled runtime route and production shell composition"
+    ]
+  },
+  "scopeControl": {
+    "unrelatedDirtyChanges": "preserved and excluded from the ticket-owned stage",
+    "deploymentRequiredFor68": false,
+    "generatedRulesRequiredFor68": false,
+    "assembledStudentShellRequiredFor68": false
+  }
+}

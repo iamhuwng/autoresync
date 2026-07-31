@@ -3,135 +3,158 @@ import { describe, expect, it } from 'vitest';
 import fragment from '../../../cloudflare/src/upload-worker/book-rules/fragments/19.json';
 import publicationFragment from '../../../cloudflare/src/upload-worker/book-rules/fragments/16A.json';
 
-const transferredPaths = [
+const canonicalPaths = [
   'book_activity/versions/$activityId/$versionId',
   'book_activity/student_safe_projections/$activityId/$versionId',
 ] as const;
 
-const operation = (path: string, rule: '.read' | '.write') => {
-  const found = fragment.operations.find((candidate) => candidate.path === path && candidate.rule === rule);
+const operation = (path: string, rule: '.read' | '.write' | '.validate') => {
+  const found = fragment.operations.find((candidate) =>
+    candidate.path === path && candidate.rule === rule);
   expect(found, `${path} ${rule}`).toBeDefined();
   return found!;
 };
 
-const scopedOperations = () => fragment.operations.filter((candidate) => candidate.path !== 'book_activity');
-
-describe('PRD0062 #68 versioned Activity RTDB rule fragment', () => {
-  it('owns only the versioned local Activity revision boundary', () => {
+describe('PRD0062 #68 durable Activity revision rule fragment', () => {
+  it('owns one bounded revision-control CAS and leaves canonical payload paths with #64', () => {
     expect(fragment).toMatchObject({
       schemaVersion: 1,
       ticketId: '19',
       owner: {
-        ticketId: '19',
         issue: 68,
         serviceIdentity: 'book_activity_revision_service',
+        leastPrivilegePaths: [
+          'users/$ownerId',
+          'book_activity/revision_control/$activityId',
+        ],
       },
     });
-    expect(fragment.owner.generatedRuleLocations).toEqual(fragment.operations.map((candidate) => `${candidate.path}/${candidate.rule}`));
-    expect(fragment.owner.leastPrivilegePaths).toEqual([
-      'users/$ownerId',
-      'book_activity/candidates/$candidateId',
-      'book_activity/drafts/$activityId/$draftId',
-      'book_activity/history/$activityId/$historyId',
-      'book_activity/current/$activityId',
-      'book_activity/activity_publish_operations/$operationId',
-    ]);
-  });
-
-  it('denies browser root reads/writes and leaves no permissive fallback', () => {
-    expect(operation('book_activity', '.read').expression).toBe('false');
-    expect(operation('book_activity', '.write').expression).toBe('false');
-
-    for (const candidate of scopedOperations()) {
-      expect(candidate.expression).toContain('auth != null');
-      expect(candidate.expression).toContain('auth.token.book_activity_revision_service == true');
-      expect(candidate.expression).not.toContain('auth.uid');
-      expect(candidate.expression).not.toMatch(/\|\|\s*true/);
-      expect(candidate.expression).not.toMatch(/book_activity_capabilities/);
-      expect(candidate.expression).not.toMatch(/private.?B2|trusted.?action|50A|03B/i);
-    }
-  });
-
-  it('binds candidates and mutable drafts to trusted owner-scoped Activity identity', () => {
-    const candidateRead = operation('book_activity/candidates/$candidateId', '.read');
-    const candidateWrite = operation('book_activity/candidates/$candidateId', '.write');
-    const draftRead = operation('book_activity/drafts/$activityId/$draftId', '.read');
-    const draftWrite = operation('book_activity/drafts/$activityId/$draftId', '.write');
-
-    expect(candidateRead.expression).toContain("data.child('ownerId').val()");
-    expect(candidateWrite.expression).toContain("newData.child('ownerId').val()");
-    expect(candidateWrite.expression).toContain("newData.child('candidateId').val() == $candidateId");
-    expect(candidateWrite.expression).toContain("newData.child('activityId').isString()");
-    expect(draftRead.expression).toContain("data.child('activityId').val() == $activityId");
-    expect(draftWrite.expression).toContain("newData.child('draftId').val() == $draftId");
-    expect(draftWrite.expression).toContain("newData.child('revision').isNumber()");
-  });
-
-  it('makes Activity Versions and history immutable create-only records', () => {
-    for (const path of ['book_activity/history/$activityId/$historyId']) {
-      const read = operation(path, '.read');
-      const write = operation(path, '.write');
-      expect(read.expression).toContain("data.child('ownerId').val()");
-      expect(write.expression).toContain('!data.exists()');
-      expect(write.expression).toContain("newData.child('ownerId').val()");
-      expect(write.expression).not.toContain('auth.uid');
-    }
-
-    expect(operation('book_activity/history/$activityId/$historyId', '.write').expression)
-      .toContain("newData.child('versionId').isString()");
-  });
-
-  it('does not retain the transferred canonical locations', () => {
-    const generatedLocations = fragment.owner.generatedRuleLocations;
-    expect(new Set(generatedLocations).size).toBe(generatedLocations.length);
-    for (const path of transferredPaths) {
+    expect(fragment.owner.generatedRuleLocations).toEqual(
+      fragment.operations.map((candidate) => `${candidate.path}/${candidate.rule}`),
+    );
+    for (const path of canonicalPaths) {
       expect(fragment.operations.some((candidate) => candidate.path === path)).toBe(false);
-      expect(generatedLocations.some((location) => location.startsWith(`${path}/`))).toBe(false);
-      expect(publicationFragment.operations.filter((candidate) => candidate.path === path)).toHaveLength(2);
+      expect(publicationFragment.operations.filter((candidate) =>
+        candidate.path === path)).toHaveLength(2);
     }
   });
 
-  it('keeps the root deny and all retained paths disabled-gate free', () => {
+  it('keeps the Activity root default-deny and binds control reads to exact service/owner/activity', () => {
     expect(operation('book_activity', '.read').expression).toBe('false');
     expect(operation('book_activity', '.write').expression).toBe('false');
-    for (const candidate of scopedOperations()) {
-      expect(candidate.expression).not.toContain('book_activity_capabilities');
-      expect(candidate.expression).not.toMatch(/\|\|\s*true/);
+    const read = operation('book_activity/revision_control/$activityId', '.read').expression;
+    expect(read).toContain('auth.token.book_activity_revision_service == true');
+    expect(read).toContain('auth.token.book_activity_revision_activityId == $activityId');
+    expect(read).toContain('!data.exists()');
+    expect(read).toContain("data.child('current/ownerId').val()");
+    expect(read).not.toContain('auth.uid');
+  });
+
+  it('requires the exact canonical pointer/control shape and denies sensitive payload fields', () => {
+    const write = operation(
+      'book_activity/revision_control/$activityId/current',
+      '.write',
+    ).expression;
+    for (const required of [
+      "newData.child('schemaVersion').val() == 1",
+      "newData.child('lifecycle').val() == 'published'",
+      "newData.child('activityId').val() == $activityId",
+      "newData.child('activityVersionId').isString()",
+      "newData.child('activityVersion').isNumber()",
+      "newData.child('payloadFingerprint').isString()",
+      "newData.child('updatedByOperationId').isString()",
+    ]) expect(write).toContain(required);
+    for (const forbidden of ['answerKey', 'credentials', 'providerAuthority', 'privateObjectKey']) {
+      expect(write).toContain(`!newData.child('${forbidden}').exists()`);
     }
   });
 
-  it('has no duplicate generated locations with the destination fragment', () => {
+  it('allows forward CAS by default and requires separate rollback authority for pointer reversal', () => {
+    const write = operation(
+      'book_activity/revision_control/$activityId/current',
+      '.write',
+    ).expression;
+    expect(write).toContain(
+      "newData.child('activityVersion').val() > data.child('activityVersion').val()",
+    );
+    expect(write).toContain('auth.token.book_activity_revision_rollback == true');
+    expect(write).not.toMatch(/\|\|\s*true/);
+    expect(write).not.toMatch(/private.?B2|50A|03B/i);
+  });
+
+  it('keeps history and operation evidence append-only, shaped, and identity-bound', () => {
+    const historyWrite = operation(
+      'book_activity/revision_control/$activityId/history/$activityVersionId',
+      '.write',
+    ).expression;
+    expect(historyWrite).toContain('newData.exists()');
+    expect(historyWrite).toContain('!data.exists() || newData.val() == data.val()');
+    const historyValidation = operation(
+      'book_activity/revision_control/$activityId/history/$activityVersionId',
+      '.validate',
+    ).expression;
+    expect(historyValidation).toContain('data.exists() && newData.val() == data.val()');
+    expect(historyValidation).toContain("newData.child('activityId').val() == $activityId");
+    expect(historyValidation).toContain(
+      "newData.child('activityVersionId').val() == $activityVersionId",
+    );
+
+    const operationWrite = operation(
+      'book_activity/revision_control/$activityId/operations/$operationId',
+      '.write',
+    ).expression;
+    expect(operationWrite).toContain('newData.exists()');
+    expect(operationWrite).toContain('!data.exists() || newData.val() == data.val()');
+    const operationValidation = operation(
+      'book_activity/revision_control/$activityId/operations/$operationId',
+      '.validate',
+    ).expression;
+    expect(operationValidation).toContain('data.exists() && newData.val() == data.val()');
+    expect(operationValidation).toContain("newData.child('operationId').val() == $operationId");
+    expect(operationValidation).toContain("newData.child('activityId').val() == $activityId");
+  });
+
+  it('binds the pointer to one canonical immutable version and its operation', () => {
+    const write = operation(
+      'book_activity/revision_control/$activityId/current',
+      '.write',
+    ).expression;
+    expect(write).toContain(
+      "root.child('book_activity/versions').child($activityId).child(newData.child('activityVersionId').val())",
+    );
+    expect(write).toContain(
+      ".child('payloadFingerprint').val() == newData.child('payloadFingerprint').val()",
+    );
+    expect(write).toContain(
+      "newData.parent().child('operations').child(newData.child('updatedByOperationId').val()).child('resultActivityVersionId').val() == newData.child('activityVersionId').val()",
+    );
+    expect(write).toContain(
+      "newData.parent().child('history').child(newData.child('activityVersionId').val()).child('payloadFingerprint').val() == newData.child('payloadFingerprint').val()",
+    );
+    expect(write).toContain(
+      ".child('createdByOperationId').val() == newData.child('updatedByOperationId').val()",
+    );
+    const history = operation(
+      'book_activity/revision_control/$activityId/history/$activityVersionId',
+      '.validate',
+    ).expression;
+    expect(history).toContain(
+      "root.child('book_activity/versions').child($activityId).child($activityVersionId)",
+    );
+    const operationValidation = operation(
+      'book_activity/revision_control/$activityId/operations/$operationId',
+      '.validate',
+    ).expression;
+    expect(operationValidation).toContain(
+      ".child('createdByOperationId').val() == $operationId",
+    );
+  });
+
+  it('has no duplicate generated locations with the #64 destination fragment', () => {
     const locations = [
       ...fragment.owner.generatedRuleLocations,
       ...publicationFragment.owner.generatedRuleLocations,
     ];
     expect(new Set(locations).size).toBe(locations.length);
-  });
-
-  it('restricts current pointer replacement to published versions and operation identity', () => {
-    const read = operation('book_activity/current/$activityId', '.read');
-    const write = operation('book_activity/current/$activityId', '.write');
-    expect(read.expression).toContain("data.child('activityId').val() == $activityId");
-    expect(write.expression).toContain('newData.exists()');
-    expect(write.expression).toContain("newData.child('activityId').val() == $activityId");
-    expect(write.expression).toContain("newData.child('versionId').isString()");
-    expect(write.expression).toContain("newData.child('updatedByOperationId').isString()");
-    expect(write.expression).toContain("newData.child('lifecycle').val() == 'published'");
-    expect(write.expression).toContain("!newData.child('candidateId').exists()");
-    expect(write.expression).toContain("!newData.child('draftId').exists()");
-  });
-
-  it('keeps every trusted child read/write owner- and path-bound', () => {
-    for (const candidate of scopedOperations()) {
-      expect(candidate.expression).toMatch(/auth\.token\.book_activity_revision_ownerId == (data|newData)\.child\('ownerId'\)\.val\(\)/);
-    }
-    for (const path of [
-      'book_activity/drafts/$activityId/$draftId',
-      'book_activity/history/$activityId/$historyId',
-      'book_activity/current/$activityId',
-    ]) {
-      expect(operation(path, '.read').expression).toContain('$activityId');
-      expect(operation(path, '.write').expression).toContain('$activityId');
-    }
   });
 });

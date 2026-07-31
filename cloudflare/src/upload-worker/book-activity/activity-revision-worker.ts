@@ -8,7 +8,7 @@ const MAX_BODY_BYTES = 256 * 1024;
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_IMPACT_BYTES = 16 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,160}$/u;
-const VERSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const VERSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const FINGERPRINT_ID = /^fnv1a64:[0-9a-f]{16}$/u;
 const SENSITIVE_RESPONSE_KEYS = new Set([
@@ -344,7 +344,10 @@ const statusForResult = (status: TrustedActivityRevisionResult['status']): numbe
 };
 
 export const createBookActivityRevisionWorkerHandlers = (options: {
-  readonly revisionService: TrustedActivityRevisionService;
+  readonly revisionService?: TrustedActivityRevisionService;
+  readonly revisionServiceForEnv?: (
+    env: BookActivityRevisionWorkerEnv,
+  ) => TrustedActivityRevisionService;
   /** Canonical route must inject verified-token/owner authorization. */
   readonly authenticate?: (uid: string, env: BookActivityRevisionWorkerEnv) => Promise<void>;
 }) => ({
@@ -363,7 +366,12 @@ export const createBookActivityRevisionWorkerHandlers = (options: {
       if (!options.authenticate) throw new ActivityRevisionWorkerError('revision_auth_unconfigured', 503);
       await options.authenticate(input.uid, input.env);
       const request = parseRequest(await readBody(input.request), input.request);
-      const result = await options.revisionService.revalidateAndCommit({
+      const revisionService = options.revisionService
+        ?? options.revisionServiceForEnv?.(input.env);
+      if (!revisionService) {
+        throw new ActivityRevisionWorkerError('revision_repository_unconfigured', 503);
+      }
+      const result = await revisionService.revalidateAndCommit({
         actorId: input.uid,
         ...request,
       });

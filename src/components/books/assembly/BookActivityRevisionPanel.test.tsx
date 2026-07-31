@@ -153,7 +153,7 @@ describe('BookActivityRevisionPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('stale-current-activity-version');
     expect(screen.getByTestId('ticket68-publish')).toBeDisabled();
     await user.click(screen.getByTestId('ticket68-reload'));
-    await waitFor(() => expect(publisher.loadCandidate).toHaveBeenCalledWith('candidate-1'));
+    await waitFor(() => expect(publisher.loadCandidate).toHaveBeenCalledWith('ticket68-candidate'));
     expect(onConflictReload).toHaveBeenCalledWith(candidate);
   });
 });

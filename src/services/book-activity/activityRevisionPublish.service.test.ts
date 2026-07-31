@@ -223,7 +223,7 @@ describe('Activity revision publish service', () => {
     if (preview.status !== 'ready') return;
 
     const invalidApproval = await service.publish({
-      operationId: 'operation-68-invalid-approval',
+      operationId: '00000000-0000-4000-8000-000000000680',
       ownerId: 'teacher-1',
       candidate: preview.candidate,
       previewApproval: approval('fnv1a64:0000000000000000'),
@@ -232,7 +232,7 @@ describe('Activity revision publish service', () => {
     expect(invalidApproval).toEqual({ status: 'invalid', failureCode: 'preview-approval-invalid' });
 
     const first = await service.publish({
-      operationId: 'operation-68-1',
+      operationId: '00000000-0000-4000-8000-000000000681',
       ownerId: 'teacher-1',
       candidate: preview.candidate,
       previewApproval: approval(preview.candidate.fingerprint),
@@ -251,7 +251,7 @@ describe('Activity revision publish service', () => {
     expect(JSON.stringify(first)).not.toContain('acceptedAnswers');
 
     const replay = await service.publish({
-      operationId: 'operation-68-1',
+      operationId: '00000000-0000-4000-8000-000000000681',
       ownerId: 'teacher-1',
       candidate: preview.candidate,
       previewApproval: approval(preview.candidate.fingerprint),
@@ -294,12 +294,12 @@ describe('Activity revision publish service', () => {
     });
     expect(preview.status).toBe('ready');
     if (preview.status !== 'ready') return;
-    const published = await service.publish({ operationId: 'operation-68-2', ownerId: 'teacher-1', candidate: preview.candidate, previewApproval: approval(preview.candidate.fingerprint), now: '2026-07-28T00:03:00.000Z' });
+    const published = await service.publish({ operationId: '00000000-0000-4000-8000-000000000682', ownerId: 'teacher-1', candidate: preview.candidate, previewApproval: approval(preview.candidate.fingerprint), now: '2026-07-28T00:03:00.000Z' });
     expect(published.status).toBe('revised');
-    const stale = await service.publish({ operationId: 'operation-68-stale', ownerId: 'teacher-1', candidate: preview.candidate, previewApproval: approval(preview.candidate.fingerprint), now: '2026-07-28T00:04:00.000Z' });
+    const stale = await service.publish({ operationId: '00000000-0000-4000-8000-000000000683', ownerId: 'teacher-1', candidate: preview.candidate, previewApproval: approval(preview.candidate.fingerprint), now: '2026-07-28T00:04:00.000Z' });
     expect(stale).toEqual({ status: 'conflict', failureCode: 'stale-current-activity-version' });
     const rolledBack = await service.rollback({
-      operationId: 'operation-68-rollback',
+      operationId: '00000000-0000-4000-8000-000000000684',
       ownerId: 'teacher-1',
       activityId: 'activity-1',
       expectedCurrentVersionId: 'activity-1-v2',
@@ -335,7 +335,7 @@ describe('Activity revision publish service', () => {
     expect(preview.status).toBe('ready');
     if (preview.status !== 'ready') return;
     await expect(service.publish({
-      operationId: 'operation-68-crash',
+      operationId: '00000000-0000-4000-8000-000000000685',
       ownerId: 'teacher-1',
       candidate: preview.candidate,
       previewApproval: approval(preview.candidate.fingerprint),
@@ -344,7 +344,7 @@ describe('Activity revision publish service', () => {
     const scope = await repository.readScope();
     expect(scope.current).toMatchObject({ versionId: 'activity-1-v1', version: 1 });
     expect(Object.keys(scope.versions)).toEqual(['activity-1-v1']);
-    expect(scope.operations?.['operation-68-crash']).toBeUndefined();
+    expect(scope.operations?.['00000000-0000-4000-8000-000000000685']).toBeUndefined();
     expect(scope.candidates?.['candidate-crash']).toBeDefined();
   });
 });
