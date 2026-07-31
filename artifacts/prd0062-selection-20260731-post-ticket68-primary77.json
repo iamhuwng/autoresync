@@ -1,0 +1,77 @@
+{
+  "generatedAt": "2026-07-31T12:17:06.4623575Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260731-post-ticket68-closed.json",
+  "graphHash": "172f89360a9af817c7ae07c5775a6c79998900bc32d0f1284c91b513fa152076",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 46,
+    "closedCount": 66,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Grouped Activity results",
+  "graphClearFrontier": [
+    77,
+    87,
+    91,
+    106,
+    129,
+    130,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 77,
+    "title": "PRD0062 29 — Review grouped Activity attempts",
+    "directPrerequisites": [
+      76
+    ],
+    "closedPrerequisites": [
+      76
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 29,
+    "acceptanceReadiness": "The direct prerequisite #76 and all 38 transitive prerequisites are formally CLOSED. The live destination-first clarification gives #77 bounded ownership of the Book result read model, indexed summary/detail projections, visibility adapter, contributor route descriptors, local rule fragment, tests, role browser proof, and retained production-equivalent preview/readback gate without reopening #74's mutation authority or #59's canonical route seam.",
+    "requiredAuthority": [
+      "ticket-owned Book result projection, summary/detail index, visibility/ownership adapter, contributor route, component, and local rule-fragment paths",
+      "read-only live issue and current-state configuration readback",
+      "student localhost:5174 and teacher localhost:5173 quick-login fixtures for ticket-owned browser proof",
+      "production-equivalent preview/readback only where the live #77 contract requires it",
+      "rollback limited to hiding the Book result adapter while retaining immutable attempts and results"
+    ],
+    "selectionReason": "#77 is the earliest unresolved graph-clear ticket in deterministic roadmap order after Activity revision #68 closes. It advances from terminal attempt production to the grouped result read model and has the highest downstream leverage among the non-final-suite frontier. Selecting any additional primary would violate the exactly-one-primary rule."
+  },
+  "candidateRejections": [
+    {
+      "numbers": [
+        87,
+        91,
+        106
+      ],
+      "reason": "Graph-clear but later Homework-window, integrity-signal, or public-catalog phases. Deterministic roadmap order advances first to grouped Activity results #77."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear only at the dependency-graph level. Final browser, accessibility, contract/security, legacy, backup, and recovery suites remain final-closure work, not the next implementation primary."
+    }
+  ],
+  "governingSafety": {
+    "privateB2": "disabled",
+    "03B": "disabled",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny except an explicitly authorized bounded disposable acceptance gate",
+    "masterKey": "offline provisioning-only; never a runtime binding",
+    "selectionOnly": "No #77 implementation, gate enablement, deployment mutation, Firebase mutation, or issue mutation is performed by this snapshot."
+  }
+}
