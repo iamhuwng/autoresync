@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service.ts';
+import { projectStudentActivity } from '../../src/services/book-activity/activityProjection.service.ts';
+import {
+  createCanonicalActivityVersionFingerprint,
+} from '../../src/services/book-assembly/canonicalActivityVersion.service.ts';
 import type { BookDeliveryBinding } from '../../src/services/book-delivery/bookDelivery.types.ts';
 import { createBookRouteHandlers } from '../src/upload-worker/book-route-handlers.ts';
 import {
@@ -28,6 +33,58 @@ const normalizedActivity = () => ({
   }],
 });
 
+const canonicalActivityVersion = () => {
+  const activity = normalizeActivity({
+    schemaVersion: 1,
+    title: 'Runtime activity',
+    taskProfile: null,
+    presentationMode: 'structured',
+    contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+    instructions: [{ text: 'Answer.' }],
+    interaction: { family: 'text-entry', variant: 'generic' },
+    answerRule: { defaultPoints: 1, normalization: 'exact' },
+    stimulus: null,
+    assetRefs: [],
+    interactions: [{ prompt: 'Answer', acceptedAnswers: ['draft'] }],
+    scoring: { mode: 'auto-where-possible' },
+  }, {
+    createId: () => 'interaction-1',
+  });
+  const record = {
+    schemaVersion: 1 as const,
+    lifecycle: 'published' as const,
+    activityId: 'activity-1',
+    activityVersionId: 'activity-version-1',
+    activityVersion: 1,
+    ownerId: 'teacher-1',
+    activity,
+    projection: projectStudentActivity(activity),
+    placementIds: ['placement-1'],
+    evidenceRefs: [],
+    sourceContextFingerprint: null,
+    createdByOperationId: 'operation-1',
+    publishedAt: '2026-07-30T00:00:00.000Z',
+    provenance: {
+      kind: 'initial-book-publication' as const,
+      bookId: 'book-1',
+      manifestVersionId: 'manifest-1',
+      publicationId: 'publication-1',
+      publicationRevision: 1,
+      unitKey: 'unit-1',
+      activityKey: 'activity-1',
+      sourcePages: [{
+        sourceKey: 'source-1',
+        sourceVersionId: 'source-version-1',
+        physicalPageNumber: 1,
+      }],
+    },
+  };
+  return {
+    ...record,
+    payloadFingerprint: createCanonicalActivityVersionFingerprint(record),
+  };
+};
+
 const binding = (): BookDeliveryBinding => ({
   schemaVersion: 3,
   bindingId: 'binding-1',
@@ -44,7 +101,13 @@ const binding = (): BookDeliveryBinding => ({
     publicationStatus: 'published',
   },
   scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
-  outline: [],
+  outline: [{
+    nodeKey: 'unit-1',
+    parentNodeKey: null,
+    nodeType: 'unit',
+    order: 1,
+    titleSnapshot: 'Unit 1',
+  }],
   context: {
     contextId: 'context-1',
     recipientId: 'student-1',
@@ -69,7 +132,7 @@ const binding = (): BookDeliveryBinding => ({
     nodeKey: 'unit-1',
     order: 1,
     contextMode: 'required',
-    pageGroupKeys: [],
+    pageGroupKeys: ['page-group-1'],
     sourcePageScopes: [{ sourceKey: 'source-1', pages: [1] }],
   }],
   schedulePolicy: { policyId: 'policy-1', policyRevision: 1, basis: 'immutable-reference' },
@@ -175,5 +238,63 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
       body: { code: 'book_runtime_dependencies_unavailable' },
       init: { status: 503 },
     });
+  });
+
+  it('uses the runtime identity to resolve an exact canonical Activity Version', async () => {
+    const current = {
+      bindingId: 'binding-1',
+      bindingRevision: 1,
+      recipientId: 'student-1',
+      contextId: 'context-1',
+      contextKind: 'solo',
+      status: 'active',
+      updatedAt: '2026-07-30T00:00:00.000Z',
+    };
+    const record = {
+      binding: binding(),
+      recordRevision: 1,
+      status: 'active',
+      createdAt: '2026-07-30T00:00:00.000Z',
+      updatedAt: '2026-07-30T00:00:00.000Z',
+    };
+    const readDatabaseValue = vi.fn(async (path: string) => {
+      if (path === 'book_delivery/scopes/student-1/context-1/current') return current;
+      if (path === 'book_delivery/scopes/student-1/context-1/records/binding-1') return record;
+      if (path === 'book_activity/versions/activity-1/activity-version-1') {
+        return canonicalActivityVersion();
+      }
+      if (path === 'users/student-1') return null;
+      if (path === 'book_runtime/scopes/student-1/context-1/placement-1/interaction-1') {
+        return null;
+      }
+      throw new Error(`unexpected read: ${path}`);
+    });
+    const handlers = createBookRuntimeCanonicalHandlers();
+    const result = await handlers.readDraft({
+      request: new Request('https://worker.test/book-runtime/drafts'),
+      env: {
+        ...env,
+        BOOK_RUNTIME_GOOGLE_SA_KEY: JSON.stringify({
+          client_email: env.BOOK_RUNTIME_SERVICE_IDENTITY,
+        }),
+        BOOK_DELIVERY_GOOGLE_SA_KEY: JSON.stringify({
+          client_email: env.BOOK_DELIVERY_SERVICE_IDENTITY,
+        }),
+        readDatabaseValue,
+      },
+      uid: 'student-1',
+      bindingId: 'binding-1',
+      bindingRevision: '1',
+      contextId: 'context-1',
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersion: '1',
+      interactionId: 'interaction-1',
+    });
+
+    expect(result).toEqual({ body: { draft: null }, init: { status: 200 } });
+    expect(readDatabaseValue).toHaveBeenCalledWith(
+      'book_activity/versions/activity-1/activity-version-1',
+    );
   });
 });

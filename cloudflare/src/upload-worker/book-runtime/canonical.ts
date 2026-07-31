@@ -4,9 +4,16 @@ import type {
   BookRuntimeAttemptPolicy,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import {
+  assertCanonicalPublishedActivityVersion,
+} from '../../../../src/services/book-assembly/canonicalActivityVersion.service.ts';
+import {
+  CANONICAL_ACTIVITY_VERSION_ROOT,
+} from '../book-assembly/canonical-activity-version-repository.ts';
+import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
 } from '../book-delivery/repository.ts';
+import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import {
   FirebaseRestBookRuntimeRepository,
   type BookRuntimeRepository,
@@ -66,6 +73,13 @@ const productionDependencies = (
 ): BookRuntimeCanonicalDependencies => {
   const runtimeRepository = new FirebaseRestBookRuntimeRepository({ env });
   const deliveryRepository = new FirebaseRestBookDeliveryRepository({ env });
+  const activityReader = new FirebaseRtdbRestClient({
+    env: {
+      ...env,
+      GOOGLE_SA_KEY: env.BOOK_RUNTIME_GOOGLE_SA_KEY,
+    },
+    fetchImpl: globalThis.fetch,
+  });
   return {
     repository: runtimeRepository,
     resolveBinding: async ({ bindingId, recipientId, contextId }) => {
@@ -74,8 +88,36 @@ const productionDependencies = (
       return resolved.record.binding;
     },
     schedulePolicy,
-    resolveActivity: undefined,
-    resolveAttemptPolicy: undefined,
+    resolveActivity: async ({
+      binding,
+      placementId,
+      activityId,
+      activityVersion,
+    }) => {
+      const placement = binding.placements.find((candidate) => (
+        candidate.placementId === placementId
+        && candidate.activityId === activityId
+        && candidate.activityVersion === activityVersion
+      ));
+      if (!placement) return null;
+      const value = await activityReader.readValue(
+        `${CANONICAL_ACTIVITY_VERSION_ROOT}/${activityId}/${placement.activityVersionId}`,
+      );
+      try {
+        const record = assertCanonicalPublishedActivityVersion(value);
+        if (record.activityId !== activityId
+          || record.activityVersionId !== placement.activityVersionId
+          || record.activityVersion !== activityVersion
+          || record.ownerId !== binding.issuer.ownerId
+          || !record.placementIds.includes(placementId)) return null;
+        return record.activity;
+      } catch {
+        return null;
+      }
+    },
+    resolveAttemptPolicy: async ({ binding }) => (
+      binding.context.kind === 'solo' ? { maxAttempts: null } : null
+    ),
   };
 };
 
