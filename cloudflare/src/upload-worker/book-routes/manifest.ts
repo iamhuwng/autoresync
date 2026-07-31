@@ -14,6 +14,7 @@ import {
 import {
   bookDeliveryRouteDescriptors,
   bookDocumentAuthorizationRouteDescriptor,
+  bookHistoricalAttemptDocumentRouteDescriptor,
   bookTeacherAssemblyDocumentRouteDescriptor,
 } from '../book-delivery/route.ts';
 import { bookSourceRouteDescriptors } from '../book-source/route.ts';
@@ -261,6 +262,23 @@ const documentRoute = contributor({
   contributorTicket: '#51/#52',
 });
 
+const historicalAttemptDocumentRoute = contributor({
+  id: 'book.document-delivery.serve-historical-attempt-document',
+  method: bookHistoricalAttemptDocumentRouteDescriptor.method,
+  path: bookHistoricalAttemptDocumentRouteDescriptor.path,
+  owner: '#80',
+  domain: 'document-delivery',
+  handler: bookHistoricalAttemptDocumentRouteDescriptor.handler,
+  firebaseAuth: 'firebase-id-token-before-lookup',
+  rateClass: 'book-document',
+  gateEnv: 'BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED',
+  requestBodyBytes: bookHistoricalAttemptDocumentRouteDescriptor.requestBodyBytes,
+  responseLimitBytes: bookHistoricalAttemptDocumentRouteDescriptor.responseLimitBytes,
+  identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
+  contributorTicket: '#80',
+});
+
 const teacherAssemblyDocumentRoute = contributor({
   id: 'book.document-delivery.serve-teacher-assembly-document',
   method: bookTeacherAssemblyDocumentRouteDescriptor.method,
@@ -400,6 +418,7 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...sourceUploadRoutes,
   ...runtimeRoutes,
   documentRoute,
+  historicalAttemptDocumentRoute,
   teacherAssemblyDocumentRoute,
   ...futureRoutes,
 ]);

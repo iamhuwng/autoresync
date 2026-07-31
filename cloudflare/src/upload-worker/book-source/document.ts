@@ -41,8 +41,10 @@ import {
   type LiveBookDocumentAuthority,
 } from '../book-delivery/documentAuthorization.ts';
 import {
+  authorizeHistoricalAttemptDocument,
   createBookDocumentWorker,
   type BookDocumentWorkerAuthorization,
+  type HistoricalAttemptHomeworkAuthority,
 } from '../book-delivery/document-worker.ts';
 import {
   FirebaseRestBookDeliveryRepository,
@@ -60,6 +62,15 @@ import type {
 import type {
   SourceProviderPort,
 } from '../../../../src/services/book-source-delivery/sourceProvider.port.ts';
+import {
+  FirebaseBookResultReadRepository,
+} from '../book-results/repository.ts';
+import type {
+  BookResultDetail,
+} from '../book-results/types.ts';
+import {
+  isBookAttemptSourceContextProjection,
+} from '../../../../src/services/book-delivery/attemptSourceContextProjection.service.ts';
 
 const CANONICAL_BINDING_ID = /^bd_[0-9a-f]{40}$/u;
 const CANONICAL_BINDING_ROUTE = /^(bd_[0-9a-f]{40})-/u;
@@ -84,6 +95,21 @@ export interface BookSourceDocumentRuntime {
   readonly readCurrentAuthority: (
     binding: BookDeliveryBinding,
   ) => Promise<LiveBookDocumentAuthority>;
+  readonly readResultDetail?: (input: {
+    readonly bookId: string;
+    readonly studentId: string;
+    readonly resultId: string;
+  }) => Promise<BookResultDetail | null>;
+  readonly readHomeworkAuthority?: (
+    homeworkId: string,
+  ) => Promise<HistoricalAttemptHomeworkAuthority | null>;
+  readonly readHistoricalSource?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly sourceVersionId: string;
+  }) => Promise<{
+    readonly availability: 'available' | 'missing' | 'deleted' | 'replaced' | 'revoked';
+    readonly source: BookDocumentAuthorizedSource | null;
+  }>;
 }
 
 export interface BookSourceDocumentDeliveryOptions {
@@ -143,6 +169,23 @@ const activeStudentProfile = (value: unknown): boolean => {
     && profile.disabled !== true
     && profile.forceReauth !== true
     && !['blocked', 'inactive', 'suspended'].includes(String(profile.status));
+};
+
+const activeDocumentProfile = (
+  value: unknown,
+): { readonly role: 'student' | 'teacher' } | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const profile = value as Record<string, unknown>;
+  if (
+    (profile.role !== 'student' && profile.role !== 'teacher')
+    || profile.status !== 'active'
+    || profile.disabled === true
+    || profile.forceReauth === true
+    || ['blocked', 'inactive', 'suspended'].includes(String(profile.status))
+  ) {
+    return null;
+  }
+  return { role: profile.role };
 };
 
 const resolveDocumentRoute = async (
@@ -298,7 +341,14 @@ const defaultRuntimeFactory = (
       BOOK_HOMEWORK_GOOGLE_SA_KEY: account.raw,
     },
   });
+  const resultRepository = new FirebaseBookResultReadRepository({
+    env,
+    getAccessToken,
+  });
   const provider = createBackblazeB2SourceProviderFromEnv(env);
+  const readAccountState = async () => validateBookSourceUploadAccountState(
+    await rtdb.readValue(sourceUploadAccountPath(accountId)),
+  );
 
   return {
     repository,
@@ -306,6 +356,56 @@ const defaultRuntimeFactory = (
     readProfile: (uid) => (
       SAFE_ID.test(uid) ? rtdb.readValue(`users/${uid}`) : Promise.resolve(null)
     ),
+    readResultDetail: ({ bookId, studentId, resultId }) => resultRepository.readResultDetail({
+      bookId,
+      studentId,
+      resultId,
+      limit: 1,
+    }),
+    readHomeworkAuthority: async (homeworkId) => {
+      const stored = await homeworkStore.read(homeworkId);
+      if (!stored) return null;
+      validateHomeworkAuthority(stored.value);
+      const authority = stored.value;
+      return {
+        homeworkId: authority.assignmentId,
+        ownerId: authority.ownerId,
+        studentIds: [authority.bookManifest.context.recipientId],
+        status: authority.visibility.status === 'committed'
+          && authority.saga.state === 'committed'
+          ? 'current'
+          : 'unresolved',
+      };
+    },
+    readHistoricalSource: async ({ binding, sourceVersionId }) => {
+      const accountState = await readAccountState();
+      const matches = Object.values(accountState.operations).filter(
+        (operation) => operation.bookId === binding.book.bookId
+          && operation.ownerId === binding.issuer.ownerId
+          && operation.sourceVersionId === sourceVersionId,
+      );
+      if (matches.some((operation) => operation.status === 'cleanup_pending')) {
+        return { availability: 'revoked', source: null };
+      }
+      if (matches.some((operation) => operation.status === 'released')) {
+        return { availability: 'deleted', source: null };
+      }
+      const available = matches.filter(
+        (operation) => operation.status === 'verified_completed'
+          && operation.verifiedStorage !== undefined,
+      );
+      if (available.length !== 1) return { availability: 'missing', source: null };
+      const storage = available[0]!.verifiedStorage!;
+      return {
+        availability: 'available',
+        source: {
+          ...storage,
+          provider: 'b2',
+          bucket: privateBucketName,
+          objectKey: storage.providerObjectKey,
+        },
+      };
+    },
     readCurrentAuthority: async (binding) => {
       if (binding.context.kind === 'future_live') {
         throw new Error('unsupported_book_document_context');
@@ -320,9 +420,7 @@ const defaultRuntimeFactory = (
         contextId: binding.context.contextId,
         scope: binding.scope,
       }, scope, binding.schedulePolicy);
-      const accountState = validateBookSourceUploadAccountState(
-        await rtdb.readValue(sourceUploadAccountPath(accountId)),
-      );
+      const accountState = await readAccountState();
       const sourceVersionIds = publication.sourceSet.sources.map(
         (source) => source.sourceVersionId,
       );
@@ -408,6 +506,121 @@ export const createBookSourceDocumentDeliveryHandler = (
         decision: result.decision,
         source,
       };
+    },
+  });
+  return worker.fetch(input.request, input.env);
+};
+
+export const createBookHistoricalAttemptDocumentDeliveryHandler = (
+  options: BookSourceDocumentDeliveryOptions = {},
+): BookRouteHandler => async (input: BookRouteHandlerInput): Promise<Response> => {
+  let runtime: BookSourceDocumentRuntime;
+  try {
+    runtime = await (options.runtimeFactory ?? defaultRuntimeFactory)(input.env);
+  } catch {
+    return new Response(JSON.stringify({ code: 'document_configuration_unavailable' }), {
+      status: 503,
+      headers: { 'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8' },
+    });
+  }
+  if (!runtime.readResultDetail || !runtime.readHomeworkAuthority || !runtime.readHistoricalSource) {
+    return new Response(JSON.stringify({ code: 'historical_document_configuration_unavailable' }), {
+      status: 503,
+      headers: { 'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8' },
+    });
+  }
+  const worker = createBookDocumentWorker({
+    provider: runtime.provider,
+    authorize: async (): Promise<BookDocumentWorkerAuthorization> => {
+      const { bookId, studentId, resultId, opaqueRouteKey: routeKey } = input.params;
+      if (!bookId || !studentId || !resultId || !routeKey) {
+        return { ok: false, status: 404, code: 'not-found' };
+      }
+      const profile = activeDocumentProfile(await runtime.readProfile(input.uid));
+      if (!profile) return { ok: false, status: 403, code: 'forbidden' };
+      const detail = await runtime.readResultDetail!({ bookId, studentId, resultId });
+      const projection = detail?.attemptSourceContext;
+      if (
+        !detail
+        || detail.bookId !== bookId
+        || detail.studentId !== studentId
+        || detail.resultId !== resultId
+        || !isBookAttemptSourceContextProjection(projection)
+      ) {
+        return { ok: false, status: 404, code: 'not-found' };
+      }
+      if (projection.state !== 'available') {
+        return { ok: false, status: 404, code: 'historical_source_unavailable' };
+      }
+      const metadata = projection.metadata;
+      if (
+        metadata.bookId !== bookId
+        || metadata.studentId !== studentId
+        || metadata.resultId !== resultId
+        || metadata.attemptId !== detail.attemptId
+        || projection.documentResource.opaqueRouteKey !== routeKey
+      ) {
+        return { ok: false, status: 403, code: 'forbidden' };
+      }
+      const resolved = await resolveDocumentRoute(runtime.repository, routeKey);
+      const placement = resolved?.binding.placements.find(
+        (candidate) => candidate.placementId === metadata.placementId,
+      );
+      const placementSource = placement?.sourcePageScopes.find(
+        (candidate) => candidate.sourceKey === metadata.sourceKey,
+      );
+      const bindingPageAllowed = resolved?.source.localPageScope.kind === 'all'
+        || resolved?.source.localPageScope.pages.includes(metadata.physicalPageNumber);
+      if (
+        !resolved
+        || resolved.binding.bindingId !== detail.bindingId
+        || resolved.binding.revision !== detail.bindingRevision
+        || resolved.binding.recipient.recipientId !== metadata.studentId
+        || resolved.binding.context.recipientId !== metadata.studentId
+        || resolved.binding.context.contextId !== metadata.contextId
+        || resolved.binding.context.kind !== metadata.surface
+        || resolved.binding.context.ownerId !== metadata.ownerId
+        || resolved.binding.issuer.ownerId !== metadata.ownerId
+        || resolved.source.sourceKey !== metadata.sourceKey
+        || resolved.source.sourceVersionId !== metadata.sourceVersionId
+        || !bindingPageAllowed
+        || !placement
+        || placement.activityId !== metadata.activityId
+        || placement.activityVersionId !== metadata.activityVersionId
+        || placement.activityVersion !== metadata.activityVersion
+        || !placement.pageGroupKeys.includes(metadata.pageGroupId)
+        || !placementSource
+        || !placementSource.pages.includes(metadata.physicalPageNumber)
+      ) {
+        return { ok: false, status: 403, code: 'forbidden' };
+      }
+      const historical = await runtime.readHistoricalSource!({
+        binding: resolved.binding,
+        sourceVersionId: metadata.sourceVersionId,
+      });
+      const homeworkAuthority = metadata.surface === 'homework'
+        ? await runtime.readHomeworkAuthority!(metadata.contextId)
+        : null;
+      return authorizeHistoricalAttemptDocument({
+        viewer: { uid: input.uid, role: profile.role, status: 'active' },
+        projection,
+        homeworkAuthority,
+        source: historical.source,
+        sourceAvailability: historical.availability,
+        request: {
+          attemptId: metadata.attemptId,
+          resultId: metadata.resultId,
+          bookId: metadata.bookId,
+          componentId: metadata.componentId,
+          sourceVersionId: metadata.sourceVersionId,
+          physicalPageNumber: metadata.physicalPageNumber,
+          pageGroupId: metadata.pageGroupId,
+          placementId: metadata.placementId,
+          activityVersionId: metadata.activityVersionId,
+          interactionFocusId: metadata.interactionFocusId,
+          opaqueRouteKey: routeKey,
+        },
+      });
     },
   });
   return worker.fetch(input.request, input.env);

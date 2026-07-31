@@ -1,6 +1,10 @@
 import type {
   BookDeliveryContextKind,
 } from '../../book-delivery/bookDelivery.types';
+import {
+  historicalSourceUnavailableProjection,
+  isBookAttemptSourceContextProjection,
+} from '../../book-delivery/attemptSourceContextProjection.service';
 import type {
   BookRuntimeAttemptIndexRecord,
   BookRuntimeAttemptRecord,
@@ -185,7 +189,7 @@ const validateCommonTerminal = (value: unknown, path: string, errors: MutableErr
 
 const validateTerminalRows = (input: unknown, errors: MutableErrors): input is BookResultProjectionInput => {
   if (!exact(input, ['attempt', 'completion', 'index', 'result'], [
-    'attemptPolicy', 'context', 'evaluation', 'feedback', 'submittedAt', 'sourceAvailability', 'sources', 'surface',
+    'attemptPolicy', 'attemptSourceContext', 'context', 'evaluation', 'feedback', 'submittedAt', 'sourceAvailability', 'sources', 'surface',
   ], '$', errors)) return false;
   const value = input as Record<string, unknown>;
   const attempt = value.attempt;
@@ -297,6 +301,32 @@ const validateProjectionMetadata = (input: BookResultProjectionInput, errors: Mu
   validateFeedback(input.feedback, '$.feedback', errors);
   validateEvaluation(input.evaluation, '$.evaluation', errors);
   validateSourceAvailability(input.sourceAvailability, input.sources, input.attempt.sourceProvenance, errors);
+  if (input.attemptSourceContext !== undefined) {
+    if (!isBookAttemptSourceContextProjection(input.attemptSourceContext)) {
+      push(errors, 'invalid-value', '$.attemptSourceContext', 'Attempt source context is invalid.');
+    } else if (input.attemptSourceContext.metadata !== null) {
+      const metadata = input.attemptSourceContext.metadata;
+      if (
+        metadata.attemptId !== input.attempt.attemptId
+        || metadata.resultId !== input.result.resultId
+        || metadata.studentId !== input.attempt.recipientId
+        || metadata.contextId !== input.attempt.contextId
+        || metadata.placementId !== input.attempt.placementId
+        || metadata.activityId !== input.attempt.activityId
+        || metadata.activityVersionId !== input.attempt.activityVersionId
+        || metadata.activityVersion !== input.attempt.activityVersion
+        || metadata.interactionFocusId !== input.attempt.interactionId
+        || !input.attempt.pageGroupKeys.includes(metadata.pageGroupId)
+        || !input.attempt.sourceProvenance.some((source) => (
+          source.sourceKey === metadata.sourceKey
+          && source.sourceVersionId === metadata.sourceVersionId
+          && source.pages.includes(metadata.physicalPageNumber)
+        ))
+      ) {
+        push(errors, 'provenance-mismatch', '$.attemptSourceContext', 'Attempt source context does not match immutable terminal provenance.');
+      }
+    }
+  }
 };
 
 const validateEvaluation = (value: unknown, path: string, errors: MutableErrors): boolean => {
@@ -536,6 +566,9 @@ const summaryFor = (input: BookResultProjectionInput, sources: readonly BookResu
     sources,
     sourceAvailability: aggregateAvailability,
     sourceAvailable: sources.every((source) => source.available),
+    attemptSourceContext: input.attemptSourceContext
+      ? cloneFreeze(input.attemptSourceContext)
+      : historicalSourceUnavailableProjection('missing_context'),
     createdAt: attempt.createdAt,
     submittedAt,
     completedAt: completion.createdAt,
@@ -687,6 +720,7 @@ const validateSummaryShape = (value: unknown, path: string, errors: MutableError
   if (!isRecord(value)) { push(errors, 'invalid-record', path, 'Summary must be a plain object.'); return false; }
   const required = [
     'activityId', 'activityVersion', 'activityVersionId', 'attemptId', 'attemptLimit', 'attemptNumber',
+    'attemptSourceContext',
     'attemptsRemaining', 'attemptsUsed', 'bindingId', 'bindingRevision', 'completedAt', 'completion',
     'completionId', 'completionStatus', 'contextId', 'createdAt', 'deliveryContextId', 'deliveryId',
     'evaluation', 'evaluationStatus', 'feedback', 'homeworkId', 'interactionId', 'ownerId', 'pageGroupKeys',
@@ -716,6 +750,35 @@ const validateSummaryShape = (value: unknown, path: string, errors: MutableError
   if (value.attemptsRemaining !== null && !isNonNegativeInt(value.attemptsRemaining)) push(errors, 'invalid-value', `${path}.attemptsRemaining`, 'Remaining attempt count is invalid.');
   validatePageGroups(value.pageGroupKeys, `${path}.pageGroupKeys`, errors);
   validateSourceProvenance(value.sourceProvenance, `${path}.sourceProvenance`, errors);
+  if (!isBookAttemptSourceContextProjection(value.attemptSourceContext)) {
+    push(errors, 'invalid-value', `${path}.attemptSourceContext`, 'Attempt source context is invalid.');
+  } else if (value.attemptSourceContext.metadata !== null) {
+    const metadata = value.attemptSourceContext.metadata;
+    const sourceProvenance = Array.isArray(value.sourceProvenance)
+      ? value.sourceProvenance.filter((candidate): candidate is BookRuntimeSourceProvenance => (
+        isRecord(candidate)
+        && candidate.sourceKey === metadata.sourceKey
+        && candidate.sourceVersionId === metadata.sourceVersionId
+      ))
+      : [];
+    const exactSourcePage = sourceProvenance.length === 1
+      && sourceProvenance[0]!.pages.includes(metadata.physicalPageNumber);
+    if (
+      metadata.attemptId !== value.attemptId
+      || metadata.resultId !== value.resultId
+      || metadata.studentId !== value.studentId
+      || metadata.contextId !== value.contextId
+      || metadata.placementId !== value.placementId
+      || metadata.activityId !== value.activityId
+      || metadata.activityVersionId !== value.activityVersionId
+      || metadata.activityVersion !== value.activityVersion
+      || metadata.interactionFocusId !== value.interactionId
+      || !(value.pageGroupKeys as readonly string[]).includes(metadata.pageGroupId)
+      || !exactSourcePage
+    ) {
+      push(errors, 'provenance-mismatch', `${path}.attemptSourceContext`, 'Attempt source context does not match result identity.');
+    }
+  }
   if (isRecord(value.completion)) {
     exact(value.completion, ['activityVersion', 'activityVersionId', 'attemptId', 'completionId', 'contextId', 'createdAt', 'placementId', 'resultId', 'status'], [], `${path}.completion`, errors);
     if (value.completion.status !== 'completed' || value.completion.attemptId !== value.attemptId

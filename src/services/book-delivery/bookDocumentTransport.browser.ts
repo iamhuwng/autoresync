@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 const MAX_DOCUMENT_BYTES = 500 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const OPAQUE_DOCUMENT_PATH = /^\/v1\/book-delivery\/document\/[A-Za-z0-9._~-]{1,160}$/u;
+const HISTORICAL_DOCUMENT_PATH = /^\/v1\/book-delivery\/historical-document\/[A-Za-z0-9](?:[A-Za-z0-9._-]|%3A|%40){0,255}\/[A-Za-z0-9](?:[A-Za-z0-9._-]|%3A|%40){0,255}\/[A-Za-z0-9](?:[A-Za-z0-9._-]|%3A|%40){0,255}\/[A-Za-z0-9._~-]{1,160}$/iu;
 const TEACHER_ASSEMBLY_DOCUMENT_PATH = /^\/v1\/book-delivery\/teacher-assembly\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/[1-9]\d*\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/\d+\/\d+$/u;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$/u;
 const PDF_CONTENT_TYPE = 'application/pdf';
@@ -139,8 +140,10 @@ const normalizeRoute = (
     || url.search !== ''
     || url.hash !== ''
     || (!OPAQUE_DOCUMENT_PATH.test(url.pathname)
+      && !HISTORICAL_DOCUMENT_PATH.test(url.pathname)
       && !TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname))
-    || (TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname)
+    || ((HISTORICAL_DOCUMENT_PATH.test(url.pathname)
+      || TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname))
       && !trustedOrigins.has(url.origin))
     || !SAFE_ID.test(route.sourceVersionId)
     || (route.expectedByteLength !== undefined && (

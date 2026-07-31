@@ -35,17 +35,33 @@ vi.mock('./BookGroupedResultView', () => ({
     selectedAttemptId,
     detail,
     refreshing,
+    switchingAttempt,
     onAttemptChange,
   }: {
     group: BookResultGroupSummary;
     selectedAttemptId: string;
     detail: BookResultAttemptDetail | null;
     refreshing: boolean;
+    switchingAttempt: boolean;
     onAttemptChange: (attemptId: string) => void;
   }) => (
     <div data-testid="grouped-result">
       <span>{`${group.groupKey}:${selectedAttemptId}:${detail?.resultId ?? 'no-detail'}`}</span>
+      <span data-testid="atomic-context">
+        {detail
+          ? JSON.stringify({
+            response: detail.response,
+            source: detail.attemptSourceContext?.metadata?.sourceVersionId,
+            page: detail.attemptSourceContext?.metadata?.physicalPageNumber,
+            pageGroup: detail.attemptSourceContext?.metadata?.pageGroupId,
+            placement: detail.attemptSourceContext?.metadata?.placementId,
+            activityVersion: detail.attemptSourceContext?.metadata?.activityVersionId,
+            focus: detail.attemptSourceContext?.metadata?.interactionFocusId,
+          })
+          : 'no-context'}
+      </span>
       {refreshing && <span>refreshing</span>}
+      {switchingAttempt && <span>switching</span>}
       <button type="button" onClick={() => onAttemptChange('attempt-1')}>Choose first</button>
     </div>
   ),
@@ -87,7 +103,37 @@ const group = {
 
 const detail = (summary: BookResultAttemptSummary): BookResultAttemptDetail => ({
   ...summary,
-  response: { submitted: true },
+  response: { submitted: summary.attemptId },
+  attemptSourceContext: {
+    schemaVersion: 1,
+    state: 'available',
+    metadata: {
+      attemptId: summary.attemptId,
+      resultId: summary.resultId,
+      bookId: 'book-1',
+      studentId: 'student-1',
+      surface: 'homework',
+      contextId: `homework-${summary.attemptNumber}`,
+      ownerId: 'teacher-1',
+      componentId: `component-${summary.attemptNumber}`,
+      sourceKey: `component-${summary.attemptNumber}`,
+      sourceVersionId: `source-version-${summary.attemptNumber}`,
+      physicalPageNumber: summary.attemptNumber + 4,
+      pageGroupId: `page-group-${summary.attemptNumber}`,
+      placementId: `placement-${summary.attemptNumber}`,
+      activityId: 'activity-1',
+      activityVersionId: `activity-version-${summary.attemptNumber}`,
+      activityVersion: summary.attemptNumber,
+      interactionFocusId: `interaction-${summary.attemptNumber}`,
+      correspondence: 'source-assisted',
+    },
+    documentResource: {
+      sourceKey: `component-${summary.attemptNumber}`,
+      sourceVersionId: `source-version-${summary.attemptNumber}`,
+      opaqueRouteKey: `opaque-${summary.attemptNumber}`,
+      localPageScope: { kind: 'pages', pages: [summary.attemptNumber + 4] },
+    },
+  },
 } as BookResultAttemptDetail);
 
 const client = (): BookResultBrowserClient => ({
@@ -136,6 +182,56 @@ describe('BookResultAdapter', () => {
     await screen.findByText(`${routeAddress.groupKey}:attempt-1:result-1`);
     expect(resultClient.readDetail).toHaveBeenCalledTimes(2);
     expect(resultClient.readDetail).toHaveBeenLastCalledWith(routeAddress, 'result-1');
+  });
+
+  it('switches result, response, source context, version, page, and focus in one commit', async () => {
+    let resolveFirst!: (value: BookResultAttemptDetail) => void;
+    const resultClient: BookResultBrowserClient = {
+      readGroup: vi.fn(async () => group),
+      readDetail: vi.fn(async (_address, resultId) => {
+        if (resultId === 'result-2') return detail(latest);
+        return new Promise<BookResultAttemptDetail>((resolve) => { resolveFirst = resolve; });
+      }),
+    };
+    render(
+      <BookResultAdapter
+        routeHandle={routeHandle}
+        viewerRole="teacher"
+        viewerId="teacher-1"
+        client={resultClient}
+      />,
+    );
+    await screen.findByText(`${routeAddress.groupKey}:attempt-2:result-2`);
+    const secondContext = JSON.stringify({
+      response: { submitted: 'attempt-2' },
+      source: 'source-version-2',
+      page: 6,
+      pageGroup: 'page-group-2',
+      placement: 'placement-2',
+      activityVersion: 'activity-version-2',
+      focus: 'interaction-2',
+    });
+    const firstContext = JSON.stringify({
+      response: { submitted: 'attempt-1' },
+      source: 'source-version-1',
+      page: 5,
+      pageGroup: 'page-group-1',
+      placement: 'placement-1',
+      activityVersion: 'activity-version-1',
+      focus: 'interaction-1',
+    });
+    expect(screen.getByTestId('atomic-context')).toHaveTextContent(secondContext);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose first' }));
+
+    expect(screen.getByText(`${routeAddress.groupKey}:attempt-2:result-2`)).toBeInTheDocument();
+    expect(screen.getByTestId('atomic-context')).toHaveTextContent(secondContext);
+    expect(screen.getByText('switching')).toBeInTheDocument();
+    expect(screen.queryByText(`${routeAddress.groupKey}:attempt-1:result-2`)).not.toBeInTheDocument();
+    resolveFirst(detail(first));
+    await screen.findByText(`${routeAddress.groupKey}:attempt-1:result-1`);
+    expect(screen.getByTestId('atomic-context')).toHaveTextContent(firstContext);
+    expect(screen.queryByText(`${routeAddress.groupKey}:attempt-2:result-1`)).not.toBeInTheDocument();
   });
 
   it('retains cached content while revalidating on revisit', async () => {

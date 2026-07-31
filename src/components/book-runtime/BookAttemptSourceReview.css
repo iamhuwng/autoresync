@@ -1,0 +1,134 @@
+.book-attempt-review {
+  margin-top: 1.5rem;
+  color: #2b3437;
+  container-type: inline-size;
+}
+
+.book-attempt-review__pills {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.book-attempt-review__pills::-webkit-scrollbar {
+  display: none;
+}
+
+.book-attempt-review__pills button {
+  min-height: 44px;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid #abb3b7;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #586064;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.book-attempt-review__pills button[aria-current='page'] {
+  border-color: #4d44e3;
+  background: #e2dfff;
+  color: #3f34d6;
+}
+
+.book-attempt-review__pills button:focus-visible,
+.book-attempt-review__panel:focus-visible {
+  outline: 3px solid #4d44e3;
+  outline-offset: 2px;
+}
+
+.book-attempt-review__workspace {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.book-attempt-review__panel {
+  min-width: 0;
+  flex: 1 1 20rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: #f8f9fa;
+}
+
+.book-attempt-review__heading p {
+  margin: 0 0 0.25rem;
+  color: #737c7f;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.book-attempt-review__heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.book-attempt-review__metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.book-attempt-review__metadata div {
+  min-width: min(100%, 10rem);
+  flex: 1 1 10rem;
+}
+
+.book-attempt-review__metadata dt {
+  color: #737c7f;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.book-attempt-review__metadata dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+  color: #2b3437;
+  font-weight: 650;
+}
+
+.book-attempt-review__viewer {
+  min-height: 18rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: #ffffff;
+}
+
+.book-attempt-review__unavailable {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border-left: 4px solid #737c7f;
+  background: #eaeff1;
+  color: #586064;
+}
+
+@container (max-width: 42rem) {
+  .book-attempt-review__workspace {
+    display: block;
+  }
+
+  .book-attempt-review[data-mobile-tab='page'] .book-attempt-review__panel--activity,
+  .book-attempt-review[data-mobile-tab='activity'] .book-attempt-review__panel--page {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-attempt-review *,
+  .book-attempt-review *::before,
+  .book-attempt-review *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

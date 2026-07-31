@@ -76,6 +76,19 @@ const consume = async (body: ReadableStream<Uint8Array>): Promise<Uint8Array> =>
 };
 
 describe('bookDocumentTransport.browser', () => {
+  it('accepts only trusted canonical historical attempt document routes', () => {
+    const historicalUrl = 'https://worker.example/v1/book-delivery/historical-document'
+      + '/book-1/student-1/attempt-1%3Aresult/opaque-1';
+    expect(() => createBookDocumentTransport({
+      route: route({ url: historicalUrl }),
+      trustedWorkerOrigins: ['https://worker.example'],
+    })).not.toThrow();
+    expect(() => createBookDocumentTransport({
+      route: route({ url: historicalUrl }),
+      trustedWorkerOrigins: ['https://different.example'],
+    })).toThrow(new BookDocumentTransportError('invalid_route'));
+  });
+
   it('sends Firebase Authorization on HEAD, full GET, and range requests', async () => {
     const getIdToken = vi.fn(async () => 'id-token');
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {

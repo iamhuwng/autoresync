@@ -28,6 +28,24 @@ export const bookDocumentAuthorizationRouteDescriptor = {
   response: 'bounded-streamed-pdf-or-head',
 } as const;
 
+/** Ticket #80 exact historical attempt document contributor. */
+export const bookHistoricalAttemptDocumentRouteDescriptor = {
+  method: 'GET|HEAD',
+  path: '/v1/book-delivery/historical-document/:bookId/:studentId/:resultId/:opaqueRouteKey',
+  handler: 'serveHistoricalAttemptDocument',
+  serverOnly: true,
+  owner: '#80 historical attempt context; #52 byte response',
+  authorizationOwner: '#80',
+  byteResponseOwner: '#52 / 09B',
+  destination: '#59 / 09D top-level composition',
+  auth: 'firebase-id-token-before-lookup',
+  rateClass: '09D-owned',
+  gate: 'BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED-default-disabled',
+  requestBodyBytes: 0,
+  responseLimitBytes: 500 * 1024 * 1024,
+  response: 'bounded-streamed-historical-pdf-or-head',
+} as const;
+
 /** Ticket 09C internal teacher Assembly authorization seam; #59 composes it. */
 export const bookTeacherAssemblyDocumentRouteDescriptor = {
   method: 'GET|HEAD',
@@ -49,5 +67,6 @@ export const bookTeacherAssemblyDocumentRouteDescriptor = {
 export const bookDocumentRouteDescriptors = [
   ...bookDeliveryRouteDescriptors,
   bookDocumentAuthorizationRouteDescriptor,
+  bookHistoricalAttemptDocumentRouteDescriptor,
   bookTeacherAssemblyDocumentRouteDescriptor,
 ] as const;

@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "r2-upload-signer-prd0062-ticket80-preview",
+  "account_id": "e41db829dabe9993f03674afdfd56510",
+  "main": "src/upload-worker/book-results/preview-worker.ts",
+  "compatibility_date": "2026-07-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "ratelimits": [
+    {
+      "name": "BOOK_ROUTE_RATE_LIMITER",
+      "namespace_id": "860077",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "temp-a1437",
+    "BOOK_RESULT_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_DELIVERY_SERVICE_IDENTITY": "ticket80-preview@invalid.example",
+    "BOOK_DELIVERY_GOOGLE_SA_KEY": "{\"client_email\":\"ticket80-preview@invalid.example\",\"private_key\":\"preview-only-noncredential\"}",
+    "TICKET77_STUDENT_UID": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "TICKET77_TEACHER_UID": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "TICKET77_HOMEWORK_ID": "homework-browser-proof",
+    "BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED": "disabled"
+  }
+}

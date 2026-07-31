@@ -78,6 +78,9 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
   const [selectedAttemptId, setSelectedAttemptId] = React.useState(
     cachedGroup?.latestAttemptId ?? '',
   );
+  const [requestedAttemptId, setRequestedAttemptId] = React.useState(
+    cachedGroup?.latestAttemptId ?? '',
+  );
   const [detail, setDetail] = React.useState<BookResultAttemptDetail | null>(() => {
     const latest = cachedGroup?.attempts.find(
       (attempt) => attempt.attemptId === cachedGroup.latestAttemptId,
@@ -116,6 +119,11 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
           ? current
           : nextGroup.latestAttemptId
       ));
+      setRequestedAttemptId((current) => (
+        nextGroup.attempts.some((attempt) => attempt.attemptId === current)
+          ? current
+          : nextGroup.latestAttemptId
+      ));
     }).catch((error: unknown) => {
       if (!active) return;
       if (invalidatesCachedAuthority(error)) {
@@ -139,8 +147,8 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
   }, [accessMismatch, address, client, groupRetry, viewerCacheKey]);
 
   React.useEffect(() => {
-    if (!address || !client || !group || !selectedAttemptId) return undefined;
-    const summary = group.attempts.find((attempt) => attempt.attemptId === selectedAttemptId);
+    if (!address || !client || !group || !requestedAttemptId) return undefined;
+    const summary = group.attempts.find((attempt) => attempt.attemptId === requestedAttemptId);
     if (!summary) return undefined;
     const cacheKey = `${viewerCacheKey}:${summary.resultId}`;
     const cached = detailCache.get(cacheKey);
@@ -148,16 +156,19 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
     setDetailError(null);
     if (cached) {
       setDetail(cached);
+      setSelectedAttemptId(summary.attemptId);
       setRefreshing(true);
     } else {
-      setDetail(null);
       setDetailLoading(true);
     }
 
     void client.readDetail(address, summary.resultId).then((nextDetail) => {
       if (!active || nextDetail.attemptId !== summary.attemptId) return;
       detailCache.set(cacheKey, nextDetail);
+      // Commit the selected result, response, version, source, page, and focus
+      // in one React update after the exact detail has been verified.
       setDetail(nextDetail);
+      setSelectedAttemptId(summary.attemptId);
     }).catch((error: unknown) => {
       if (!active) return;
       if (invalidatesCachedAuthority(error)) {
@@ -174,11 +185,11 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
     });
 
     return () => { active = false; };
-  }, [address, client, detailRetry, group, selectedAttemptId, viewerCacheKey]);
+  }, [address, client, detailRetry, group, requestedAttemptId, viewerCacheKey]);
 
   const selectAttempt = React.useCallback((attemptId: string) => {
     if (!group?.attempts.some((attempt) => attempt.attemptId === attemptId)) return;
-    setSelectedAttemptId(attemptId);
+    setRequestedAttemptId(attemptId);
     trackAction('selectAttempt', {
       surface: 'bookActivityResult',
       attemptNumber: group.attempts.find((attempt) => attempt.attemptId === attemptId)?.attemptNumber,
@@ -210,10 +221,15 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
         selectedAttemptId={selectedAttemptId || group.latestAttemptId}
         detail={detail}
         detailLoading={detailLoading}
+        switchingAttempt={detailLoading && requestedAttemptId !== selectedAttemptId}
         detailError={detailError}
         refreshing={refreshing}
         onAttemptChange={selectAttempt}
         onRetryDetail={() => setDetailRetry((value) => value + 1)}
+        onReviewAction={(action, metadata) => trackAction(action, {
+          surface: 'bookActivityResult',
+          ...metadata,
+        })}
       />
     );
   } else {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
 import type { BookDocumentAuthorizationDecision } from '../src/upload-worker/book-delivery/documentAuthorization';
 import { createBookDocumentWorker } from '../src/upload-worker/book-delivery/document-worker';
+import documentWorkerSource from '../src/upload-worker/book-delivery/document-worker.ts?raw';
 import type { BookSourceVersionStorageIdentity } from '../../src/types/bookSource.types';
 import type { SourceProviderPort } from '../../src/services/book-source-delivery/sourceProvider.port';
 
@@ -485,11 +485,7 @@ describe('Ticket #52 private Book PDF responder', () => {
   });
 
   it('contains no whole-document buffering or legacy R2 Book-source path', () => {
-    const implementation = readFileSync(
-      new URL('../src/upload-worker/book-delivery/document-worker.ts', import.meta.url),
-      'utf8',
-    );
-    expect(implementation).not.toMatch(/\barrayBuffer\s*\(|\bBlob\b|\.concat\s*\(/u);
-    expect(implementation).not.toMatch(/BOOK_SOURCE_R2|R2Bucket|kahoot-media/iu);
+    expect(documentWorkerSource).not.toMatch(/\barrayBuffer\s*\(|\bBlob\b|\.concat\s*\(/u);
+    expect(documentWorkerSource).not.toMatch(/BOOK_SOURCE_R2|R2Bucket|kahoot-media/iu);
   });
 });

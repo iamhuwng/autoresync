@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createBookHistoricalAttemptDocumentRoute,
   createBookDeliveryDocumentTransport,
   createBookDocumentRoute,
   resolveBookDeliveryWorkerOrigin,
@@ -65,6 +66,23 @@ describe('bookDelivery.browser', () => {
         sourceVersionId: 'source-v1',
       })).toThrow(BookDocumentTransportError);
     }
+  });
+
+  it('creates an attempt-bound historical document route without query authority', () => {
+    expect(createBookHistoricalAttemptDocumentRoute({
+      bookId: 'book-1',
+      studentId: 'student-1',
+      resultId: 'result-1',
+      opaqueRouteKey: 'opaque-historical',
+      sourceVersionId: 'source-version-4',
+    }, {
+      VITE_BOOK_DELIVERY_WORKER_URL: 'https://worker.example',
+    })).toEqual({
+      url: 'https://worker.example/v1/book-delivery/historical-document'
+        + '/book-1/student-1/result-1/opaque-historical',
+      sourceVersionId: 'source-version-4',
+      physicalPageNumber: undefined,
+    });
   });
 
   it('builds a document transport without accepting provider authority', async () => {

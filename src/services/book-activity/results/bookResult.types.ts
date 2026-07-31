@@ -2,6 +2,9 @@ import type {
   BookDeliveryContextKind,
 } from '../../book-delivery/bookDelivery.types';
 import type {
+  BookAttemptSourceContextProjection,
+} from '../../book-delivery/attemptSourceContextProjection.types';
+import type {
   BookRuntimeAttemptIndexRecord,
   BookRuntimeAttemptRecord,
   BookRuntimeCompletionRecord,
@@ -149,6 +152,11 @@ export interface BookResultProjectionInput extends BookResultTerminalRecords {
   readonly sourceAvailability?: BookResultSourceAvailabilityMap | readonly BookResultSourceAvailabilityInput[];
   /** Alias for integrations that call source metadata `sources`. */
   readonly sources?: readonly BookResultSourceAvailabilityInput[];
+  /**
+   * Trusted attempt-bound context resolved from the immutable historical
+   * Delivery binding. Missing input remains metadata-only and fail closed.
+   */
+  readonly attemptSourceContext?: BookAttemptSourceContextProjection;
 }
 
 export interface BookResultAttemptIdentity {
@@ -180,6 +188,7 @@ export interface BookResultAttemptSummary extends BookResultAttemptIdentity {
   readonly sources: readonly BookResultSourceProjection[];
   readonly sourceAvailability: BookResultSourceAvailability;
   readonly sourceAvailable: boolean;
+  readonly attemptSourceContext: BookAttemptSourceContextProjection;
   readonly createdAt: string;
   readonly submittedAt: string;
   readonly completedAt: string;

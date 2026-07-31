@@ -1,13 +1,37 @@
 import { createServer } from 'node:http';
+import { pathToFileURL } from 'node:url';
 
 const port = Number(process.env.TICKET77_FIXTURE_PORT ?? 8799);
 const studentId = 'x3hDfjYVN7cJtSbwq0ChIjl1Bk62';
 const activityId = 'activity-browser-proof';
 const bookId = 'book-browser-proof';
 const homeworkId = 'homework-browser-proof';
+const historicalRouteKey = `bd_${'8'.repeat(40)}-4-component-homework-browser-proof-source-version-homework-exact`;
 
 const base64url = (value) => Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 const groupKey = `g_${base64url([studentId, activityId])}`;
+
+const makeProofPdf = () => {
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources <<>> >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources <<>> >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources <<>> >>',
+  ];
+  let text = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(text));
+    text += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(text);
+  text += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  text += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  text += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(text);
+};
+const proofPdf = makeProofPdf();
 
 const attempt = ({
   attemptId,
@@ -55,11 +79,42 @@ const attempt = ({
       sourceVersionId,
       pages: [3, 4],
       availability,
-      available: false,
-      displayOnly: true,
+      available: availability === 'available',
+      displayOnly: availability !== 'available',
     }],
     sourceAvailability: availability,
-    sourceAvailable: false,
+    sourceAvailable: availability === 'available',
+    attemptSourceContext: {
+      schemaVersion: 1,
+      state: availability === 'available' ? 'available' : 'historical_source_unavailable',
+      ...(availability === 'available' ? {} : { reason: availability }),
+      metadata: {
+        attemptId,
+        resultId,
+        bookId,
+        studentId,
+        surface,
+        contextId,
+        ownerId: surface === 'homework' ? 'glMHCrzMnyS6AqFcb9I0nlOqQ6X2' : studentId,
+        componentId: sourceKey,
+        sourceKey,
+        sourceVersionId,
+        physicalPageNumber: 3,
+        pageGroupId: `page-group-${surface}`,
+        placementId,
+        activityId,
+        activityVersionId: 'activity-browser-proof@7',
+        activityVersion: 7,
+        interactionFocusId: `interaction-browser-proof-${surface}`,
+        correspondence: surface === 'homework' ? 'source-assisted' : 'reference-only',
+      },
+      documentResource: availability === 'available' ? {
+        sourceKey,
+        sourceVersionId,
+        opaqueRouteKey: surface === 'homework' ? historicalRouteKey : `historical-${attemptId}`,
+        localPageScope: { kind: 'pages', pages: [3] },
+      } : null,
+    },
     createdAt: submittedAt,
     submittedAt,
     completedAt: submittedAt,
@@ -115,8 +170,8 @@ const homework = attempt({
   deliveryId: 'delivery-homework-browser-proof',
   submittedAt: '2026-07-31T09:45:00.000Z',
   sourceKey: 'component-homework-browser-proof',
-  sourceVersionId: 'source-version-replaced',
-  availability: 'replaced',
+  sourceVersionId: 'source-version-homework-exact',
+  availability: 'available',
   evaluation: {
     status: 'graded',
     score: { earnedScore: 8, maximumScore: 10, displayScore: '8 / 10' },
@@ -153,6 +208,12 @@ const group = (rows) => ({
   latestAttemptId: rows.at(-1).summary.attemptId,
 });
 
+export const ticket80HistoricalContextFixtures = {
+  solo,
+  homework,
+  group: group([solo, homework]),
+};
+
 const cors = (origin) => ({
   'access-control-allow-origin': (
     origin === 'http://localhost:5173' || origin === 'http://localhost:5174'
@@ -180,6 +241,30 @@ const server = createServer((request, response) => {
   if (request.method === 'GET' && url.pathname === '/__health') {
     send(response, 200, { ready: true }, origin);
     return;
+  }
+  if (
+    (request.method === 'GET' || request.method === 'HEAD')
+    && url.pathname === `/v1/book-delivery/historical-document/${bookId}`
+      + `/${studentId}/${homework.summary.resultId}/${historicalRouteKey}`
+    && request.headers.authorization?.startsWith('Bearer ')
+  ) {
+      const range = /^bytes=(\d+)-(\d*)$/u.exec(request.headers.range ?? '');
+      const start = range ? Number(range[1]) : 0;
+      const requestedEnd = range?.[2] ? Number(range[2]) : proofPdf.length - 1;
+      const end = Math.min(requestedEnd, proofPdf.length - 1);
+      const partial = Boolean(range);
+      response.writeHead(partial ? 206 : 200, {
+        ...cors(origin),
+        'accept-ranges': 'bytes',
+        'cache-control': 'private, no-store',
+        'content-length': String(end - start + 1),
+        ...(partial ? { 'content-range': `bytes ${start}-${end}/${proofPdf.length}` } : {}),
+        'content-type': 'application/pdf',
+        etag: '"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"',
+      });
+      if (request.method === 'HEAD') response.end();
+      else response.end(proofPdf.subarray(start, end + 1));
+      return;
   }
   if (request.method !== 'GET' || !request.headers.authorization?.startsWith('Bearer ')) {
     send(response, 401, { code: 'book_result_unauthorized' }, origin);
@@ -217,14 +302,16 @@ const server = createServer((request, response) => {
   send(response, 404, { code: 'book_result_not_found' }, origin);
 });
 
-server.listen(port, 'localhost', () => {
-  console.log(JSON.stringify({
-    ready: true,
-    origin: `http://localhost:${port}`,
-    bookId,
-    studentId,
-    homeworkId,
-    activityId,
-    groupKey,
-  }));
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  server.listen(port, 'localhost', () => {
+    console.log(JSON.stringify({
+      ready: true,
+      origin: `http://localhost:${port}`,
+      bookId,
+      studentId,
+      homeworkId,
+      activityId,
+      groupKey,
+    }));
+  });
+}

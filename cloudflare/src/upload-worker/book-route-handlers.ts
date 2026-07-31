@@ -12,6 +12,7 @@ import { createBookRuntimeCanonicalHandlers } from './book-runtime/canonical.ts'
 import { createBookHomeworkWorkerHandlers } from './book-homework/worker.ts';
 import { createBookSourceUploadWorkerHandlers } from './book-source/worker.ts';
 import {
+  createBookHistoricalAttemptDocumentDeliveryHandler,
   createBookSourceDocumentDeliveryHandler,
   type BookSourceDocumentDeliveryOptions,
 } from './book-source/document.ts';
@@ -81,6 +82,7 @@ export interface BookRouteHandlersOptions {
   readonly sourceDocument?: BookSourceDocumentDeliveryOptions;
   readonly documentHandler?: BookRouteHandler;
   readonly teacherDocumentHandler?: BookRouteHandler;
+  readonly historicalDocumentHandler?: BookRouteHandler;
   readonly futureHandlers?: BookRouteHandlerMap;
 }
 
@@ -136,10 +138,14 @@ export const createBookRouteHandlers = (
   const documentHandler = options.documentHandler
     ?? createBookSourceDocumentDeliveryHandler(options.sourceDocument);
   const teacherPreviewWorker = createTeacherAssemblyPreviewWorker();
+  const historicalDocumentHandler = options.historicalDocumentHandler
+    ?? createBookHistoricalAttemptDocumentDeliveryHandler(options.sourceDocument);
   const teacherDocumentHandler = options.teacherDocumentHandler
     ?? ((input) => teacherPreviewWorker.fetch(input.request, input.env));
   handlers.serveAuthorizedDocument = documentHandler;
   handlers.document = documentHandler;
+  handlers.serveHistoricalAttemptDocument = historicalDocumentHandler;
+  handlers.historicalDocument = historicalDocumentHandler;
   handlers.serveTeacherAssemblyDocument = teacherDocumentHandler;
   handlers.teacherDocument = teacherDocumentHandler;
   return handlers;

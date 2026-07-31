@@ -15,9 +15,15 @@ const env = {
   BOOK_RESULT_READ_ROUTES_ENABLED: 'enabled',
   BOOK_RESULT_READ_SERVICE_IDENTITY: 'ticket77-preview@invalid.example',
   BOOK_RESULT_READ_GOOGLE_SA_KEY: key,
+  BOOK_DELIVERY_SERVICE_IDENTITY: 'ticket80-preview@invalid.example',
+  BOOK_DELIVERY_GOOGLE_SA_KEY: JSON.stringify({
+    client_email: 'ticket80-preview@invalid.example',
+    private_key: 'preview-only-noncredential',
+  }),
   TICKET77_STUDENT_UID: ticket77PreviewFixture.studentId,
   TICKET77_TEACHER_UID: ticket77PreviewFixture.teacherId,
   TICKET77_HOMEWORK_ID: ticket77PreviewFixture.homeworkId,
+  BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED: 'enabled',
   BOOK_ROUTE_RATE_LIMITER: {
     limit: async () => ({ success: true }),
   },
@@ -59,6 +65,88 @@ const read = async (
 };
 
 describe('Ticket #77 disposable preview Worker', () => {
+  it('streams exact historical PDF bytes and fails closed for deleted/copied/private source context', async () => {
+    const proof = async (
+      resultId: string,
+      routeKey: string,
+      token: 'student-token' | 'teacher-token',
+    ) => worker.fetch!(
+      new Request(
+        `https://ticket77-preview.example.test/v1/book-delivery/historical-document`
+          + `/${ticket77PreviewFixture.bookId}/${ticket77PreviewFixture.studentId}`
+          + `/${resultId}/${routeKey}`,
+        { headers: { authorization: `Bearer ${token}` } },
+      ),
+      env,
+      {} as ExecutionContext,
+    );
+
+    const historical = await proof(
+      'result-exact-historical',
+      ticket77PreviewFixture.historicalRouteKey,
+      'student-token',
+    );
+    expect(historical.status).toBe(200);
+    expect(historical.headers.get('content-type')).toBe('application/pdf');
+    expect(new TextDecoder().decode(await historical.arrayBuffer())).toMatch(/^%PDF-1\.4/u);
+
+    const current = await proof(
+      'result-exact-current',
+      ticket77PreviewFixture.currentRouteKey,
+      'teacher-token',
+    );
+    expect(current.status).toBe(200);
+    expect(current.headers.get('content-type')).toBe('application/pdf');
+
+    const deleted = await proof(
+      'result-deleted',
+      ticket77PreviewFixture.historicalRouteKey,
+      'student-token',
+    );
+    expect(deleted.status).toBe(404);
+    expect(await deleted.json()).toEqual({ code: 'historical_source_unavailable' });
+
+    const copied = await proof(
+      'result-copied-resource',
+      ticket77PreviewFixture.historicalRouteKey,
+      'student-token',
+    );
+    expect(copied.status).toBe(403);
+    expect(await copied.json()).toEqual({ code: 'forbidden' });
+
+    const teacherSolo = await proof(
+      'result-private-solo',
+      ticket77PreviewFixture.historicalRouteKey,
+      'teacher-token',
+    );
+    expect(teacherSolo.status).toBe(403);
+    expect(await teacherSolo.json()).toEqual({ code: 'forbidden' });
+
+    const studentSolo = await proof(
+      'result-private-solo',
+      ticket77PreviewFixture.historicalRouteKey,
+      'student-token',
+    );
+    expect(studentSolo.status).toBe(200);
+    expect(studentSolo.headers.get('content-type')).toBe('application/pdf');
+  });
+
+  it('rolls the canonical historical byte route back to metadata-only', async () => {
+    const disabled = { ...env, BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED: 'disabled' };
+    const response = await worker.fetch!(
+      new Request(
+        `https://ticket77-preview.example.test/v1/book-delivery/historical-document`
+          + `/${ticket77PreviewFixture.bookId}/${ticket77PreviewFixture.studentId}`
+          + `/result-exact-historical/${ticket77PreviewFixture.historicalRouteKey}`,
+        { headers: { authorization: 'Bearer student-token' } },
+      ),
+      disabled,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ code: 'book_route_disabled' });
+  });
+
   it('uses the canonical router for one indexed student group and selected detail', async () => {
     const base = `/v1/book-evaluation/results/${ticket77PreviewFixture.bookId}`
       + `/${ticket77PreviewFixture.studentId}`;

@@ -64,6 +64,7 @@ try {
   }
   const env = {
     VITE_BOOK_RESULT_WORKER_URL: remoteWorkerUrl || 'http://localhost:8799',
+    VITE_BOOK_DELIVERY_WORKER_URL: remoteWorkerUrl || 'http://localhost:8799',
   };
   const student = launch([
     'scripts/harness/run-tool.mjs',

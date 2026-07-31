@@ -44,6 +44,13 @@ const summary = {
   sources: [],
   sourceAvailability: 'not-required',
   sourceAvailable: false,
+  attemptSourceContext: {
+    schemaVersion: 1,
+    state: 'historical_source_unavailable',
+    reason: 'missing_context',
+    metadata: null,
+    documentResource: null,
+  },
   createdAt: '2026-07-31T00:00:00.000Z',
   submittedAt: '2026-07-31T00:00:00.000Z',
   completedAt: '2026-07-31T00:00:00.000Z',

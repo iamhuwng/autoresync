@@ -234,6 +234,25 @@ describe('Book result projection', () => {
       feedback: { ...projection.detail.feedback, release: 'withheld', available: true, text: 'leak' },
     };
     expect(validateBookResultAttemptDetail(detailWithLeakedFeedback).valid).toBe(false);
+    const sourceContextMismatch = {
+      ...projection.detail,
+      attemptSourceContext: {
+        ...projection.detail.attemptSourceContext,
+        metadata: {
+          ...projection.detail.attemptSourceContext.metadata,
+          sourceVersionId: 'source-version-neighbor',
+          physicalPageNumber: 99,
+        },
+        documentResource: projection.detail.attemptSourceContext.state === 'available'
+          ? {
+            ...projection.detail.attemptSourceContext.documentResource,
+            sourceVersionId: 'source-version-neighbor',
+            localPageScope: { kind: 'pages', pages: [99] },
+          }
+          : null,
+      },
+    };
+    expect(validateBookResultAttemptDetail(sourceContextMismatch).valid).toBe(false);
     const group = groupBookResultAttempts([projection])[0];
     expect(validateBookResultGroupSummary(group).valid).toBe(true);
     expect(validateBookResultGroupSummary({ ...group, groupKey: 'student-1:activity-1' }).valid).toBe(false);

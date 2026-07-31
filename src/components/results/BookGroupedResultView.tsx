@@ -4,6 +4,10 @@ import type {
   BookResultAttemptSummary,
   BookResultGroupSummary,
 } from '../../services/book-activity/results/bookResult.types';
+import {
+  historicalSourceUnavailableProjection,
+} from '../../services/book-delivery/attemptSourceContextProjection.service';
+import { BookAttemptSourceReview } from '../book-runtime/BookAttemptSourceReview';
 import { AttemptHistory } from './AttemptHistory';
 import './BookGroupedResultView.css';
 
@@ -12,10 +16,15 @@ export interface BookGroupedResultViewProps {
   readonly selectedAttemptId: string;
   readonly detail: BookResultAttemptDetail | null;
   readonly detailLoading?: boolean;
+  readonly switchingAttempt?: boolean;
   readonly detailError?: string | null;
   readonly refreshing?: boolean;
   readonly onAttemptChange: (attemptId: string) => void;
   readonly onRetryDetail?: () => void;
+  readonly onReviewAction?: (
+    action: 'switchResultTab' | 'viewQuestion',
+    metadata: Record<string, unknown>,
+  ) => void;
 }
 
 const formatDateTime = (value: string): string => {
@@ -70,10 +79,12 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
   selectedAttemptId,
   detail,
   detailLoading = false,
+  switchingAttempt = false,
   detailError = null,
   refreshing = false,
   onAttemptChange,
   onRetryDetail,
+  onReviewAction,
 }) => {
   const selectedSummary = group.attempts.find((attempt) => attempt.attemptId === selectedAttemptId)
     ?? group.attempts[0];
@@ -117,6 +128,19 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
 
       {selectedSummary && (
         <article className="book-result-card" aria-labelledby="book-result-attempt-heading">
+          {switchingAttempt && (
+            <div className="book-result-state" role="status">
+              Switching attempt while the current historical context remains visible…
+            </div>
+          )}
+          {detailError && detail && (
+            <div className="book-result-state book-result-state--error" role="alert">
+              <p>{detailError} The previously selected attempt remains visible.</p>
+              {onRetryDetail && (
+                <button type="button" onClick={onRetryDetail}>Try again</button>
+              )}
+            </div>
+          )}
           <div className="book-result-card-heading">
             <div>
               <p className="book-result-eyebrow">
@@ -197,8 +221,21 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
           )}
 
           {detail && detail.attemptId === selectedSummary.attemptId && (
-            <>
-              <section className="book-result-section" aria-labelledby="book-result-response-heading">
+            <BookAttemptSourceReview
+              key={detail.attemptId}
+              onAction={onReviewAction}
+              projection={detail.attemptSourceContext
+                ?? historicalSourceUnavailableProjection('missing_context')}
+            >
+              <section
+                aria-label={`Interaction ${detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId}`}
+                aria-labelledby="book-result-response-heading"
+                className="book-result-section"
+                data-book-interaction-id={
+                  detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId
+                }
+                tabIndex={-1}
+              >
                 <h3 id="book-result-response-heading">Submitted response</h3>
                 <pre className="book-result-response">{safeResponseText(detail.response)}</pre>
               </section>
@@ -215,7 +252,7 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
                   Feedback is {titleCase(detail.feedback.release).toLowerCase()}.
                 </p>
               )}
-            </>
+            </BookAttemptSourceReview>
           )}
         </article>
       )}

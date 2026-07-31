@@ -22,7 +22,16 @@ export interface BookDocumentRouteInput {
   readonly physicalPageNumber?: number;
 }
 
+export interface BookHistoricalAttemptDocumentRouteInput {
+  readonly bookId: string;
+  readonly studentId: string;
+  readonly resultId: string;
+  readonly opaqueRouteKey: string;
+  readonly sourceVersionId: string;
+}
+
 const ROUTE_KEY = /^[A-Za-z0-9._~-]{1,160}$/u;
+const ROUTE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 
 const defaultEnv = (): BookDeliveryBrowserEnv =>
   (import.meta.env ?? {}) as BookDeliveryBrowserEnv;
@@ -70,6 +79,30 @@ export const createBookDocumentRoute = (
     expectedByteLength: input.expectedByteLength,
     expectedEtag: input.expectedEtag,
     physicalPageNumber: input.physicalPageNumber,
+  });
+};
+
+export const createBookHistoricalAttemptDocumentRoute = (
+  input: BookHistoricalAttemptDocumentRouteInput,
+  env: BookDeliveryBrowserEnv = defaultEnv(),
+): BookDocumentRoute => {
+  if (
+    !ROUTE_ID.test(input.bookId)
+    || !ROUTE_ID.test(input.studentId)
+    || !ROUTE_ID.test(input.resultId)
+    || !ROUTE_KEY.test(input.opaqueRouteKey)
+  ) {
+    throw new BookDocumentTransportError('invalid_route');
+  }
+  const origin = resolveBookDeliveryWorkerOrigin(env);
+  return Object.freeze({
+    url: `${origin}/v1/book-delivery/historical-document`
+      + `/${encodeURIComponent(input.bookId)}`
+      + `/${encodeURIComponent(input.studentId)}`
+      + `/${encodeURIComponent(input.resultId)}`
+      + `/${encodeURIComponent(input.opaqueRouteKey)}`,
+    sourceVersionId: input.sourceVersionId,
+    physicalPageNumber: undefined,
   });
 };
 

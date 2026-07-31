@@ -11,7 +11,7 @@ const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(30);
+    expect(contributorRoutes).toHaveLength(31);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
@@ -22,8 +22,9 @@ describe('canonical Book route contract catalog', () => {
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(2);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#49')).toHaveLength(4);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#80')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(30);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(31);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -216,6 +217,9 @@ describe('canonical Book route contract catalog', () => {
     const teacherDocument = canonicalBookRouteManifest.find(
       (route) => route.id === 'book.document-delivery.serve-teacher-assembly-document',
     );
+    const historicalDocument = canonicalBookRouteManifest.find(
+      (route) => route.id === 'book.document-delivery.serve-historical-attempt-document',
+    );
 
     expect(studentDocument).toEqual(expect.objectContaining({
       methods: ['GET', 'HEAD'],
@@ -232,6 +236,15 @@ describe('canonical Book route contract catalog', () => {
       gateEnv: 'BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED',
       identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
       credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+      responseLimitBytes: 500 * 1024 * 1024,
+    }));
+    expect(historicalDocument).toEqual(expect.objectContaining({
+      methods: ['GET', 'HEAD'],
+      pathTemplate: '/v1/book-delivery/historical-document/:bookId/:studentId/:resultId/:opaqueRouteKey',
+      owner: '#80',
+      gateEnv: 'BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED',
+      identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
       responseLimitBytes: 500 * 1024 * 1024,
     }));
   });

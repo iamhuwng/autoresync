@@ -15,23 +15,171 @@ import type {
   SourceProviderPort,
 } from '../../../../src/services/book-source-delivery/sourceProvider.port.ts';
 import type { BookSourceVersionStorageIdentity } from '../../../../src/types/bookSource.types.ts';
+import type {
+  BookAttemptSourceContextProjection,
+} from '../../../../src/services/book-delivery/attemptSourceContextProjection.types.ts';
 
 const MAX_DOCUMENT_BYTES = 500 * 1024 * 1024;
 const MAX_RANGE_HEADER_BYTES = 4_096;
 const STREAM_CHUNK_BYTES = 1024 * 1024;
+
+export interface HistoricalAttemptDocumentAuthorizationDecision {
+  readonly kind: 'book-historical-attempt-document-authorized';
+  readonly uid: string;
+  readonly viewerRole: 'student' | 'teacher';
+  readonly attemptId: string;
+  readonly resultId: string;
+  readonly bookId: string;
+  readonly studentId: string;
+  readonly contextId: string;
+  readonly contextKind: 'solo' | 'homework';
+  readonly ownerId: string;
+  readonly sourceVersionIds: readonly [string];
+  readonly sourceLocations: readonly [BookDocumentAuthorizedSource];
+}
+
+export interface HistoricalAttemptDocumentViewer {
+  readonly uid: string;
+  readonly role: 'student' | 'teacher';
+  readonly status: 'active' | 'disabled';
+}
+
+export interface HistoricalAttemptHomeworkAuthority {
+  readonly homeworkId: string;
+  readonly ownerId: string;
+  readonly studentIds: readonly string[];
+  readonly status: 'current' | 'replaced' | 'archived' | 'unresolved';
+}
+
+export type HistoricalAttemptDocumentAuthorizationResult =
+  | {
+      readonly ok: true;
+      readonly decision: HistoricalAttemptDocumentAuthorizationDecision;
+      readonly source: BookDocumentAuthorizedSource;
+    }
+  | {
+      readonly ok: false;
+      readonly status: 401 | 403 | 404 | 409;
+      readonly code:
+        | 'unauthorized'
+        | 'forbidden'
+        | 'not-found'
+        | 'stale-binding'
+        | 'historical_source_unavailable';
+    };
+
+const historicalRequestMatches = (
+  request: {
+    readonly attemptId: string;
+    readonly resultId: string;
+    readonly bookId: string;
+    readonly componentId: string;
+    readonly sourceVersionId: string;
+    readonly physicalPageNumber: number;
+    readonly pageGroupId: string;
+    readonly placementId: string;
+    readonly activityVersionId: string;
+    readonly interactionFocusId: string;
+    readonly opaqueRouteKey: string;
+  },
+  projection: Extract<BookAttemptSourceContextProjection, { state: 'available' }>,
+): boolean => {
+  const { metadata, documentResource } = projection;
+  return request.attemptId === metadata.attemptId
+    && request.resultId === metadata.resultId
+    && request.bookId === metadata.bookId
+    && request.componentId === metadata.componentId
+    && request.sourceVersionId === metadata.sourceVersionId
+    && request.physicalPageNumber === metadata.physicalPageNumber
+    && request.pageGroupId === metadata.pageGroupId
+    && request.placementId === metadata.placementId
+    && request.activityVersionId === metadata.activityVersionId
+    && request.interactionFocusId === metadata.interactionFocusId
+    && request.opaqueRouteKey === documentResource.opaqueRouteKey;
+};
+
+/**
+ * Historical access is derived from immutable attempt context plus a trusted
+ * current viewer role. It deliberately never resolves the current Delivery.
+ */
+export const authorizeHistoricalAttemptDocument = (input: {
+  readonly viewer: HistoricalAttemptDocumentViewer;
+  readonly projection: BookAttemptSourceContextProjection;
+  readonly homeworkAuthority?: HistoricalAttemptHomeworkAuthority | null;
+  readonly source: BookDocumentAuthorizedSource | null;
+  readonly sourceAvailability: 'available' | 'missing' | 'deleted' | 'replaced' | 'revoked';
+  readonly request: Parameters<typeof historicalRequestMatches>[0];
+}): HistoricalAttemptDocumentAuthorizationResult => {
+  if (input.viewer.status !== 'active') {
+    return { ok: false, status: 401, code: 'unauthorized' };
+  }
+  if (input.projection.state !== 'available'
+    || input.sourceAvailability !== 'available'
+    || input.source === null) {
+    return { ok: false, status: 404, code: 'historical_source_unavailable' };
+  }
+  const metadata = input.projection.metadata;
+  if (!historicalRequestMatches(input.request, input.projection)
+    || input.source.sourceVersionId !== metadata.sourceVersionId
+    || input.source.bookId !== metadata.bookId) {
+    return { ok: false, status: 403, code: 'forbidden' };
+  }
+  if (input.viewer.role === 'student') {
+    if (input.viewer.uid !== metadata.studentId) {
+      return { ok: false, status: 403, code: 'forbidden' };
+    }
+  } else {
+    const authority = input.homeworkAuthority;
+    if (
+      metadata.surface !== 'homework'
+      || !authority
+      || authority.status !== 'current'
+      || authority.homeworkId !== metadata.contextId
+      || authority.ownerId !== input.viewer.uid
+      || metadata.ownerId !== input.viewer.uid
+      || !authority.studentIds.includes(metadata.studentId)
+    ) {
+      return { ok: false, status: 403, code: 'forbidden' };
+    }
+  }
+  return {
+    ok: true,
+    decision: {
+      kind: 'book-historical-attempt-document-authorized',
+      uid: input.viewer.uid,
+      viewerRole: input.viewer.role,
+      attemptId: metadata.attemptId,
+      resultId: metadata.resultId,
+      bookId: metadata.bookId,
+      studentId: metadata.studentId,
+      contextId: metadata.contextId,
+      contextKind: metadata.surface,
+      ownerId: metadata.ownerId,
+      sourceVersionIds: [metadata.sourceVersionId],
+      sourceLocations: [input.source],
+    },
+    source: input.source,
+  };
+};
 
 export type BookDocumentWorkerAuthorization =
   | {
       readonly ok: true;
       readonly decision:
         | BookDocumentAuthorizationDecision
-        | TeacherAssemblyDocumentAuthorizationDecision;
+        | TeacherAssemblyDocumentAuthorizationDecision
+        | HistoricalAttemptDocumentAuthorizationDecision;
       readonly source: BookDocumentAuthorizedSource;
     }
   | {
       readonly ok: false;
       readonly status: 401 | 403 | 404 | 409;
-      readonly code: 'unauthorized' | 'not-found' | 'forbidden' | 'stale-binding';
+      readonly code:
+        | 'unauthorized'
+        | 'not-found'
+        | 'forbidden'
+        | 'stale-binding'
+        | 'historical_source_unavailable';
     };
 
 export interface BookDocumentWorkerOptions {
