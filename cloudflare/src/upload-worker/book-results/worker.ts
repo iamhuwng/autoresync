@@ -42,10 +42,17 @@ export interface BookResultReadWorkerHandlersOptions {
 }
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@_-]{0,255}$/u;
+const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
 
 const safeId = (value: unknown, label: string): string => {
   if (typeof value !== 'string' || !ID.test(value) || value === '.' || value === '..') {
     throw new BookResultReadWorkerError(`book_result_${label}_invalid`, 400);
+  }
+  return value;
+};
+const safeGroupKey = (value: unknown): string => {
+  if (typeof value !== 'string' || !GROUP_KEY.test(value)) {
+    throw new BookResultReadWorkerError('book_result_group_key_invalid', 400);
   }
   return value;
 };
@@ -85,7 +92,7 @@ const queryInput = (input: {
   readonly limit?: unknown;
 }): BookResultQueryInput => ({
   ...scopeFrom(input),
-  ...(input.groupKey === undefined ? {} : { groupKey: safeId(input.groupKey, 'group_key') }),
+  ...(input.groupKey === undefined ? {} : { groupKey: safeGroupKey(input.groupKey) }),
   ...(input.limit === undefined ? {} : { limit: parseLimit(input.limit) }),
 });
 

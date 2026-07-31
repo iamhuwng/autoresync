@@ -11,6 +11,7 @@ import type {
 } from '../activityRuntimeAttempt.types';
 import {
   BOOK_RESULT_PROJECTION_SCHEMA_VERSION,
+  bookResultGroupKey,
   type BookResultAttemptDetail,
   type BookResultAttemptPolicy,
   type BookResultAttemptSummary,
@@ -39,6 +40,7 @@ import {
 } from './bookResult.types';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
 const TEXT = /^.{0,4096}$/su;
 const CONTEXT_KINDS: readonly BookResultSurface[] = ['solo', 'homework', 'unknown'];
 const SOURCE_AVAILABILITIES: readonly BookResultSourceAvailability[] = [
@@ -659,7 +661,7 @@ export const groupBookResultAttempts = (
     const summary = projection.summary;
     if (seen.has(summary.attemptId)) throw new BookResultProjectionError('duplicate-id', `inputs[${index}].attemptId: Attempt ID is duplicated.`);
     seen.add(summary.attemptId);
-    const key = `${summary.studentId}:${summary.activityId}`;
+    const key = bookResultGroupKey(summary.studentId, summary.activityId);
     const list = groups.get(key) ?? [];
     list.push(summary);
     groups.set(key, list);
@@ -767,7 +769,10 @@ export const validateBookResultAttemptDetail = (value: unknown): BookResultProje
 export const validateBookResultGroupSummary = (value: unknown): BookResultProjectionValidationResult => {
   const errors: MutableErrors = [];
   if (!isRecord(value) || !exact(value, ['activityId', 'attemptCount', 'attempts', 'contexts', 'groupKey', 'latestAttemptId', 'recipientId', 'studentId'], [], '$', errors)) return deepFreeze({ valid: false, errors: errors.slice() });
-  if (!isId(value.groupKey) || !isId(value.recipientId) || !isId(value.studentId) || value.studentId !== value.recipientId || !isId(value.activityId) || !isId(value.latestAttemptId) || !isPositiveInt(value.attemptCount)) push(errors, 'invalid-value', '$', 'Group identity is invalid.');
+  if (typeof value.groupKey !== 'string' || !GROUP_KEY.test(value.groupKey)
+    || !isId(value.recipientId) || !isId(value.studentId) || value.studentId !== value.recipientId
+    || !isId(value.activityId) || value.groupKey !== bookResultGroupKey(value.studentId, value.activityId)
+    || !isId(value.latestAttemptId) || !isPositiveInt(value.attemptCount)) push(errors, 'invalid-value', '$', 'Group identity is invalid.');
   const attemptIds = new Set<string>();
   if (!Array.isArray(value.attempts) || value.attempts.length !== value.attemptCount) push(errors, 'invalid-value', '$.attempts', 'Group attempts are invalid.');
   else value.attempts.forEach((attempt, index) => {

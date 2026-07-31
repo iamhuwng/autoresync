@@ -18,6 +18,7 @@ import {
 } from './types.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@_-]{0,255}$/u;
+const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
 const SENSITIVE_KEYS = new Set([
   'answerKey', 'pdfBytes', 'provider', 'providerAuthority', 'providerFileId',
   'providerFileVersionId', 'storage', 'storageKey', 'bucket', 'objectKey',
@@ -65,6 +66,11 @@ const safeId = (value: string, label: string): string => {
 };
 
 const pathId = (value: string, label: string): string => encodeURIComponent(safeId(value, label));
+const groupKey = (value: string): string => {
+  if (!GROUP_KEY.test(value)) throw new BookResultRepositoryError('book_result_group_key_invalid');
+  return value;
+};
+const groupPathId = (value: string): string => encodeURIComponent(groupKey(value));
 
 export const bookResultStudentGroupsPath = (input: {
   readonly studentId: string;
@@ -102,7 +108,7 @@ export const bookResultGroupsPath = (input: BookResultQueryInput): string => {
 
 export const bookResultAttemptsPath = (input: BookResultQueryInput): string => {
   if (!input.groupKey) throw new BookResultRepositoryError('book_result_group_key_required');
-  safeId(input.groupKey, 'group_key');
+  groupKey(input.groupKey);
   const root = input.homeworkId
     ? bookResultHomeworkAttemptsPath({
       homeworkId: input.homeworkId,
@@ -113,13 +119,13 @@ export const bookResultAttemptsPath = (input: BookResultQueryInput): string => {
       studentId: input.studentId,
       bookId: input.bookId,
     });
-  return `${root}/${pathId(input.groupKey, 'group_key')}`;
+  return `${root}/${groupPathId(input.groupKey)}`;
 };
 
 export const bookResultGroupSummaryPath = (input: BookResultQueryInput): string => {
   if (!input.groupKey) throw new BookResultRepositoryError('book_result_group_key_required');
-  safeId(input.groupKey, 'group_key');
-  return `${bookResultGroupsPath(input)}/${pathId(input.groupKey, 'group_key')}`;
+  groupKey(input.groupKey);
+  return `${bookResultGroupsPath(input)}/${groupPathId(input.groupKey)}`;
 };
 
 export const bookResultDetailPath = (resultId: string): string => (
@@ -183,7 +189,7 @@ const queryScope = (input: BookResultQueryInput): void => {
   safeId(input.studentId, 'student_id');
   safeId(input.bookId, 'book_id');
   if (input.homeworkId) safeId(input.homeworkId, 'homework_id');
-  if (input.groupKey) safeId(input.groupKey, 'group_key');
+  if (input.groupKey) groupKey(input.groupKey);
   if (input.contextKind && !['solo', 'homework'].includes(input.contextKind)) {
     throw new BookResultRepositoryError('book_result_context_invalid');
   }

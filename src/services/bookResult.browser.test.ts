@@ -10,11 +10,12 @@ import {
   createBookResultRouteHandle,
   parseBookResultRouteHandle,
 } from './bookResult.browser';
+import { bookResultGroupKey } from './book-activity/results/bookResult.types';
 
 const address = {
   bookId: 'book-1',
   studentId: 'student-1',
-  groupKey: 'g_WyJzdHVkZW50LTEiLCJhY3Rpdml0eS0xIl0',
+  groupKey: bookResultGroupKey('student-1', 'activity-1'),
 } as const;
 
 const summary = {

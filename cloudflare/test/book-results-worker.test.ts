@@ -15,6 +15,7 @@ import {
   type BookResultReadProjection,
 } from '../src/upload-worker/book-results/types.ts';
 import {
+  groupBookResultAttempts,
   validateBookResultAttemptDetail,
   validateBookResultGroupSummary,
 } from '../../src/services/book-activity/results/bookResultProjection.service.ts';
@@ -157,20 +158,43 @@ describe('Ticket #77 Book result read model', () => {
 
   it('persists grouped summaries, ordered attempt summaries, and detail idempotently', async () => {
     const repository = new InMemoryBookResultReadRepository();
-    await repository.persistProjection?.({ projection: projection() });
-    await repository.persistProjection?.({ projection: projection() });
+    const projected = projection();
+    const { bookId: summaryBookId, ...pureSummary } = projected.summary;
+    const { bookId: detailBookId, ...pureDetail } = projected.detail;
+    expect(summaryBookId).toBe(detailBookId);
+    const canonicalGroup = groupBookResultAttempts([{
+      schemaVersion: projected.schemaVersion,
+      summary: pureSummary,
+      detail: pureDetail,
+    }])[0]!;
+    await repository.persistProjection?.({ projection: projected });
+    await repository.persistProjection?.({ projection: projected });
     const groups = await repository.listGroupSummaries({ bookId: 'book-1', studentId: 'student-1' });
     expect(groups).toHaveLength(1);
+    expect(groups[0]?.groupKey).toBe(canonicalGroup.groupKey);
+    expect(canonicalGroup.groupKey).toBe(bookResultGroupKey('student-1', 'activity-1'));
     expect(groups[0]?.attemptCount).toBe(1);
     const attempts = await repository.listAttemptSummaries({
       bookId: 'book-1',
       studentId: 'student-1',
-      groupKey: bookResultGroupKey('student-1', 'activity-1'),
+      groupKey: canonicalGroup.groupKey,
     });
     expect(attempts.map((entry) => entry.attemptNumber)).toEqual([1]);
     const read = await repository.readResultDetail({ bookId: 'book-1', studentId: 'student-1', resultId: 'result-1' });
     expect(read?.response).toEqual({ answer: 'submitted' });
     expect(repository.queryMetrics()).toMatchObject({ groups: 1, attempts: 1, details: 1, persists: 2 });
+  });
+
+  it('accepts canonical group keys produced from maximum-length projection identities', async () => {
+    const studentId = `s${'x'.repeat(159)}`;
+    const activityId = `a${'y'.repeat(159)}`;
+    const key = bookResultGroupKey(studentId, activityId);
+    expect(key.length).toBeGreaterThan(256);
+    expect(() => bookResultAttemptsPath({
+      bookId: 'book-1',
+      studentId,
+      groupKey: key,
+    })).not.toThrow();
   });
 
   it('keeps identical student-plus-activity groups isolated between books', async () => {
@@ -207,7 +231,11 @@ describe('Ticket #77 Book result read model', () => {
     const repository = new InMemoryBookResultReadRepository();
     await expect(repository.listGroupSummaries({ bookId: '../root', studentId: 'student-1' })).rejects.toThrow('book_result_book_id_invalid');
     await expect(repository.listGroupSummaries({ bookId: 'book-1', studentId: 'student-1', limit: 26 })).rejects.toThrow('book_result_groups_query_unbounded');
-    await expect(repository.listAttemptSummaries({ bookId: 'book-1', studentId: 'student-1', groupKey: 'not-a-group' })).resolves.toEqual([]);
+    await expect(repository.listAttemptSummaries({
+      bookId: 'book-1',
+      studentId: 'student-1',
+      groupKey: 'not-a-group',
+    })).rejects.toThrow('book_result_group_key_invalid');
   });
 
   it('uses one scoped Firebase REST read per index query and never reads the root', async () => {

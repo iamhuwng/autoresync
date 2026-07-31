@@ -10,7 +10,7 @@ import {
 import { resolveBookDeliveryWorkerOrigin } from './book-delivery/bookDelivery.browser';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
-const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,640}$/u;
+const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
 const ROUTE_HANDLE = /^br_[A-Za-z0-9_-]{8,1400}$/u;
 const MAX_GROUP_RESPONSE_BYTES = 256 * 1024;
 const MAX_DETAIL_RESPONSE_BYTES = 128 * 1024;

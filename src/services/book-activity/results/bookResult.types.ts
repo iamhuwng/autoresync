@@ -14,6 +14,15 @@ import type {
 export const BOOK_RESULT_PROJECTION_SCHEMA_VERSION = 1 as const;
 export type BookResultProjectionSchemaVersion = typeof BOOK_RESULT_PROJECTION_SCHEMA_VERSION;
 
+/** Canonical opaque handle used by projections, indexes, and browser routes. */
+export const bookResultGroupKey = (studentId: string, activityId: string): string => {
+  const bytes = new TextEncoder().encode(JSON.stringify([studentId, activityId]));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  if (typeof btoa !== 'function') throw new Error('book_result_group_encoding_unavailable');
+  return `g_${btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')}`;
+};
+
 export type BookResultSourceAvailability =
   | 'available'
   | 'missing'

@@ -9,6 +9,8 @@ import type {
   BookResultSourceProjection,
   BookResultSurface,
 } from '../../../../src/services/book-activity/results/bookResult.types.ts';
+import { bookResultGroupKey } from '../../../../src/services/book-activity/results/bookResult.types.ts';
+export { bookResultGroupKey };
 
 /**
  * The result reader deliberately has its own wire model.  Runtime terminal
@@ -115,17 +117,6 @@ export type BookResultQueryObserver = (event: BookResultQueryEvent) => void;
 
 export const BOOK_RESULT_MAX_GROUP_LIMIT = 25;
 export const BOOK_RESULT_MAX_ATTEMPT_LIMIT = 50;
-
-/** Opaque, URL-safe, collision-resistant handle for student+activity groups. */
-export const bookResultGroupKey = (studentId: string, activityId: string): string => {
-  const payload = JSON.stringify([studentId, activityId]);
-  const bytes = new TextEncoder().encode(payload);
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  if (typeof btoa !== 'function') throw new Error('book_result_group_encoding_unavailable');
-  const encoded = btoa(binary);
-  return `g_${encoded.replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')}`;
-};
 
 export const decodeBookResultGroupKey = (value: string): readonly [string, string] | null => {
   if (!/^g_[A-Za-z0-9_-]+$/u.test(value)) return null;

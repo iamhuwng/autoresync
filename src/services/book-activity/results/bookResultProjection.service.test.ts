@@ -208,7 +208,7 @@ describe('Book result projection', () => {
     const homeworkFirst = terminal({ attemptId: 'homework-1', attemptNumber: 1, contextId: 'homework-context', placementId: 'homework-placement', surface: 'homework' });
     const groups = groupBookResultAttempts([soloSecond, homeworkFirst, soloFirst]);
     expect(groups).toHaveLength(1);
-    expect(groups[0].groupKey).toBe('student-1:activity-1');
+    expect(groups[0].groupKey).toBe('g_WyJzdHVkZW50LTEiLCJhY3Rpdml0eS0xIl0');
     expect(groups[0].attempts.map((attempt) => attempt.attemptId)).toEqual(['homework-1', 'solo-1', 'solo-2']);
     expect(groups[0].contexts.map((context) => [context.contextId, context.attemptsUsed, context.attemptsRemaining])).toEqual([
       ['homework-context', 1, 1],
@@ -236,6 +236,7 @@ describe('Book result projection', () => {
     expect(validateBookResultAttemptDetail(detailWithLeakedFeedback).valid).toBe(false);
     const group = groupBookResultAttempts([projection])[0];
     expect(validateBookResultGroupSummary(group).valid).toBe(true);
+    expect(validateBookResultGroupSummary({ ...group, groupKey: 'student-1:activity-1' }).valid).toBe(false);
     expect(validateBookResultGroupSummary({ ...group, attempts: [{ ...group.attempts[0], completion: { ...group.attempts[0].completion, activityVersionId: 'wrong' } }] }).valid).toBe(false);
   });
 });
