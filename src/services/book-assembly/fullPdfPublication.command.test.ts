@@ -7,18 +7,62 @@ import type {
   BookAssemblyManifestCandidate,
   BookAssemblyPreviewApprovalReference,
 } from '../../types/bookAssembly.types';
+import type { NormalizedActivity } from '../../types/bookActivity.types';
 import {
-  createBookAssemblyPublicationService,
-  type PublishBookAssemblyInput,
-} from './publicationTransaction.service';
+  createCanonicalBookAssemblyPublicationService,
+  type CanonicalPublishBookAssemblyInput,
+} from './canonicalPublication.service';
+import { InMemoryCanonicalActivityVersionRepository } from './canonicalPublicationRepository';
 import { InMemoryBookAssemblyPublicationRepository } from './publicationRepository';
 import {
   createFullPdfPublicationCommand,
   FullPdfPublicationCommandError,
 } from './fullPdfPublication.command';
+import {
+  createCandidateUnitPreview,
+  createPreviewApproval,
+} from './unitPreview.service';
 
 const operationId = '00000000-0000-4000-8000-000000000165';
 const now = '2026-07-27T13:00:00.000Z';
+
+const activity = (): NormalizedActivity => ({
+  schemaVersion: 1,
+  title: 'Choose safely',
+  taskProfile: null,
+  presentationMode: 'source-assisted',
+  contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Read source.' }],
+  interaction: { family: 'choice', variant: 'v1' },
+  answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+  stimulus: null,
+  assetRefs: [],
+  interactions: [{
+    family: 'choice',
+    interactionId: 'choice-1',
+    prompt: 'Choose A',
+    options: ['A', 'B'],
+    sourceAssisted: {
+      questionLabel: '1',
+      sourceExerciseLabel: 'Exercise 1',
+      accessiblePrompt: 'Choose one answer.',
+      responseShape: 'single-choice',
+    },
+    itemIdentities: { family: 'choice', optionIds: ['option-a', 'option-b'] },
+    answerKey: { family: 'choice', acceptedOptionItemIds: ['option-a'] },
+  }],
+  scoring: { mode: 'auto-where-possible' },
+});
+
+const readActivities = vi.fn(async () => ({
+  'slot-a': {
+    activityKey: 'slot-a',
+    ownerId: 'teacher-1',
+    revision: 1,
+    lifecycle: 'draft' as const,
+    activity: activity(),
+  },
+}));
 
 const manifest = (): BookAssemblyManifestCandidate => ({
   bookId: 'book-1',
@@ -98,6 +142,32 @@ const approval = (
   expiresAt,
 });
 
+const currentApproval = () => createPreviewApproval({
+  approvalId: 'approval-1',
+  approvalRevision: 1,
+  actorId: 'teacher-1',
+  approvedAt: '2026-07-27T12:30:00.000Z',
+  expiresAt: '2026-07-27T14:00:00.000Z',
+  preview: createCandidateUnitPreview({
+    candidate: candidate(),
+    sourceVersions: [{
+      sourceVersionId: 'source-v1',
+      bookId: 'book-1',
+      physicalPageCount: 10,
+      verifiedUsable: true,
+    }],
+    sourceIsPreviewReady: () => true,
+    activitiesByKey: { 'slot-a': activity() },
+    registryVersion: 'registry-1',
+  }),
+  canonicalActivitiesByKey: { 'slot-a': activity() },
+});
+
+const approvalPorts = {
+  readPreviewApproval: vi.fn(async () => currentApproval()),
+  sourceIsPreviewReady: vi.fn(async () => true),
+};
+
 const request = () => ({
   ownerId: 'teacher-1',
   bookId: 'book-1',
@@ -125,12 +195,15 @@ const idAllocator = () => {
 describe('full-PDF publication command boundary', () => {
   it('allocates trusted operation and record IDs before calling the #64 primitive', async () => {
     const repository = new InMemoryBookAssemblyPublicationRepository();
-    const service = createBookAssemblyPublicationService(repository);
+    const activityVersions = new InMemoryCanonicalActivityVersionRepository();
+    const service = createCanonicalBookAssemblyPublicationService(repository, activityVersions);
     const ids = idAllocator();
-    const publish = vi.fn((input: PublishBookAssemblyInput) => service.publish(input));
+    const publish = vi.fn((input: CanonicalPublishBookAssemblyInput) => service.publish(input));
     const command = createFullPdfPublicationCommand({
       readAuthority: vi.fn(async () => authority()),
       readCandidate: vi.fn(async () => candidate()),
+      readActivities,
+      ...approvalPorts,
       publish,
       allocateOperationId: () => operationId,
       allocateId: ids.allocateId,
@@ -163,6 +236,13 @@ describe('full-PDF publication command boundary', () => {
       publicationId: 'publication:candidate-1',
       publicationRevision: 1,
       expectedCurrentPublicationId: null,
+      canonicalActivityVersions: [
+        expect.objectContaining({
+          activity: expect.objectContaining({
+            interactions: [expect.objectContaining({ interactionId: 'choice-1' })],
+          }),
+        }),
+      ],
     }));
     await expect(repository.readScope('book-1')).resolves.toMatchObject({
       current: { publicationId: 'publication:candidate-1' },
@@ -176,6 +256,8 @@ describe('full-PDF publication command boundary', () => {
     const basePorts = {
       readAuthority: vi.fn(async () => authority()),
       readCandidate: vi.fn(async () => candidate()),
+      readActivities,
+      ...approvalPorts,
       publish: vi.fn(async () => ({ status: 'published' as const })),
       allocateOperationId: () => operationId,
       allocateId: (kind: string, key: string) => `${kind}:${key}`,
@@ -195,7 +277,7 @@ describe('full-PDF publication command boundary', () => {
     await expect(createFullPdfPublicationCommand(basePorts)({
       ...request(),
       previewApproval: approval('2026-07-27T12:59:59.000Z'),
-    })).rejects.toThrow('full_pdf_preview_approval_expired');
+    })).rejects.toThrow('full_pdf_preview_approval_invalid');
 
     await expect(createFullPdfPublicationCommand({
       ...basePorts,
@@ -205,12 +287,15 @@ describe('full-PDF publication command boundary', () => {
 
   it('preserves idempotent replay and rejects conflicting replay through #64', async () => {
     const repository = new InMemoryBookAssemblyPublicationRepository();
-    const service = createBookAssemblyPublicationService(repository);
+    const activityVersions = new InMemoryCanonicalActivityVersionRepository();
+    const service = createCanonicalBookAssemblyPublicationService(repository, activityVersions);
     const firstAllocator = idAllocator();
     const ports = {
       readAuthority: vi.fn(async () => authority()),
       readCandidate: vi.fn(async () => candidate()),
-      publish: (input: PublishBookAssemblyInput) => service.publish(input),
+      readActivities,
+      ...approvalPorts,
+      publish: (input: CanonicalPublishBookAssemblyInput) => service.publish(input),
       allocateOperationId: () => operationId,
       allocateId: firstAllocator.allocateId,
       now: () => now,

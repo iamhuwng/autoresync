@@ -55,6 +55,8 @@ export interface BookAssemblyPreviewApprovalRecord extends BookAssemblyPreviewAp
   readonly sourceSetRevision: number;
   readonly registryVersion: string;
   readonly inputFingerprint: string;
+  /** Trusted server-only fingerprints of the full answer-bearing Activity payloads. */
+  readonly canonicalActivityFingerprintsByKey?: Readonly<Record<string, string>>;
 }
 
 const stable = (value: unknown): string => {
@@ -74,6 +76,10 @@ const fingerprint = (value: unknown): string => {
   }
   return `fnv1a64:${hash.toString(16).padStart(16, '0')}`;
 };
+
+export const canonicalActivityPayloadFingerprint = (
+  activity: NormalizedActivity,
+): string => fingerprint(activity);
 
 const nonEmpty = (value: string): boolean => value.trim().length > 0;
 
@@ -164,6 +170,7 @@ export const createPreviewApproval = (input: {
   readonly approvedAt: string;
   readonly expiresAt: string;
   readonly preview: CandidateUnitPreviewProjection;
+  readonly canonicalActivitiesByKey?: Readonly<Record<string, NormalizedActivity>>;
 }): BookAssemblyPreviewApprovalRecord => {
   const approvedAt = Date.parse(input.approvedAt);
   const expiresAt = Date.parse(input.expiresAt);
@@ -186,5 +193,13 @@ export const createPreviewApproval = (input: {
     sourceSetRevision: input.preview.sourceSetRevision,
     registryVersion: input.preview.registryVersion,
     inputFingerprint: previewInputFingerprint(input.preview),
+    ...(input.canonicalActivitiesByKey
+      ? {
+        canonicalActivityFingerprintsByKey: Object.freeze(Object.fromEntries(
+          Object.entries(input.canonicalActivitiesByKey)
+            .map(([activityKey, activity]) => [activityKey, canonicalActivityPayloadFingerprint(activity)]),
+        )),
+      }
+      : {}),
   });
 };

@@ -46,7 +46,13 @@ describe('PRD0062 #63 candidate preview Worker', () => {
     expect(JSON.stringify(preview.body)).not.toContain('source-1');
     const approval = await handlers.approve({ uid: 'teacher-1', body });
     expect(approval.body).toMatchObject({ approval: { candidateId: 'candidate-1', sourceSetRevision: 4, registryVersion: 'registry-v1', actorId: 'teacher-1' } });
-    expect(recordApproval).toHaveBeenCalledWith(expect.objectContaining({ approvalId: 'approval-1' }));
+    expect(JSON.stringify(approval.body)).not.toContain('canonicalActivityFingerprintsByKey');
+    expect(recordApproval).toHaveBeenCalledWith(expect.objectContaining({
+      approvalId: 'approval-1',
+      canonicalActivityFingerprintsByKey: {
+        'activity-1': expect.stringMatching(/^fnv1a64:/u),
+      },
+    }));
   });
 
   it('fails before candidate/activity reads when teacher authority is absent', async () => {

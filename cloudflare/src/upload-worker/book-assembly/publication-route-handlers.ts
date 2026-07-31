@@ -9,11 +9,18 @@ import type {
 } from '../../../../src/services/book-assembly/componentPdfPublication.adapter.ts';
 import type {
   FullPdfActivityLineage,
+  FullPdfValidatedActivityPayload,
 } from '../../../../src/services/book-assembly/fullPdfPublication.adapter.ts';
+import type {
+  CanonicalActivityVersionWriter,
+} from '../../../../src/services/book-assembly/canonicalPublicationRepository.ts';
 import type {
   BookAssemblyBookAuthority,
   BookAssemblyCandidateRecord,
 } from '../../../../src/services/book-assembly/unitAssembly.types.ts';
+import type {
+  BookAssemblyPreviewApprovalRecord,
+} from '../../../../src/services/book-assembly/unitPreview.service.ts';
 import {
   createComponentPdfPublicationWorkerHandlers,
 } from './component-pdf-publication-worker.ts';
@@ -24,6 +31,10 @@ import {
   FirebaseRestBookAssemblyPublicationRepository,
   type BookAssemblyPublicationRepositoryEnv,
 } from './publication-repository.ts';
+import {
+  FirebaseRestCanonicalActivityVersionWriter,
+  type CanonicalActivityVersionWriterEnv,
+} from './canonical-activity-version-repository.ts';
 import {
   FirebaseRestBookAssemblyRepository,
   type BookAssemblyRepositoryEnv,
@@ -56,6 +67,18 @@ export interface FullPdfPublicationRoutePorts {
   readonly readLineage?: (
     context: Omit<Required<BookAssemblyPublicationReaderContext>, 'candidateId'>,
   ) => Promise<Readonly<Record<string, FullPdfActivityLineage>>>;
+  readonly readActivities: (
+    context: BookAssemblyPublicationReaderContext & {
+      readonly ownerId: string;
+      readonly activityKeys: readonly string[];
+    },
+  ) => Promise<Readonly<Record<string, FullPdfValidatedActivityPayload>>>;
+  readonly readPreviewApproval: (
+    context: { readonly env: BookRouterEnv; readonly approvalId: string },
+  ) => Promise<(BookAssemblyPreviewApprovalRecord & { readonly revoked?: boolean }) | null>;
+  readonly sourceIsPreviewReady: (
+    context: BookAssemblyPublicationReaderContext & { readonly sourceVersionId: string },
+  ) => Promise<boolean>;
 }
 
 export interface ComponentPdfPublicationRoutePorts {
@@ -75,6 +98,10 @@ export interface BookAssemblyPublicationRouteOptions {
   readonly repositoryFactory?: (
     env: BookRouterEnv,
   ) => BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
+  /** #64 exact immutable Activity Version writer. Uses its dedicated identity. */
+  readonly activityVersionWriterFactory?: (
+    env: BookRouterEnv,
+  ) => CanonicalActivityVersionWriter;
   /** #55 candidate repository/read seam. */
   readonly candidateRepositoryFactory?: (
     env: BookRouterEnv,
@@ -117,6 +144,14 @@ const defaultCandidateRepositoryFactory = (
   })
 );
 
+const defaultActivityVersionWriterFactory = (
+  env: BookRouterEnv,
+): CanonicalActivityVersionWriter => (
+  new FirebaseRestCanonicalActivityVersionWriter({
+    env: env as CanonicalActivityVersionWriterEnv,
+  })
+);
+
 const readCandidate = async (
   options: BookAssemblyPublicationRouteOptions,
   input: BookAssemblyPublicationRouteInput,
@@ -142,6 +177,9 @@ const createFullPdfHandler = (
     try {
       worker = createFullPdfPublicationWorkerHandlers({
         repository: (options.repositoryFactory ?? defaultRepositoryFactory)(input.env),
+        activityVersionWriter: (
+          options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
+        )(input.env),
         readCandidate: (bookId, unitKey, candidateId) => readCandidate(
           options,
           input,
@@ -151,6 +189,22 @@ const createFullPdfHandler = (
           ports.readCandidate,
         ),
         readAuthority: (bookId) => ports.readAuthority({ env: input.env, bookId }),
+        readActivities: ({ ownerId, bookId, unitKey, activityKeys }) => ports.readActivities({
+          env: input.env,
+          bookId,
+          unitKey,
+          ownerId,
+          activityKeys,
+        }),
+        readPreviewApproval: (approvalId) => ports.readPreviewApproval({
+          env: input.env,
+          approvalId,
+        }),
+        sourceIsPreviewReady: ({ bookId, sourceVersionId }) => ports.sourceIsPreviewReady({
+          env: input.env,
+          bookId,
+          sourceVersionId,
+        }),
         ...(ports.readLineage ? {
           readLineage: (bookId: string, unitKey: string) => ports.readLineage!({
             env: input.env,

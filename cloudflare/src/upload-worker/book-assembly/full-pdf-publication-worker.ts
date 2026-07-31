@@ -1,7 +1,12 @@
 import {
-  createBookAssemblyPublicationService,
   type BookAssemblyPublicationResult,
 } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
+import {
+  createCanonicalBookAssemblyPublicationService,
+} from '../../../../src/services/book-assembly/canonicalPublication.service.ts';
+import type {
+  CanonicalActivityVersionWriter,
+} from '../../../../src/services/book-assembly/canonicalPublicationRepository.ts';
 import type {
   BookAssemblyPublicationRepository,
 } from '../../../../src/services/book-assembly/publicationRepository.ts';
@@ -11,6 +16,7 @@ import {
 } from '../../../../src/services/book-assembly/fullPdfPublication.command.ts';
 import type {
   FullPdfActivityLineage,
+  FullPdfValidatedActivityPayload,
 } from '../../../../src/services/book-assembly/fullPdfPublication.adapter.ts';
 import type {
   BookAssemblyBookAuthority,
@@ -19,6 +25,9 @@ import type {
 import type {
   BookAssemblyPreviewApprovalReference,
 } from '../../../../src/types/bookAssembly.types.ts';
+import type {
+  BookAssemblyPreviewApprovalRecord,
+} from '../../../../src/services/book-assembly/unitPreview.service.ts';
 
 const MAX_BODY_BYTES = 256_000;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
@@ -133,11 +142,29 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
     bookId: string,
     unitKey: string,
   ) => Promise<Readonly<Record<string, FullPdfActivityLineage>>>;
+  readonly readActivities: (
+    input: {
+      readonly ownerId: string;
+      readonly bookId: string;
+      readonly unitKey: string;
+      readonly activityKeys: readonly string[];
+    },
+  ) => Promise<Readonly<Record<string, FullPdfValidatedActivityPayload>>>;
+  readonly readPreviewApproval: (
+    approvalId: string,
+  ) => Promise<(BookAssemblyPreviewApprovalRecord & { readonly revoked?: boolean }) | null>;
+  readonly sourceIsPreviewReady: (
+    input: { readonly bookId: string; readonly sourceVersionId: string },
+  ) => Promise<boolean>;
+  readonly activityVersionWriter: CanonicalActivityVersionWriter;
   readonly allocateOperationId?: () => string;
   readonly allocateId?: (kind: string, key: string) => string;
   readonly now?: () => string;
 }) => {
-  const service = createBookAssemblyPublicationService(options.repository);
+  const service = createCanonicalBookAssemblyPublicationService(
+    options.repository,
+    options.activityVersionWriter,
+  );
   const now = options.now ?? (() => new Date().toISOString());
   const allocateOperationId = options.allocateOperationId ?? (() => crypto.randomUUID());
   const allocateId = options.allocateId ?? ((kind, key) => `${kind}-${key}-${crypto.randomUUID()}`);
@@ -175,6 +202,9 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
           readAuthority: options.readAuthority,
           readCandidate: options.readCandidate,
           readLineage: options.readLineage,
+          readActivities: options.readActivities,
+          readPreviewApproval: options.readPreviewApproval,
+          sourceIsPreviewReady: options.sourceIsPreviewReady,
           publish: (request) => service.publish(request),
           allocateOperationId,
           allocateId,

@@ -6,12 +6,56 @@ import type {
 import type { BookAssemblyPublicationResult } from '../../src/services/book-assembly/publicationTransaction.service.ts';
 import { InMemoryBookAssemblyPublicationRepository } from '../../src/services/book-assembly/publicationRepository.ts';
 import type { BookAssemblyManifestCandidate } from '../../src/types/bookAssembly.types.ts';
+import type { NormalizedActivity } from '../../src/types/bookActivity.types.ts';
+import { InMemoryCanonicalActivityVersionRepository } from '../../src/services/book-assembly/canonicalPublicationRepository.ts';
 import { createBookRouteHandlers } from '../src/upload-worker/book-route-handlers.ts';
 import { createBookRouter } from '../src/upload-worker/book-router.ts';
 import { createBookAssemblyPublicationRouteHandlers } from '../src/upload-worker/book-assembly/publication-route-handlers.ts';
+import {
+  createCandidateUnitPreview,
+  createPreviewApproval,
+} from '../../src/services/book-assembly/unitPreview.service.ts';
 
 const operationId = '00000000-0000-4000-8000-000000000265';
 const now = '2026-07-27T13:00:00.000Z';
+
+const activity = (): NormalizedActivity => ({
+  schemaVersion: 1,
+  title: 'Choose safely',
+  taskProfile: null,
+  presentationMode: 'source-assisted',
+  contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Read source.' }],
+  interaction: { family: 'choice', variant: 'v1' },
+  answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+  stimulus: null,
+  assetRefs: [],
+  interactions: [{
+    family: 'choice',
+    interactionId: 'choice-1',
+    prompt: 'Choose A',
+    options: ['A', 'B'],
+    sourceAssisted: {
+      questionLabel: '1',
+      sourceExerciseLabel: 'Exercise 1',
+      accessiblePrompt: 'Choose one answer.',
+      responseShape: 'single-choice',
+    },
+    itemIdentities: { family: 'choice', optionIds: ['option-a', 'option-b'] },
+    answerKey: { family: 'choice', acceptedOptionItemIds: ['option-a'] },
+  }],
+  scoring: { mode: 'auto-where-possible' },
+});
+
+const readActivities = async () => ({
+  'slot-a': {
+    activityKey: 'slot-a',
+    ownerId: 'teacher-1',
+    revision: 1,
+    lifecycle: 'draft' as const,
+    activity: activity(),
+  },
+});
 
 const request = (path = '/book-assembly/full-pdf-publications', body: unknown = {}) => new Request(`https://worker.test${path}`, {
   method: 'POST',
@@ -96,6 +140,32 @@ const body = () => ({
   },
 });
 
+const currentApproval = () => createPreviewApproval({
+  approvalId: 'approval-1',
+  approvalRevision: 1,
+  actorId: 'teacher-1',
+  approvedAt: '2026-07-27T12:00:00.000Z',
+  expiresAt: '2026-07-27T14:00:00.000Z',
+  preview: createCandidateUnitPreview({
+    candidate: candidate('full_pdf'),
+    sourceVersions: [{
+      sourceVersionId: 'source-v1',
+      bookId: 'book-1',
+      physicalPageCount: 12,
+      verifiedUsable: true,
+    }],
+    sourceIsPreviewReady: () => true,
+    activitiesByKey: { 'slot-a': activity() },
+    registryVersion: 'registry-1',
+  }),
+  canonicalActivitiesByKey: { 'slot-a': activity() },
+});
+
+const fullPdfApprovalPorts = {
+  readPreviewApproval: async () => currentApproval(),
+  sourceIsPreviewReady: async () => true,
+};
+
 describe('Book publication route composition', () => {
   it('binds both publication descriptors to the canonical bookAssembly namespace', () => {
     const handlers = createBookRouteHandlers({
@@ -124,7 +194,8 @@ describe('Book publication route composition', () => {
     };
     const handlers = createBookAssemblyPublicationRouteHandlers({
       repositoryFactory,
-      fullPdf: { readAuthority },
+      activityVersionWriterFactory: () => new InMemoryCanonicalActivityVersionRepository(),
+      fullPdf: { readAuthority, readActivities, ...fullPdfApprovalPorts },
     });
 
     const result = await handlers.fullPdfPublish({ request: request(), env, uid: 'teacher-1' });
@@ -140,6 +211,7 @@ describe('Book publication route composition', () => {
     const transaction = vi.spyOn(repository, 'transaction');
     const handlers = createBookAssemblyPublicationRouteHandlers({
       repositoryFactory: vi.fn(() => repository),
+      activityVersionWriterFactory: () => new InMemoryCanonicalActivityVersionRepository(),
       allocateOperationId: () => operationId,
       allocateId: (kind, key) => `${kind}:${key}`,
       now: () => now,
@@ -147,6 +219,8 @@ describe('Book publication route composition', () => {
         fullPdf: {
           readAuthority: async () => authority(strategy),
           readCandidate: async () => candidate(strategy),
+          readActivities,
+          ...fullPdfApprovalPorts,
         },
       } : {
         componentPdf: {
@@ -175,7 +249,12 @@ describe('Book publication route composition', () => {
 
     expect(result.init.status).toBe(200);
     expect(transaction).toHaveBeenCalledOnce();
-    expect(transaction).toHaveBeenCalledWith('book-1', expect.any(Function));
+    expect(transaction).toHaveBeenCalledWith(
+      'book-1',
+      expect.any(Function),
+      operationId,
+      expect.stringMatching(/^fnv1a64:/u),
+    );
   });
 
   it.each([

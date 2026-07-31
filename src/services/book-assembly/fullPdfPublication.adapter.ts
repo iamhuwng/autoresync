@@ -10,6 +10,14 @@ import type {
   BookSourceVersionAuthority,
   SourceQualifiedPageIdentity,
 } from '../../types/bookAssembly.types';
+import type { NormalizedActivity } from '../../types/bookActivity.types';
+import { projectStudentActivity } from '../book-activity/activityProjection.service';
+import {
+  assertCanonicalPublishedActivityVersion,
+  createCanonicalActivityVersionFingerprint,
+  type CanonicalPublishedActivityVersionRecord,
+  type CanonicalPublishedActivityVersionRecordWithoutPayloadFingerprint,
+} from './canonicalActivityVersion.service';
 import { validateBookAssemblyManifestCandidate } from './manifestCandidate.service';
 import { resolveSourceQualifiedPage } from './sourcePageAuthority.service';
 
@@ -44,6 +52,19 @@ export interface FullPdfActivityLineage {
   readonly lastActivityVersion?: number;
 }
 
+export interface FullPdfValidatedActivityPayload {
+  readonly activityKey: string;
+  readonly ownerId: string;
+  readonly revision: number;
+  readonly lifecycle: 'draft';
+  readonly activity: NormalizedActivity;
+}
+
+export interface FullPdfPublicationAdapterOutput {
+  readonly plan: BookAssemblyPublicationAdapterPlan;
+  readonly canonicalActivityVersions: readonly CanonicalPublishedActivityVersionRecord[];
+}
+
 export interface CreateFullPdfPublicationAdapterPlanInput {
   readonly operationId: string;
   readonly now: string;
@@ -56,6 +77,7 @@ export interface CreateFullPdfPublicationAdapterPlanInput {
   readonly expectedSourceSetRevision: number;
   readonly ids: FullPdfPublicationIds;
   readonly previewApproval: BookAssemblyPreviewApprovalReference;
+  readonly activitiesByKey: Readonly<Record<string, FullPdfValidatedActivityPayload>>;
   readonly existingLineageByActivityKey?: Readonly<Record<string, FullPdfActivityLineage>>;
 }
 
@@ -182,20 +204,37 @@ const pagesForActivity = (
     left.sourceKey.localeCompare(right.sourceKey) || left.physicalPageNumber - right.physicalPageNumber);
 };
 
-const createAtomicWrites = (
+const createPublicationRecords = (
   input: CreateFullPdfPublicationAdapterPlanInput,
   manifest: BookAssemblyManifestCandidate,
-): BookAssemblyPublicationAtomicWriteSet => {
+): {
+  readonly atomicWrites: BookAssemblyPublicationAtomicWriteSet;
+  readonly canonicalActivityVersions: readonly CanonicalPublishedActivityVersionRecord[];
+} => {
   const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
   if (!unit) throw new FullPdfPublicationAdapterError('full_pdf_unit_missing');
+  const expectedActivityKeys = new Set(unit.activitySlots.map((slot) => slot.activityKey));
+  if (Object.keys(input.activitiesByKey).some((key) => !expectedActivityKeys.has(key))) {
+    throw new FullPdfPublicationAdapterError('full_pdf_activity_payload_mismatch');
+  }
   const placementIds: string[] = [];
   const allPages = new Map<string, SourceQualifiedPageIdentity>();
   const activityVersions = [];
   const activitySafeProjections = [];
   const placements = [];
+  const canonicalActivityVersions: CanonicalPublishedActivityVersionRecord[] = [];
   for (const slot of unit.activitySlots) {
     const ids = input.ids.activitiesByKey[slot.activityKey];
     if (!ids) throw new FullPdfPublicationAdapterError('full_pdf_trusted_ids_missing');
+    const payload = input.activitiesByKey[slot.activityKey];
+    if (!payload) throw new FullPdfPublicationAdapterError('full_pdf_activity_payload_missing');
+    if (payload.activityKey !== slot.activityKey
+      || payload.ownerId !== input.ownerId
+      || payload.lifecycle !== 'draft'
+      || !Number.isSafeInteger(payload.revision)
+      || payload.revision < 1) {
+      throw new FullPdfPublicationAdapterError('full_pdf_activity_payload_mismatch');
+    }
     const lineage = input.existingLineageByActivityKey?.[slot.activityKey];
     if (lineage && lineage.activityId !== ids.activityId) {
       throw new FullPdfPublicationAdapterError('full_pdf_activity_lineage_mismatch');
@@ -208,6 +247,44 @@ const createAtomicWrites = (
     );
     for (const page of sourcePages) allPages.set(`${page.sourceKey}:${page.physicalPageNumber}`, page);
     placementIds.push(ids.placementId);
+    let canonical: CanonicalPublishedActivityVersionRecord;
+    try {
+      const canonicalWithoutFingerprint: CanonicalPublishedActivityVersionRecordWithoutPayloadFingerprint = {
+        schemaVersion: 1,
+        lifecycle: 'published',
+        activityId: ids.activityId,
+        activityVersionId: ids.activityVersionId,
+        activityVersion: ids.activityVersion,
+        ownerId: input.ownerId,
+        activity: payload.activity,
+        projection: projectStudentActivity(payload.activity),
+        ...(lineage?.lastActivityVersionId === undefined
+          ? {}
+          : { predecessorActivityVersionId: lineage.lastActivityVersionId }),
+        placementIds: [ids.placementId],
+        evidenceRefs: [],
+        sourceContextFingerprint: fingerprint(sourcePages),
+        createdByOperationId: input.operationId,
+        publishedAt: input.now,
+        provenance: {
+          kind: 'initial-book-publication',
+          bookId: input.authority.bookId,
+          manifestVersionId: input.ids.manifestVersionId,
+          publicationId: input.ids.publicationId,
+          publicationRevision: input.ids.publicationRevision,
+          unitKey: unit.unitKey,
+          activityKey: slot.activityKey,
+          sourcePages,
+        },
+      };
+      canonical = assertCanonicalPublishedActivityVersion({
+        ...canonicalWithoutFingerprint,
+        payloadFingerprint: createCanonicalActivityVersionFingerprint(canonicalWithoutFingerprint),
+      });
+    } catch {
+      throw new FullPdfPublicationAdapterError('full_pdf_activity_payload_invalid');
+    }
+    canonicalActivityVersions.push(canonical);
     activityVersions.push({
       schemaVersion: 1 as const,
       activityId: ids.activityId,
@@ -223,6 +300,11 @@ const createAtomicWrites = (
       createdByCommandId: input.operationId,
       createdAt: input.now,
       sourcePages,
+      canonicalPayloadFingerprint: canonical.payloadFingerprint,
+      safeProjectionId: ids.projectionId,
+      canonicalOriginManifestVersionId: input.ids.manifestVersionId,
+      canonicalOriginPublicationId: input.ids.publicationId,
+      canonicalOriginOperationId: input.operationId,
       payloadFingerprint: fingerprint({
         activityKey: slot.activityKey,
         pageGroupKeys: slot.pageGroupKeys,
@@ -268,44 +350,47 @@ const createAtomicWrites = (
   const sourcePages = [...allPages.values()].sort((left, right) =>
     left.sourceKey.localeCompare(right.sourceKey) || left.physicalPageNumber - right.physicalPageNumber);
   return {
-    activityVersions,
-    activitySafeProjections,
-    placements,
-    unitProjections: [{
-      schemaVersion: 1,
-      unitProjectionId: input.ids.unitProjectionId,
-      ownerId: input.ownerId,
-      bookId: input.authority.bookId,
-      manifestVersionId: input.ids.manifestVersionId,
-      publicationId: input.ids.publicationId,
-      publicationRevision: input.ids.publicationRevision,
-      unitKey: unit.unitKey,
-      placementIds,
-      sourcePages,
-      createdByCommandId: input.operationId,
-      createdAt: input.now,
-    }],
-    deliveryPlans: [{
-      schemaVersion: 1,
-      deliveryPlanId: input.ids.deliveryPlanId,
-      ownerId: input.ownerId,
-      bookId: input.authority.bookId,
-      manifestVersionId: input.ids.manifestVersionId,
-      publicationId: input.ids.publicationId,
-      publicationRevision: input.ids.publicationRevision,
-      sourceStrategy: 'full_pdf',
-      sourceSet: manifest.sourceSet,
-      placementIds,
-      unitProjectionIds: [input.ids.unitProjectionId],
-      createdByCommandId: input.operationId,
-      createdAt: input.now,
-    }],
+    canonicalActivityVersions,
+    atomicWrites: {
+      activityVersions,
+      activitySafeProjections,
+      placements,
+      unitProjections: [{
+        schemaVersion: 1,
+        unitProjectionId: input.ids.unitProjectionId,
+        ownerId: input.ownerId,
+        bookId: input.authority.bookId,
+        manifestVersionId: input.ids.manifestVersionId,
+        publicationId: input.ids.publicationId,
+        publicationRevision: input.ids.publicationRevision,
+        unitKey: unit.unitKey,
+        placementIds,
+        sourcePages,
+        createdByCommandId: input.operationId,
+        createdAt: input.now,
+      }],
+      deliveryPlans: [{
+        schemaVersion: 1,
+        deliveryPlanId: input.ids.deliveryPlanId,
+        ownerId: input.ownerId,
+        bookId: input.authority.bookId,
+        manifestVersionId: input.ids.manifestVersionId,
+        publicationId: input.ids.publicationId,
+        publicationRevision: input.ids.publicationRevision,
+        sourceStrategy: 'full_pdf',
+        sourceSet: manifest.sourceSet,
+        placementIds,
+        unitProjectionIds: [input.ids.unitProjectionId],
+        createdByCommandId: input.operationId,
+        createdAt: input.now,
+      }],
+    },
   };
 };
 
-export const createFullPdfPublicationAdapterPlan = (
+export const createFullPdfPublicationAdapter = (
   input: CreateFullPdfPublicationAdapterPlanInput,
-): BookAssemblyPublicationAdapterPlan => {
+): FullPdfPublicationAdapterOutput => {
   const manifest = assertCurrentAuthority(input);
   assertFullPdfSource(manifest, input.authority.sourceVersionAuthority);
   assertPreviewApproval(input.previewApproval, input.now);
@@ -315,42 +400,50 @@ export const createFullPdfPublicationAdapterPlan = (
     ...manifest,
     units: [unit],
   };
+  const records = createPublicationRecords(input, manifest);
   return {
-    strategy: 'full_pdf',
-    planId: input.ids.planId,
-    adapterTicket: '16',
-    ownerId: input.ownerId,
-    bookId: input.authority.bookId,
-    candidateId: input.candidate.candidateId,
-    candidateRevision: input.candidate.revision,
-    bookRevision: input.authority.bookRevision,
-    sourceSetRevision: input.authority.sourceSetRevision,
-    sourceSet: manifest.sourceSet,
-    manifest: selectedManifest,
-    studentSafeProjection: {
-      schemaVersion: 1,
+    canonicalActivityVersions: records.canonicalActivityVersions,
+    plan: {
+      strategy: 'full_pdf',
+      planId: input.ids.planId,
+      adapterTicket: '16',
+      ownerId: input.ownerId,
       bookId: input.authority.bookId,
-      publicationId: input.ids.publicationId,
-      publicationRevision: input.ids.publicationRevision,
-      sourceStrategy: 'full_pdf',
+      candidateId: input.candidate.candidateId,
+      candidateRevision: input.candidate.revision,
+      bookRevision: input.authority.bookRevision,
+      sourceSetRevision: input.authority.sourceSetRevision,
       sourceSet: manifest.sourceSet,
-      units: [unit],
+      manifest: selectedManifest,
+      studentSafeProjection: {
+        schemaVersion: 1,
+        bookId: input.authority.bookId,
+        publicationId: input.ids.publicationId,
+        publicationRevision: input.ids.publicationRevision,
+        sourceStrategy: 'full_pdf',
+        sourceSet: manifest.sourceSet,
+        units: [unit],
+      },
+      atomicWrites: records.atomicWrites,
+      previewApproval: input.previewApproval,
     },
-    atomicWrites: createAtomicWrites(input, manifest),
-    previewApproval: input.previewApproval,
   };
 };
 
-export const createFullPdfPublicationCommandPlan = (
+export const createFullPdfPublicationAdapterPlan = (
+  input: CreateFullPdfPublicationAdapterPlanInput,
+): BookAssemblyPublicationAdapterPlan => createFullPdfPublicationAdapter(input).plan;
+
+export const createFullPdfPublicationCommandOutput = (
   input: FullPdfPublicationCommandInput,
-): BookAssemblyPublicationAdapterPlan => {
+): FullPdfPublicationAdapterOutput => {
   const manifest = input.candidate.manifest;
   if (manifest === null) throw new FullPdfPublicationAdapterError('full_pdf_candidate_not_validated');
   const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
   if (!unit) throw new FullPdfPublicationAdapterError('full_pdf_unit_missing');
   const publicationId = input.allocateId('publication', input.candidate.candidateId);
   const publicationRevision = 1;
-  return createFullPdfPublicationAdapterPlan({
+  return createFullPdfPublicationAdapter({
     ...input,
     ids: {
       planId: input.allocateId('plan', input.candidate.candidateId),
@@ -373,3 +466,7 @@ export const createFullPdfPublicationCommandPlan = (
     },
   });
 };
+
+export const createFullPdfPublicationCommandPlan = (
+  input: FullPdfPublicationCommandInput,
+): BookAssemblyPublicationAdapterPlan => createFullPdfPublicationCommandOutput(input).plan;

@@ -142,13 +142,16 @@ export const createCandidatePreviewWorkerHandlers = (options: {
       }) ? source.sourceVersionId : null
     ))).then((ids) => ids.filter((id): id is string => id !== null)));
     try {
-      return createCandidateUnitPreview({
-        candidate,
-        sourceVersions,
-        sourceIsPreviewReady: (source) => readySourceVersionIds.has(source.sourceVersionId),
-        activitiesByKey: activities,
-        registryVersion: request.registryVersion,
-      });
+      return {
+        preview: createCandidateUnitPreview({
+          candidate,
+          sourceVersions,
+          sourceIsPreviewReady: (source) => readySourceVersionIds.has(source.sourceVersionId),
+          activitiesByKey: activities,
+          registryVersion: request.registryVersion,
+        }),
+        activities,
+      };
     } catch (error) {
       if (error instanceof UnitPreviewError) {
         throw new CandidatePreviewWorkerError(error.code, 409);
@@ -160,7 +163,7 @@ export const createCandidatePreviewWorkerHandlers = (options: {
   return {
     async preview(input: { readonly uid: string; readonly body: unknown }) {
       try {
-        return json({ preview: await prepare(input.uid, input.body) });
+        return json({ preview: (await prepare(input.uid, input.body)).preview });
       } catch (error) {
         if (error instanceof CandidatePreviewWorkerError) return json({ code: error.code }, error.status);
         return json({ code: 'candidate_preview_failed' }, 500);
@@ -168,14 +171,17 @@ export const createCandidatePreviewWorkerHandlers = (options: {
     },
     async approve(input: { readonly uid: string; readonly body: unknown }) {
       try {
-        const preview = await prepare(input.uid, input.body);
+        const prepared = await prepare(input.uid, input.body);
         const approvedAt = now();
         const approval = createPreviewApproval({
           approvalId: createApprovalId(), approvalRevision: 1, actorId: input.uid, approvedAt,
-          expiresAt: new Date(Date.parse(approvedAt) + approvalLifetimeMs).toISOString(), preview,
+          expiresAt: new Date(Date.parse(approvedAt) + approvalLifetimeMs).toISOString(),
+          preview: prepared.preview,
+          canonicalActivitiesByKey: prepared.activities,
         });
         await options.port.recordApproval(approval);
-        return json({ approval });
+        const { canonicalActivityFingerprintsByKey: _serverOnly, ...clientApproval } = approval;
+        return json({ approval: clientApproval });
       } catch (error) {
         if (error instanceof CandidatePreviewWorkerError) return json({ code: error.code }, error.status);
         if (error instanceof UnitPreviewError) return json({ code: error.code }, 409);

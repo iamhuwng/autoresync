@@ -4,6 +4,8 @@ import BookMode2EditorShell from '../components/books/BookMode2EditorShell';
 import { toast } from '../components/modern';
 import { createComponentPdfPublicationCommand } from '../services/book-assembly/componentPdfPublication.command';
 import { createFullPdfPublicationCommand } from '../services/book-assembly/fullPdfPublication.command';
+import { createCanonicalBookAssemblyPublicationService } from '../services/book-assembly/canonicalPublication.service';
+import { InMemoryCanonicalActivityVersionRepository } from '../services/book-assembly/canonicalPublicationRepository';
 import {
   InMemoryBookAssemblyPublicationRepository,
   type BookAssemblyPublicationScope,
@@ -21,10 +23,15 @@ import type {
 } from '../services/book-assembly/assemblyClient.browser';
 import { planSourceStrategyMigration } from '../services/book-assembly/sourceStrategyMigration.service';
 import type { ActivityAuthoringService } from '../services/book-activity/activityAuthoring.service';
-import type { CandidateUnitPreviewProjection } from '../services/book-assembly/unitPreview.service';
+import {
+  createCandidateUnitPreview,
+  createPreviewApproval,
+  type CandidateUnitPreviewProjection,
+} from '../services/book-assembly/unitPreview.service';
 import type { SourceUploadBrowserWorkflow } from '../services/book-source-delivery/sourceUpload.browserWorkflow';
 import type { SourceUploadSafeOperationState } from '../services/book-source-delivery/sourceUpload.client';
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../types/bookAssembly.types';
+import type { NormalizedActivity } from '../types/bookActivity.types';
 import { materialCatalogIds, type MaterialBookMetadata } from '../types/materialCatalog.types';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -207,6 +214,40 @@ const ticket65Manifest: BookAssemblyManifestCandidate = {
       mode: 'activity',
     }],
   }],
+};
+
+const ticket65Activity: NormalizedActivity = {
+  schemaVersion: 1,
+  title: 'Ticket 65 canonical Activity',
+  taskProfile: null,
+  presentationMode: 'source-assisted',
+  contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Read the pinned source pages.' }],
+  interaction: { family: 'choice', variant: 'v1' },
+  answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+  stimulus: null,
+  assetRefs: [],
+  interactions: [{
+    family: 'choice',
+    interactionId: 'ticket65-choice-1',
+    prompt: 'Choose the supported answer.',
+    options: ['Supported', 'Unsupported'],
+    sourceAssisted: {
+      questionLabel: '1',
+      sourceExerciseLabel: 'Ticket 65',
+      accessiblePrompt: 'Choose one answer from the pinned source.',
+      responseShape: 'single-choice',
+    },
+    itemIdentities: {
+      family: 'choice',
+      optionIds: ['ticket65-option-supported', 'ticket65-option-unsupported'],
+    },
+    answerKey: {
+      family: 'choice',
+      acceptedOptionItemIds: ['ticket65-option-supported'],
+    },
+  }],
+  scoring: { mode: 'auto-where-possible' },
 };
 
 const ticket66Manifest: BookAssemblyManifestCandidate = {
@@ -762,13 +803,39 @@ export default function BookAssemblyWorkspaceSmokePage() {
           sourceVersions.find((source) => source.sourceVersionId === sourceVersionId),
       },
     };
+    const approvalRecord = createPreviewApproval({
+      approvalId: previewApproval,
+      approvalRevision: 1,
+      actorId: OWNER_ID,
+      approvedAt: '2026-07-26T00:00:00.000Z',
+      expiresAt: '2026-07-28T00:00:00.000Z',
+      preview: createCandidateUnitPreview({
+        candidate,
+        sourceVersions,
+        sourceIsPreviewReady: () => true,
+        activitiesByKey: { 'activity-ticket65': ticket65Activity },
+        registryVersion: 'ticket65-local-fixture-v1',
+      }),
+      canonicalActivitiesByKey: { 'activity-ticket65': ticket65Activity },
+    });
     const command = createFullPdfPublicationCommand({
       readAuthority: async () => authority,
       readCandidate: async () => candidate,
       readLineage: async () => ({}),
+      readActivities: async () => ({
+        'activity-ticket65': {
+          activityKey: 'activity-ticket65',
+          ownerId: OWNER_ID,
+          revision: 1,
+          lifecycle: 'draft',
+          activity: ticket65Activity,
+        },
+      }),
+      readPreviewApproval: async () => approvalRecord,
+      sourceIsPreviewReady: async () => true,
       publish: async (input) => {
-        const service = await import('../services/book-assembly/publicationTransaction.service');
-        return service.createBookAssemblyPublicationService(repository).publish(input);
+        const activityVersions = new InMemoryCanonicalActivityVersionRepository();
+        return createCanonicalBookAssemblyPublicationService(repository, activityVersions).publish(input);
       },
       allocateOperationId: () => globalThis.crypto.randomUUID(),
       allocateId: (kind, key) => `${kind}:${key}:ticket65`,

@@ -71,6 +71,7 @@ test('PRD0062 #65 publishes one full-PDF Unit through local trusted command fixt
       'teacher quick-login local fixture',
       'preview approval required before publish',
       'trusted command allocated operation/publication/version IDs before adapter',
+      'fixture supplies the validated NormalizedActivity through the #64 canonical publication boundary',
       'one full_pdf source, no component owner/order fields',
       'one selected Unit published with Manifest Version, Activity Version, Placement, Unit projection, Delivery publication plan, pointer, operation, and audit metadata',
       'later Unit remains incomplete/unpublished',

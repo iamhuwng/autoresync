@@ -8,9 +8,12 @@ import type {
   BookAssemblyPreviewApprovalReference,
   BookSourceVersionAuthority,
 } from '../../types/bookAssembly.types';
-import { createBookAssemblyPublicationService } from './publicationTransaction.service';
+import type { NormalizedActivity } from '../../types/bookActivity.types';
+import { createCanonicalBookAssemblyPublicationService } from './canonicalPublication.service';
+import { InMemoryCanonicalActivityVersionRepository } from './canonicalPublicationRepository';
 import { InMemoryBookAssemblyPublicationRepository } from './publicationRepository';
 import {
+  createFullPdfPublicationAdapter,
   createFullPdfPublicationAdapterPlan,
   createFullPdfPublicationCommandPlan,
   FullPdfPublicationAdapterError,
@@ -19,6 +22,34 @@ import {
 
 const operationId = '00000000-0000-4000-8000-000000000065';
 const now = '2026-07-27T13:00:00.000Z';
+
+const activity = (): NormalizedActivity => ({
+  schemaVersion: 1,
+  title: 'Choose safely',
+  taskProfile: null,
+  presentationMode: 'source-assisted',
+  contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Read the pinned page.' }],
+  interaction: { family: 'choice', variant: 'v1' },
+  answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+  stimulus: null,
+  assetRefs: [],
+  interactions: [{
+    family: 'choice',
+    interactionId: 'choice-1',
+    prompt: 'Choose A',
+    options: ['A', 'B'],
+    sourceAssisted: {
+      questionLabel: '1',
+      sourceExerciseLabel: 'Exercise 1',
+      accessiblePrompt: 'Choose one answer.',
+      responseShape: 'single-choice',
+    },
+    itemIdentities: { family: 'choice', optionIds: ['option-a', 'option-b'] },
+    answerKey: { family: 'choice', acceptedOptionItemIds: ['option-a'] },
+  }],
+  scoring: { mode: 'auto-where-possible' },
+});
 
 const sourceVersionAuthority = (usable = true): BookSourceVersionAuthority => ({
   getSourceVersion: (sourceVersionId) => sourceVersionId === 'source-v1'
@@ -145,15 +176,26 @@ const adapterInput = (
     expectedSourceSetRevision: 4,
     ids: ids(),
     previewApproval: approval(),
+    activitiesByKey: {
+      'slot-a': {
+        activityKey: 'slot-a',
+        ownerId: 'teacher-1',
+        revision: 1,
+        lifecycle: 'draft' as const,
+        activity: activity(),
+      },
+    },
     ...overrides,
   };
 };
 
 describe('full-PDF publication adapter', () => {
   it('supplies #64 with one-source full-PDF records for the selected Unit only', async () => {
-    const plan = createFullPdfPublicationAdapterPlan(adapterInput());
+    const output = createFullPdfPublicationAdapter(adapterInput());
+    const { plan } = output;
     const repository = new InMemoryBookAssemblyPublicationRepository();
-    const service = createBookAssemblyPublicationService(repository);
+    const activityVersions = new InMemoryCanonicalActivityVersionRepository();
+    const service = createCanonicalBookAssemblyPublicationService(repository, activityVersions);
 
     await expect(service.publish({
       operationId,
@@ -162,6 +204,7 @@ describe('full-PDF publication adapter', () => {
       publicationId: 'publication-65',
       publicationRevision: 1,
       plan,
+      canonicalActivityVersions: output.canonicalActivityVersions,
       now,
     })).resolves.toMatchObject({
       status: 'published',
@@ -173,13 +216,14 @@ describe('full-PDF publication adapter', () => {
     expect(plan.adapterTicket).toBe('16');
     expect(plan.manifest.units.map((unit) => unit.unitKey)).toEqual(['unit-1']);
     expect(plan.studentSafeProjection.units.map((unit) => unit.unitKey)).toEqual(['unit-1']);
-    expect(scope.activityVersions?.['activity-slot-a-v1']).toMatchObject({
+    expect(Object.values(scope.activityVersions ?? {})).toContainEqual(expect.objectContaining({
       activityId: 'activity-slot-a',
+      canonicalPayloadFingerprint: output.canonicalActivityVersions[0]?.payloadFingerprint,
       sourcePages: [
         { sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 2 },
         { sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 3 },
       ],
-    });
+    }));
     expect(scope.placements?.['placement-slot-a']).toMatchObject({
       activityVersionId: 'activity-slot-a-v1',
       pageGroupKeys: ['pages-a'],
@@ -192,6 +236,15 @@ describe('full-PDF publication adapter', () => {
       sourceStrategy: 'full_pdf',
       placementIds: ['placement-slot-a'],
       unitProjectionIds: ['unit-projection-65'],
+    });
+    await expect(activityVersions.readPrepared({
+      activityId: 'activity-slot-a',
+      activityVersionId: 'activity-slot-a-v1',
+      activityVersion: 1,
+      canonicalPayloadFingerprint: output.canonicalActivityVersions[0]!.payloadFingerprint,
+    })).resolves.toMatchObject({
+      activity: { interactions: [{ interactionId: 'choice-1' }] },
+      projection: { interactions: [{ interactionId: 'choice-1' }] },
     });
   });
 
@@ -223,8 +276,8 @@ describe('full-PDF publication adapter', () => {
     expect(plan.atomicWrites.placements[0]?.placementId).toBe('placement:slot-a');
   });
 
-  it('reuses stable Activity IDs from exact slot lineage and creates a fresh version', () => {
-    const plan = createFullPdfPublicationCommandPlan({
+  it('fails before publication when initial payload is paired with later lineage', () => {
+    expect(() => createFullPdfPublicationCommandPlan({
       ...adapterInput(),
       existingLineageByActivityKey: {
         'slot-a': {
@@ -234,13 +287,7 @@ describe('full-PDF publication adapter', () => {
         },
       },
       allocateId: (kind, key) => `${kind}:${key}`,
-    });
-
-    expect(plan.atomicWrites.activityVersions[0]).toMatchObject({
-      activityId: 'activity-existing',
-      activityVersionId: 'activity-version:slot-a',
-      activityVersion: 5,
-    });
+    })).toThrow('full_pdf_activity_payload_invalid');
   });
 
   it('fails closed on component strategy, stale revision, expired approval, and unusable source', () => {
