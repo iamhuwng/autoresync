@@ -1,10 +1,50 @@
 import type { EnhancedTestResultRecord } from '../types/results.types';
 import type {
+    BookResultEvaluationState,
+    BookResultFeedbackReleaseState,
+    BookResultOwnershipDecision,
+    BookResultVisibilityDecision,
     DeletedSourceDisplayMetadata,
     ResolvedResultVisibilityVerdict,
     ResultVisibilitySnapshot,
     SoloPracticeVisibilityClassification,
 } from '../types/results.types';
+
+export interface ClassifyBookResultVisibilityInput {
+    ownership: BookResultOwnershipDecision;
+    evaluationState: BookResultEvaluationState;
+    feedbackRelease: BookResultFeedbackReleaseState;
+}
+
+/**
+ * Converts trusted Book ownership into field-level visibility. It never grants
+ * visibility from browser context or from a projection owner snapshot alone.
+ */
+export function classifyBookResultVisibility(
+    input: ClassifyBookResultVisibilityInput
+): BookResultVisibilityDecision {
+    if (!input.ownership.visible) {
+        return {
+            ...input.ownership,
+            canViewResponse: false,
+            canViewScore: false,
+            canViewFeedback: false,
+            canViewSafeProvenance: false,
+        };
+    }
+
+    const isTeacher = input.ownership.viewerRole === 'teacher';
+    const evaluationComplete = input.evaluationState !== 'pending_review';
+    const releasedToStudent = input.feedbackRelease === 'released';
+
+    return {
+        ...input.ownership,
+        canViewResponse: true,
+        canViewScore: evaluationComplete && (isTeacher || releasedToStudent),
+        canViewFeedback: isTeacher || releasedToStudent,
+        canViewSafeProvenance: true,
+    };
+}
 
 export interface ClassifyTeacherResultVisibilityInput {
     result: Pick<EnhancedTestResultRecord, 'visibility'> & Partial<EnhancedTestResultRecord>;

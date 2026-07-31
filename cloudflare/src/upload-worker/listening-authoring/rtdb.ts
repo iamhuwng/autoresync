@@ -5,7 +5,13 @@ export interface RepositoryEnv {
   GOOGLE_SA_KEY?: string;
   LISTENING_AUTHORING_IDEMPOTENCY_SECRET?: string;
   LISTENING_AUTHORING_DEV_WRITES_ENABLED?: string;
-  readDatabaseValue?: (path: string) => Promise<unknown>;
+  readDatabaseValue?: (path: string, query?: FirebaseRtdbQuery) => Promise<unknown>;
+}
+
+export interface FirebaseRtdbQuery {
+  readonly orderBy: '$key' | string;
+  readonly limitToFirst?: number;
+  readonly limitToLast?: number;
 }
 
 interface ServiceAccountKey {
@@ -115,6 +121,26 @@ const rtdbUrl = (env: RepositoryEnv, path: string): string => {
   return encodedPath ? `${baseUrl}/${encodedPath}.json` : `${baseUrl}/.json`;
 };
 
+const withQuery = (
+  url: string,
+  query?: FirebaseRtdbQuery,
+  authToken?: string,
+): string => {
+  const parameters = new URLSearchParams();
+  if (query) {
+    parameters.set('orderBy', JSON.stringify(query.orderBy));
+    if (query.limitToFirst !== undefined) {
+      parameters.set('limitToFirst', String(query.limitToFirst));
+    }
+    if (query.limitToLast !== undefined) {
+      parameters.set('limitToLast', String(query.limitToLast));
+    }
+  }
+  if (authToken !== undefined) parameters.set('auth', authToken);
+  const encoded = parameters.toString();
+  return encoded ? `${url}?${encoded}` : url;
+};
+
 export class FirebaseRtdbRestClient {
   constructor(
     private readonly options: {
@@ -125,9 +151,11 @@ export class FirebaseRtdbRestClient {
     },
   ) {}
 
-  async readValue(path: string): Promise<unknown> {
-    if (this.options.env.readDatabaseValue) return this.options.env.readDatabaseValue(path);
-    const auth = await this.requestAuth(path);
+  async readValue(path: string, query?: FirebaseRtdbQuery): Promise<unknown> {
+    if (this.options.env.readDatabaseValue) {
+      return this.options.env.readDatabaseValue(path, query);
+    }
+    const auth = await this.requestAuth(path, query);
     const response = await this.options.fetchImpl.call(globalThis, auth.url, {
       method: 'GET',
       headers: auth.headers,
@@ -179,14 +207,14 @@ export class FirebaseRtdbRestClient {
     return getTokenCache(saKey, this.options.fetchImpl).getToken();
   }
 
-  private async requestAuth(path: string): Promise<{
+  private async requestAuth(path: string, query?: FirebaseRtdbQuery): Promise<{
     url: string;
     headers: Record<string, string>;
   }> {
     const token = await this.accessToken();
     const url = rtdbUrl(this.options.env, path);
     return this.options.firebaseAuthToken
-      ? { url: `${url}?auth=${encodeURIComponent(token)}`, headers: {} }
-      : { url, headers: { Authorization: `Bearer ${token}` } };
+      ? { url: withQuery(url, query, token), headers: {} }
+      : { url: withQuery(url, query), headers: { Authorization: `Bearer ${token}` } };
   }
 }

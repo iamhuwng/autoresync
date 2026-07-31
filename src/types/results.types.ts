@@ -99,6 +99,46 @@ export interface ResolvedResultVisibilityVerdict {
     soloPractice: SoloPracticeVisibilityClassification;
 }
 
+/** Additive Book result visibility inputs. Legacy result visibility stays unchanged. */
+export type BookResultViewerRole = 'student' | 'teacher';
+export type BookResultContextKind = 'solo' | 'homework';
+export type BookResultFeedbackReleaseState = 'pending' | 'withheld' | 'released';
+export type BookResultEvaluationState = 'pending_review' | 'submitted' | 'graded';
+
+export interface BookResultOwnershipAttemptInput {
+    attemptId: string;
+    recipientId: string;
+    contextId: string;
+    contextKind: BookResultContextKind;
+    ownerTeacherIdSnapshot: string | null;
+}
+
+export interface BookResultViewerIdentity {
+    uid: string;
+    role: BookResultViewerRole;
+}
+
+export type BookResultOwnershipDenialReason =
+    | 'visible'
+    | 'wrong_student'
+    | 'private_solo'
+    | 'wrong_teacher'
+    | 'unresolved_owner';
+
+export interface BookResultOwnershipDecision {
+    attemptId: string;
+    visible: boolean;
+    viewerRole: BookResultViewerRole;
+    reason: BookResultOwnershipDenialReason;
+}
+
+export interface BookResultVisibilityDecision extends BookResultOwnershipDecision {
+    canViewResponse: boolean;
+    canViewScore: boolean;
+    canViewFeedback: boolean;
+    canViewSafeProvenance: boolean;
+}
+
 export interface UnresolvedResultVisibilityReportEntry {
     resultId: string;
     studentId: string;

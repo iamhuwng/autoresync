@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { AttemptHistory } from './AttemptHistory';
 import type { TestResultRecord } from '../../services/testResults.service';
@@ -83,5 +83,67 @@ describe('AttemptHistory', () => {
     fireEvent.click(screen.getByTestId('ah-option-2'));
 
     expect(onAttemptChange).toHaveBeenCalledWith('result-2');
+  });
+
+  it('exposes labelled listbox semantics and restores focus after keyboard selection', async () => {
+    const onAttemptChange = vi.fn();
+    const attempts = [
+      makeAttempt({ resultId: 'result-2', submittedAt: 2000 }),
+      makeAttempt({ resultId: 'result-1', submittedAt: 1000 }),
+    ];
+
+    render(
+      <AttemptHistory
+        currentResult={attempts[0]}
+        attempts={attempts}
+        onAttemptChange={onAttemptChange}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: /select result attempt/i });
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('listbox', { name: 'Result attempts' })).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByTestId('ah-option-2')).toHaveFocus());
+    fireEvent.keyDown(screen.getByTestId('ah-option-2'), { key: 'ArrowDown' });
+    expect(screen.getByTestId('ah-option-1')).toHaveFocus();
+    fireEvent.click(screen.getByTestId('ah-option-1'));
+
+    expect(onAttemptChange).toHaveBeenCalledWith('result-1');
+    expect(trigger).toHaveFocus();
+  });
+
+  it('renders explicit Book context and status without requiring a percentage', () => {
+    const attempts = [
+      {
+        resultId: 'book-homework',
+        submittedAt: 3000,
+        attemptNumber: 1,
+        contextLabel: 'Homework',
+        statusLabel: 'Pending review',
+      },
+      {
+        resultId: 'book-solo',
+        submittedAt: 1000,
+        attemptNumber: 1,
+        contextLabel: 'Solo',
+        statusLabel: 'Submitted',
+        scoreLabel: '8 / 10',
+      },
+    ];
+
+    render(
+      <AttemptHistory
+        currentResult={attempts[0]}
+        attempts={attempts}
+        onAttemptChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('ah-trigger'));
+    expect(screen.getByRole('option', { name: /Homework, Pending review/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Solo, Submitted, 8 \/ 10/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('ah-improvement')).not.toBeInTheDocument();
   });
 });
