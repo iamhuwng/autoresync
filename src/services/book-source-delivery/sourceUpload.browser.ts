@@ -47,7 +47,6 @@ export interface UploadSourcePdfDirectOptions {
   readonly signal?: AbortSignal;
   readonly onProgress?: (progress: SourceUploadByteProgress) => void;
   readonly fetchImpl?: typeof fetch;
-  readonly openFileStream?: (file: File) => ReadableStream<Uint8Array>;
   readonly now?: () => number;
 }
 
@@ -154,71 +153,12 @@ export const uploadSourcePdfDirect = async (
     throw new SourceUploadBrowserError('aborted');
   }
 
-  const source = (options.openFileStream ?? ((file: File) => file.stream()))(input.file);
-  const reader = source.getReader();
-  let loadedBytes = 0;
-  let lastReportedPercent = -1;
-  let resolveStreamCompletion!: () => void;
-  let rejectStreamCompletion!: (error: unknown) => void;
-  const streamCompletion = new Promise<void>((resolve, reject) => {
-    resolveStreamCompletion = resolve;
-    rejectStreamCompletion = reject;
-  });
-  // The rejection is observed again below after fetch resolves. Attach a
-  // handler now so an early stream failure cannot become unhandled.
-  void streamCompletion.catch(() => undefined);
-  const body = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      if (options.signal?.aborted) {
-        await reader.cancel().catch(() => undefined);
-        const error = new SourceUploadBrowserError('aborted');
-        rejectStreamCompletion(error);
-        controller.error(error);
-        return;
-      }
-      const chunk = await reader.read();
-      if (chunk.done) {
-        if (loadedBytes !== input.file.size) {
-          const error = new SourceUploadBrowserError('response_binding_mismatch');
-          rejectStreamCompletion(error);
-          controller.error(error);
-          return;
-        }
-        resolveStreamCompletion();
-        controller.close();
-        return;
-      }
-      if (!ArrayBuffer.isView(chunk.value) || chunk.value.byteLength < 1) {
-        const error = new SourceUploadBrowserError('response_binding_mismatch');
-        rejectStreamCompletion(error);
-        controller.error(error);
-        return;
-      }
-      loadedBytes += chunk.value.byteLength;
-      if (loadedBytes > input.file.size) {
-        const error = new SourceUploadBrowserError('response_binding_mismatch');
-        rejectStreamCompletion(error);
-        controller.error(error);
-        return;
-      }
-      controller.enqueue(chunk.value);
-      const percent = Math.min(100, (loadedBytes / input.file.size) * 100);
-      const wholePercent = Math.floor(percent);
-      if (wholePercent > lastReportedPercent || loadedBytes === input.file.size) {
-        lastReportedPercent = wholePercent;
-        options.onProgress?.(Object.freeze({
-          confirmed: false,
-          loadedBytes,
-          totalBytes: input.file.size,
-          percent,
-        }));
-      }
-    },
-    async cancel(reason) {
-      await reader.cancel(reason).catch(() => undefined);
-      rejectStreamCompletion(new SourceUploadBrowserError('aborted', { cause: reason }));
-    },
-  }, { highWaterMark: 0 });
+  options.onProgress?.(Object.freeze({
+    confirmed: false,
+    loadedBytes: 0,
+    totalBytes: input.file.size,
+    percent: 0,
+  }));
 
   let response: Response;
   try {
@@ -227,12 +167,11 @@ export const uploadSourcePdfDirect = async (
       {
         method: 'PUT',
         headers: validated.headers,
-        body,
+        body: input.file,
         credentials: 'omit',
         redirect: 'error',
         signal: options.signal,
-        duplex: 'half',
-      } as RequestInit & { readonly duplex: 'half' },
+      },
     );
   } catch (error) {
     if (error instanceof SourceUploadBrowserError) throw error;
@@ -251,13 +190,9 @@ export const uploadSourcePdfDirect = async (
   if (response.status !== 200) {
     throw new SourceUploadBrowserError('provider_failure');
   }
-  await streamCompletion;
-  if (loadedBytes !== input.file.size) {
-    throw new SourceUploadBrowserError('response_binding_mismatch');
-  }
 
-  // Stream progress is exact File bytes consumed by fetch, not destination
-  // confirmation. Only this final event marks those bytes provider-confirmed.
+  // Fetch exposes no upload progress for a File body. The provider response is
+  // the first point at which transferred bytes can be reported as confirmed.
   options.onProgress?.(Object.freeze({
     confirmed: true,
     loadedBytes: input.file.size,
@@ -266,12 +201,11 @@ export const uploadSourcePdfDirect = async (
   }));
 
   const versionId = response.headers.get('x-amz-version-id')?.trim() ?? '';
-  const fileId = response.headers.get('x-bz-file-id')?.trim() ?? '';
-  if (!PROVIDER_ID.test(versionId) || !PROVIDER_ID.test(fileId)) {
+  if (!PROVIDER_ID.test(versionId)) {
     throw new SourceUploadBrowserError('response_binding_mismatch');
   }
   return Object.freeze({
-    providerFileId: fileId,
+    providerFileId: versionId,
     providerFileVersionId: versionId,
   });
 };

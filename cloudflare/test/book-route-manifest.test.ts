@@ -11,7 +11,7 @@ const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(26);
+    expect(contributorRoutes).toHaveLength(30);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
@@ -20,9 +20,10 @@ describe('canonical Book route contract catalog', () => {
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#67')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#71')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(2);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#49')).toHaveLength(4);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(26);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(30);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -188,6 +189,24 @@ describe('canonical Book route contract catalog', () => {
       credentialEnv: 'BOOK_RUNTIME_GOOGLE_SA_KEY',
       contributorTicket: '#74',
     }));
+  });
+
+  it('registers source upload control routes only through the disabled #49 seam', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.source-upload.begin',
+        methods: ['POST'],
+        pathTemplate: '/v1/book-source/books/:bookId/upload/begin',
+        owner: '#49',
+        domain: 'source-upload',
+        handler: 'bookSource.begin',
+        firebaseAuth: 'firebase-id-token-teacher',
+        gateEnv: 'BOOK_SOURCE_UPLOAD_ROUTES_ENABLED',
+        identityEnv: 'BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY',
+        contributorTicket: '#49',
+      }),
+    ]));
   });
 
   it('registers document routes with exact GET/HEAD methods and bounded document response limits', () => {

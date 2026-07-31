@@ -54,6 +54,8 @@ export interface SourceUploadProviderPort {
     readonly expectedChecksum: BookSourceChecksum;
     readonly expectedByteSize: number;
     readonly expiresAt: string;
+    /** Canonical reservation time used to reconstruct an exact replay URL. */
+    readonly issuedAt?: string;
   }): Promise<SourceUploadProviderAuthorization>;
   verifyCompletedObject(input: {
     readonly expected: BookSourceVersionStorageIdentity;
@@ -153,6 +155,8 @@ export interface SourceUploadControlDependencies {
   readonly sourceUploadRepository?: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
   readonly provider?: SourceUploadProviderPort;
   readonly sourceProvider?: SourceUploadProviderPort;
+  /** Worker-memory cache for short-lived exact replay authorities only. */
+  readonly authorizationCache?: Map<string, SourceUploadBeginResult>;
   readonly clock?: SourceUploadClock | (() => Date);
   readonly reservationTtlMs?: number;
 }
@@ -206,6 +210,7 @@ type ResolvedDependencies = {
   readonly accountStateReader: SourceUploadAccountStateReader;
   readonly repository: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
   readonly provider: SourceUploadProviderPort;
+  readonly authorizationCache: Map<string, SourceUploadBeginResult>;
   readonly clock: () => Date;
   readonly reservationTtlMs: number;
 };
@@ -311,6 +316,7 @@ const resolveDependencies = (input: SourceUploadControlDependencies): ResolvedDe
     accountStateReader,
     repository,
     provider,
+    authorizationCache: input.authorizationCache ?? new Map<string, SourceUploadBeginResult>(),
     clock,
     reservationTtlMs,
   };
@@ -394,6 +400,27 @@ const stableDigest = (value: string): string => {
   return `${left.toString(16).padStart(8, '0')}${right.toString(16).padStart(8, '0')}`;
 };
 
+const MAX_AUTHORIZATION_CACHE_ENTRIES = 256;
+
+const cacheAuthorization = (
+  cache: Map<string, SourceUploadBeginResult>,
+  reservationId: string,
+  authorization: SourceUploadBeginResult,
+  nowMs: number,
+): void => {
+  for (const [cachedReservationId, cachedAuthorization] of cache) {
+    if (!Number.isFinite(Date.parse(cachedAuthorization.expiresAt))
+      || Date.parse(cachedAuthorization.expiresAt) <= nowMs) {
+      cache.delete(cachedReservationId);
+    }
+  }
+  if (!cache.has(reservationId) && cache.size >= MAX_AUTHORIZATION_CACHE_ENTRIES) {
+    const oldestReservationId = cache.keys().next().value;
+    if (typeof oldestReservationId === 'string') cache.delete(oldestReservationId);
+  }
+  cache.set(reservationId, authorization);
+};
+
 const derivedIdentity = (input: BeginSourceUploadInput, objectKeyPrefix: string) => {
   const key = input.idempotencyKey.toLowerCase();
   const digest = stableDigest(`${input.actorId}\u0000${input.bookId}\u0000${key}`);
@@ -429,6 +456,7 @@ const providerAuthorization = async (
       expectedChecksum: input.expectedChecksum,
       expectedByteSize: input.byteSize,
       expiresAt: input.expiresAt,
+      issuedAt: input.createdAt,
     });
   } catch (error) {
     throw providerError(error);
@@ -580,13 +608,29 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
   await authorizeBook(resolved.authority, input.actorId, input.bookId);
   await assertUploadGate(resolved.rolloutGate);
   const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
+  const requestNow = nowIso(resolved.clock);
+  for (const [cachedReservationId, cachedAuthorization] of resolved.authorizationCache) {
+    if (!Number.isFinite(Date.parse(cachedAuthorization.expiresAt))
+      || Date.parse(cachedAuthorization.expiresAt) <= requestNow.getTime()) {
+      resolved.authorizationCache.delete(cachedReservationId);
+    }
+  }
   const identity = derivedIdentity(input, resolved.deployment.objectKeyPrefix);
   const existing = state.operations[identity.reservationId];
   if (existing) {
     if (!sameRequest(existing, input)) throw new SourceUploadControlError('idempotency_conflict');
-    if (existing.status === 'released') throw new SourceUploadControlError('reservation_released');
-    if (existing.status === 'cleanup_pending') throw new SourceUploadControlError('cleanup_pending');
-    if (existing.status === 'verified_completed') throw new SourceUploadControlError('reservation_conflict');
+    if (existing.status === 'released') {
+      resolved.authorizationCache.delete(identity.reservationId);
+      throw new SourceUploadControlError('reservation_released');
+    }
+    if (existing.status === 'cleanup_pending') {
+      resolved.authorizationCache.delete(identity.reservationId);
+      throw new SourceUploadControlError('cleanup_pending');
+    }
+    if (existing.status === 'verified_completed') {
+      resolved.authorizationCache.delete(identity.reservationId);
+      throw new SourceUploadControlError('reservation_conflict');
+    }
     const reservation: ReserveSourceUploadInput = {
       accountId: resolved.deployment.accountId,
       expectedRevision: state.revision,
@@ -612,14 +656,27 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
       if (error instanceof SourceUploadConflictError && error.message.includes('compare-and-set')) {
         throw new SourceUploadControlError('stale_cas');
       }
+      if (error instanceof SourceUploadConflictError && error.message.includes('provider reconciliation')) {
+        throw new SourceUploadControlError('account_state_unavailable');
+      }
       throw new SourceUploadControlError('reservation_conflict');
     }
-    return providerAuthorization(
+    const cached = resolved.authorizationCache.get(identity.reservationId);
+    if (cached) return Object.freeze({ ...cached, status: 'replayed' as const });
+    const replayNow = nowIso(resolved.clock);
+    const replayed = await providerAuthorization(
       resolved.provider,
       reservation,
       'replayed',
-      nowIso(resolved.clock),
+      replayNow,
     );
+    cacheAuthorization(
+      resolved.authorizationCache,
+      identity.reservationId,
+      Object.freeze({ ...replayed, status: 'reserved' as const }),
+      replayNow.getTime(),
+    );
+    return replayed;
   }
   if (Object.values(state.operations).some((operation) =>
     (operation.status === 'reserved' || operation.status === 'cleanup_pending')
@@ -653,11 +710,16 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
     if (error instanceof SourceUploadConflictError) {
       if (error.message.includes('sourceKey')) throw new SourceUploadControlError('active_artifact_conflict');
       if (error.message.includes('compare-and-set')) throw new SourceUploadControlError('stale_cas');
+      if (error.message.includes('provider reconciliation')) {
+        throw new SourceUploadControlError('account_state_unavailable');
+      }
       throw new SourceUploadControlError('reservation_conflict');
     }
     throw new SourceUploadControlError('reservation_conflict');
   }
-  return providerAuthorization(resolved.provider, reservation, 'reserved', createdAt);
+  const authorized = await providerAuthorization(resolved.provider, reservation, 'reserved', createdAt);
+  cacheAuthorization(resolved.authorizationCache, identity.reservationId, authorized, createdAt.getTime());
+  return authorized;
 };
 
 const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUploadControlDependencies): Promise<SourceUploadVerifiedOperation> => {
@@ -720,10 +782,14 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUp
   return verifiedProjection(completed);
 };
 
-export const createSourceUploadControl = (dependencies: SourceUploadControlDependencies): SourceUploadControl => Object.freeze({
-  begin: (input: BeginSourceUploadInput) => begin(input, dependencies),
-  complete: (input: CompleteSourceUploadInput) => complete(input, dependencies),
-});
+export const createSourceUploadControl = (dependencies: SourceUploadControlDependencies): SourceUploadControl => {
+  const authorizationCache = dependencies.authorizationCache ?? new Map<string, SourceUploadBeginResult>();
+  const resolvedDependencies = { ...dependencies, authorizationCache };
+  return Object.freeze({
+    begin: (input: BeginSourceUploadInput) => begin(input, resolvedDependencies),
+    complete: (input: CompleteSourceUploadInput) => complete(input, resolvedDependencies),
+  });
+};
 
 export async function beginSourceUpload(
   input: BeginSourceUploadInput,

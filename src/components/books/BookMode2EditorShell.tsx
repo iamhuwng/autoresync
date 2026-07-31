@@ -60,10 +60,12 @@ interface BookMode2EditorShellProps {
 
 const configuredUploadWorkflow = (): SourceUploadBrowserWorkflow | null => {
   const controlUrl = import.meta.env.VITE_BOOK_SOURCE_CONTROL_WORKER_URL?.trim();
+  const reconciliationUrl = import.meta.env.VITE_BOOK_SOURCE_RECONCILIATION_WORKER_URL?.trim();
   const b2Origin = import.meta.env.VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN?.trim();
-  if (!controlUrl || !b2Origin) return null;
+  if (!controlUrl || !reconciliationUrl || !b2Origin) return null;
   const control = createSourceUploadClient({
     baseUrl: controlUrl,
+    reconciliationBaseUrl: reconciliationUrl,
     getIdToken: async () => {
       const user = getAuth().currentUser;
       if (!user) return '';

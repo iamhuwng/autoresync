@@ -291,6 +291,43 @@ describe('BookSourceUploadPanel', () => {
       .not.toBeInTheDocument();
   });
 
+  it('does not abort an active byte upload when the analytics callback identity changes', async () => {
+    let signal: AbortSignal | undefined;
+    const client = workflow(operation('begin_pending'));
+    client.retryBytes = vi.fn(async (input) => {
+      signal = input.signal;
+      return new Promise<never>(() => undefined);
+    });
+    const firstAction = vi.fn();
+    const secondAction = vi.fn();
+    const view = render(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        immutablePublished={false}
+        onAction={firstAction}
+        selection={selection}
+        workflow={client}
+      />,
+    );
+    await waitFor(() => expect(client.load).toHaveBeenCalled());
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry PDF bytes' }));
+    await waitFor(() => expect(signal).toBeDefined());
+
+    view.rerender(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        immutablePublished={false}
+        onAction={secondAction}
+        selection={selection}
+        workflow={client}
+      />,
+    );
+
+    expect(signal?.aborted).toBe(false);
+  });
+
   it('recovers stable UI and announces when cancellation request throws', async () => {
     const client = workflow(operation('reserved'));
     vi.mocked(client.requestCancellation).mockRejectedValueOnce(new TypeError('offline'));

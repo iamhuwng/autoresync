@@ -36,14 +36,6 @@ const authority = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const streamBytes = (value = bytes): ReadableStream<Uint8Array> =>
-  new ReadableStream({
-    start(controller) {
-      controller.enqueue(value);
-      controller.close();
-    },
-  });
-
 const providerResponse = (
   responseUrl = uploadUrl,
   init: ResponseInit = {},
@@ -63,30 +55,11 @@ const providerResponse = (
   return response;
 };
 
-const consumeBody = async (body: BodyInit | null | undefined): Promise<Uint8Array> => {
-  const reader = (body as ReadableStream<Uint8Array>).getReader();
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  while (true) {
-    const chunk = await reader.read();
-    if (chunk.done) break;
-    chunks.push(chunk.value);
-    length += chunk.value.byteLength;
-  }
-  const combined = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return combined;
-};
-
 const createPdf = (name = 'book.pdf') =>
   new File([bytes], name, { type: 'application/octet-stream' });
 
 describe('sourceUpload.browser', () => {
-  it('streams exact File bytes to exact B2 URL with redirect refusal and byte progress', async () => {
+  it('sends the exact File body to the exact B2 URL with redirect refusal', async () => {
     const file = createPdf();
     const claim = await inspect(file);
     const progress = vi.fn();
@@ -99,15 +72,15 @@ describe('sourceUpload.browser', () => {
         method: 'PUT',
         credentials: 'omit',
         redirect: 'error',
-        duplex: 'half',
         headers: authority().requiredHeaders,
       });
-      expect([...await consumeBody(init?.body)]).toEqual([...bytes]);
+      expect(init).not.toHaveProperty('duplex');
+      expect(init?.body).toBe(file);
       expect(progress).toHaveBeenLastCalledWith({
         confirmed: false,
-        loadedBytes: bytes.byteLength,
+        loadedBytes: 0,
         totalBytes: bytes.byteLength,
-        percent: 100,
+        percent: 0,
       });
       return providerResponse();
     });
@@ -119,10 +92,9 @@ describe('sourceUpload.browser', () => {
       allowedB2Origins,
     }, {
       fetchImpl: fetchImpl as typeof fetch,
-      openFileStream: () => streamBytes(),
       onProgress: progress,
     })).resolves.toEqual({
-      providerFileId: '4_file',
+      providerFileId: '4_version',
       providerFileVersionId: '4_version',
     });
     expect(progress).toHaveBeenLastCalledWith({
@@ -133,11 +105,11 @@ describe('sourceUpload.browser', () => {
     });
   });
 
-  it('waits for request-stream EOF before reporting confirmed transfer', async () => {
+  it('waits for the provider response before reporting confirmed transfer', async () => {
     const file = createPdf();
     const claim = await inspect(file);
     const progress = vi.fn();
-    let requestBody: BodyInit | null | undefined;
+    let resolveResponse!: (response: Response) => void;
     let settled = false;
     const result = uploadSourcePdfDirect({
       file,
@@ -145,31 +117,31 @@ describe('sourceUpload.browser', () => {
       authority: authority() as never,
       allowedB2Origins,
     }, {
-      fetchImpl: vi.fn(async (_url, init) => {
-        requestBody = init?.body;
-        return providerResponse();
+      fetchImpl: vi.fn((_url, init) => {
+        expect(init?.body).toBe(file);
+        return new Promise<Response>((resolve) => {
+          resolveResponse = resolve;
+        });
       }) as typeof fetch,
-      openFileStream: () => streamBytes(),
       onProgress: progress,
     }).finally(() => {
       settled = true;
     });
 
-    await vi.waitFor(() => expect(requestBody).toBeInstanceOf(ReadableStream));
+    await vi.waitFor(() => expect(resolveResponse).toBeTypeOf('function'));
     await Promise.resolve();
     expect(settled).toBe(false);
-    expect(progress).not.toHaveBeenCalled();
-
-    await consumeBody(requestBody);
-    await expect(result).resolves.toEqual({
-      providerFileId: '4_file',
-      providerFileVersionId: '4_version',
-    });
-    expect(progress).toHaveBeenNthCalledWith(1, {
+    expect(progress).toHaveBeenLastCalledWith({
       confirmed: false,
-      loadedBytes: bytes.byteLength,
+      loadedBytes: 0,
       totalBytes: bytes.byteLength,
-      percent: 100,
+      percent: 0,
+    });
+
+    resolveResponse(providerResponse());
+    await expect(result).resolves.toEqual({
+      providerFileId: '4_version',
+      providerFileVersionId: '4_version',
     });
     expect(progress).toHaveBeenLastCalledWith({
       confirmed: true,
@@ -195,7 +167,6 @@ describe('sourceUpload.browser', () => {
       allowedB2Origins: origins,
     }, {
       fetchImpl,
-      openFileStream: () => streamBytes(),
       now: () => Date.parse('2026-07-26T00:00:00.000Z'),
     })).rejects.toMatchObject({ code });
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -227,7 +198,6 @@ describe('sourceUpload.browser', () => {
       file, claim, authority: authority() as never, allowedB2Origins,
     }, {
       fetchImpl: abortedFetch as typeof fetch,
-      openFileStream: () => streamBytes(),
       signal: controller.signal,
     });
     controller.abort();
@@ -237,7 +207,6 @@ describe('sourceUpload.browser', () => {
       file, claim, authority: authority() as never, allowedB2Origins,
     }, {
       fetchImpl: vi.fn(async () => { throw new TypeError('offline'); }) as typeof fetch,
-      openFileStream: () => streamBytes(),
     })).rejects.toMatchObject({ code: 'network_failure' });
   });
 
@@ -249,24 +218,32 @@ describe('sourceUpload.browser', () => {
     }],
     ['object drift', () => providerResponse('https://s3.us-west-004.backblazeb2.com/private-book/other.pdf')],
     ['missing CORS-exposed IDs', () => providerResponse(uploadUrl, { headers: {} })],
-    ['missing provider file ID', () => providerResponse(uploadUrl, {
-      headers: { 'x-amz-version-id': '4_version' },
-    })],
   ])('rejects %s response binding', async (_label, response) => {
     const file = createPdf();
     const claim = await inspect(file);
     await expect(uploadSourcePdfDirect({
       file, claim, authority: authority() as never, allowedB2Origins,
     }, {
-      fetchImpl: vi.fn(async (_url, init) => {
-        await consumeBody(init?.body);
-        return response();
-      }) as typeof fetch,
-      openFileStream: () => streamBytes(),
+      fetchImpl: vi.fn(async () => response()) as typeof fetch,
     })).rejects.toMatchObject({ code: 'response_binding_mismatch' });
   });
 
-  it('constructs the 500 MiB streaming path without allocating or arrayBuffering it', async () => {
+  it('uses documented x-amz-version-id for both identity fields', async () => {
+    const file = createPdf();
+    const claim = await inspect(file);
+    await expect(uploadSourcePdfDirect({
+      file, claim, authority: authority() as never, allowedB2Origins,
+    }, {
+      fetchImpl: vi.fn(async () => providerResponse(uploadUrl, {
+        headers: { 'x-amz-version-id': '4_version' },
+      })) as typeof fetch,
+    })).resolves.toEqual({
+      providerFileId: '4_version',
+      providerFileVersionId: '4_version',
+    });
+  });
+
+  it('passes a 500 MiB File through without allocating or reading it in JavaScript', async () => {
     const file = {
       name: 'boundary.pdf',
       size: BOOK_SOURCE_MAX_PDF_BYTES,
@@ -297,12 +274,12 @@ describe('sourceUpload.browser', () => {
       allowedB2Origins,
     }, {
       fetchImpl: fetchImpl as typeof fetch,
-      openFileStream: () => new ReadableStream(),
       signal: controller.signal,
     });
     await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled());
-    expect(requestBody).toBeInstanceOf(ReadableStream);
+    expect(requestBody).toBe(file);
     expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(file.stream).not.toHaveBeenCalled();
     controller.abort();
     await expect(result).rejects.toMatchObject({ code: 'aborted' });
   });

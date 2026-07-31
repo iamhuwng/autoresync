@@ -10,6 +10,11 @@ import {
 } from './book-assembly/publication-route-handlers.ts';
 import { createBookRuntimeCanonicalHandlers } from './book-runtime/canonical.ts';
 import { createBookHomeworkWorkerHandlers } from './book-homework/worker.ts';
+import { createBookSourceUploadWorkerHandlers } from './book-source/worker.ts';
+import {
+  createBookSourceDocumentDeliveryHandler,
+  type BookSourceDocumentDeliveryOptions,
+} from './book-source/document.ts';
 import { createTeacherAssemblyPreviewWorker } from './book-delivery/teacher-assembly-preview-worker.js';
 import type {
   BookRouteParams,
@@ -72,18 +77,12 @@ export interface BookRouteHandlersOptions {
   readonly assemblyMappingRevisionHandlers?: Record<string, unknown>;
   readonly runtimeHandlers?: Record<string, unknown>;
   readonly homeworkHandlers?: Record<string, unknown>;
+  readonly sourceUploadHandlers?: Record<string, unknown>;
+  readonly sourceDocument?: BookSourceDocumentDeliveryOptions;
   readonly documentHandler?: BookRouteHandler;
   readonly teacherDocumentHandler?: BookRouteHandler;
   readonly futureHandlers?: BookRouteHandlerMap;
 }
-
-const unavailableDocumentHandler: BookRouteHandler = () => new Response(
-  JSON.stringify({ code: 'book_document_route_unavailable' }),
-  {
-    status: 503,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
-  },
-);
 
 export const createBookRouteHandlers = (
   options: BookRouteHandlersOptions = {},
@@ -99,6 +98,7 @@ export const createBookRouteHandlers = (
   const assemblyMappingRevision = options.assemblyMappingRevisionHandlers ?? {};
   const runtime = options.runtimeHandlers ?? createBookRuntimeCanonicalHandlers();
   const homework = options.homeworkHandlers ?? createBookHomeworkWorkerHandlers();
+  const sourceUpload = options.sourceUploadHandlers ?? createBookSourceUploadWorkerHandlers();
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
     ['create', 'activate', 'supersede', 'revoke'], 'bookDelivery', () => []);
@@ -131,8 +131,10 @@ export const createBookRouteHandlers = (
   ]);
   addFactoryHandlers(handlers, homework, ['homeworkAssignmentCommand'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, homework, ['homeworkStudentProjection'], 'futureSeam', () => ['assignmentId']);
+  addFactoryHandlers(handlers, sourceUpload, ['begin', 'complete', 'status', 'cancel'], 'bookSource');
 
-  const documentHandler = options.documentHandler ?? unavailableDocumentHandler;
+  const documentHandler = options.documentHandler
+    ?? createBookSourceDocumentDeliveryHandler(options.sourceDocument);
   const teacherPreviewWorker = createTeacherAssemblyPreviewWorker();
   const teacherDocumentHandler = options.teacherDocumentHandler
     ?? ((input) => teacherPreviewWorker.fetch(input.request, input.env));

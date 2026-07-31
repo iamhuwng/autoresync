@@ -1,9 +1,18 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import canonicalBookSourceConfigText from '../wrangler.book-source.jsonc?raw';
+import isolatedB2ConfigText from '../wrangler.book-source-b2.jsonc?raw';
+import mediaCanaryConfigText from '../wrangler.canary.jsonc?raw';
+import mediaConfigText from '../wrangler.jsonc?raw';
+import mediaRemoteDevConfigText from '../wrangler.remote-dev.jsonc?raw';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const productionSourceModules = import.meta.glob(
+  [
+    '../src/book-source-worker/**/*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}',
+    '../src/upload-worker/book-source/**/*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}',
+    '../../src/services/book-source-delivery/**/*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}',
+  ],
+  { eager: true, query: '?raw', import: 'default' },
+) as Readonly<Record<string, string>>;
 
 const retiredLegacyBookPdfModules = [
   'cloudflare/src/book-source-worker/worker.js',
@@ -22,7 +31,6 @@ const retiredLegacyBookPdfModules = [
   'cloudflare/src/book-source-worker/source-ingress-writer.ts',
   'cloudflare/src/book-source-worker/production-gateway.ts',
   'cloudflare/src/book-source-worker/production-worker.ts',
-  'cloudflare/wrangler.book-source.jsonc',
   'src/services/book-source-delivery/sourcePageRendition.service.ts',
   'src/services/book-source-delivery/sourceRendition.service.ts',
   'src/services/book-source-delivery/sourceUpload.splitClient.ts',
@@ -30,6 +38,7 @@ const retiredLegacyBookPdfModules = [
 
 const productionMode2Roots = [
   'cloudflare/src/book-source-worker',
+  'cloudflare/src/upload-worker/book-source',
   'src/services/book-source-delivery',
 ] as const;
 
@@ -42,17 +51,29 @@ const ticket48ABookPdfBackupPaths = [
 ] as const;
 
 const isolatedB2Config = 'cloudflare/wrangler.book-source-b2.jsonc';
+const canonicalBookSourceConfig = 'cloudflare/wrangler.book-source.jsonc';
 const mediaR2Configs = [
   'cloudflare/wrangler.jsonc',
   'cloudflare/wrangler.canary.jsonc',
   'cloudflare/wrangler.remote-dev.jsonc',
 ] as const;
+const embeddedConfigs = new Map<string, string>([
+  [canonicalBookSourceConfig, canonicalBookSourceConfigText],
+  [isolatedB2Config, isolatedB2ConfigText],
+  [mediaR2Configs[0], mediaConfigText],
+  [mediaR2Configs[1], mediaCanaryConfigText],
+  [mediaR2Configs[2], mediaRemoteDevConfigText],
+]);
 
 const legacyBookPdfReference = /(?:bounded-pdf-page-count|direct-pdf-page-count|durable-pdf-processor|(?:source-)?ingress(?:-writer)?|production-(?:gateway|worker)|processor-(?:count|deadline|job|page|quota|range)|r2-page-rendition-store|source-page-host|source(?:Page)?Rendition(?:\.service)?|sourceUpload\.splitClient|BOOK_SOURCE_R2|BookSourceProcessor(?:Job|Quota))/iu;
 const forbiddenPdfProcessingFallback = /(?:browser\s*run|workers?\s+paid|cloudflare\s+containers|cloud\s+run|server(?:-|\s*)side\s+page(?:-|\s*)count|(?:pdf|document)[-_\s]*(?:render(?:er|ing)?|rendition|split(?:ting)?))/iu;
 
 function readRepoFile(path: string): string {
-  return readFileSync(resolve(repoRoot, path), 'utf8');
+  const embedded = embeddedConfigs.get(path);
+  if (embedded !== undefined) return embedded;
+  const source = productionSourceTextByRepoPath.get(path);
+  if (source !== undefined) return source;
+  throw new Error(`Static source fixture unavailable: ${path}`);
 }
 
 function isTicket48ABackupPath(path: string): boolean {
@@ -60,25 +81,28 @@ function isTicket48ABackupPath(path: string): boolean {
     path === excludedPath || path.startsWith(`${excludedPath}/`));
 }
 
+function repoPath(modulePath: string): string {
+  if (modulePath.startsWith('../src/')) return `cloudflare/${modulePath.slice(3)}`;
+  if (modulePath.startsWith('../../src/')) return modulePath.slice(6);
+  throw new Error(`Unexpected production module path: ${modulePath}`);
+}
+
+const productionSourceTextByRepoPath = new Map(
+  Object.entries(productionSourceModules).map(([path, source]) => [repoPath(path), source]),
+);
+
 function productionFiles(path: string): string[] {
-  const absolutePath = resolve(repoRoot, path);
-  if (!existsSync(absolutePath) || isTicket48ABackupPath(path)) return [];
-
-  if (statSync(absolutePath).isFile()) return [path];
-
-  return readdirSync(absolutePath, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = `${path}/${entry.name}`;
-    if (isTicket48ABackupPath(entryPath)) return [];
-    if (entry.isDirectory()) return productionFiles(entryPath);
-    return /\.(?:[cm]?[jt]s|tsx|jsx)$/u.test(entry.name) && !/\.test\./u.test(entry.name)
-      ? [entryPath]
-      : [];
-  });
+  return [...productionSourceTextByRepoPath.keys()]
+    .filter((candidate) =>
+      (candidate === path || candidate.startsWith(`${path}/`))
+      && !isTicket48ABackupPath(candidate)
+      && !/\.test\./u.test(candidate));
 }
 
 describe('Ticket 03C Book Source R2 PDF quarantine', () => {
   it('keeps legacy Book-PDF ingress, rendition, split, processor, and Durable Object modules absent', () => {
-    const restoredModules = retiredLegacyBookPdfModules.filter((path) => existsSync(resolve(repoRoot, path)));
+    const activeProductionFiles = new Set(productionMode2Roots.flatMap(productionFiles));
+    const restoredModules = retiredLegacyBookPdfModules.filter((path) => activeProductionFiles.has(path));
 
     expect(restoredModules).toEqual([]);
   });
@@ -96,6 +120,16 @@ describe('Ticket 03C Book Source R2 PDF quarantine', () => {
     expect(b2Config).not.toMatch(legacyBookPdfReference);
     expect(b2Config).not.toMatch(forbiddenPdfProcessingFallback);
     expect(b2Config).not.toMatch(/r2_buckets|durable_objects|migrations|routes|BOOK_SOURCE_R2/iu);
+  });
+
+  it('keeps the canonical Book Source Worker free of quarantined R2 PDF processing', () => {
+    const config = readRepoFile(canonicalBookSourceConfig);
+
+    expect(config).toMatch(/"main"\s*:\s*"worker\.js"/u);
+    expect(config).toContain('BOOK_SOURCE_B2_PRIVATE_BUCKET_ID');
+    expect(config).not.toMatch(legacyBookPdfReference);
+    expect(config).not.toMatch(forbiddenPdfProcessingFallback);
+    expect(config).not.toMatch(/r2_buckets|durable_objects|migrations|R2_BUCKET|BOOK_SOURCE_R2/iu);
   });
 
   it('keeps dedicated Book Source config on isolated B2 original-PDF wiring only', () => {
@@ -117,7 +151,7 @@ describe('Ticket 03C Book Source R2 PDF quarantine', () => {
       expect(config).toMatch(/"main"\s*:\s*"worker\.js"/u);
       expect(config).toMatch(/"binding"\s*:\s*"R2_BUCKET"/u);
       expect(config).toMatch(/"bucket_name"\s*:\s*"kahoot-media"/u);
-      expect(config).not.toMatch(/book[-_\s]?source|book[-_\s]?pdf|BOOK_SOURCE/iu);
+      expect(config).not.toMatch(/book[-_\s]?pdf|BOOK_SOURCE_(?:R2|B2)/iu);
     }
   });
 
@@ -125,7 +159,6 @@ describe('Ticket 03C Book Source R2 PDF quarantine', () => {
     const scannedPaths = productionMode2Roots.flatMap(productionFiles);
 
     expect(ticket48ABookPdfBackupPaths.every((path) => !scannedPaths.includes(path))).toBe(true);
-    expect(scannedPaths.map((path) => relative(repoRoot, resolve(repoRoot, path)).replaceAll('\\', '/')))
-      .toEqual(scannedPaths);
+    expect(scannedPaths.every((path) => !path.includes('\\'))).toBe(true);
   });
 });

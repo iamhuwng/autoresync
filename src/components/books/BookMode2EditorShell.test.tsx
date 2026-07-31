@@ -58,6 +58,7 @@ describe('BookMode2EditorShell', () => {
       retryBytes: vi.fn(),
       retryCompletion: vi.fn(),
       requestCancellation: vi.fn(),
+      retryCleanup: vi.fn(),
     };
     render(
       <BookMode2EditorShell

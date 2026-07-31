@@ -51,6 +51,34 @@ export interface BookSourceUploadControlService {
     readonly reservationId: string;
     readonly sourceVersionId: string;
   }>;
+  status?(input: {
+    readonly actorId: string;
+    readonly bookId: string;
+    readonly reservationId: string;
+  }): Promise<BookSourceUploadSafeLifecycleStatus>;
+  requestCleanup?(input: {
+    readonly actorId: string;
+    readonly bookId: string;
+    readonly reservationId: string;
+    readonly reason: 'cancel_requested';
+    readonly providerFileId?: string;
+    readonly providerFileVersionId?: string;
+  }): Promise<BookSourceUploadSafeLifecycleStatus>;
+  reconcile?(input: {
+    readonly actorId: string;
+    readonly bookId: string;
+    readonly reservationId: string;
+  }): Promise<BookSourceUploadSafeLifecycleStatus>;
+}
+
+interface BookSourceUploadSafeLifecycleStatus {
+  readonly reservationId: string;
+  readonly bookId: string;
+  readonly sourceVersionId: string;
+  readonly status: 'reserved' | 'cleanup_pending' | 'verified_completed' | 'released';
+  readonly retryKind: 'bytes' | 'completion' | 'cleanup' | 'none';
+  readonly nextRetryAt?: string;
+  readonly lastErrorCode?: string;
 }
 
 export interface BookSourceControlHostOptions {
@@ -152,13 +180,17 @@ const parseBody = async (request: Request): Promise<Record<string, unknown>> => 
 
 type Route =
   | { readonly action: 'begin'; readonly bookId: string }
-  | { readonly action: 'complete'; readonly bookId: string; readonly reservationId: string };
+  | {
+      readonly action: 'complete' | 'cancel' | 'retry' | 'reconcile' | 'status';
+      readonly bookId: string;
+      readonly reservationId: string;
+    };
 
 const routeFor = (request: Request): Route | undefined => {
-  if (request.method !== 'POST') return undefined;
   const segments = new URL(request.url).pathname.split('/').filter(Boolean).map(decodeURIComponent);
   if (
-    segments.length === 6
+    request.method === 'POST'
+    && segments.length === 6
     && segments[0] === 'v1'
     && segments[1] === 'book-source'
     && segments[2] === 'books'
@@ -168,15 +200,31 @@ const routeFor = (request: Request): Route | undefined => {
     return { action: 'begin', bookId: safeId(segments[3], 'book_id') };
   }
   if (
-    segments.length === 7
+    request.method === 'POST'
+    && segments.length === 7
     && segments[0] === 'v1'
     && segments[1] === 'book-source'
     && segments[2] === 'books'
     && segments[4] === 'upload'
-    && segments[6] === 'complete'
+    && ['complete', 'cancel', 'retry', 'reconcile'].includes(segments[6]!)
   ) {
     return {
-      action: 'complete',
+      action: segments[6] as 'complete' | 'cancel' | 'retry' | 'reconcile',
+      bookId: safeId(segments[3], 'book_id'),
+      reservationId: safeId(segments[5], 'reservation_id'),
+    };
+  }
+  if (
+    request.method === 'GET'
+    && segments.length === 7
+    && segments[0] === 'v1'
+    && segments[1] === 'book-source'
+    && segments[2] === 'books'
+    && segments[4] === 'upload'
+    && segments[6] === 'status'
+  ) {
+    return {
+      action: 'status',
       bookId: safeId(segments[3], 'book_id'),
       reservationId: safeId(segments[5], 'reservation_id'),
     };
@@ -193,7 +241,7 @@ const responseHeaders = (request: Request, env: ControlHostEnv): HeadersInit => 
   const origin = request.headers.get('origin');
   if (origin && origin === env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN) {
     headers['access-control-allow-origin'] = origin;
-    headers['access-control-allow-methods'] = 'POST, OPTIONS';
+    headers['access-control-allow-methods'] = 'GET, POST, OPTIONS';
     headers['access-control-allow-headers'] = 'Authorization, Content-Type, Idempotency-Key';
   }
   return headers;
@@ -204,9 +252,14 @@ const json = (request: Request, env: ControlHostEnv, body: unknown, status = 200
 
 const publicFailure = (error: unknown): { readonly code: string; readonly status: number } => {
   if (error instanceof ControlRequestError) return error;
-  if (isRecord(error)) {
-    const code = typeof error.code === 'string' && /^[a-z0-9_]{1,80}$/u.test(error.code)
+  if (isRecord(error) || error instanceof Error) {
+    const candidate = isRecord(error) && typeof error.code === 'string'
       ? error.code
+      : error instanceof Error
+        ? error.message
+        : undefined;
+    const code = typeof candidate === 'string' && /^[a-z0-9_]{1,80}$/u.test(candidate)
+      ? candidate
       : undefined;
     if (code) {
       if (code === 'authority_denied') return { code, status: 403 };
@@ -222,6 +275,8 @@ const publicFailure = (error: unknown): { readonly code: string; readonly status
         || code === 'reservation_released'
         || code === 'stale_cas'
         || code === 'reservation_conflict'
+        || code === 'operation_not_eligible'
+        || code === 'cleanup_pending'
       ) {
         return { code, status: 409 };
       }
@@ -243,6 +298,15 @@ export const createBookSourceControlHost = (options: BookSourceControlHostOption
         .verifyAuthorizationHeader(request.headers.get('authorization'), env);
       if (!authorization.valid || !authorization.uid) {
         return json(request, env, { code: 'unauthorized' }, 401);
+      }
+
+      if (route.action === 'status') {
+        if (!options.service.status) throw new ControlRequestError('cleanup_unavailable', 503);
+        return json(request, env, await options.service.status({
+          actorId: authorization.uid,
+          bookId: route.bookId,
+          reservationId: route.reservationId,
+        }));
       }
 
       const body = await parseBody(request);
@@ -277,6 +341,38 @@ export const createBookSourceControlHost = (options: BookSourceControlHostOption
             requiredHeaders: result.requiredHeaders,
           },
         });
+      }
+
+      if (route.action === 'cancel') {
+        if (!options.service.requestCleanup) throw new ControlRequestError('cleanup_unavailable', 503);
+        const hasIdentity = exactKeys(body, ['providerFileId', 'providerFileVersionId']);
+        if (!hasIdentity && !exactKeys(body, [])) {
+          throw new ControlRequestError('invalid_cancel_request', 400);
+        }
+        return json(request, env, await options.service.requestCleanup({
+          actorId: authorization.uid,
+          bookId: route.bookId,
+          reservationId: route.reservationId,
+          reason: 'cancel_requested',
+          ...(hasIdentity ? {
+            providerFileId: safeId(body.providerFileId, 'provider_file_id'),
+            providerFileVersionId: safeId(body.providerFileVersionId, 'provider_file_version_id'),
+          } : {}),
+        }));
+      }
+
+      if (route.action === 'retry' || route.action === 'reconcile') {
+        if (!options.service.reconcile || !exactKeys(body, [])) {
+          throw new ControlRequestError(
+            route.action === 'retry' ? 'invalid_retry_request' : 'invalid_reconcile_request',
+            options.service.reconcile ? 400 : 503,
+          );
+        }
+        return json(request, env, await options.service.reconcile({
+          actorId: authorization.uid,
+          bookId: route.bookId,
+          reservationId: route.reservationId,
+        }));
       }
 
       if (!exactKeys(body, ['providerFileId', 'providerFileVersionId'])) {

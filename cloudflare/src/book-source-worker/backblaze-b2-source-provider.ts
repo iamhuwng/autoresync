@@ -29,6 +29,7 @@ const MAX_UPLOAD_LEASE_MS = 15 * 60 * 1_000;
 const DEFAULT_MAX_READ_BYTES = 1024 * 1024;
 const SHA_256 = 'SHA-256';
 const MAX_ACCOUNT_TOTALS_CONTINUATION_LENGTH = 4_096;
+const MAX_METADATA_RESPONSE_BYTES = 64 * 1024;
 
 export interface BackblazeB2SourceProviderConfig {
   /** Private B2 S3 endpoint, e.g. https://s3.us-west-004.backblazeb2.com. */
@@ -38,6 +39,8 @@ export interface BackblazeB2SourceProviderConfig {
   readonly storageLocationId: string;
   readonly privateBucketId: string;
   readonly privateBucketName: string;
+  /** Exact provider key prefix returned by every operation-scoped key. */
+  readonly objectKeyPrefix: string;
   /** Operation-scoped Worker secrets. Never expose secret values to callers. */
   readonly uploadCredentials: BackblazeB2ApplicationKey;
   readonly metadataCredentials: BackblazeB2ApplicationKey;
@@ -59,6 +62,7 @@ export interface BackblazeB2SourceProviderEnv {
   readonly BOOK_SOURCE_B2_STORAGE_LOCATION_ID: string;
   readonly BOOK_SOURCE_B2_PRIVATE_BUCKET_ID: string;
   readonly BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME: string;
+  readonly BOOK_SOURCE_B2_OBJECT_KEY_PREFIX: string;
   readonly BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID: string;
   readonly BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY: string;
   readonly BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID: string;
@@ -104,11 +108,13 @@ type B2AuthorityKind = 'upload' | 'metadata' | 'read';
 const encoder = new TextEncoder();
 const sha256Hex = /^[a-f0-9]{64}$/u;
 const safeObjectKey = /^(?!\/)(?!.*(?:^|\/)\.\.?\/)[A-Za-z0-9!$&'()*+,=:@._\/-]{1,1024}$/u;
+const safeObjectKeyPrefix = /^(?!\/)(?!.*(?:^|\/)\.\.?\/)[A-Za-z0-9!$&'()*+,=:@._\/-]{1,768}\/$/u;
 const safeProviderId = /^[A-Za-z0-9._=-]{1,512}$/u;
 const safeBucketId = /^[A-Za-z0-9_-]{1,160}$/u;
 const safeBucketName = /^[a-z0-9][a-z0-9.-]{4,61}[a-z0-9]$/u;
 const safeLocationId = /^[A-Za-z0-9_-]{1,160}$/u;
 const safeRegion = /^[a-z0-9-]{1,64}$/u;
+const PROVIDER_TIMEOUT_MS = 10_000;
 
 const fail = (code: ConstructorParameters<typeof SourceProviderError>[0], retryable = false): never => {
   throw new SourceProviderError(code, retryable);
@@ -116,6 +122,44 @@ const fail = (code: ConstructorParameters<typeof SourceProviderError>[0], retrya
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+
+const readBoundedJsonRecord = async (
+  response: Response,
+  maxBytes: number,
+): Promise<Record<string, unknown> | null> => {
+  const declaredLength = response.headers.get('content-length');
+  if (declaredLength !== null
+    && (!/^\d+$/u.test(declaredLength) || Number(declaredLength) > maxBytes)) {
+    fail('metadata_mismatch');
+  }
+  const reader = response.body?.getReader();
+  if (!reader) fail('metadata_mismatch');
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      fail('metadata_mismatch');
+    }
+    chunks.push(value);
+  }
+
+  const encoded = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    encoded.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return asRecord(JSON.parse(new TextDecoder().decode(encoded)));
+  } catch {
+    fail('metadata_mismatch');
+  }
+};
 
 const hex = (bytes: Uint8Array): string => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 
@@ -220,6 +264,7 @@ export const createBackblazeB2SourceProviderFromEnv = (
   storageLocationId: requiredConfiguration(env, 'BOOK_SOURCE_B2_STORAGE_LOCATION_ID'),
   privateBucketId: requiredConfiguration(env, 'BOOK_SOURCE_B2_PRIVATE_BUCKET_ID'),
   privateBucketName: requiredConfiguration(env, 'BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME'),
+  objectKeyPrefix: requiredConfiguration(env, 'BOOK_SOURCE_B2_OBJECT_KEY_PREFIX'),
   uploadCredentials: credentialsFromEnv(env, 'BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY'),
   metadataCredentials: credentialsFromEnv(env, 'BOOK_SOURCE_B2_METADATA_APPLICATION_KEY'),
   readCredentials: credentialsFromEnv(env, 'BOOK_SOURCE_B2_READ_APPLICATION_KEY'),
@@ -229,6 +274,7 @@ export const createBackblazeB2SourceProviderFromEnv = (
 /** Private B2 adapter. No provider error body, credential, or object URL is logged. */
 export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations {
   private readonly endpoint: URL;
+  private readonly authorizationUrl: string;
   private readonly fetcher: typeof fetch;
   private readonly now: () => Date;
   private readonly maxReadBytes: number;
@@ -236,10 +282,12 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
   constructor(private readonly config: BackblazeB2SourceProviderConfig) {
     let endpoint: URL;
     try { endpoint = new URL(config.endpoint); } catch { throw new SourceProviderError('metadata_mismatch', false); }
+    const cluster = /-(\d{3})$/u.exec(config.region)?.[1];
     if (endpoint.protocol !== 'https:' || endpoint.pathname !== '/' || endpoint.search || endpoint.hash
       || endpoint.username || endpoint.password || endpoint.hostname !== `s3.${config.region}.backblazeb2.com`
-      || !safeRegion.test(config.region) || !safeLocationId.test(config.storageLocationId)
+      || !safeRegion.test(config.region) || !cluster || !safeLocationId.test(config.storageLocationId)
       || !safeBucketId.test(config.privateBucketId) || !safeBucketName.test(config.privateBucketName)
+      || !safeObjectKeyPrefix.test(config.objectKeyPrefix)
       || Object.values({
         ...config.uploadCredentials,
         ...config.metadataCredentials,
@@ -253,6 +301,7 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     if (new Set(credentialIds).size !== credentialIds.length
       || new Set(credentialSecrets).size !== credentialSecrets.length) fail('unauthorized');
     this.endpoint = endpoint;
+    this.authorizationUrl = `https://api${cluster}.backblazeb2.com/b2api/v4/b2_authorize_account`;
     this.fetcher = config.fetch ?? fetch;
     this.now = config.now ?? (() => new Date());
     this.maxReadBytes = config.maxReadBytes ?? DEFAULT_MAX_READ_BYTES;
@@ -267,17 +316,25 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     readonly expectedChecksum: BookSourceVersionStorageIdentity['checksum'];
     readonly expectedByteSize: number;
     readonly expiresAt: string;
+    readonly issuedAt?: string;
   }, options?: SourceProviderRequestOptions): Promise<SourceProviderUploadAuthorization> {
     this.assertLocation(input);
     if (!safeObjectKey.test(input.providerObjectKey) || input.expectedChecksum.algorithm !== 'sha-256'
       || !sha256Hex.test(input.expectedChecksum.value) || !Number.isSafeInteger(input.expectedByteSize) || input.expectedByteSize < 1) {
       fail('metadata_mismatch');
     }
-    const expiresInMs = new Date(input.expiresAt).getTime() - this.now().getTime();
+    const currentTime = this.now();
+    const signingTime = input.issuedAt === undefined ? currentTime : new Date(input.issuedAt);
+    if (!Number.isFinite(signingTime.getTime()) || signingTime.getTime() > currentTime.getTime()) fail('unauthorized');
+    const expiresAtMs = new Date(input.expiresAt).getTime();
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= currentTime.getTime()) fail('unauthorized');
+    const expiresInMs = expiresAtMs - signingTime.getTime();
     if (!Number.isFinite(expiresInMs) || expiresInMs <= 0 || expiresInMs > MAX_UPLOAD_LEASE_MS) fail('unauthorized');
     this.throwIfCancelled(options);
     const expiresSeconds = Math.floor(expiresInMs / 1000);
     if (expiresSeconds < 1 || expiresSeconds > MAX_UPLOAD_LEASE_MS / 1000) fail('unauthorized');
+    const signedExpiresAtMs = Math.floor(signingTime.getTime() / 1000) * 1000 + expiresSeconds * 1000;
+    if (signedExpiresAtMs <= currentTime.getTime() || signedExpiresAtMs > expiresAtMs) fail('unauthorized');
     await this.b2Authorize(this.config.uploadCredentials, 'upload', input.providerObjectKey, options);
     const requiredHeaders = Object.freeze({
       'content-type': 'application/pdf',
@@ -289,7 +346,10 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     });
     const signed = await this.presign({
       method: 'PUT', objectKey: input.providerObjectKey, expiresSeconds, headers: requiredHeaders,
-      payloadHash: input.expectedChecksum.value,
+      // Presigned S3 requests use the SigV4 unsigned-payload marker in the
+      // canonical request. The actual SHA-256 remains bound by the signed
+      // x-amz-content-sha256 header and the persisted metadata.
+      payloadHash: 'UNSIGNED-PAYLOAD', now: signingTime,
       credentials: this.config.uploadCredentials,
     });
     // `authorizationId` is a short-lived, exact-object S3 presigned target.
@@ -297,7 +357,7 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     // carries no reusable application-key value.
     return Object.freeze({
       authorizationId: signed.url,
-      expiresAt: input.expiresAt,
+      expiresAt: new Date(signedExpiresAtMs).toISOString(),
       storageLocationId: input.storageLocationId,
       providerKind: input.providerKind,
       privateBucketId: input.privateBucketId,
@@ -312,29 +372,42 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
 
   async readObjectMetadata(input: { readonly identity: BookSourceVersionStorageIdentity }, options?: SourceProviderRequestOptions): Promise<SourceProviderObjectMetadata> {
     this.assertIdentity(input.identity);
-    await this.b2Authorize(this.config.metadataCredentials, 'metadata', input.identity.providerObjectKey, options);
-    const response = await this.s3Fetch({
-      method: 'HEAD', objectKey: input.identity.providerObjectKey,
-      versionId: input.identity.providerFileVersionId, options, credentials: this.config.metadataCredentials,
-    });
+    const authorization = await this.b2Authorize(
+      this.config.metadataCredentials,
+      'metadata',
+      input.identity.providerObjectKey,
+      options,
+    );
+    const requestUrl = new URL(`${authorization.apiUrl}/b2api/v4/b2_get_file_info`);
+    requestUrl.searchParams.set('fileId', input.identity.providerFileVersionId);
+    const response = await this.request(requestUrl.href, {
+      method: 'GET',
+      headers: { Authorization: authorization.token },
+    }, options);
     if (!response.ok) throw statusFailure(response.status);
-    const length = Number(response.headers.get('content-length'));
-    const contentType = response.headers.get('content-type')?.trim().toLowerCase();
-    const checksum = response.headers.get('x-amz-meta-book-source-sha256');
-    const declaredByteSize = response.headers.get('x-amz-meta-book-source-byte-size');
-    // B2 S3 ETags may be MD5-shaped or multipart identifiers. They are not
-    // the canonical SHA-256 integrity value and are never substituted for it.
-    const versionId = response.headers.get('x-amz-version-id');
-    const fileId = response.headers.get('x-bz-file-id') ?? versionId;
-    if (!Number.isSafeInteger(length) || length !== input.identity.byteSize || contentType !== 'application/pdf'
+
+    const metadata = await readBoundedJsonRecord(response, MAX_METADATA_RESPONSE_BYTES);
+    const fileInfo = asRecord(metadata?.fileInfo);
+    const length = checkedInteger(metadata?.contentLength);
+    const contentType = checkedString(metadata?.contentType)?.trim().toLowerCase();
+    const checksum = checkedString(fileInfo?.['book-source-sha256']);
+    const declaredByteSize = checkedString(fileInfo?.['book-source-byte-size']);
+    const fileId = checkedString(metadata?.fileId);
+    const fileName = checkedString(metadata?.fileName);
+    const bucketId = checkedString(metadata?.bucketId);
+    if (length !== input.identity.byteSize || contentType !== 'application/pdf'
       || checksum !== input.identity.checksum.value || declaredByteSize !== String(input.identity.byteSize)
-      || !fileId || !versionId) {
+      || fileName !== input.identity.providerObjectKey || bucketId !== input.identity.privateBucketId
+      || !fileId) {
       fail('metadata_mismatch');
     }
-    if (input.identity.providerFileId !== fileId || input.identity.providerFileVersionId !== versionId) {
+    if (input.identity.providerFileId !== fileId || input.identity.providerFileVersionId !== fileId) {
       fail('provider_drift');
     }
-    return Object.freeze({ identity: input.identity, contentType: 'application/pdf' });
+    return Object.freeze({
+      identity: input.identity,
+      contentType: 'application/pdf',
+    });
   }
 
   async readBounded(input: {
@@ -390,7 +463,11 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     let totalBytes = 0;
     let objectCount = 0;
     const authorization = await this.b2Authorize(this.config.metadataCredentials, 'metadata', undefined, options);
-    const body: Record<string, unknown> = { bucketId: input.privateBucketId, maxFileCount: maxPageSize };
+    const body: Record<string, unknown> = {
+      bucketId: input.privateBucketId,
+      prefix: this.config.objectKeyPrefix,
+      maxFileCount: maxPageSize,
+    };
     if (cursor) { body.startFileName = cursor.fileName; body.startFileId = cursor.fileId; }
     const response = await this.request(`${authorization.apiUrl}/b2api/v4/b2_list_file_versions`, {
       method: 'POST', headers: { Authorization: authorization.token, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -404,7 +481,11 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
       const file = asRecord(rawFile) as B2FileInfo | null;
       if (!file || file.action !== 'upload') continue;
       const size = checkedInteger(file.contentLength);
-      if (size === null || !checkedString(file.fileId) || !checkedString(file.fileName)) fail('metadata_mismatch');
+      const fileName = checkedString(file.fileName);
+      if (size === null || !checkedString(file.fileId)
+        || !fileName?.startsWith(this.config.objectKeyPrefix)) {
+        fail('metadata_mismatch');
+      }
       totalBytes += size;
       objectCount += 1;
       if (!Number.isSafeInteger(totalBytes) || !Number.isSafeInteger(objectCount)) fail('metadata_mismatch');
@@ -412,6 +493,9 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     const nextFileName = checkedString(parsed.nextFileName) ?? undefined;
     const nextFileId = checkedString(parsed.nextFileId) ?? undefined;
     if ((nextFileName === undefined) !== (nextFileId === undefined)) fail('metadata_mismatch');
+    if (nextFileName !== undefined && !nextFileName.startsWith(this.config.objectKeyPrefix)) {
+      fail('metadata_mismatch');
+    }
     const continuation = nextFileName && nextFileId
       ? encodeAccountTotalsContinuation(nextFileName, nextFileId)
       : undefined;
@@ -457,8 +541,8 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     return this.request(signed.url, { method: input.method, headers: input.headers }, input.options);
   }
 
-  private async presign(input: { readonly method: 'PUT' | 'HEAD' | 'GET'; readonly objectKey: string; readonly expiresSeconds: number; readonly query?: Readonly<Record<string, string>>; readonly headers: Record<string, string>; readonly payloadHash?: string; readonly credentials: BackblazeB2ApplicationKey }): Promise<{ readonly url: string }> {
-    const date = awsDate(this.now());
+  private async presign(input: { readonly method: 'PUT' | 'HEAD' | 'GET'; readonly objectKey: string; readonly expiresSeconds: number; readonly query?: Readonly<Record<string, string>>; readonly headers: Record<string, string>; readonly payloadHash?: string; readonly credentials: BackblazeB2ApplicationKey; readonly now?: Date }): Promise<{ readonly url: string }> {
+    const date = awsDate(input.now ?? this.now());
     const host = this.endpoint.host;
     const credentialScope = `${date.day}/${this.config.region}/s3/aws4_request`;
     const normalizedHeaders = Object.entries({ host, ...input.headers })
@@ -544,16 +628,16 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
   private async request(url: string, init: RequestInit, options?: SourceProviderRequestOptions): Promise<Response> {
     this.throwIfCancelled(options);
     const controller = new AbortController();
-    const timeout = options?.timeoutMs === undefined ? undefined : setTimeout(() => controller.abort(), options.timeoutMs);
+    const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? PROVIDER_TIMEOUT_MS);
     const onAbort = () => controller.abort();
     options?.signal?.addEventListener('abort', onAbort, { once: true });
     try {
-      return await this.fetcher(url, { ...init, redirect: 'error', signal: controller.signal });
+      return await this.fetcher.call(globalThis, url, { ...init, redirect: 'manual', signal: controller.signal });
     } catch {
       if (options?.signal?.aborted) throw new SourceProviderError('aborted', false);
       throw new SourceProviderError('timeout', true);
     } finally {
-      if (timeout !== undefined) clearTimeout(timeout);
+      clearTimeout(timeout);
       options?.signal?.removeEventListener('abort', onAbort);
     }
   }
@@ -564,7 +648,7 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     objectKey: string | undefined,
     options?: SourceProviderRequestOptions,
   ): Promise<B2AuthorizedStorageApi> {
-    const response = await this.request('https://api.backblazeb2.com/b2api/v4/b2_authorize_account', {
+    const response = await this.request(this.authorizationUrl, {
       method: 'GET', headers: { Authorization: `Basic ${base64(encoder.encode(`${credentials.applicationKeyId}:${credentials.applicationKey}`))}` },
     }, options);
     if (!response.ok) throw statusFailure(response.status);
@@ -618,7 +702,8 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
       : typeof rawNamePrefix === 'string'
         ? rawNamePrefix
         : (() => { throw new SourceProviderError('metadata_mismatch', false); })();
-    if (namePrefix !== null && (objectKey === undefined || !objectKey.startsWith(namePrefix))) {
+    if (namePrefix !== this.config.objectKeyPrefix
+      || (objectKey !== undefined && !objectKey.startsWith(this.config.objectKeyPrefix))) {
       fail('unauthorized');
     }
     let authorizedApiUrl: URL;

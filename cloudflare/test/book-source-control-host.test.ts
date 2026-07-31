@@ -157,4 +157,74 @@ describe('book source control host', () => {
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
     expect(await response.json()).toEqual({ code: 'book_source_upload_unavailable' });
   });
+
+  it('preserves only known bounded service Error codes', async () => {
+    const host = createBookSourceControlHost({
+      verifier,
+      service: {
+        begin: vi.fn(),
+        complete: vi.fn(),
+        status: vi.fn(async () => {
+          throw new Error('account_state_unavailable');
+        }),
+      },
+    });
+    const request = new Request(
+      'https://control.example/v1/book-source/books/book-1/upload/reservation-1/status',
+      { headers: { authorization: 'Bearer token', origin: 'http://localhost:5173' } },
+    );
+    const response = await host.fetch(request, env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ code: 'account_state_unavailable' });
+  });
+
+  it('keeps owner-scoped status, cancel, retry, and manual reconcile behind the trusted service', async () => {
+    const status = {
+      reservationId: 'reservation-1',
+      bookId: 'book-1',
+      sourceVersionId: 'source-version-1',
+      status: 'cleanup_pending' as const,
+      retryKind: 'cleanup' as const,
+    };
+    const service = {
+      begin: vi.fn(),
+      complete: vi.fn(),
+      status: vi.fn(async () => status),
+      requestCleanup: vi.fn(async () => status),
+      reconcile: vi.fn(async () => ({ ...status, status: 'released' as const, retryKind: 'none' as const })),
+    };
+    const host = createBookSourceControlHost({ service, verifier });
+    const get = new Request(
+      'https://control.example/v1/book-source/books/book-1/upload/reservation-1/status',
+      { headers: { authorization: 'Bearer token', origin: 'http://localhost:5173' } },
+    );
+    expect(await (await host.fetch(get, env)).json()).toEqual(status);
+
+    const cancel = await host.fetch(post(
+      '/v1/book-source/books/book-1/upload/reservation-1/cancel',
+      { providerFileId: 'file-1', providerFileVersionId: 'version-1' },
+    ), env);
+    expect(cancel.status).toBe(200);
+    expect(service.requestCleanup).toHaveBeenCalledWith({
+      actorId: 'teacher-1',
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+      reason: 'cancel_requested',
+      providerFileId: 'file-1',
+      providerFileVersionId: 'version-1',
+    });
+
+    for (const action of ['retry', 'reconcile'] as const) {
+      expect((await host.fetch(post(
+        `/v1/book-source/books/book-1/upload/reservation-1/${action}`,
+        {},
+      ), env)).status).toBe(200);
+    }
+    expect(service.reconcile).toHaveBeenCalledTimes(2);
+
+    expect((await host.fetch(post(
+      '/v1/book-source/books/book-1/upload/reservation-1/cancel',
+      { providerFileId: 'file-1' },
+    ), env)).status).toBe(400);
+  });
 });

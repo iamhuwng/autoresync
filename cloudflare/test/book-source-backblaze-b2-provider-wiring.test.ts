@@ -1,7 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
+import config from '../wrangler.book-source-b2.jsonc?raw';
 import worker from '../src/book-source-worker/backblaze-b2-provider-worker';
 import {
   BOOK_SOURCE_B2_PROVIDER_STATES,
@@ -15,6 +14,7 @@ const completeEnv = () => ({
   BOOK_SOURCE_B2_STORAGE_LOCATION_ID: 'b2_book_primary',
   BOOK_SOURCE_B2_PRIVATE_BUCKET_ID: 'private-bucket-id',
   BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME: 'private-book-pdfs',
+  BOOK_SOURCE_B2_OBJECT_KEY_PREFIX: 'book-source/',
   BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID: 'upload-key-id',
   BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY: 'upload-key-secret',
   BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID: 'metadata-key-id',
@@ -68,10 +68,6 @@ describe('Backblaze B2 production wiring', () => {
   });
 
   it('keeps isolated Wrangler wiring B2-only and disabled', () => {
-    const config = readFileSync(
-      fileURLToPath(new URL('../wrangler.book-source-b2.jsonc', import.meta.url)),
-      'utf8',
-    );
     expect(config).toContain('"BOOK_SOURCE_B2_PROVIDER_STATE": "disabled"');
     expect(config).toContain('BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID');
     expect(config).toContain('BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID');

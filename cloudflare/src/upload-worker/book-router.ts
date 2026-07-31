@@ -179,6 +179,7 @@ const routeForPath = (
 const preflight = (
   request: Request,
   manifest: readonly CanonicalBookRouteDescriptor[],
+  env: BookRouterEnv,
 ): Response | null => {
   const candidates = routeForPath(request, manifest);
   if (candidates.length === 0) return jsonResponse(request, { code: 'book_route_not_found' }, 404);
@@ -190,6 +191,15 @@ const preflight = (
   if (!requestedMethod) return jsonResponse(request, { code: 'cors_method_required' }, 405);
   const descriptor = candidates.find((candidate) => methodList(candidate).includes(requestedMethod));
   if (!descriptor) return jsonResponse(request, { code: 'cors_method_denied' }, 405);
+  if (descriptor.domain === 'source-upload') {
+    if (typeof env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN !== 'string'
+      || !env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
+      return jsonResponse(request, { code: 'invalid_deployment' }, 500);
+    }
+    if (origin !== env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
+      return jsonResponse(request, { code: 'cors_origin_denied' }, 403);
+    }
+  }
   const requestedHeaders = (headerValue(request, 'Access-Control-Request-Headers') ?? '')
     .split(',')
     .map((header) => header.trim().toLowerCase())
@@ -423,7 +433,7 @@ export const createBookRouter = (options: BookRouterOptions = {}): BookRouter =>
     if (!isBookPath(url.pathname)) return null;
     const corsFailure = failCors(request);
     if (corsFailure) return corsFailure;
-    if (request.method === 'OPTIONS') return preflight(request, manifest);
+    if (request.method === 'OPTIONS') return preflight(request, manifest, env);
 
     const candidates = routeForPath(request, manifest);
     if (candidates.length === 0) {

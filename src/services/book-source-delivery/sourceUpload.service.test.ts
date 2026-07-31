@@ -52,6 +52,7 @@ const createHarness = (options: {
   readonly gate?: boolean;
   readonly provider?: Partial<SourceUploadProviderPort>;
   readonly rolloutGate?: SourceUploadControlDependencies['rolloutGate'];
+  readonly reserveError?: string;
   readonly staleCompletion?: boolean;
   readonly crashAfterCompletion?: boolean;
 } = {}) => {
@@ -62,6 +63,7 @@ const createHarness = (options: {
     operations: {},
   };
   const reserve = vi.fn(async (input: Parameters<NonNullable<SourceUploadControlDependencies['repository']>['reserve']>[0]) => {
+    if (options.reserveError) throw new SourceUploadConflictError(options.reserveError);
     if (input.expectedRevision !== state.revision) throw new SourceUploadConflictError('source upload compare-and-set conflict.');
     const operation: BookSourceUploadOperation = {
       ...input,
@@ -100,7 +102,7 @@ const createHarness = (options: {
   const authorizeUpload = vi.fn(async (input: Parameters<SourceUploadProviderPort['authorizeUpload']>[0]) => {
     authorizationSequence += 1;
     return {
-      authorizationId: `https://upload.example/exact-${authorizationSequence}`,
+      authorizationId: `https://upload.example/exact-${encodeURIComponent(input.issuedAt ?? String(authorizationSequence))}`,
       expiresAt: input.expiresAt,
       storageLocationId: input.storageLocationId,
       providerKind: input.providerKind,
@@ -165,8 +167,10 @@ describe('provider-neutral Source Upload control domain', () => {
     expect(replay.reservationId).toBe(first.reservationId);
     expect(replay.sourceVersionId).toBe(first.sourceVersionId);
     expect(harness.reserve).toHaveBeenCalledTimes(2);
+    expect(harness.authorizeUpload).toHaveBeenCalledTimes(1);
     expect(first.status).toBe('reserved');
     expect(replay.status).toBe('replayed');
+    expect(replay.uploadUrl).toBe(first.uploadUrl);
     expect(Object.keys(first).sort()).toEqual(['expiresAt', 'requiredHeaders', 'reservationId', 'sourceVersionId', 'status', 'uploadUrl']);
     expect(JSON.stringify(first)).not.toMatch(/(?:bucket|location|objectKey|credential|secret|bytes)/iu);
   });
@@ -211,6 +215,14 @@ describe('provider-neutral Source Upload control domain', () => {
         authorizeUpload: async () => ({ decision: { allowed: true } }),
       },
     }).control.begin(BEGIN_INPUT)).resolves.toMatchObject({ status: 'reserved' });
+  });
+
+  it('fails closed before provider authorization when the reconciliation snapshot is unavailable', async () => {
+    const harness = createHarness({
+      reserveError: 'current healthy provider reconciliation is required before upload authorization.',
+    });
+    await expectCode(harness.control.begin(BEGIN_INPUT), 'account_state_unavailable');
+    expect(harness.authorizeUpload).not.toHaveBeenCalled();
   });
 
   it('rejects stale or incompletely bound provider upload authority', async () => {

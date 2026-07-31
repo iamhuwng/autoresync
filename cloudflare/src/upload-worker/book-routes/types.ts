@@ -5,6 +5,7 @@ export const BOOK_ROUTE_DOMAINS = [
   'delivery',
   'activity-authoring',
   'assembly',
+  'source-upload',
   'runtime',
   'document-delivery',
   'homework',

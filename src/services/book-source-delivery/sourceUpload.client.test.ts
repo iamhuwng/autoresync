@@ -298,6 +298,7 @@ describe('sourceUpload.client', () => {
       }));
     const client = createSourceUploadClient({
       baseUrl: 'https://control.example',
+      reconciliationBaseUrl: 'https://reconciliation.example',
       getIdToken: async () => 'token',
       fetchImpl,
     });
@@ -314,8 +315,23 @@ describe('sourceUpload.client', () => {
     ]);
     expect(fetchImpl.mock.calls[0]?.[1]).not.toHaveProperty('body');
     expect(fetchImpl.mock.calls[1]).toEqual([
-      'https://control.example/v1/book-source/books/book-1/upload/reservation-1/reconcile',
+      'https://reconciliation.example/v1/book-source/books/book-1/upload/reservation-1/reconcile',
       expect.objectContaining({ method: 'POST', body: '{}' }),
     ]);
+  });
+
+  it('fails closed when the reconciliation Worker is not configured', async () => {
+    const fetchImpl = vi.fn();
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+
+    await expect(client.reconcile({
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+    })).rejects.toMatchObject({ code: 'unavailable', status: 503 });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

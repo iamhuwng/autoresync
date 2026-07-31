@@ -77,6 +77,8 @@ const BookSourceUploadPanel = ({
   const [error, setError] = useState('');
   const controllerRef = useRef<AbortController | null>(null);
   const activeRunRef = useRef(0);
+  const onActionRef = useRef(onAction);
+  onActionRef.current = onAction;
 
   const restore = useCallback(async () => {
     const state = await workflow.load(bookId);
@@ -91,14 +93,14 @@ const BookSourceUploadPanel = ({
     void workflow.load(bookId).then((state) => {
       if (!active) return;
       setSaved(state);
-      if (state) onAction?.('book_source_upload_restored', { phase: state.phase });
+      if (state) onActionRef.current?.('book_source_upload_restored', { phase: state.phase });
     });
     return () => {
       active = false;
       activeRunRef.current += 1;
       controllerRef.current?.abort();
     };
-  }, [bookId, onAction, workflow]);
+  }, [bookId, workflow]);
 
   const finishVerified = (state: SourceUploadSafeOperationState) => {
     if (state.phase !== 'verified') {

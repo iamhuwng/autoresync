@@ -16,6 +16,7 @@ import {
   bookDocumentAuthorizationRouteDescriptor,
   bookTeacherAssemblyDocumentRouteDescriptor,
 } from '../book-delivery/route.ts';
+import { bookSourceRouteDescriptors } from '../book-source/route.ts';
 import type {
   BookRouteDomain,
   BookRouteManifest,
@@ -226,6 +227,23 @@ const runtimeRoutes = bookRuntimeRouteDescriptors.map((route) => contributor({
   contributorTicket: '#74',
 }));
 
+const sourceUploadRoutes = bookSourceRouteDescriptors.map((route) => contributor({
+  id: `book.source-upload.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#49',
+  domain: 'source-upload',
+  handler: `bookSource.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-teacher',
+  rateClass: route.handler === 'status' ? 'book-read' : 'book-control',
+  gateEnv: 'BOOK_SOURCE_UPLOAD_ROUTES_ENABLED',
+  requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY',
+  contributorTicket: '#49',
+}));
+
 const documentRoute = contributor({
   id: 'book.document-delivery.serve-authorized-document',
   method: bookDocumentAuthorizationRouteDescriptor.method,
@@ -379,6 +397,7 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...assemblyPublicationRoutes,
   ...assemblySuccessorRoutes,
   ...assemblyMappingRevisionRoutes,
+  ...sourceUploadRoutes,
   ...runtimeRoutes,
   documentRoute,
   teacherAssemblyDocumentRoute,
@@ -497,7 +516,7 @@ export const validateBookRouteManifest = (manifest: unknown): BookRouteManifest 
       throw new Error(`book_route_contributor_missing:${descriptor.id}`);
     }
     if (descriptor.source === 'contributor'
-      && ['#31', '#35', '#55', '#59', '#70', '#74'].includes(descriptor.contributorTicket ?? '')
+      && ['#31', '#35', '#49', '#55', '#59', '#70', '#74'].includes(descriptor.contributorTicket ?? '')
       && (!descriptor.identityEnv || !descriptor.credentialEnv)) {
       throw new Error(`book_route_dedicated_credentials_missing:${descriptor.id}`);
     }

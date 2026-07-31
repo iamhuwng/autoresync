@@ -106,6 +106,8 @@ export class SourceUploadClientError extends Error {
 
 export interface SourceUploadClientOptions {
   readonly baseUrl: string;
+  /** Optional separately scoped #50 reconciliation Worker origin. */
+  readonly reconciliationBaseUrl?: string;
   readonly getIdToken: () => Promise<string>;
   readonly fetchImpl?: typeof fetch;
 }
@@ -154,8 +156,9 @@ const request = async (
   body?: unknown,
   operationId?: string,
   method: 'GET' | 'POST' = 'POST',
+  baseUrlValue: string = options.baseUrl,
 ): Promise<Record<string, unknown>> => {
-  const baseUrl = controlBaseUrl(options.baseUrl);
+  const baseUrl = controlBaseUrl(baseUrlValue);
 
   const token = (await options.getIdToken()).trim();
   if (!token) throw new SourceUploadClientError('unauthorized', 401);
@@ -472,10 +475,17 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
   },
 
   async reconcile(command: Pick<CancelSourceUploadCommand, 'bookId' | 'reservationId'>): Promise<SourceUploadLifecycleStatus> {
+    const reconciliationBaseUrl = options.reconciliationBaseUrl?.trim();
+    if (!reconciliationBaseUrl) {
+      throw new SourceUploadClientError('unavailable', 503);
+    }
     const body = await request(
       options,
       `${BOOK_SOURCE_UPLOAD_ROUTE}/${encodeURIComponent(command.bookId)}/upload/${encodeURIComponent(command.reservationId)}/reconcile`,
       {},
+      undefined,
+      'POST',
+      reconciliationBaseUrl,
     );
     return lifecycleStatus(body, command);
   },

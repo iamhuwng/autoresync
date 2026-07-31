@@ -1,0 +1,35 @@
+{
+  "ticket": 49,
+  "generatedAt": "2026-07-30",
+  "proofClass": "deployed_negative_security",
+  "worker": "https://luyentap-book-source-canonical-preview.iamhuwng.workers.dev",
+  "b2Origin": "https://s3.us-west-004.backblazeb2.com/bookpdf",
+  "results": [
+    {
+      "probe": "worker_unauth_begin",
+      "status": 401,
+      "result": "PASS"
+    },
+    {
+      "probe": "worker_wrong_origin_begin",
+      "status": 403,
+      "result": "PASS"
+    },
+    {
+      "probe": "b2_wrong_origin_preflight",
+      "status": 403,
+      "result": "PASS"
+    },
+    {
+      "probe": "b2_unauth_bucket_read",
+      "status": 403,
+      "result": "PASS"
+    }
+  ],
+  "safetyState": {
+    "noUpload": true,
+    "noDelete": true,
+    "03B": "DISABLED_BY_DEFAULT",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY"
+  }
+}
