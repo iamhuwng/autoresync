@@ -1,5 +1,6 @@
 import type { BookDeliveryBinding } from '../book-delivery/bookDelivery.types';
 import type { ActivityScoreResult } from '../../types/bookActivity.types';
+import type { BookScheduleWindowDecision } from '../book-delivery/bookScheduleWindow.service';
 
 export type BookRuntimeCommandKind = 'state' | 'autosave' | 'submit';
 export type BookRuntimeCommandStatus = 'accepted' | 'replayed' | 'conflict' | 'denied';
@@ -25,6 +26,7 @@ export interface BookRuntimeScheduleAuthority {
   readonly policyRevision: number;
   readonly authorityRevision: number;
   readonly evaluatedAt: string;
+  readonly window: BookScheduleWindowDecision;
 }
 
 export interface BookRuntimeAttemptPolicy {

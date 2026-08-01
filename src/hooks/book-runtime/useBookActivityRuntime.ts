@@ -9,6 +9,10 @@ import {
   type BookRuntimeSubmitActivityResult,
 } from '../../services/book-activity/activityRuntime.browser';
 import type { BookRuntimeDraftRecord } from '../../services/book-activity/activityRuntimeAttempt.types';
+import {
+  requireBookScheduleWindowDecision,
+  type BookScheduleWindowDecision,
+} from '../../services/book-delivery/bookScheduleWindow.service';
 
 const RECOVERY_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
 const DEFAULT_DEBOUNCE_MS = 600;
@@ -87,6 +91,7 @@ export interface UseBookActivityRuntimeOptions {
   readonly operationId?: () => string;
   readonly onMetric?: (metric: BookRuntimeMetric) => void;
   readonly enabled?: boolean;
+  readonly windowDecision?: BookScheduleWindowDecision;
 }
 
 export interface BookActivityRuntimeController {
@@ -102,6 +107,7 @@ export interface BookActivityRuntimeController {
   readonly discardLocal: () => Promise<void>;
   readonly submitActivity: (interactionId: string) => Promise<BookRuntimeSubmitActivityResult>;
   readonly terminalResult: BookRuntimeSubmitActivityResult | null;
+  readonly windowDecision: BookScheduleWindowDecision | null;
 }
 
 interface PendingEntry {
@@ -210,6 +216,10 @@ export const useBookActivityRuntime = (
   const [message, setMessage] = useState('');
   const [conflict, setConflict] = useState<BookRuntimeConflict | null>(null);
   const [terminalResult, setTerminalResult] = useState<BookRuntimeSubmitActivityResult | null>(null);
+  const [windowDecision, setWindowDecision] = useState<BookScheduleWindowDecision | null>(() => {
+    if (!options.windowDecision) return null;
+    try { return requireBookScheduleWindowDecision(options.windowDecision); } catch { return null; }
+  });
   const pendingRef = useRef(new Map<string, PendingEntry>());
   const acknowledgedRef = useRef(new Map<string, AcknowledgedEntry>());
   const generationRef = useRef(0);
@@ -271,6 +281,12 @@ export const useBookActivityRuntime = (
     setMessage(nextMessage);
   }, []);
 
+  const consumeCurrentWindow = useCallback((error: unknown): void => {
+    if (error instanceof BookRuntimeClientError && error.currentWindow) {
+      setWindowDecision(error.currentWindow);
+    }
+  }, []);
+
   const load = useCallback(async (preserveLocal: boolean): Promise<void> => {
     const generation = generationRef.current;
     if (optionsRef.current.enabled === false) {
@@ -299,6 +315,7 @@ export const useBookActivityRuntime = (
         try {
           server = await optionsRef.current.client.readDraft(addressFor(interactionId));
         } catch (error) {
+          consumeCurrentWindow(error);
           if (!(error instanceof BookRuntimeClientError) || error.code !== 'not_found') throw error;
         }
         if (server) {
@@ -339,11 +356,12 @@ export const useBookActivityRuntime = (
         setRuntimeStatus('saved', 'Saved response loaded.');
       }
     } catch (error) {
+      consumeCurrentWindow(error);
       if (generation !== generationRef.current) return;
       setRuntimeStatus('offline', 'Saved response retained locally; Worker unavailable.');
       optionsRef.current.onMetric?.({ event: 'offline-retained' });
     }
-  }, [addressFor, now, online, removeRecovery, setRuntimeStatus, store]);
+  }, [addressFor, consumeCurrentWindow, now, online, removeRecovery, setRuntimeStatus, store]);
 
   const flush = useCallback(async (reason = 'manual'): Promise<BookRuntimeFlushResult> => {
     if (flushPromiseRef.current) return flushPromiseRef.current;
@@ -427,11 +445,22 @@ export const useBookActivityRuntime = (
             payloadBytes: responseSize(snapshotResponse),
           });
         } catch (error) {
+          consumeCurrentWindow(error);
           if (now() >= deadline) {
             setRuntimeStatus('unsafe-to-leave', 'Response still saving; keep this page open.');
             return { status: 'deadline', safeToLeave: false };
           }
           const current = pendingRef.current.get(interactionId);
+          if (error instanceof BookRuntimeClientError
+            && error.currentWindow
+            && !error.currentWindow.permissions.canAutosave) {
+            const localResponse = current?.response ?? snapshotResponse;
+            await persist(interactionId, localResponse, acknowledged?.revision ?? 0);
+            setRuntimeStatus('error', error.currentWindow.phase === 'unreleased'
+              ? 'This Activity is not released yet.'
+              : 'This Activity is read-only.');
+            return { status: 'error', safeToLeave: false };
+          }
           if (error instanceof BookRuntimeClientError && error.code === 'conflict') {
             let serverDraft: BookRuntimeDraftRecord | null = null;
             try { serverDraft = await optionsRef.current.client.readDraft(addressFor(interactionId)); } catch { /* retain local */ }
@@ -481,7 +510,7 @@ export const useBookActivityRuntime = (
     } finally {
       flushPromiseRef.current = null;
     }
-  }, [addressFor, now, online, persist, removeRecovery, setRuntimeStatus]);
+  }, [addressFor, consumeCurrentWindow, now, online, persist, removeRecovery, setRuntimeStatus]);
 
   const scheduleFlush = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -492,6 +521,12 @@ export const useBookActivityRuntime = (
   }, [flush]);
 
   const change = useCallback((interactionId: string, response: unknown): boolean => {
+    if (windowDecision && !windowDecision.permissions.canAutosave) {
+      setRuntimeStatus('error', windowDecision.phase === 'unreleased'
+        ? 'This Activity is not released yet.'
+        : 'This Activity is read-only.');
+      return false;
+    }
     if (!optionsRef.current.interactionIds.includes(interactionId)) return false;
     let serialized: unknown;
     try {
@@ -521,7 +556,7 @@ export const useBookActivityRuntime = (
       : 'Offline response retained locally.');
     scheduleFlush();
     return true;
-  }, [online, persist, scheduleFlush, setRuntimeStatus]);
+  }, [online, persist, scheduleFlush, setRuntimeStatus, windowDecision]);
 
   const retry = useCallback(async (): Promise<BookRuntimeFlushResult> => {
     if (retryTimerRef.current) {
@@ -558,6 +593,12 @@ export const useBookActivityRuntime = (
     if (!optionsRef.current.interactionIds.includes(interactionId)) {
       throw new BookRuntimeClientError('invalid_response');
     }
+    if (windowDecision && !windowDecision.permissions.canSubmit) {
+      setRuntimeStatus('error', windowDecision.phase === 'unreleased'
+        ? 'This Activity is not released yet.'
+        : 'The deadline has passed and late submission is not allowed.');
+      throw new BookRuntimeClientError('forbidden', 403, undefined, windowDecision);
+    }
     const run = (async () => {
       const flushed = await flush('submit');
       if (!flushed.safeToLeave) {
@@ -591,7 +632,7 @@ export const useBookActivityRuntime = (
     } finally {
       submitPromiseRef.current.delete(interactionId);
     }
-  }, [addressFor, flush, responses, setRuntimeStatus]);
+  }, [addressFor, flush, responses, setRuntimeStatus, windowDecision]);
 
   useEffect(() => {
     generationRef.current += 1;
@@ -600,6 +641,15 @@ export const useBookActivityRuntime = (
     terminalByInteractionRef.current.clear();
     submitPromiseRef.current.clear();
     setTerminalResult(null);
+    if (optionsRef.current.windowDecision) {
+      try {
+        setWindowDecision(requireBookScheduleWindowDecision(optionsRef.current.windowDecision));
+      } catch {
+        setWindowDecision(null);
+      }
+    } else {
+      setWindowDecision(null);
+    }
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     setResponses(optionsRef.current.initialResponses ?? {});
@@ -635,5 +685,6 @@ export const useBookActivityRuntime = (
     discardLocal,
     submitActivity,
     terminalResult,
+    windowDecision,
   };
 };

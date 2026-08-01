@@ -6,8 +6,8 @@ import {
   validateBookSourceUploadAccountState,
 } from '../../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
 import {
-  resolveEffectiveBookHomeworkWindow,
-} from '../../../../src/services/book-homework/bookHomeworkSchedule.service.ts';
+  isBookHomeworkDocumentWindowOpen,
+} from '../book-delivery/schedule-authority.ts';
 import type {
   BookHomeworkAuthorityRecord,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
@@ -224,59 +224,15 @@ const failureAuthorization = (
         : 'forbidden',
 });
 
-const scopeNodeKeys = (
-  binding: BookDeliveryBinding,
-  outline: BookDeliveryBinding['outline'],
-): readonly string[] => {
-  if (binding.scope.kind === 'subtree') {
-    const selected = new Set(binding.scope.nodeKeys);
-    let changed = true;
-    while (changed) {
-      changed = false;
-      outline.forEach((node) => {
-        if (node.parentNodeKey !== null
-          && selected.has(node.parentNodeKey)
-          && !selected.has(node.nodeKey)) {
-          selected.add(node.nodeKey);
-          changed = true;
-        }
-      });
-    }
-    return [...selected];
-  }
-  const selected = new Set(binding.scope.placementIds);
-  return [...new Set(binding.placements
-    .filter((placement) => selected.has(placement.placementId))
-    .map((placement) => placement.nodeKey))];
-};
-
 export const isBookHomeworkDocumentScheduleOpen = (
   binding: BookDeliveryBinding,
   authority: BookHomeworkAuthorityRecord,
   now: Date,
-): boolean => {
-  if (authority.assignmentId !== binding.context.contextId
-    || authority.ownerId !== binding.issuer.ownerId
-    || authority.visibility.status !== 'committed'
-    || authority.saga.state !== 'committed'
-    || authority.bookManifest.bindingRevision !== binding.revision
-    || authority.bookManifest.book.bookId !== binding.book.bookId
-    || authority.bookManifest.book.bookRevision !== binding.book.bookRevision
-    || authority.bookManifest.book.publicationId !== binding.book.publicationId
-    || authority.bookManifest.book.publicationRevision !== binding.book.publicationRevision
-    || authority.bookManifest.context.contextId !== binding.context.contextId
-    || authority.bookManifest.context.recipientId !== binding.recipient.recipientId) {
-    return false;
-  }
-  const nodes = scopeNodeKeys(binding, authority.bookManifest.outline);
-  if (nodes.length === 0) return false;
-  return nodes.every((nodeKey) => resolveEffectiveBookHomeworkWindow({
-    schedule: authority.schedule,
-    outline: authority.bookManifest.outline,
-    nodeKey,
-    now,
-  }).isAccessible);
-};
+): boolean => isBookHomeworkDocumentWindowOpen({
+  binding,
+  authority,
+  evaluatedAt: now.toISOString(),
+});
 
 const homeworkScheduleOpen = async (
   binding: BookDeliveryBinding,

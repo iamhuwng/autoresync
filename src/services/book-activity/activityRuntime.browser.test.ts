@@ -3,6 +3,12 @@ import {
   BookRuntimeClientError,
   createBookRuntimeClient,
 } from './activityRuntime.browser';
+import {
+  createBookRuntimeScheduleAuthority,
+} from './activityRuntimeAttempt.service';
+import {
+  resolveBookScheduleWindow,
+} from '../book-delivery/bookScheduleWindow.service';
 
 const address = {
   bindingId: 'binding-1',
@@ -301,5 +307,72 @@ describe('Book Runtime browser client', () => {
       clientRevision: 2,
       response: { text: 'draft' },
     })).rejects.toMatchObject({ code: 'conflict', status: 409, currentRevision: 4 });
+  });
+
+  it('returns only a validated current effective window on schedule conflicts', async () => {
+    const window = resolveBookScheduleWindow({
+      assignmentId: 'context-1',
+      recipientId: 'student-1',
+      bindingId: 'binding-1',
+      bindingRevision: 3,
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersion: 1,
+      nodeKey: 'unit-1',
+      operation: 'autosave',
+      schedule: {
+        schemaVersion: 1,
+        resolverVersion: 1,
+        availableFrom: '2026-08-02T00:00:00.000Z',
+        finalDueAt: '2026-08-10T00:00:00.000Z',
+        scheduleRules: [],
+      },
+      outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
+      studentExtensions: {},
+      lateSubmissionAllowed: false,
+      policyRevision: 4,
+      authorityRevision: 7,
+      evaluatedAt: '2026-08-01T00:00:00.000Z',
+    });
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      code: 'runtime_schedule_authority_stale',
+      currentScheduleAuthority: createBookRuntimeScheduleAuthority(window),
+    }, 409));
+    const client = createBookRuntimeClient({
+      baseUrl: 'https://runtime.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+
+    await expect(client.saveDraft({
+      ...address,
+      operationId,
+      clientRevision: 0,
+      response: { text: 'draft' },
+    })).rejects.toMatchObject({
+      code: 'conflict',
+      currentWindow: {
+        authorityRevision: 7,
+        phase: 'unreleased',
+        permissions: { canAutosave: false },
+      },
+    });
+
+    const crafted = structuredClone(createBookRuntimeScheduleAuthority(window)) as any;
+    crafted.window.permissions.canAutosave = true;
+    const forgedClient = createBookRuntimeClient({
+      baseUrl: 'https://runtime.example',
+      getIdToken: async () => 'token',
+      fetchImpl: async () => jsonResponse({
+        code: 'runtime_schedule_authority_stale',
+        currentScheduleAuthority: crafted,
+      }, 409),
+    });
+    await expect(forgedClient.saveDraft({
+      ...address,
+      operationId,
+      clientRevision: 0,
+      response: { text: 'draft' },
+    })).rejects.toMatchObject({ code: 'invalid_response' });
   });
 });

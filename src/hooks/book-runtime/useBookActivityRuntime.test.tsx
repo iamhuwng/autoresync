@@ -6,6 +6,7 @@ import type {
 } from '../../services/book-activity/activityRuntime.browser';
 import { BookRuntimeClientError } from '../../services/book-activity/activityRuntime.browser';
 import { useBookActivityRuntime, type BookRuntimeRecoveryStore } from './useBookActivityRuntime';
+import { resolveBookScheduleWindow } from '../../services/book-delivery/bookScheduleWindow.service';
 
 const address: Omit<BookRuntimeDraftAddress, 'interactionId'> = {
   bindingId: 'binding-1',
@@ -17,6 +18,35 @@ const address: Omit<BookRuntimeDraftAddress, 'interactionId'> = {
 };
 
 const operationId = '00000000-0000-4000-8000-000000000076';
+
+const windowDecision = (
+  operation: 'launch' | 'autosave' | 'submit',
+  evaluatedAt: string,
+  lateSubmissionAllowed = false,
+) => resolveBookScheduleWindow({
+  assignmentId: 'context-1',
+  recipientId: 'student-1',
+  bindingId: 'binding-1',
+  bindingRevision: 1,
+  placementId: 'placement-1',
+  activityId: 'activity-1',
+  activityVersion: 1,
+  nodeKey: 'unit-1',
+  operation,
+  schedule: {
+    schemaVersion: 1,
+    resolverVersion: 1,
+    availableFrom: '2026-08-02T00:00:00.000Z',
+    finalDueAt: '2026-08-05T00:00:00.000Z',
+    scheduleRules: [],
+  },
+  outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
+  studentExtensions: {},
+  lateSubmissionAllowed,
+  policyRevision: 1,
+  authorityRevision: 1,
+  evaluatedAt,
+});
 
 const store = (): BookRuntimeRecoveryStore => {
   const values = new Map<string, unknown>();
@@ -59,6 +89,65 @@ const runtimeClient = (overrides: Partial<BookRuntimeClient> = {}): BookRuntimeC
 describe('useBookActivityRuntime', () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('consumes explicit permissions and never reconstructs release or late policy from browser time', async () => {
+    const client = runtimeClient();
+    const unreleased = renderHook(() => useBookActivityRuntime({
+      client,
+      recipientId: 'student-1',
+      address,
+      interactionIds: ['interaction-1'],
+      storage: store(),
+      windowDecision: windowDecision('launch', '2026-08-01T00:00:00.000Z'),
+      now: () => Date.parse('2099-01-01T00:00:00.000Z'),
+    }));
+    await waitFor(() => expect(unreleased.result.current.status).not.toBe('loading'));
+    let unreleasedChanged = true;
+    act(() => {
+      unreleasedChanged = unreleased.result.current.change(
+        'interaction-1',
+        { text: 'forged-clock' },
+      );
+    });
+    expect(unreleasedChanged).toBe(false);
+    expect(client.saveDraft).not.toHaveBeenCalled();
+    unreleased.unmount();
+
+    const overdue = renderHook(() => useBookActivityRuntime({
+      client,
+      recipientId: 'student-1',
+      address,
+      interactionIds: ['interaction-1'],
+      initialResponses: { 'interaction-1': { text: 'answer' } },
+      storage: store(),
+      windowDecision: windowDecision('launch', '2026-08-06T00:00:00.000Z'),
+      now: () => Date.parse('2000-01-01T00:00:00.000Z'),
+    }));
+    await waitFor(() => expect(overdue.result.current.status).not.toBe('loading'));
+    let overdueChanged = false;
+    await act(async () => {
+      overdueChanged = overdue.result.current.change(
+        'interaction-1',
+        { text: 'editable overdue' },
+      );
+      await overdue.result.current.flush();
+    });
+    expect(overdueChanged).toBe(true);
+    let submitError: unknown;
+    await act(async () => {
+      try {
+        await overdue.result.current.submitActivity('interaction-1');
+      } catch (error) {
+        submitError = error;
+      }
+    });
+    expect(submitError).toMatchObject({
+      code: 'forbidden',
+      currentWindow: { phase: 'overdue', permissions: { canSubmit: false } },
+    });
+    expect(client.submitActivity).not.toHaveBeenCalled();
+    overdue.unmount();
   });
 
   it('updates immediately, debounces one save, and flushes queued changes', async () => {

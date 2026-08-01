@@ -24,9 +24,16 @@ import {
   type BookRuntimeWorkerEnv,
 } from './worker.ts';
 import {
-  soloOnlyBookRuntimeSchedulePolicy,
   type BookRuntimeSchedulePolicy,
 } from './authorization.ts';
+import {
+  FirebaseRestBookHomeworkDocumentStore,
+} from '../book-homework/repository.ts';
+import {
+  createBookHomeworkActivitySchedulePolicyResolver,
+  createBookHomeworkScheduleEnforcement,
+  type BookHomeworkActivitySchedulePolicyResolver,
+} from '../book-homework/schedule-enforcement.ts';
 
 export type BookRuntimeCanonicalEnv =
   & BookRuntimeWorkerEnv
@@ -65,11 +72,13 @@ export interface BookRuntimeCanonicalHandlersOptions {
     env: BookRuntimeCanonicalEnv,
   ) => BookRuntimeCanonicalDependencies;
   readonly schedulePolicy?: BookRuntimeSchedulePolicy;
+  readonly activitySchedulePolicy?: BookHomeworkActivitySchedulePolicyResolver;
 }
 
 const productionDependencies = (
   env: BookRuntimeCanonicalEnv,
-  schedulePolicy: BookRuntimeSchedulePolicy,
+  schedulePolicy: BookRuntimeSchedulePolicy | undefined,
+  activitySchedulePolicy: BookHomeworkActivitySchedulePolicyResolver | undefined,
 ): BookRuntimeCanonicalDependencies => {
   const runtimeRepository = new FirebaseRestBookRuntimeRepository({ env });
   const deliveryRepository = new FirebaseRestBookDeliveryRepository({ env });
@@ -80,6 +89,21 @@ const productionDependencies = (
     },
     fetchImpl: globalThis.fetch,
   });
+  const authorityStore = {
+    read: (assignmentId: string) =>
+      new FirebaseRestBookHomeworkDocumentStore({ env }).read(assignmentId),
+  };
+  const effectiveActivitySchedulePolicy = activitySchedulePolicy
+    ?? createBookHomeworkActivitySchedulePolicyResolver({
+      authorityStore,
+      runtimeRepository,
+    });
+  const effectiveSchedulePolicy = schedulePolicy ?? (
+    createBookHomeworkScheduleEnforcement({
+      authorityStore,
+      activityPolicy: effectiveActivitySchedulePolicy,
+    }).policy
+  );
   return {
     repository: runtimeRepository,
     resolveBinding: async ({ bindingId, recipientId, contextId }) => {
@@ -87,7 +111,7 @@ const productionDependencies = (
       if (!resolved || resolved.record.binding.bindingId !== bindingId) return null;
       return resolved.record.binding;
     },
-    schedulePolicy,
+    schedulePolicy: effectiveSchedulePolicy,
     resolveActivity: async ({
       binding,
       placementId,
@@ -115,9 +139,18 @@ const productionDependencies = (
         return null;
       }
     },
-    resolveAttemptPolicy: async ({ binding }) => (
-      binding.context.kind === 'solo' ? { maxAttempts: null } : null
-    ),
+    resolveAttemptPolicy: async ({ binding, placementId }) => {
+      if (binding.context.kind === 'solo') return { maxAttempts: null };
+      if (binding.context.kind !== 'homework') return null;
+      const policy = await effectiveActivitySchedulePolicy.resolve({
+        assignmentId: binding.context.contextId,
+        recipientId: binding.recipient.recipientId,
+        policyId: binding.schedulePolicy.policyId,
+        policyRevision: binding.schedulePolicy.policyRevision,
+        placementId,
+      });
+      return policy ? { maxAttempts: policy.maxAttempts } : null;
+    },
   };
 };
 
@@ -129,9 +162,13 @@ const unavailable = () => ({
 export const createBookRuntimeCanonicalHandlers = (
   options: BookRuntimeCanonicalHandlersOptions = {},
 ) => {
-  const schedulePolicy = options.schedulePolicy ?? soloOnlyBookRuntimeSchedulePolicy;
+  const schedulePolicy = options.schedulePolicy;
   const createDependencies = options.createDependencies
-    ?? ((env: BookRuntimeCanonicalEnv) => productionDependencies(env, schedulePolicy));
+    ?? ((env: BookRuntimeCanonicalEnv) => productionDependencies(
+      env,
+      schedulePolicy,
+      options.activitySchedulePolicy,
+    ));
 
   const withDependencies = async <T>(
     env: BookRuntimeCanonicalEnv,

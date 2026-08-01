@@ -295,6 +295,7 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
     expect(result).toEqual({ body: { draft: null }, init: { status: 200 } });
     expect(readDatabaseValue).toHaveBeenCalledWith(
       'book_activity/versions/activity-1/activity-version-1',
+      undefined,
     );
   });
 });

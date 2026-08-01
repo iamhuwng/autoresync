@@ -14,6 +14,10 @@ import type { BookRuntimeDeliveryProjection } from '../services/book-delivery/bo
 import type { BookRuntimeNavigationState } from '../hooks/book-runtime/useBookRuntimeNavigation';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { ROUTES } from '../constants/routes';
+import {
+  requireBookScheduleWindowDecision,
+  type BookScheduleWindowDecision,
+} from '../services/book-delivery/bookScheduleWindow.service';
 
 const deliveryProjection: BookRuntimeDeliveryProjection = {
   schemaVersion: 1,
@@ -31,6 +35,10 @@ const deliveryProjection: BookRuntimeDeliveryProjection = {
     publicationStatus: 'published',
   },
   scope: { kind: 'subtree', nodeKeys: ['group-1', 'group-2'], placementIds: ['placement-choice', 'placement-source', 'placement-long'] },
+  outline: [
+    { nodeKey: 'group-1', parentNodeKey: null, nodeType: 'unit', order: 1, titleSnapshot: 'Practice group 1' },
+    { nodeKey: 'group-2', parentNodeKey: null, nodeType: 'unit', order: 2, titleSnapshot: 'Practice group 2' },
+  ],
   sourceSet: {
     strategy: 'full_pdf',
     sources: [{
@@ -421,6 +429,39 @@ export default function BookRuntimeShellSmokePage() {
   const activePlacement = activeProjection.activities.find(
     (activity) => activity.activityId === activeFixtureActivity.activityId,
   ) ?? activeProjection.activities[0]!;
+  const [scheduleWindow, setScheduleWindow] = useState<BookScheduleWindowDecision | null>(null);
+  const [scheduleWindowFailed, setScheduleWindowFailed] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    setScheduleWindow(null);
+    setScheduleWindowFailed(false);
+    void fetch('http://localhost:5187/v1/book-delivery/student-fixture/homework-fixture', {
+      headers: { Authorization: 'Bearer student-fixture-token' },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('book_schedule_window_unavailable');
+        const projection = await response.json() as {
+          activities?: Array<{ placementId?: string; scheduleWindow?: unknown }>;
+        };
+        const activity = projection.activities?.find(
+          (candidate) => candidate.placementId === activePlacement.placementId,
+        );
+        return requireBookScheduleWindowDecision(activity?.scheduleWindow);
+      })
+      .then((decision) => setScheduleWindow(decision))
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setScheduleWindowFailed(true);
+        }
+      });
+    return () => controller.abort();
+  }, [activePlacement.placementId]);
+  const windowState = scheduleWindow?.completed
+    ? 'review'
+    : scheduleWindow?.phase === 'overdue' && scheduleWindow.lateSubmissionAllowed
+      ? 'late-allowed'
+      : scheduleWindow?.phase ?? 'loading';
   const activeInteractionIds = useMemo(() => (
     Array.isArray((activeFixtureActivity.projection as { interactions?: unknown }).interactions)
       ? ((activeFixtureActivity.projection as { interactions: Array<{ interactionId: string }> }).interactions)
@@ -457,6 +498,8 @@ export default function BookRuntimeShellSmokePage() {
     recipientId: activeProjection.recipientId,
     address: runtimeAddress,
     interactionIds: activeInteractionIds,
+    ...(scheduleWindow ? { windowDecision: scheduleWindow } : {}),
+    enabled: scheduleWindow !== null,
     serializeResponse,
     onMetric: (metric) => trackAction('bookRuntimeMetricRecorded', {
       event: metric.event,
@@ -550,6 +593,37 @@ export default function BookRuntimeShellSmokePage() {
     );
   }
 
+  if (!scheduleWindow) {
+    return (
+      <StudentLayout sidebar={<StudentSidebar />}>
+        <main>
+          <section aria-live="polite" data-testid="book-window-state" data-window-state="loading">
+            <h1>{scheduleWindowFailed ? 'Activity window unavailable' : 'Checking Activity availability'}</h1>
+            <p>{scheduleWindowFailed
+              ? 'Trusted schedule enforcement is unavailable. Activity launch and mutation are disabled.'
+              : 'Loading the current server-authoritative Activity window.'}</p>
+          </section>
+        </main>
+      </StudentLayout>
+    );
+  }
+
+  if (!scheduleWindow.permissions.canLaunch && !scheduleWindow.permissions.canReview) {
+    return (
+      <StudentLayout
+        mobileTitle="Book Runtime"
+        rightPanel={null}
+        shellData={shellData}
+        sidebar={<StudentSidebar activePage="library" />}
+      >
+        <section aria-live="polite" data-testid="book-window-state" data-window-state={windowState}>
+          <h1>This Activity is not released yet</h1>
+          <p>The Book document remains authorized because the assignment has started.</p>
+        </section>
+      </StudentLayout>
+    );
+  }
+
   return (
     <StudentLayout
       mobileTitle="Book Runtime"
@@ -557,6 +631,20 @@ export default function BookRuntimeShellSmokePage() {
       shellData={shellData}
       sidebar={<StudentSidebar activePage="library" />}
     >
+      <p
+        aria-live="polite"
+        data-testid="book-window-state"
+        data-window-state={windowState}
+        style={{ marginTop: 0 }}
+      >
+        {windowState === 'review'
+          ? 'Completed Activity review is available.'
+          : scheduleWindow.phase === 'overdue'
+            ? scheduleWindow.permissions.canSubmit
+              ? 'The deadline has passed; late submission is allowed.'
+              : 'The deadline has passed; review remains available and submission is closed.'
+            : 'This Activity is available.'}
+      </p>
       <div aria-label="Runtime proof controls" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
         <button
           onClick={() => { fixtureRuntimeMode = 'failure'; }}
@@ -575,7 +663,7 @@ export default function BookRuntimeShellSmokePage() {
         <button
           aria-label={`Submit ${activeFixtureActivity.label}`}
           data-testid="book-runtime-submit"
-          disabled={runtime.terminalResult !== null}
+          disabled={runtime.terminalResult !== null || !scheduleWindow.permissions.canSubmit}
           onClick={() => {
             const interactionId = activeInteractionIds[0];
             if (!interactionId) return;
@@ -601,6 +689,8 @@ export default function BookRuntimeShellSmokePage() {
             ? 'Submitted for review'
             : runtime.terminalResult
               ? 'Activity submitted'
+              : !scheduleWindow.permissions.canSubmit
+                ? 'Submission closed'
               : 'Submit Activity'}
         </button>
       </div>

@@ -4,6 +4,10 @@ import type {
   BookRuntimeDraftRecord,
   BookRuntimeOperationReceipt,
 } from './activityRuntimeAttempt.types';
+import {
+  requireBookScheduleWindowDecision,
+  type BookScheduleWindowDecision,
+} from '../book-delivery/bookScheduleWindow.service';
 
 const MAX_RESPONSE_BYTES = 32 * 1024;
 const MAX_DRAFT_BYTES = 32 * 1024;
@@ -84,6 +88,7 @@ export class BookRuntimeClientError extends Error {
     readonly code: BookRuntimeClientErrorCode,
     readonly status = 0,
     readonly currentRevision?: number,
+    readonly currentWindow?: BookScheduleWindowDecision,
   ) {
     super(`book_runtime_client_${code}`);
     this.name = 'BookRuntimeClientError';
@@ -210,8 +215,19 @@ const codeFrom = (value: unknown): string | undefined => {
 
 const classify = (response: Response, body: unknown): BookRuntimeClientError => {
   const code = codeFrom(body);
+  let currentWindow: BookScheduleWindowDecision | undefined;
+  const candidate = record(record(body)?.currentScheduleAuthority)?.window;
+  if (candidate !== undefined) {
+    try {
+      currentWindow = requireBookScheduleWindowDecision(candidate);
+    } catch {
+      return new BookRuntimeClientError('invalid_response', 502);
+    }
+  }
   if (response.status === 401) return new BookRuntimeClientError('unauthorized', response.status);
-  if (response.status === 403) return new BookRuntimeClientError('forbidden', response.status);
+  if (response.status === 403) {
+    return new BookRuntimeClientError('forbidden', response.status, undefined, currentWindow);
+  }
   if (response.status === 404) return new BookRuntimeClientError('not_found', response.status);
   if (response.status === 409) {
     const currentRevision = record(body)?.currentRevision;
@@ -221,6 +237,7 @@ const classify = (response: Response, body: unknown): BookRuntimeClientError => 
       Number.isSafeInteger(currentRevision) && (currentRevision as number) >= 0
         ? currentRevision as number
         : undefined,
+      currentWindow,
     );
   }
   if (response.status === 429) return new BookRuntimeClientError('rate_limited', response.status);

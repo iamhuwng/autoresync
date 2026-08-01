@@ -7,6 +7,13 @@ import type {
   BookRuntimeTrustedCommandContext,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import {
+  assertBookRuntimeWindowForTarget,
+  sameBookRuntimeScheduleAuthority,
+} from '../../../../src/services/book-activity/activityRuntimeAttempt.service.ts';
+import {
+  requireBookScheduleWindowDecision,
+} from '../../../../src/services/book-delivery/bookScheduleWindow.service.ts';
+import {
   BOOK_DELIVERY_SCHEMA_VERSION,
   type BookDeliveryBinding,
   type BookDeliveryPlacement,
@@ -126,12 +133,26 @@ const projectAuthority = (
     || new Date(evaluatedAt).toISOString() !== value.evaluatedAt) {
     return undefined;
   }
+  let window;
+  try {
+    window = requireBookScheduleWindowDecision(value.window);
+  } catch {
+    return undefined;
+  }
+  if (window.scheduleSchemaVersion !== value.scheduleSchemaVersion
+    || window.scheduleResolverVersion !== value.resolverVersion
+    || window.policyRevision !== value.policyRevision
+    || window.authorityRevision !== value.authorityRevision
+    || window.evaluatedAt !== value.evaluatedAt) {
+    return undefined;
+  }
   return {
     scheduleSchemaVersion: value.scheduleSchemaVersion,
     resolverVersion: value.resolverVersion,
     policyRevision: value.policyRevision,
     authorityRevision: value.authorityRevision,
     evaluatedAt: value.evaluatedAt,
+    window,
   };
 };
 
@@ -147,6 +168,7 @@ const applyScheduleDecision = (
   decision: BookRuntimeScheduleDecision,
   binding: BookDeliveryBinding,
   policy: BookRuntimeSchedulePolicy,
+  input: BookRuntimeSchedulePolicyInput,
 ): BookRuntimeScheduleAuthority | undefined => {
   const authority = projectAuthority(decision.authority);
   if (decision.authority !== undefined && !authority) {
@@ -163,6 +185,22 @@ const applyScheduleDecision = (
   if (binding.context.kind === 'homework'
     && (!authority || typeof policy.revalidate !== 'function')) {
     deny('runtime_schedule_authority_unavailable', 503);
+  }
+  if (authority && binding.context.kind === 'homework') {
+    try {
+      assertBookRuntimeWindowForTarget({
+        authority,
+        actorUid: input.actorUid,
+        bindingId: binding.bindingId,
+        bindingRevision: binding.revision,
+        contextId: binding.context.contextId,
+        target: input.target,
+        operation: input.operation === 'document' ? 'state' : input.operation,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'runtime_schedule_window_invalid';
+      deny(code, code.includes('stale') ? 409 : 503, authority);
+    }
   }
   return authority;
 };
@@ -237,13 +275,19 @@ const authorizeDraftReadBinding = async (
   }
   const target = scheduleTarget(input);
   await requireResolvedTarget(actor.uid, binding, target, resolveTarget);
-  const scheduleAuthority = applyScheduleDecision(await schedulePolicy.authorize({
+  const scheduleInput: BookRuntimeSchedulePolicyInput = {
     operation: 'state',
     actorUid: actor.uid,
     binding,
     target,
     now,
-  }), binding, schedulePolicy);
+  };
+  const scheduleAuthority = applyScheduleDecision(
+    await schedulePolicy.authorize(scheduleInput),
+    binding,
+    schedulePolicy,
+    scheduleInput,
+  );
   return {
     actorUid: actor.uid,
     operationKind: 'state',
@@ -333,13 +377,19 @@ export const authorizeRuntimeCommand = async (
   }
   const target = scheduleTarget(command);
   await requireResolvedTarget(actor.uid, binding, target, resolveTarget);
-  const scheduleAuthority = applyScheduleDecision(await schedulePolicy.authorize({
+  const scheduleInput: BookRuntimeSchedulePolicyInput = {
     operation: command.commandKind as BookRuntimeCommandKind,
     actorUid: actor.uid,
     binding,
     target,
     now,
-  }), binding, schedulePolicy);
+  };
+  const scheduleAuthority = applyScheduleDecision(
+    await schedulePolicy.authorize(scheduleInput),
+    binding,
+    schedulePolicy,
+    scheduleInput,
+  );
   return {
     actorUid: actor.uid,
     operationKind: command.commandKind,
@@ -352,16 +402,6 @@ export const authorizeRuntimeCommand = async (
     ...(scheduleAuthority ? { scheduleAuthority } : {}),
   };
 };
-
-const sameScheduleAuthority = (
-  left: BookRuntimeScheduleAuthority,
-  right: BookRuntimeScheduleAuthority,
-): boolean => (
-  left.scheduleSchemaVersion === right.scheduleSchemaVersion
-  && left.resolverVersion === right.resolverVersion
-  && left.policyRevision === right.policyRevision
-  && left.authorityRevision === right.authorityRevision
-);
 
 export const revalidateRuntimeScheduleAuthorization = async (
   context: BookRuntimeTrustedCommandContext,
@@ -377,7 +417,7 @@ export const revalidateRuntimeScheduleAuthorization = async (
   if (!schedulePolicy.revalidate) {
     deny('runtime_schedule_authority_unavailable', 503);
   }
-  const current = applyScheduleDecision(await schedulePolicy.revalidate({
+  const scheduleInput = {
     operation: context.operationKind,
     actorUid: context.actorUid,
     binding: context.binding,
@@ -389,8 +429,14 @@ export const revalidateRuntimeScheduleAuthorization = async (
     },
     now,
     previousAuthority: context.scheduleAuthority,
-  }), context.binding, schedulePolicy);
-  if (!current || !sameScheduleAuthority(context.scheduleAuthority, current)) {
+  } as const;
+  const current = applyScheduleDecision(
+    await schedulePolicy.revalidate(scheduleInput),
+    context.binding,
+    schedulePolicy,
+    scheduleInput,
+  );
+  if (!current || !sameBookRuntimeScheduleAuthority(context.scheduleAuthority, current)) {
     deny('runtime_schedule_authority_stale', 409, current);
   }
   return { ...context, scheduleAuthority: current };

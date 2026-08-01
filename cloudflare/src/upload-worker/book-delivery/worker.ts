@@ -23,6 +23,23 @@ import {
   type BookAssemblyPublicationRepositoryEnv,
 } from '../book-assembly/publication-repository.ts';
 import { FirebaseRestBookDeliveryRepository, type BookDeliveryRepositoryEnv } from './repository.ts';
+import {
+  FirebaseRestBookHomeworkDocumentStore,
+  type BookHomeworkRepositoryEnv,
+} from '../book-homework/repository.ts';
+import {
+  resolveBookHomeworkLaunchWindows,
+} from './schedule-authority.ts';
+import type {
+  BookHomeworkActivitySchedulePolicyResolver,
+} from '../book-homework/schedule-enforcement.ts';
+import {
+  createBookHomeworkActivitySchedulePolicyResolver,
+} from '../book-homework/schedule-enforcement.ts';
+import {
+  FirebaseRestBookRuntimeRepository,
+  type BookRuntimeRepositoryEnv,
+} from '../book-runtime/repository.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 
@@ -79,7 +96,8 @@ interface BookDeliveryIssuanceIntent {
 }
 
 interface BookDeliveryWorkerEnv
-extends BookDeliveryRepositoryEnv, BookAssemblyPublicationRepositoryEnv {}
+extends BookDeliveryRepositoryEnv, BookAssemblyPublicationRepositoryEnv, BookHomeworkRepositoryEnv,
+BookRuntimeRepositoryEnv {}
 
 type TrustedPublicationLoader = (
   env: BookDeliveryWorkerEnv,
@@ -464,6 +482,8 @@ export const createBookDeliveryWorkerHandlers = (options: {
   ) => Promise<TrustedIssuanceContext | null> | TrustedIssuanceContext | null;
   allocateBindingId?: (operationId: string) => Promise<string> | string;
   now?: () => string;
+  homeworkAuthorityStore?: Pick<FirebaseRestBookHomeworkDocumentStore, 'read'>;
+  activitySchedulePolicy?: BookHomeworkActivitySchedulePolicyResolver;
 } = {}) => {
   const now = options.now ?? (() => new Date().toISOString());
   const repositoryFor = (env: BookDeliveryWorkerEnv) => (
@@ -635,7 +655,61 @@ export const createBookDeliveryWorkerHandlers = (options: {
           contextId: input.contextId,
           actor: { uid: input.uid },
         });
-        return { body: result as unknown as Record<string, unknown>, init: { status: 200 } };
+        if (result.context.kind !== 'homework') {
+          return { body: result as unknown as Record<string, unknown>, init: { status: 200 } };
+        }
+        const current = await repository.resolveCurrent(input.recipientId, input.contextId);
+        if (!current
+          || current.record.binding.bindingId !== result.bindingId
+          || current.record.binding.revision !== result.bindingRevision) {
+          throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+        }
+        const authorityStore = options.homeworkAuthorityStore
+          ?? new FirebaseRestBookHomeworkDocumentStore({ env: input.env });
+        const stored = await authorityStore.read(input.contextId);
+        if (!stored) throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+        const activitySchedulePolicy = options.activitySchedulePolicy
+          ?? createBookHomeworkActivitySchedulePolicyResolver({
+            authorityStore,
+            runtimeRepository: new FirebaseRestBookRuntimeRepository({ env: input.env }),
+          });
+        const policies = await Promise.all(current.record.binding.placements.map(
+          async (placement) => activitySchedulePolicy.resolve({
+            assignmentId: current.record.binding.context.contextId,
+            recipientId: current.record.binding.recipient.recipientId,
+            policyId: current.record.binding.schedulePolicy.policyId,
+            policyRevision: current.record.binding.schedulePolicy.policyRevision,
+            placementId: placement.placementId,
+          }),
+        ));
+        if (policies.some((policy) => policy === null)) {
+          throw new BookDeliveryProjectionError('book-delivery-schedule-policy-unavailable', 503);
+        }
+        const windows = resolveBookHomeworkLaunchWindows({
+          binding: current.record.binding,
+          authority: stored.value,
+          activityPolicies: Object.fromEntries(policies.map((policy) => [
+            policy!.placementId,
+            policy!,
+          ])),
+          evaluatedAt: now(),
+        });
+        const projection = {
+          ...result,
+          activities: result.activities.map((activity) => ({
+            ...activity,
+            scheduleWindow: windows[activity.placementId],
+          })),
+          actionFlags: {
+            canAutosave: result.activities.some((activity) =>
+              windows[activity.placementId]?.permissions.canAutosave === true),
+            canSubmit: result.activities.some((activity) =>
+              windows[activity.placementId]?.permissions.canSubmit === true),
+            canReview: result.activities.some((activity) =>
+              windows[activity.placementId]?.permissions.canReview === true),
+          },
+        };
+        return { body: projection as unknown as Record<string, unknown>, init: { status: 200 } };
       } catch (error) {
         const status = error instanceof BookDeliveryProjectionError ? error.status : 500;
         return {

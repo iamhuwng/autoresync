@@ -153,6 +153,8 @@ export interface BookRuntimeDeliveryActivityProjection {
     readonly pageGroupKeys: readonly string[];
     readonly sourcePageScopes: BookDeliveryPlacement['sourcePageScopes'];
   };
+  /** Required on trusted Homework projections; absent on non-scheduled contexts. */
+  readonly scheduleWindow?: import('./bookScheduleWindow.service').BookScheduleWindowDecision;
 }
 
 export interface BookRuntimeDeliveryProjection {

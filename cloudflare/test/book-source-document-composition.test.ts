@@ -7,6 +7,9 @@ import type {
   BookDeliveryBinding,
 } from '../../src/services/book-delivery/bookDelivery.types';
 import type {
+  BookHomeworkAuthorityRecord,
+} from '../../src/services/book-homework/bookHomeworkAuthority.types';
+import type {
   BookDocumentAuthorizedSource,
   LiveBookDocumentAuthority,
 } from '../src/upload-worker/book-delivery/documentAuthorization';
@@ -278,7 +281,7 @@ describe('Ticket #49 canonical source document composition', () => {
     expect(revoked).toEqual(['source-v1', 'source-v2']);
   });
 
-  it('requires every descendant in a homework subtree to be released', () => {
+  it('requires assignment start but never narrows an authorized PDF by nested schedules', () => {
     const binding = {
       ...studentBinding(),
       context: {
@@ -304,23 +307,63 @@ describe('Ticket #49 canonical source document composition', () => {
         },
       ],
     } as BookDeliveryBinding;
-    const authority = {
+    const placement = binding.placements[0]!;
+    const authority: BookHomeworkAuthorityRecord = {
       assignmentId: 'homework-1',
+      assignmentKind: 'book_activity_bundle',
+      schemaVersion: 1,
       ownerId: 'teacher-1',
-      visibility: { status: 'committed' },
-      saga: { state: 'committed' },
       bookManifest: {
+        schemaVersion: 1,
+        assignmentKind: 'book_activity_bundle',
+        manifestVersionId: 'manifest-1',
+        ownerId: 'teacher-1',
+        createdByCommandId: 'command-1',
+        createdAt: '2026-07-29T00:00:00.000Z',
         bindingRevision: 1,
-        book: {
-          bookId: 'book-pdf-1',
-          bookRevision: 3,
-          publicationId: 'publication-1',
-          publicationRevision: 4,
+        book: binding.book,
+        context: {
+          contextId: 'homework-1',
+          recipientId: 'student-1',
+          kind: 'homework',
+          entitlementBasis: 'assignment',
         },
-        context: { contextId: 'homework-1', recipientId: 'student-1' },
+        selectedTarget: { kind: 'unit', bookId: binding.book.bookId, nodeKey: 'unit-1' },
         outline: binding.outline,
+        scheduleRules: [{
+          nodeKey: 'activity-container-1',
+          availableFrom: '2026-07-31T00:00:00.000Z',
+        }],
+        bindings: [{
+          bindingId: 'activity-binding-1',
+          placementId: placement.placementId,
+          activityId: placement.activityId,
+          activityVersionId: placement.activityVersionId,
+          activityVersion: placement.activityVersion,
+          nodeKey: placement.nodeKey,
+          order: placement.order,
+          contextMode: placement.contextMode,
+          pageGroupKeys: placement.pageGroupKeys,
+          sourceReadiness: 'ready',
+          sourceContext: placement.sourcePageScopes.map((source) => ({
+            sourceKey: source.sourceKey,
+            sourceVersionId: binding.sourceSet.sources.find(
+              (candidate) => candidate.sourceKey === source.sourceKey,
+            )!.sourceVersionId,
+            physicalPageNumbers: source.pages,
+          })),
+          state: 'required',
+        }],
+        completion: {
+          aggregation: 'required-activities-submitted-over-required-activities',
+          requiredBindingCount: 1,
+          excludedBindingCount: 0,
+          legacyScoreFields: 'untouched',
+        },
       },
       schedule: {
+        schemaVersion: 1,
+        resolverVersion: 1,
         availableFrom: '2026-07-30T00:00:00.000Z',
         finalDueAt: '2026-08-01T00:00:00.000Z',
         scheduleRules: [{
@@ -328,17 +371,28 @@ describe('Ticket #49 canonical source document composition', () => {
           availableFrom: '2026-07-31T00:00:00.000Z',
         }],
       },
-    } as never;
+      studentExtensions: {},
+      saga: { sagaId: 'saga-1', state: 'committed', lastCommandId: 'command-1' },
+      visibility: {
+        status: 'committed',
+        pointerId: 'manifest-1',
+        manifestVersionId: 'manifest-1',
+        revision: 1,
+      },
+      revision: 1,
+      createdAt: '2026-07-29T00:00:00.000Z',
+      updatedAt: '2026-07-29T00:00:00.000Z',
+    };
 
     expect(isBookHomeworkDocumentScheduleOpen(
       binding,
       authority,
-      new Date('2026-07-30T12:00:00.000Z'),
+      new Date('2026-07-29T23:59:59.999Z'),
     )).toBe(false);
     expect(isBookHomeworkDocumentScheduleOpen(
       binding,
       authority,
-      new Date('2026-07-31T12:00:00.000Z'),
+      new Date('2026-07-30T12:00:00.000Z'),
     )).toBe(true);
   });
 });

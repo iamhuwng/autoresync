@@ -8,9 +8,9 @@ import {
   BOOK_DELIVERY_SCHEMA_VERSION,
   type BookDeliveryBinding,
 } from '../../src/services/book-delivery/bookDelivery.types.ts';
-import type {
-  BookRuntimeScheduleAuthority,
-} from '../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import type { BookRuntimeScheduleAuthority } from '../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import { createBookRuntimeScheduleAuthority } from '../../src/services/book-activity/activityRuntimeAttempt.service.ts';
+import { resolveBookScheduleWindow } from '../../src/services/book-delivery/bookScheduleWindow.service.ts';
 
 const binding = (overrides: Partial<BookDeliveryBinding> = {}): BookDeliveryBinding => ({
   schemaVersion: BOOK_DELIVERY_SCHEMA_VERSION,
@@ -79,11 +79,30 @@ const scheduleAuthority = (
   authorityRevision = 1,
   policyRevision = 1,
 ): BookRuntimeScheduleAuthority => ({
-  scheduleSchemaVersion: 1,
-  resolverVersion: 1,
-  policyRevision,
-  authorityRevision,
-  evaluatedAt: '2026-07-27T00:00:00.000Z',
+  ...createBookRuntimeScheduleAuthority(resolveBookScheduleWindow({
+    assignmentId: 'context-1',
+    recipientId: 'student-1',
+    bindingId: 'binding-1',
+    bindingRevision: 1,
+    placementId: 'placement-1',
+    activityId: 'activity-1',
+    activityVersion: 1,
+    nodeKey: 'unit-1',
+    operation: 'autosave',
+    schedule: {
+      schemaVersion: 1,
+      resolverVersion: 1,
+      availableFrom: '2026-07-26T00:00:00.000Z',
+      finalDueAt: '2026-07-28T00:00:00.000Z',
+      scheduleRules: [],
+    },
+    outline: binding().outline,
+    studentExtensions: {},
+    lateSubmissionAllowed: false,
+    policyRevision,
+    authorityRevision,
+    evaluatedAt: '2026-07-27T00:00:00.000Z',
+  })),
 });
 
 const resolveTarget = () => true;
