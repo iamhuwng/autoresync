@@ -177,6 +177,12 @@ const previewCanonical = (
       policyId: 'ticket86-policy',
       policyRevision: 1,
       fingerprint: 'ticket86-policy-fingerprint-v1',
+      activityPolicies: {
+        'ticket86-placement': {
+          lateSubmissionAllowed: false,
+          maxAttempts: 2,
+        },
+      },
     },
   };
 };

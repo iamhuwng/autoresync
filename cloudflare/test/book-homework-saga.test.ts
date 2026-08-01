@@ -149,7 +149,14 @@ const canonical = (): BookHomeworkSagaCanonicalState => {
     sourceReadiness: 'ready',
     exposureApproval: { approved: true, fingerprint: 'exposure-fingerprint-1' },
     capabilities: { canAssignBookHomework: true },
-    frozenPolicy: { policyId: 'policy-1', policyRevision: 1, fingerprint: 'policy-fingerprint-1' },
+    frozenPolicy: {
+      policyId: 'policy-1',
+      policyRevision: 1,
+      fingerprint: 'policy-fingerprint-1',
+      activityPolicies: {
+        'placement-1': { lateSubmissionAllowed: false, maxAttempts: 2 },
+      },
+    },
   };
 };
 
@@ -225,14 +232,54 @@ const makeFirebase = () => {
 
 describe('Book Homework assignment saga', () => {
   it('fans out exact recipients, persists extensions, and commits one visibility gate', async () => {
-    const { saga, repository } = makeSaga();
+    const { saga, authority, repository } = makeSaga();
     const result = await saga.execute(command());
     expect(result.status).toBe('committed');
     expect(result.record.visibility).toBe('committed');
     expect(result.record.recipients.map((entry) => entry.recipientId)).toEqual(['student-1', 'student-2']);
     expect((await saga.resolveStudentProjection('assignment-1', 'student-1'))?.delivery.record.status).toBe('active');
     expect((await saga.resolveStudentProjection('assignment-1', 'student-2'))?.authority?.studentExtensions['unit-1']?.dueAt).toBe('2026-08-21T00:00:00.000Z');
+    const firstAuthorityId = result.record.recipients[0]?.authorityId;
+    expect((await authority.read(firstAuthorityId as string))?.activityPolicies).toEqual({
+      'placement-1': {
+        schemaVersion: 1,
+        policyId: 'policy-1',
+        policyRevision: 1,
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-version-1',
+        activityVersion: 1,
+        lateSubmissionAllowed: false,
+        maxAttempts: 2,
+      },
+    });
     expect((await repository.read('assignment-1'))?.recipients.every((entry) => entry.state === 'committed')).toBe(true);
+  });
+
+  it('fails before fan-out when the frozen policy body is incomplete', async () => {
+    const current = canonical();
+    const { saga, repository } = makeSaga({
+      ...current,
+      frozenPolicy: { ...current.frozenPolicy, activityPolicies: {} },
+    });
+    await expect(saga.execute(command())).rejects.toMatchObject({ code: 'stale-policy' });
+    await expect(repository.read('assignment-1')).resolves.toBeNull();
+  });
+
+  it('fails before fan-out when Delivery references a different frozen policy', async () => {
+    const current = canonical();
+    const { saga, repository } = makeSaga({
+      ...current,
+      deliveryPublication: {
+        ...current.deliveryPublication,
+        schedulePolicy: {
+          ...current.deliveryPublication.schedulePolicy,
+          policyRevision: current.frozenPolicy.policyRevision + 1,
+        },
+      },
+    });
+    await expect(saga.execute(command())).rejects.toMatchObject({ code: 'stale-publication' });
+    await expect(repository.read('assignment-1')).resolves.toBeNull();
   });
 
   it('keeps all readers hidden during a crash and resumes missing fan-out work', async () => {

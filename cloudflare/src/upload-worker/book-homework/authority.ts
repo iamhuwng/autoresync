@@ -8,6 +8,7 @@ import {
 import type {
   BookHomeworkAuthorityRecord,
   BookHomeworkAuthoritySchedule,
+  BookHomeworkActivityPolicySnapshot,
   BookHomeworkOperationRecord,
   BookHomeworkSagaState,
   BookHomeworkStudentExtension,
@@ -22,6 +23,7 @@ const OPERATION = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const STATES: readonly BookHomeworkSagaState[] = ['prepared', 'committed', 'compensating'];
 const MAX_OPERATIONS = 64;
 const MAX_EXTENSIONS = 512;
+const MAX_ACTIVITY_POLICIES = 128;
 
 export class BookHomeworkAuthorityError extends Error {
   constructor(
@@ -133,6 +135,32 @@ const assertExtension = (value: unknown): asserts value is BookHomeworkStudentEx
   assertIso(value.updatedAt, 'student extension updatedAt');
 };
 
+const assertActivityPolicy = (
+  value: unknown,
+  placementId: string,
+): asserts value is BookHomeworkActivityPolicySnapshot => {
+  if (!isRecord(value)) fail('Book Homework Activity policy is not an object.');
+  exactKeys(value, [
+    'schemaVersion', 'policyId', 'policyRevision', 'placementId', 'activityId',
+    'activityVersionId', 'activityVersion', 'lateSubmissionAllowed', 'maxAttempts',
+  ]);
+  if (value.schemaVersion !== 1) fail('Book Homework Activity policy schema is unsupported.');
+  assertId(value.policyId, 'Activity policy policyId');
+  assertId(value.placementId, 'Activity policy placementId');
+  assertId(value.activityId, 'Activity policy activityId');
+  assertId(value.activityVersionId, 'Activity policy activityVersionId');
+  if (value.placementId !== placementId
+    || !Number.isSafeInteger(value.policyRevision) || value.policyRevision <= 0
+    || !Number.isSafeInteger(value.activityVersion) || value.activityVersion <= 0
+    || typeof value.lateSubmissionAllowed !== 'boolean'
+    || (value.maxAttempts !== null
+      && (!Number.isSafeInteger(value.maxAttempts)
+        || value.maxAttempts <= 0
+        || value.maxAttempts > 50))) {
+    fail('Book Homework Activity policy is invalid.');
+  }
+};
+
 const assertOperation = (value: unknown): asserts value is BookHomeworkOperationRecord => {
   if (!isRecord(value)) fail('Book Homework operation is not an object.');
   exactKeys(value, ['fingerprint', 'result', 'createdAt']);
@@ -151,6 +179,17 @@ const assertOperation = (value: unknown): asserts value is BookHomeworkOperation
 };
 
 const assertRecordMaps = (record: Record<string, unknown>): void => {
+  if (record.activityPolicies !== undefined) {
+    if (!isRecord(record.activityPolicies)
+      || Object.keys(record.activityPolicies).length === 0
+      || Object.keys(record.activityPolicies).length > MAX_ACTIVITY_POLICIES) {
+      fail('Book Homework Activity policies are invalid.');
+    }
+    Object.entries(record.activityPolicies).forEach(([placementId, policy]) => {
+      assertId(placementId, 'Activity policy placementId');
+      assertActivityPolicy(policy, placementId);
+    });
+  }
   const extensions = record.studentExtensions;
   if (!isRecord(extensions) || Object.keys(extensions).length > MAX_EXTENSIONS) fail('Student extensions are invalid.');
   Object.entries(extensions).forEach(([studentId, studentExtensions]) => {
@@ -181,7 +220,7 @@ export const assertValidBookHomeworkAuthorityRecord = (
   exactKeys(value, [
     'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest', 'schedule',
     'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt', 'updatedAt',
-  ], ['operations']);
+  ], ['activityPolicies', 'operations']);
   assertId(value.assignmentId, 'assignmentId');
   assertId(value.ownerId, 'ownerId');
   if (value.assignmentKind !== 'book_activity_bundle' || value.schemaVersion !== BOOK_HOMEWORK_AUTHORITY_SCHEMA_VERSION) {
@@ -199,6 +238,24 @@ export const assertValidBookHomeworkAuthorityRecord = (
   if (value.bookManifest.ownerId !== value.ownerId) fail('Manifest owner does not match authority owner.');
   assertValidBookHomeworkSchedule(value.schedule, value.bookManifest.outline);
   assertRecordMaps(value);
+  if (value.activityPolicies) {
+    const required = value.bookManifest.bindings.filter((binding) => binding.state === 'required');
+    const policies = Object.values(value.activityPolicies);
+    const policyIdentity = policies[0];
+    if (Object.keys(value.activityPolicies).length !== required.length
+      || !policyIdentity
+      || policies.some((policy) => policy.policyId !== policyIdentity.policyId
+        || policy.policyRevision !== policyIdentity.policyRevision)
+      || required.some((binding) => {
+        const policy = value.activityPolicies?.[binding.placementId];
+        return !policy
+          || policy.activityId !== binding.activityId
+          || policy.activityVersionId !== binding.activityVersionId
+          || policy.activityVersion !== binding.activityVersion;
+      })) {
+      fail('Book Homework Activity policies do not match the frozen manifest.');
+    }
+  }
   Object.keys(value.studentExtensions).forEach((studentId) => {
     if (studentId !== value.bookManifest.context.recipientId) {
       fail('Student extensions exceed the frozen recipient boundary.');

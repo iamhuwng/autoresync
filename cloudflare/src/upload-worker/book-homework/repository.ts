@@ -185,6 +185,9 @@ export class BookHomeworkAuthorityRepository {
 
   async create(input: BookHomeworkCreateCommand): Promise<BookHomeworkAuthorityMutationResult> {
     validateCommandCommon(input);
+    if (!input.activityPolicies || Object.keys(input.activityPolicies).length === 0) {
+      throw new BookHomeworkAuthorityError('invalid-command', 'Create requires frozen Activity policies.');
+    }
     if (input.expectedRevision !== 0) throw new BookHomeworkAuthorityError('invalid-command', 'Create expected revision must be zero.');
     if (input.manifest.ownerId !== input.ownerId) throw new BookHomeworkAuthorityError('owner-mismatch', 'Manifest owner does not match create owner.');
     assertValidBookHomeworkSchedule(input.schedule, input.manifest.outline);
@@ -198,6 +201,7 @@ export class BookHomeworkAuthorityRepository {
       ownerId: input.ownerId,
       bookManifest: input.manifest,
       schedule: input.schedule,
+      activityPolicies: input.activityPolicies,
       studentExtensions: {},
       saga: { sagaId: input.sagaId, state: 'prepared', lastCommandId: input.commandId },
       visibility: {
@@ -220,6 +224,7 @@ export class BookHomeworkAuthorityRepository {
         ownerId: input.ownerId,
         bookManifest: clone(input.manifest),
         schedule: clone(input.schedule),
+        activityPolicies: clone(input.activityPolicies),
         studentExtensions: {},
         saga: { sagaId: input.sagaId, state: 'prepared', lastCommandId: input.commandId },
         visibility: {

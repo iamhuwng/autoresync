@@ -83,6 +83,19 @@ const createCommand = (): BookHomeworkCreateCommand => ({
   ownerId: 'teacher-1',
   manifest,
   schedule: schedule(),
+  activityPolicies: {
+    'placement-1': {
+      schemaVersion: 1,
+      policyId: 'policy-1',
+      policyRevision: 1,
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersionId: 'activity-version-1',
+      activityVersion: 1,
+      lateSubmissionAllowed: false,
+      maxAttempts: 2,
+    },
+  },
   sagaId: 'saga-1',
   commandId: 'command-create',
   idempotencyKey: 'operation-create',
@@ -126,6 +139,24 @@ describe('Book Homework Firestore authority', () => {
       commandId: 'command-other', idempotencyKey: 'operation-create', expectedRevision: 2,
       updatedAt: '2026-07-28T00:02:00.000Z',
     }), 'idempotency-conflict');
+  });
+
+  it('rejects a policy snapshot that does not match the frozen Activity Version', async () => {
+    const current = createCommand();
+    const policy = current.activityPolicies['placement-1']!;
+    await expect(createRepository().create({
+      ...current,
+      activityPolicies: {
+        'placement-1': { ...policy, activityVersionId: 'forged-version' },
+      },
+    })).rejects.toMatchObject({ code: 'invalid-record' });
+  });
+
+  it('requires policy snapshots on new records', async () => {
+    await expect(createRepository().create({
+      ...createCommand(),
+      activityPolicies: undefined,
+    } as unknown as BookHomeworkCreateCommand)).rejects.toMatchObject({ code: 'invalid-command' });
   });
 
   it('enforces owner, revision, immutable manifest, and started-student deadline gates', async () => {

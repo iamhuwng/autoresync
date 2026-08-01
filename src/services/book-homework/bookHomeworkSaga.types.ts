@@ -89,6 +89,10 @@ export interface BookHomeworkSagaCanonicalState {
     readonly policyId: string;
     readonly policyRevision: number;
     readonly fingerprint: string;
+    readonly activityPolicies: Readonly<Record<string, {
+      readonly lateSubmissionAllowed: boolean;
+      readonly maxAttempts: number | null;
+    }>>;
   };
 }
 

@@ -8,6 +8,9 @@ import {
   type BookHomeworkSagaRepository,
 } from './sagaRepository.ts';
 import type {
+  BookHomeworkActivityPolicySnapshot,
+} from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
+import type {
   BookHomeworkSagaCanonicalState,
   BookHomeworkSagaCommand,
   BookHomeworkSagaRecord,
@@ -111,6 +114,38 @@ const sortedUniqueIds = (value: unknown, label: string, max: number): readonly s
 const sameIds = (left: readonly string[], right: readonly string[]): boolean => (
   left.length === right.length && left.every((id, index) => id === right[index])
 );
+
+const activityPolicySnapshots = (
+  canonical: BookHomeworkSagaCanonicalState,
+): Readonly<Record<string, BookHomeworkActivityPolicySnapshot>> => {
+  const required = canonical.manifest.bindings.filter((binding) => binding.state === 'required');
+  const supplied = canonical.frozenPolicy.activityPolicies;
+  if (Object.keys(supplied).length !== required.length) {
+    throw new BookHomeworkSagaError('stale-policy', 'Frozen Activity policy set does not match required Placements.');
+  }
+  return Object.fromEntries(required.map((binding) => {
+    const policy = supplied[binding.placementId];
+    if (!policy
+      || typeof policy.lateSubmissionAllowed !== 'boolean'
+      || (policy.maxAttempts !== null
+        && (!Number.isSafeInteger(policy.maxAttempts)
+          || policy.maxAttempts <= 0
+          || policy.maxAttempts > 50))) {
+      throw new BookHomeworkSagaError('stale-policy', 'Frozen Activity policy is missing or invalid.');
+    }
+    return [binding.placementId, {
+      schemaVersion: 1 as const,
+      policyId: canonical.frozenPolicy.policyId,
+      policyRevision: canonical.frozenPolicy.policyRevision,
+      placementId: binding.placementId,
+      activityId: binding.activityId,
+      activityVersionId: binding.activityVersionId,
+      activityVersion: binding.activityVersion,
+      lateSubmissionAllowed: policy.lateSubmissionAllowed,
+      maxAttempts: policy.maxAttempts,
+    }];
+  }));
+};
 
 const assertCommandEnvelope = (
   command: BookHomeworkSagaCommand,
@@ -237,6 +272,12 @@ const assertCanonical = (
     || stable(canonical.manifest) !== command.expectedManifestFingerprint) {
     throw new BookHomeworkSagaError('stale-input', 'A publication, manifest, exposure, or frozen policy fingerprint changed.');
   }
+  if (!ID.test(canonical.frozenPolicy.policyId)
+    || !Number.isSafeInteger(canonical.frozenPolicy.policyRevision)
+    || canonical.frozenPolicy.policyRevision <= 0) {
+    throw new BookHomeworkSagaError('stale-policy', 'Frozen policy identity is invalid.');
+  }
+  activityPolicySnapshots(canonical);
   const requiredUnavailable = canonical.manifest.bindings.some((binding) => (
     binding.state === 'required' && binding.sourceReadiness === 'unavailable'
   ));
@@ -245,7 +286,9 @@ const assertCanonical = (
     || canonical.deliveryPublication.publicationId !== canonical.manifest.book.publicationId
     || canonical.deliveryPublication.publicationRevision !== canonical.manifest.book.publicationRevision
     || canonical.deliveryPublication.publicationStatus !== 'published'
-    || canonical.deliveryPublication.ownerId !== command.ownerId) {
+    || canonical.deliveryPublication.ownerId !== command.ownerId
+    || canonical.deliveryPublication.schedulePolicy.policyId !== canonical.frozenPolicy.policyId
+    || canonical.deliveryPublication.schedulePolicy.policyRevision !== canonical.frozenPolicy.policyRevision) {
     throw new BookHomeworkSagaError('stale-publication', 'Delivery publication is not the canonical published publication.');
   }
   for (const [recipientId, extensions] of Object.entries(canonical.studentExtensions)) {
@@ -507,6 +550,7 @@ export class BookHomeworkAssignmentSaga {
         ownerId: command.ownerId,
         manifest,
         schedule: canonical.schedule,
+        activityPolicies: activityPolicySnapshots(canonical),
         sagaId: command.assignmentId,
         commandId: childId(command.operationId, entry.recipientId, 'authority-create'),
         idempotencyKey: childId(command.idempotencyKey, entry.recipientId, 'authority-create'),
@@ -518,6 +562,7 @@ export class BookHomeworkAssignmentSaga {
     if (!authority || authority.ownerId !== command.ownerId
       || authority.bookManifest.context.recipientId !== entry.recipientId
       || authority.bookManifest.manifestVersionId !== command.manifestVersionId
+      || stable(authority.activityPolicies) !== stable(activityPolicySnapshots(canonical))
       || authority.visibility.status === 'compensating') {
       throw new BookHomeworkSagaError('authority-conflict', 'Existing authority does not match the canonical recipient record.');
     }

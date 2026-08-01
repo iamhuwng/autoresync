@@ -10,6 +10,18 @@ export const BOOK_HOMEWORK_SCHEDULE_RESOLVER_VERSION = 1 as const;
 export type BookHomeworkSagaState = 'prepared' | 'committed' | 'compensating';
 export type BookHomeworkStudentState = 'not-started' | 'in-progress' | 'submitted';
 
+export interface BookHomeworkActivityPolicySnapshot {
+  readonly schemaVersion: 1;
+  readonly policyId: string;
+  readonly policyRevision: number;
+  readonly placementId: string;
+  readonly activityId: string;
+  readonly activityVersionId: string;
+  readonly activityVersion: number;
+  readonly lateSubmissionAllowed: boolean;
+  readonly maxAttempts: number | null;
+}
+
 export interface BookHomeworkAuthoritySchedule {
   readonly schemaVersion: typeof BOOK_HOMEWORK_AUTHORITY_SCHEMA_VERSION;
   readonly resolverVersion: typeof BOOK_HOMEWORK_SCHEDULE_RESOLVER_VERSION;
@@ -59,6 +71,8 @@ export interface BookHomeworkAuthorityRecord {
   readonly ownerId: string;
   readonly bookManifest: BookHomeworkManifest;
   readonly schedule: BookHomeworkAuthoritySchedule;
+  /** Frozen assignment policy. Older records may omit it and fail closed at trusted runtime use. */
+  readonly activityPolicies?: Readonly<Record<string, BookHomeworkActivityPolicySnapshot>>;
   readonly studentExtensions: Readonly<Record<string, Readonly<Record<string, BookHomeworkStudentExtension>>>>;
   readonly saga: BookHomeworkSagaRecord;
   readonly visibility: BookHomeworkVisibilityPointer;
@@ -73,6 +87,7 @@ export interface BookHomeworkCreateCommand {
   readonly ownerId: string;
   readonly manifest: BookHomeworkManifest;
   readonly schedule: BookHomeworkAuthoritySchedule;
+  readonly activityPolicies: Readonly<Record<string, BookHomeworkActivityPolicySnapshot>>;
   readonly sagaId: string;
   readonly commandId: string;
   readonly idempotencyKey: string;
