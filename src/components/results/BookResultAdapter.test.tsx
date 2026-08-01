@@ -10,6 +10,9 @@ import {
   createBookResultRouteHandle,
   type BookResultBrowserClient,
 } from '../../services/bookResult.browser';
+import type {
+  BookActivityEvaluationBrowserClient,
+} from '../../services/book-activity/activityEvaluation.browser';
 import {
   BookResultAdapter,
   resetBookResultAdapterCacheForTests,
@@ -36,6 +39,9 @@ vi.mock('./BookGroupedResultView', () => ({
     detail,
     refreshing,
     switchingAttempt,
+    evaluationProjection,
+    evaluationLoading,
+    evaluationError,
     onAttemptChange,
   }: {
     group: BookResultGroupSummary;
@@ -43,6 +49,9 @@ vi.mock('./BookGroupedResultView', () => ({
     detail: BookResultAttemptDetail | null;
     refreshing: boolean;
     switchingAttempt: boolean;
+    evaluationProjection: unknown;
+    evaluationLoading: boolean;
+    evaluationError: string | null;
     onAttemptChange: (attemptId: string) => void;
   }) => (
     <div data-testid="grouped-result">
@@ -62,6 +71,9 @@ vi.mock('./BookGroupedResultView', () => ({
       </span>
       {refreshing && <span>refreshing</span>}
       {switchingAttempt && <span>switching</span>}
+      <span data-testid="evaluation-state">
+        {JSON.stringify({ evaluationProjection, evaluationLoading, evaluationError })}
+      </span>
       <button type="button" onClick={() => onAttemptChange('attempt-1')}>Choose first</button>
     </div>
   ),
@@ -382,5 +394,71 @@ describe('BookResultAdapter', () => {
     expect(screen.getByTestId('grouped-result')).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent('do not have access');
     expect(screen.queryByTestId('grouped-result')).not.toBeInTheDocument();
+  });
+
+  it('reads the policy-filtered evaluation for the exact selected student attempt', async () => {
+    const resultClient = client();
+    vi.mocked(resultClient.readDetail).mockImplementation(async (_address, resultId) => ({
+      ...detail(resultId === 'result-2' ? latest : first),
+      surface: 'homework',
+      contextId: 'homework-1',
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersionId: 'activity-version-2',
+    }));
+    const evaluationClient = {
+      readTeacherEvaluation: vi.fn(),
+      grade: vi.fn(),
+      regrade: vi.fn(),
+      readStudentResult: vi.fn(async () => ({
+        attemptId: 'attempt-2',
+        status: 'graded' as const,
+        feedback: 'Policy released',
+      })),
+    } satisfies BookActivityEvaluationBrowserClient;
+    render(
+      <BookResultAdapter
+        routeHandle={routeHandle}
+        viewerRole="student"
+        viewerId="student-1"
+        client={resultClient}
+        evaluationClient={evaluationClient}
+      />,
+    );
+
+    await waitFor(() => expect(evaluationClient.readStudentResult).toHaveBeenCalledWith({
+      bookId: 'book-1',
+      studentId: 'student-1',
+      contextKind: 'homework',
+      contextId: 'homework-1',
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersionId: 'activity-version-2',
+      attemptId: 'attempt-2',
+    }));
+    await waitFor(() => expect(screen.getByTestId('evaluation-state')).toHaveTextContent(
+      'Policy released',
+    ));
+  });
+
+  it('does not read evaluation history for a teacher', async () => {
+    const evaluationClient = {
+      readTeacherEvaluation: vi.fn(),
+      grade: vi.fn(),
+      regrade: vi.fn(),
+      readStudentResult: vi.fn(),
+    } satisfies BookActivityEvaluationBrowserClient;
+    render(
+      <BookResultAdapter
+        routeHandle={routeHandle}
+        viewerRole="teacher"
+        viewerId="teacher-1"
+        client={client()}
+        evaluationClient={evaluationClient}
+      />,
+    );
+
+    await screen.findByText(`${routeAddress.groupKey}:attempt-2:result-2`);
+    expect(evaluationClient.readStudentResult).not.toHaveBeenCalled();
   });
 });

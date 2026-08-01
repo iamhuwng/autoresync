@@ -10,6 +10,7 @@ import HomeworkScoreDistribution from '../components/homework/HomeworkScoreDistr
 import HomeworkSubmissionTable, { HomeworkSubmissionTableRow } from '../components/homework/HomeworkSubmissionTable';
 import { HomeworkStatusBadge } from '../components/homework/HomeworkStatusBadge';
 import { ResultDetailModal } from '../components/results/ResultDetailModal';
+import { BookActivityGradingPanel } from '../components/results/BookActivityGradingPanel';
 import ExtendStudentDeadlineModal from '../components/homework/ExtendStudentDeadlineModal';
 import ExemptStudentModal from '../components/homework/ExemptStudentModal';
 import { useHomeworkDetail } from '../hooks/useHomeworkDetail';
@@ -39,6 +40,10 @@ import type {
     BookHomeworkProgressActivity,
     BookHomeworkProgressProjection,
 } from '../services/book-homework/bookHomeworkProgress.types';
+import {
+    isBookActivityEvaluationPresentationEnabled,
+    type BookActivityEvaluationLocator,
+} from '../services/book-activity/activityEvaluation.browser';
 import { normalizeHomeworkIntegrity } from '../utils/integrityUtils';
 
 interface AssignedStudent {
@@ -70,12 +75,17 @@ export function TeacherBookHomeworkProgressPanel({
     studentNames,
     onBack,
     onRetry,
+    onGradeActivity,
 }: {
     rows: readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null;
     error: string | null;
     studentNames: ReadonlyMap<string, string>;
     onBack: () => void;
     onRetry?: () => void;
+    onGradeActivity?: (
+        studentId: string,
+        activity: BookHomeworkProgressActivity,
+    ) => void;
 }) {
     return (
         <section
@@ -169,11 +179,22 @@ export function TeacherBookHomeworkProgressPanel({
                                                 <span style={{ color: '#334155', overflowWrap: 'anywhere' }}>
                                                     Activity {activity.order > 0 ? activity.order : index + 1}: {activity.activityId} — {getBookActivityStateLabel(activity)}
                                                 </span>
-                                                {activity.score ? (
-                                                    <span style={{ color: '#475569', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                                                        Activity score: {activity.score.displayScore ?? `${activity.score.earnedScore} / ${activity.score.maximumScore}`}
-                                                    </span>
-                                                ) : null}
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                    {activity.score ? (
+                                                        <span style={{ color: '#475569', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                                                            Activity score: {activity.score.displayScore ?? `${activity.score.earnedScore} / ${activity.score.maximumScore}`}
+                                                        </span>
+                                                    ) : null}
+                                                    {activity.submitted && onGradeActivity ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onGradeActivity(studentId, activity)}
+                                                            style={{ minWidth: 44, minHeight: 44 }}
+                                                        >
+                                                            {activity.gradingState === 'scored' ? 'Review / regrade' : 'Grade Activity'}
+                                                        </button>
+                                                    ) : null}
+                                                </span>
                                             </div>
                                         ))}
                                     </div>
@@ -321,6 +342,11 @@ function TeacherHomeworkDetailPage() {
     const [bookProgressError, setBookProgressError] = useState<string | null>(null);
     const [bookProgressAttempted, setBookProgressAttempted] = useState(false);
     const [bookProgressRetry, setBookProgressRetry] = useState(0);
+    const [selectedBookEvaluation, setSelectedBookEvaluation] = useState<{
+        locator: BookActivityEvaluationLocator;
+        studentName: string;
+        activityLabel: string;
+    } | null>(null);
     const bookProgressRequestRef = useRef<{
         key: string;
         promise: Promise<readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null>;
@@ -332,6 +358,7 @@ function TeacherHomeworkDetailPage() {
             homework as unknown as Parameters<typeof isBookHomeworkAssignment>[0],
         ),
     );
+    const bookEvaluationPresentationEnabled = isBookActivityEvaluationPresentationEnabled();
 
     // Book Homework progress is a single trusted batch projection. It is
     // intentionally separate from legacy submission rows and never fans out
@@ -895,6 +922,14 @@ function TeacherHomeworkDetailPage() {
 
     if (bookProgressSurface) {
         const studentNames = new Map(assignedStudents.map((student) => [student.studentId, student.studentName]));
+        const bookHomeworkCandidate = homework as unknown as {
+            assignmentKind?: string;
+            bookManifest?: unknown;
+        } | null;
+        const bookManifest = bookHomeworkCandidate
+            && isBookHomeworkAssignment(bookHomeworkCandidate)
+            ? bookHomeworkCandidate.bookManifest
+            : null;
         return (
             <div className="teacher-homework-detail-page" style={{ background: '#f8fafc' }}>
                 <TeacherHeader
@@ -929,6 +964,37 @@ function TeacherHomeworkDetailPage() {
                                 trackAction('bookHomeworkProgressRetry', { role: 'teacher' });
                                 setBookProgressRetry((value) => value + 1);
                             }}
+                            onGradeActivity={bookEvaluationPresentationEnabled && bookManifest
+                                ? (studentId, activity) => {
+                                    trackAction('bookActivityGradingOpened', {
+                                        activityId: activity.activityId,
+                                    });
+                                    setSelectedBookEvaluation({
+                                        locator: {
+                                            bookId: bookManifest.book.bookId,
+                                            studentId,
+                                            contextKind: 'homework',
+                                            contextId: homeworkId!,
+                                            placementId: activity.placementId,
+                                            activityId: activity.activityId,
+                                            activityVersionId: activity.activityVersionId,
+                                            ...(activity.terminalId === undefined
+                                                ? {}
+                                                : { terminalId: activity.terminalId }),
+                                        },
+                                        studentName: studentNames.get(studentId) || studentId,
+                                        activityLabel: `Activity ${activity.order || activity.activityId}: ${activity.activityId}`,
+                                    });
+                                }
+                                : undefined}
+                        />
+                    )}
+                    {selectedBookEvaluation && (
+                        <BookActivityGradingPanel
+                            locator={selectedBookEvaluation.locator}
+                            studentName={selectedBookEvaluation.studentName}
+                            activityLabel={selectedBookEvaluation.activityLabel}
+                            onAction={(action, metadata) => trackAction(action, metadata)}
                         />
                     )}
                 </div>

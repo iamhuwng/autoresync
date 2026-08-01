@@ -122,6 +122,12 @@ describe('featureRegistry', () => {
         'reading_v2_assignment_refresh_opened',
         'reading_v2_assignment_refresh_submitted',
         'reading_v2_assignment_refresh_blocked_started',
+        'bookActivityGradingOpened',
+        'bookActivityEvaluationLoaded',
+        'bookActivityGradeSubmitted',
+        'bookActivityRegradeSubmitted',
+        'bookActivityEvaluationConflict',
+        'bookActivityEvaluationRetried',
       ]));
       expect(liveSessions?.actions).toContain('viewIntegrityDetails');
       expect(results?.actions).toContain('viewIntegrityDetails');
@@ -216,6 +222,7 @@ describe('featureRegistry', () => {
           'submitReadingV2Feedback',
           'createReadingV2Regrade',
           'readingV2OperationalError',
+          'bookActivityResultRetried',
         ]),
       );
       expect(antiCheat?.actions).toEqual(

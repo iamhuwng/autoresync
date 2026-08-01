@@ -5,6 +5,14 @@ import type {
   BookResultAttemptDetail,
   BookResultGroupSummary,
 } from '../../services/book-activity/results/bookResult.types';
+import type {
+  BookActivityStudentResultProjection,
+} from '../../services/book-activity/bookResultVisibility.service';
+import {
+  createBookActivityEvaluationBrowserClient,
+  isBookActivityEvaluationPresentationEnabled,
+  type BookActivityEvaluationBrowserClient,
+} from '../../services/book-activity/activityEvaluation.browser';
 import {
   BookResultBrowserError,
   createBookResultBrowserClient,
@@ -21,6 +29,7 @@ export interface BookResultAdapterProps {
   readonly viewerRole: 'student' | 'teacher';
   readonly viewerId?: string;
   readonly client?: BookResultBrowserClient;
+  readonly evaluationClient?: BookActivityEvaluationBrowserClient;
 }
 
 const groupCache = new Map<string, BookResultGroupSummary>();
@@ -42,6 +51,10 @@ const visibleError = (error: unknown): string => {
   return 'We could not load this Activity result. Please try again.';
 };
 
+const visibleEvaluationError = (): string => (
+  'Released evaluation details could not be refreshed. Try again.'
+);
+
 const invalidatesCachedAuthority = (error: unknown): boolean => (
   error instanceof BookResultBrowserError
   && ['forbidden', 'unauthorized', 'not_found', 'route_disabled'].includes(error.code)
@@ -59,6 +72,7 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
   viewerRole,
   viewerId,
   client: clientOverride,
+  evaluationClient: evaluationClientOverride,
 }) => {
   const address = React.useMemo(
     () => parseBookResultRouteHandle(routeHandle),
@@ -68,6 +82,15 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
     if (clientOverride) return clientOverride;
     try {
       return createBookResultBrowserClient();
+    } catch {
+      return null;
+    }
+  });
+  const [evaluationClient] = React.useState<BookActivityEvaluationBrowserClient | null>(() => {
+    if (evaluationClientOverride) return evaluationClientOverride;
+    if (viewerRole !== 'student' || !isBookActivityEvaluationPresentationEnabled()) return null;
+    try {
+      return createBookActivityEvaluationBrowserClient();
     } catch {
       return null;
     }
@@ -94,6 +117,12 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
   const [detailError, setDetailError] = React.useState<string | null>(null);
   const [groupRetry, setGroupRetry] = React.useState(0);
   const [detailRetry, setDetailRetry] = React.useState(0);
+  const [evaluationProjection, setEvaluationProjection] = React.useState<
+    BookActivityStudentResultProjection | null
+  >(null);
+  const [evaluationLoading, setEvaluationLoading] = React.useState(false);
+  const [evaluationError, setEvaluationError] = React.useState<string | null>(null);
+  const [evaluationRetry, setEvaluationRetry] = React.useState(0);
   const { trackAction } = useFeatureTracking(FEATURE_IDS.results);
 
   const accessMismatch = !viewerId || (viewerRole === 'student'
@@ -187,8 +216,54 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
     return () => { active = false; };
   }, [address, client, detailRetry, group, requestedAttemptId, viewerCacheKey]);
 
+  React.useEffect(() => {
+    if (viewerRole !== 'student'
+      || !address
+      || !detail
+      || detail.attemptId !== selectedAttemptId) {
+      return undefined;
+    }
+    setEvaluationError(null);
+    if (!evaluationClient || detail.surface !== 'homework') {
+      setEvaluationProjection({
+        attemptId: detail.attemptId,
+        status: 'hidden',
+      });
+      setEvaluationLoading(false);
+      return undefined;
+    }
+    let active = true;
+    setEvaluationLoading(true);
+    void evaluationClient.readStudentResult({
+      bookId: address.bookId,
+      studentId: address.studentId,
+      contextKind: 'homework',
+      contextId: detail.contextId,
+      placementId: detail.placementId,
+      activityId: detail.activityId,
+      activityVersionId: detail.activityVersionId,
+      attemptId: detail.attemptId,
+    }).then((projection) => {
+      if (active) setEvaluationProjection(projection);
+    }).catch(() => {
+      if (active) setEvaluationError(visibleEvaluationError());
+    }).finally(() => {
+      if (active) setEvaluationLoading(false);
+    });
+    return () => { active = false; };
+  }, [
+    address,
+    detail,
+    evaluationClient,
+    evaluationRetry,
+    selectedAttemptId,
+    viewerRole,
+  ]);
+
   const selectAttempt = React.useCallback((attemptId: string) => {
     if (!group?.attempts.some((attempt) => attempt.attemptId === attemptId)) return;
+    setEvaluationProjection(null);
+    setEvaluationError(null);
     setRequestedAttemptId(attemptId);
     trackAction('selectAttempt', {
       surface: 'bookActivityResult',
@@ -224,8 +299,18 @@ const BookResultAdapterState: React.FC<BookResultAdapterProps> = ({
         switchingAttempt={detailLoading && requestedAttemptId !== selectedAttemptId}
         detailError={detailError}
         refreshing={refreshing}
+        viewerRole={viewerRole}
+        evaluationProjection={evaluationProjection}
+        evaluationLoading={evaluationLoading}
+        evaluationError={evaluationError}
         onAttemptChange={selectAttempt}
         onRetryDetail={() => setDetailRetry((value) => value + 1)}
+        onRetryEvaluation={() => {
+          trackAction('bookActivityResultRetried', {
+            surface: 'bookActivityResult',
+          });
+          setEvaluationRetry((value) => value + 1);
+        }}
         onReviewAction={(action, metadata) => trackAction(action, {
           surface: 'bookActivityResult',
           ...metadata,

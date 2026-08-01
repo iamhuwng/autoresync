@@ -181,4 +181,47 @@ describe('BookGroupedResultView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  it('does not render legacy score, response, or feedback to students outside policy projection', () => {
+    render(
+      <BookGroupedResultView
+        group={group}
+        selectedAttemptId="attempt-2"
+        detail={detail}
+        viewerRole="student"
+        evaluationProjection={{
+          attemptId: 'attempt-2',
+          status: 'graded',
+          feedback: 'Policy released feedback',
+        }}
+        onAttemptChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Policy released feedback')).toBeInTheDocument();
+    expect(screen.queryByText('Good reasoning.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/"choice": "B"/)).not.toBeInTheDocument();
+    expect(screen.queryByText('8 / 10')).not.toBeInTheDocument();
+    expect(screen.queryByText(/score/iu)).not.toBeInTheDocument();
+  });
+
+  it('renders the safest student state when the presentation gate is disabled', () => {
+    render(
+      <BookGroupedResultView
+        group={group}
+        selectedAttemptId="attempt-2"
+        detail={detail}
+        viewerRole="student"
+        evaluationProjection={{ attemptId: 'attempt-2', status: 'hidden' }}
+        onAttemptChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Evaluation details are not available.')).toHaveAttribute(
+      'role',
+      'status',
+    );
+    expect(screen.queryByText('Good reasoning.')).not.toBeInTheDocument();
+    expect(screen.queryByText('8 / 10')).not.toBeInTheDocument();
+  });
 });

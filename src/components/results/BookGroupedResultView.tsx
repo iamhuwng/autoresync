@@ -4,11 +4,15 @@ import type {
   BookResultAttemptSummary,
   BookResultGroupSummary,
 } from '../../services/book-activity/results/bookResult.types';
+import type {
+  BookActivityStudentResultProjection,
+} from '../../services/book-activity/bookResultVisibility.service';
 import {
   historicalSourceUnavailableProjection,
 } from '../../services/book-delivery/attemptSourceContextProjection.service';
 import { BookAttemptSourceReview } from '../book-runtime/BookAttemptSourceReview';
 import { AttemptHistory } from './AttemptHistory';
+import { BookActivityResultFeedback } from './BookActivityResultFeedback';
 import './BookGroupedResultView.css';
 
 export interface BookGroupedResultViewProps {
@@ -19,6 +23,11 @@ export interface BookGroupedResultViewProps {
   readonly switchingAttempt?: boolean;
   readonly detailError?: string | null;
   readonly refreshing?: boolean;
+  readonly viewerRole?: 'student' | 'teacher';
+  readonly evaluationProjection?: BookActivityStudentResultProjection | null;
+  readonly evaluationLoading?: boolean;
+  readonly evaluationError?: string | null;
+  readonly onRetryEvaluation?: () => void;
   readonly onAttemptChange: (attemptId: string) => void;
   readonly onRetryDetail?: () => void;
   readonly onReviewAction?: (
@@ -58,13 +67,16 @@ const scoreLabel = (attempt: BookResultAttemptSummary): string | undefined => {
       : undefined);
 };
 
-const attemptHistoryItem = (attempt: BookResultAttemptSummary) => ({
+const attemptHistoryItem = (
+  attempt: BookResultAttemptSummary,
+  includeScore = true,
+) => ({
   resultId: attempt.attemptId,
   submittedAt: Date.parse(attempt.submittedAt),
   attemptNumber: attempt.attemptNumber,
   contextLabel: attempt.surface === 'homework' ? 'Homework' : 'Solo',
   statusLabel: titleCase(attempt.evaluationStatus),
-  scoreLabel: scoreLabel(attempt),
+  scoreLabel: includeScore ? scoreLabel(attempt) : undefined,
 });
 
 const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
@@ -82,14 +94,24 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
   switchingAttempt = false,
   detailError = null,
   refreshing = false,
+  viewerRole = 'teacher',
+  evaluationProjection = null,
+  evaluationLoading = false,
+  evaluationError = null,
+  onRetryEvaluation,
   onAttemptChange,
   onRetryDetail,
   onReviewAction,
 }) => {
   const selectedSummary = group.attempts.find((attempt) => attempt.attemptId === selectedAttemptId)
     ?? group.attempts[0];
-  const attempts = group.attempts.map(attemptHistoryItem);
-  const currentAttempt = selectedSummary ? attemptHistoryItem(selectedSummary) : undefined;
+  const attempts = group.attempts.map((attempt) => attemptHistoryItem(
+    attempt,
+    viewerRole !== 'student',
+  ));
+  const currentAttempt = selectedSummary
+    ? attemptHistoryItem(selectedSummary, viewerRole !== 'student')
+    : undefined;
 
   return (
     <section className="book-result" aria-labelledby="book-result-title">
@@ -174,7 +196,9 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
             />
             <DetailRow
               label="Evaluation"
-              value={scoreLabel(selectedSummary)
+              value={viewerRole === 'student'
+                ? 'See released evaluation below'
+                : scoreLabel(selectedSummary)
                 ? `${titleCase(selectedSummary.evaluationStatus)} · ${scoreLabel(selectedSummary)}`
                 : titleCase(selectedSummary.evaluationStatus)}
             />
@@ -227,30 +251,41 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
               projection={detail.attemptSourceContext
                 ?? historicalSourceUnavailableProjection('missing_context')}
             >
-              <section
-                aria-label={`Interaction ${detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId}`}
-                aria-labelledby="book-result-response-heading"
-                className="book-result-section"
-                data-book-interaction-id={
-                  detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId
-                }
-                tabIndex={-1}
-              >
-                <h3 id="book-result-response-heading">Submitted response</h3>
-                <pre className="book-result-response">{safeResponseText(detail.response)}</pre>
-              </section>
+              {viewerRole === 'student' ? (
+                <BookActivityResultFeedback
+                  projection={evaluationProjection}
+                  loading={evaluationLoading}
+                  error={evaluationError}
+                  onRetry={onRetryEvaluation}
+                />
+              ) : (
+                <>
+                  <section
+                    aria-label={`Interaction ${detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId}`}
+                    aria-labelledby="book-result-response-heading"
+                    className="book-result-section"
+                    data-book-interaction-id={
+                      detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId
+                    }
+                    tabIndex={-1}
+                  >
+                    <h3 id="book-result-response-heading">Submitted response</h3>
+                    <pre className="book-result-response">{safeResponseText(detail.response)}</pre>
+                  </section>
 
-              {detail.feedback.available && detail.feedback.text && (
-                <section className="book-result-section" aria-labelledby="book-result-feedback-heading">
-                  <h3 id="book-result-feedback-heading">Feedback</h3>
-                  <p className="book-result-feedback">{detail.feedback.text}</p>
-                </section>
-              )}
+                  {detail.feedback.available && detail.feedback.text && (
+                    <section className="book-result-section" aria-labelledby="book-result-feedback-heading">
+                      <h3 id="book-result-feedback-heading">Feedback</h3>
+                      <p className="book-result-feedback">{detail.feedback.text}</p>
+                    </section>
+                  )}
 
-              {!detail.feedback.available && detail.feedback.release !== 'not-applicable' && (
-                <p className="book-result-muted" role="status">
-                  Feedback is {titleCase(detail.feedback.release).toLowerCase()}.
-                </p>
+                  {!detail.feedback.available && detail.feedback.release !== 'not-applicable' && (
+                    <p className="book-result-muted" role="status">
+                      Feedback is {titleCase(detail.feedback.release).toLowerCase()}.
+                    </p>
+                  )}
+                </>
               )}
             </BookAttemptSourceReview>
           )}
