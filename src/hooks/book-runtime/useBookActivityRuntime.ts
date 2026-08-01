@@ -9,6 +9,7 @@ import {
   type BookRuntimeSubmitActivityResult,
 } from '../../services/book-activity/activityRuntime.browser';
 import type { BookRuntimeDraftRecord } from '../../services/book-activity/activityRuntimeAttempt.types';
+import { activitySubmissionFromRuntimeResponses } from '../../services/book-activity/activityRuntimeAttempt.service';
 import {
   requireBookScheduleWindowDecision,
   type BookScheduleWindowDecision,
@@ -586,13 +587,15 @@ export const useBookActivityRuntime = (
   const submitActivity = useCallback(async (
     interactionId: string,
   ): Promise<BookRuntimeSubmitActivityResult> => {
-    const existing = terminalByInteractionRef.current.get(interactionId);
-    if (existing) return existing;
-    const inFlight = submitPromiseRef.current.get(interactionId);
-    if (inFlight) return inFlight;
     if (!optionsRef.current.interactionIds.includes(interactionId)) {
       throw new BookRuntimeClientError('invalid_response');
     }
+    const anchorInteractionId = optionsRef.current.interactionIds[0];
+    if (!anchorInteractionId) throw new BookRuntimeClientError('invalid_response');
+    const existing = terminalByInteractionRef.current.get(anchorInteractionId);
+    if (existing) return existing;
+    const inFlight = submitPromiseRef.current.get(anchorInteractionId);
+    if (inFlight) return inFlight;
     if (windowDecision && !windowDecision.permissions.canSubmit) {
       setRuntimeStatus('error', windowDecision.phase === 'unreleased'
         ? 'This Activity is not released yet.'
@@ -604,33 +607,45 @@ export const useBookActivityRuntime = (
       if (!flushed.safeToLeave) {
         throw new BookRuntimeClientError('network_failure');
       }
-      const acknowledged = acknowledgedRef.current.get(interactionId);
-      if (!acknowledged) {
+      const acknowledged = acknowledgedRef.current.get(anchorInteractionId);
+      if (!acknowledged
+        || optionsRef.current.interactionIds.some((id) => !acknowledgedRef.current.has(id))) {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+      let submission;
+      try {
+        submission = activitySubmissionFromRuntimeResponses(
+          optionsRef.current.interactionIds,
+          responses,
+        );
+      } catch {
         throw new BookRuntimeClientError('invalid_response');
       }
       setRuntimeStatus('saving', 'Submitting Activity.');
       const result = await optionsRef.current.client.submitActivity({
-        ...addressFor(interactionId),
+        ...addressFor(anchorInteractionId),
         operationId: randomId(),
         draftOperationId: randomId(),
         clientRevision: acknowledged.revision,
-        response: structuredClone(responses[interactionId]),
+        response: submission,
       });
       if (result.status !== 'accepted' && result.status !== 'replayed') {
         throw new BookRuntimeClientError('conflict');
       }
-      terminalByInteractionRef.current.set(interactionId, result);
+      for (const id of optionsRef.current.interactionIds) {
+        terminalByInteractionRef.current.set(id, result);
+      }
       setTerminalResult(result);
       setRuntimeStatus('saved', result.resultStatus === 'pending_review'
         ? 'Submitted for teacher review.'
         : 'Activity submitted.');
       return result;
     })();
-    submitPromiseRef.current.set(interactionId, run);
+    submitPromiseRef.current.set(anchorInteractionId, run);
     try {
       return await run;
     } finally {
-      submitPromiseRef.current.delete(interactionId);
+      submitPromiseRef.current.delete(anchorInteractionId);
     }
   }, [addressFor, flush, responses, setRuntimeStatus, windowDecision]);
 

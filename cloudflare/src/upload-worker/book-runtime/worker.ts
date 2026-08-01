@@ -22,6 +22,9 @@ import {
   type BookRuntimeRepository,
 } from './repository.ts';
 import { scoreActivity } from '../../../../src/services/book-activity/activityScoring.service.ts';
+import {
+  createBookRuntimeActivitySubmissionBoundary,
+} from '../../../../src/services/book-activity/activityRuntimeAttempt.service.ts';
 import type {
   ActivitySubmission,
   NormalizedActivity,
@@ -226,6 +229,10 @@ export const createBookRuntimeWorkerHandlers = (
         now(),
         resolveTarget,
       );
+      if (payload.commandKind === 'submit'
+        && resolvedActivity?.interactions[0]?.interactionId !== payload.interactionId) {
+        throw new BookRuntimeWorkerError('runtime_submission_anchor_invalid', 409);
+      }
       if (payload.commandKind === 'submit' && options.requireCanonicalDraftForSubmit) {
         const draft = await options.repository.readDraft({
           recipientId: context.actorUid,
@@ -243,6 +250,7 @@ export const createBookRuntimeWorkerHandlers = (
       }
       let score: BookRuntimeScore | undefined;
       let attemptPolicy: BookRuntimeAttemptPolicy | undefined;
+      let activitySubmissionBoundary;
       if (payload.commandKind === 'submit') {
         if (!options.resolveAttemptPolicy) {
           throw new BookRuntimeWorkerError('runtime_attempt_policy_unavailable', 503);
@@ -262,7 +270,21 @@ export const createBookRuntimeWorkerHandlers = (
         if (!resolvedActivity) {
           throw new BookRuntimeWorkerError('runtime_activity_unavailable', 503);
         }
-        const result = scoreActivity(resolvedActivity, payload.response as ActivitySubmission);
+        const requiredInteractionIds = resolvedActivity.interactions
+          .map((interaction) => interaction.interactionId);
+        let canonicalSubmission: ActivitySubmission;
+        try {
+          canonicalSubmission = structuredClone(payload.response as ActivitySubmission);
+          activitySubmissionBoundary = createBookRuntimeActivitySubmissionBoundary({
+            requiredInteractionIds,
+          });
+        } catch {
+          throw new BookRuntimeWorkerError('runtime_submission_invalid', 409);
+        }
+        if (stable(canonicalSubmission) !== stable(payload.response)) {
+          throw new BookRuntimeWorkerError('runtime_submit_draft_mismatch', 409);
+        }
+        const result = scoreActivity(resolvedActivity, canonicalSubmission);
         if (result.status === 'invalid') {
           throw new BookRuntimeWorkerError('runtime_submission_invalid', 409);
         }
@@ -284,6 +306,7 @@ export const createBookRuntimeWorkerHandlers = (
         }),
         ...(attemptPolicy ? { attemptPolicy } : {}),
         ...(score ? { score } : {}),
+        ...(activitySubmissionBoundary ? { activitySubmissionBoundary } : {}),
       });
       return json(sanitizeResult(result), statusFor(result.status));
     } catch (error) {

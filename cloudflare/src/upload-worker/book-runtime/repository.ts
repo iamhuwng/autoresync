@@ -1,4 +1,5 @@
 import type {
+  BookRuntimeActivitySubmissionBoundary,
   BookRuntimeAttemptPolicy,
   BookRuntimeAttemptRecord,
   BookRuntimeAttemptIndexRecord,
@@ -32,6 +33,7 @@ export interface BookRuntimeRepository {
     readonly attemptId: string;
     readonly attemptPolicy?: BookRuntimeAttemptPolicy;
     readonly score?: BookRuntimeScore;
+    readonly activitySubmissionBoundary?: BookRuntimeActivitySubmissionBoundary;
   }): Promise<BookRuntimeCommandResult>;
   listAttempts(input: {
     readonly recipientId: string;
@@ -160,7 +162,7 @@ interface BookRuntimeTerminalAggregate {
 const terminalSequenceMember = (
   record: Pick<
     BookRuntimeAttemptRecord,
-    'recipientId' | 'contextId' | 'placementId' | 'activityId' | 'activityVersion' | 'interactionId'
+    'recipientId' | 'contextId' | 'placementId' | 'activityId' | 'activityVersion'
   >,
   command: BookRuntimeCommandPayload,
   recipientId: string,
@@ -170,7 +172,6 @@ const terminalSequenceMember = (
   && record.placementId === command.placementId
   && record.activityId === command.activityId
   && record.activityVersion === command.activityVersion
-  && record.interactionId === command.interactionId
 );
 
 const terminalRecordMatchesAttempt = (
@@ -187,6 +188,9 @@ const terminalRecordMatchesAttempt = (
   && record.activityVersion === attempt.activityVersion
   && record.activityVersionId === attempt.activityVersionId
   && record.interactionId === attempt.interactionId
+  && record.submissionScope === attempt.submissionScope
+  && stable(record.requiredInteractionIds) === stable(attempt.requiredInteractionIds)
+  && stable(record.submittedInteractionIds) === stable(attempt.submittedInteractionIds)
   && record.acknowledgedDraftRevision === attempt.acknowledgedDraftRevision
   && record.attemptNumber === attempt.attemptNumber
   && stable(record.pageGroupKeys) === stable(attempt.pageGroupKeys)
@@ -207,6 +211,12 @@ const assertTerminalAggregateIntegrity = (
       || !Number.isSafeInteger(attempt.attemptNumber)
       || attempt.attemptNumber <= 0
       || !attempt.activityVersionId
+      || (attempt.submissionScope !== undefined && (
+        attempt.submissionScope !== 'activity'
+        || !Array.isArray(attempt.requiredInteractionIds)
+        || !Array.isArray(attempt.submittedInteractionIds)
+        || attempt.requiredInteractionIds.length === 0
+        || stable(attempt.requiredInteractionIds) !== stable(attempt.submittedInteractionIds)))
       || !Number.isSafeInteger(attempt.acknowledgedDraftRevision)
       || attempt.acknowledgedDraftRevision < 0
       || !Array.isArray(attempt.pageGroupKeys)
@@ -310,6 +320,31 @@ const terminalIdsAvailable = (
   && aggregate.completions[`${attemptId}:completion`] === undefined
   && aggregate.indexes[attemptId] === undefined
 );
+
+const assertActivitySubmissionBoundary = (
+  command: BookRuntimeCommandPayload,
+  boundary: BookRuntimeActivitySubmissionBoundary | undefined,
+): BookRuntimeActivitySubmissionBoundary => {
+  if (!boundary) {
+    return {
+      submissionScope: 'activity',
+      requiredInteractionIds: [command.interactionId],
+      submittedInteractionIds: [command.interactionId],
+    };
+  }
+  if (
+    boundary.submissionScope !== 'activity'
+    || !Array.isArray(boundary.requiredInteractionIds)
+    || !Array.isArray(boundary.submittedInteractionIds)
+    || boundary.requiredInteractionIds.length === 0
+    || new Set(boundary.requiredInteractionIds).size !== boundary.requiredInteractionIds.length
+    || stable(boundary.requiredInteractionIds) !== stable(boundary.submittedInteractionIds)
+    || command.interactionId !== boundary.requiredInteractionIds[0]
+  ) {
+    throw new BookRuntimeRepositoryError('runtime_activity_submission_boundary_invalid');
+  }
+  return clone(boundary);
+};
 
 const retainBoundedOperations = (
   operations: Readonly<Record<string, BookRuntimeOperationReceipt>>,
@@ -504,6 +539,7 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     readonly attemptId: string;
     readonly attemptPolicy?: BookRuntimeAttemptPolicy;
     readonly score?: BookRuntimeScore;
+    readonly activitySubmissionBoundary?: BookRuntimeActivitySubmissionBoundary;
   }): Promise<BookRuntimeCommandResult> {
     const { command, context } = input;
     const replayed = await this.replayCommand({ command, actorUid: context.actorUid });
@@ -536,6 +572,10 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
 
     if (command.commandKind === 'submit') {
       const attemptPolicy = assertAttemptPolicy(input.attemptPolicy);
+      const activitySubmissionBoundary = assertActivitySubmissionBoundary(
+        command,
+        input.activitySubmissionBoundary,
+      );
       const aggregate = {
         attempts: this.attempts,
         results: this.results,
@@ -570,6 +610,7 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         schemaVersion: 1,
         attemptId: input.attemptId,
         ...base,
+        ...activitySubmissionBoundary,
         bindingRevision: command.bindingRevision,
         activityVersionId: provenance.activityVersionId,
         acknowledgedDraftRevision: command.clientRevision,
@@ -586,6 +627,7 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         resultId: `${input.attemptId}:result`,
         attemptId: input.attemptId,
         ...base,
+        ...activitySubmissionBoundary,
         bindingRevision: command.bindingRevision,
         activityVersionId: provenance.activityVersionId,
         acknowledgedDraftRevision: command.clientRevision,
@@ -604,6 +646,7 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         attemptId: input.attemptId,
         resultId: result.resultId,
         ...base,
+        ...activitySubmissionBoundary,
         bindingRevision: command.bindingRevision,
         activityVersionId: provenance.activityVersionId,
         acknowledgedDraftRevision: command.clientRevision,
@@ -619,6 +662,7 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         attemptId: input.attemptId,
         resultId: result.resultId,
         ...base,
+        ...activitySubmissionBoundary,
         bindingRevision: command.bindingRevision,
         activityVersionId: provenance.activityVersionId,
         acknowledgedDraftRevision: command.clientRevision,
@@ -754,6 +798,46 @@ const durableScope = (value: unknown): DurableBookRuntimeScope => {
     throw new BookRuntimeRepositoryError('runtime_draft_invalid');
   }
   return durableClone(source as DurableBookRuntimeScope);
+};
+
+const durableTerminalAggregateForPlacement = (
+  placementValue: unknown,
+  anchorInteractionId: string,
+  anchorScope: DurableBookRuntimeScope,
+): BookRuntimeTerminalAggregate => {
+  const children = placementValue === null || placementValue === undefined
+    ? {}
+    : durableRecord(placementValue);
+  if (!children || Object.keys(children).length > BOOK_RUNTIME_MAX_SCOPE_ENTRIES) {
+    throw new BookRuntimeRepositoryError('runtime_attempt_query_scope_invalid');
+  }
+  const aggregate = {
+    attempts: {} as Record<string, BookRuntimeAttemptRecord>,
+    results: {} as Record<string, BookRuntimeResultRecord>,
+    completions: {} as Record<string, BookRuntimeCompletionRecord>,
+    indexes: {} as Record<string, BookRuntimeAttemptIndexRecord>,
+    operations: {} as Record<string, BookRuntimeOperationReceipt>,
+  };
+  const merge = <T>(target: Record<string, T>, source: Record<string, T> | undefined): void => {
+    for (const [key, value] of Object.entries(source ?? {})) {
+      if (target[key] !== undefined && stable(target[key]) !== stable(value)) {
+        throw new BookRuntimeRepositoryError('runtime_attempt_sequence_invalid');
+      }
+      target[key] = durableClone(value);
+    }
+  };
+  const childIds = new Set([...Object.keys(children), anchorInteractionId]);
+  for (const interactionId of childIds) {
+    const scope = interactionId === anchorInteractionId
+      ? anchorScope
+      : durableScope(children[interactionId]);
+    merge(aggregate.attempts, scope.attempts);
+    merge(aggregate.results, scope.results);
+    merge(aggregate.completions, scope.completions);
+    merge(aggregate.indexes, scope.indexes);
+    merge(aggregate.operations, scope.operations);
+  }
+  return aggregate;
 };
 
 const durableOperationReceipt = (
@@ -912,6 +996,50 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
     }
   }
 
+  private async claimOperation(input: {
+    readonly command: BookRuntimeCommandPayload;
+    readonly recipientId: string;
+    readonly fingerprint: string;
+    readonly now: string;
+  }): Promise<BookRuntimeCommandResult | null> {
+    const path = durableScopePath(
+      input.recipientId,
+      input.command.contextId,
+      'runtime-operations',
+      input.command.operationId,
+    );
+    for (let claimAttempt = 0; claimAttempt < this.maxRetries; claimAttempt += 1) {
+      const current = await this.rtdb.readWithEtag<unknown>(path);
+      const scope = durableScope(current.data);
+      const existing = scope.operations?.[input.command.operationId];
+      if (existing) {
+        return existing.fingerprint === input.fingerprint
+          ? null
+          : {
+            status: 'conflict',
+            receipt: durableClone({ ...existing, status: 'conflict' }),
+          };
+      }
+      const receipt: BookRuntimeOperationReceipt = {
+        operationId: input.command.operationId,
+        fingerprint: input.fingerprint,
+        status: 'accepted',
+        bindingId: input.command.bindingId,
+        createdAt: input.now,
+      };
+      const next = {
+        ...scope,
+        operations: { ...(scope.operations ?? {}), [receipt.operationId]: receipt },
+      };
+      if (durableEncodedBytes(next) > BOOK_RUNTIME_MAX_SCOPE_BYTES) {
+        throw new BookRuntimeRepositoryError('runtime_operation_capacity_exceeded');
+      }
+      this.assertWriteIdentity();
+      if (await this.rtdb.writeIfMatch(path, next, current.etag)) return null;
+    }
+    throw new BookRuntimeRepositoryError('runtime_operation_claim_retries_exhausted');
+  }
+
   async replayCommand(input: {
     readonly command: BookRuntimeCommandPayload;
     readonly actorUid: string;
@@ -997,6 +1125,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
     readonly attemptId: string;
     readonly attemptPolicy?: BookRuntimeAttemptPolicy;
     readonly score?: BookRuntimeScore;
+    readonly activitySubmissionBoundary?: BookRuntimeActivitySubmissionBoundary;
   }): Promise<BookRuntimeCommandResult> {
     const { command, context } = input;
     durablePathId(command.bindingId, 'binding');
@@ -1011,7 +1140,21 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
       command.interactionId,
     );
     const commandFingerprint = fingerprint(command, context);
+    const operationConflict = await this.claimOperation({
+      command,
+      recipientId: context.binding.recipient.recipientId,
+      fingerprint: commandFingerprint,
+      now: context.now,
+    });
+    if (operationConflict) return operationConflict;
     for (let attemptNumber = 0; attemptNumber < this.maxRetries; attemptNumber += 1) {
+      const placementValue = command.commandKind === 'submit'
+        ? await this.rtdb.readValue(durableScopePath(
+          context.binding.recipient.recipientId,
+          command.contextId,
+          command.placementId,
+        ))
+        : null;
       const current = await this.rtdb.readWithEtag<unknown>(path);
       const scope = durableScope(current.data);
       const replayed = durableReplay(scope, command.operationId, commandFingerprint);
@@ -1036,6 +1179,10 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
       let output: BookRuntimeCommandResult;
       if (command.commandKind === 'submit') {
         const attemptPolicy = assertAttemptPolicy(input.attemptPolicy);
+        const activitySubmissionBoundary = assertActivitySubmissionBoundary(
+          command,
+          input.activitySubmissionBoundary,
+        );
         if (!currentDraft) {
           return durableResponseForConflict(
             command.operationId,
@@ -1044,13 +1191,11 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
             context.now,
           );
         }
-        const aggregate = {
-          attempts: scope.attempts ?? {},
-          results: scope.results ?? {},
-          completions: scope.completions ?? {},
-          indexes: scope.indexes ?? {},
-          operations: scope.operations ?? {},
-        };
+        const aggregate = durableTerminalAggregateForPlacement(
+          placementValue,
+          command.interactionId,
+          scope,
+        );
         if (!terminalIdsAvailable(aggregate, input.attemptId)) {
           throw new BookRuntimeRepositoryError('runtime_attempt_duplicate');
         }
@@ -1092,6 +1237,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           activityVersion: command.activityVersion,
           activityVersionId: provenance.activityVersionId,
           interactionId: command.interactionId,
+          ...activitySubmissionBoundary,
           acknowledgedDraftRevision: command.clientRevision,
           attemptNumber: terminalAttemptNumber,
           pageGroupKeys: provenance.pageGroupKeys,
@@ -1114,6 +1260,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           activityVersion: command.activityVersion,
           activityVersionId: provenance.activityVersionId,
           interactionId: command.interactionId,
+          ...activitySubmissionBoundary,
           acknowledgedDraftRevision: command.clientRevision,
           attemptNumber: terminalAttemptNumber,
           pageGroupKeys: provenance.pageGroupKeys,
@@ -1138,6 +1285,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           activityVersion: command.activityVersion,
           activityVersionId: provenance.activityVersionId,
           interactionId: command.interactionId,
+          ...activitySubmissionBoundary,
           acknowledgedDraftRevision: command.clientRevision,
           attemptNumber: terminalAttemptNumber,
           pageGroupKeys: provenance.pageGroupKeys,
@@ -1159,6 +1307,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           activityVersion: command.activityVersion,
           activityVersionId: provenance.activityVersionId,
           interactionId: command.interactionId,
+          ...activitySubmissionBoundary,
           acknowledgedDraftRevision: command.clientRevision,
           attemptNumber: terminalAttemptNumber,
           pageGroupKeys: provenance.pageGroupKeys,

@@ -479,8 +479,13 @@ const createFirebaseFetch = (initial: Record<string, unknown> = {}) => {
       const children: Record<string, unknown> = {};
       for (const [storedPath, storedValue] of values.entries()) {
         if (!storedPath.startsWith(prefix)) continue;
-        const remainder = storedPath.slice(prefix.length);
-        if (!remainder.includes('/')) children[remainder] = storedValue;
+        const segments = storedPath.slice(prefix.length).split('/');
+        let cursor = children;
+        for (const segment of segments.slice(0, -1)) {
+          cursor[segment] = cursor[segment] ?? {};
+          cursor = cursor[segment] as Record<string, unknown>;
+        }
+        cursor[segments.at(-1)!] = storedValue;
       }
       if (Object.keys(children).length > 0) body = children;
     }
@@ -553,6 +558,8 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
         attemptId: 'attempt-durable',
         acknowledgedDraftRevision: 1,
         activityVersionId: 'activity-version-1',
+        submissionScope: 'activity',
+        requiredInteractionIds: ['interaction-1'],
         pageGroupKeys: ['page-group-1'],
       },
       result: { resultId: 'attempt-durable:result' },
@@ -684,6 +691,111 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
       bindingRevision: 1,
       limit: 5,
     })).resolves.toHaveLength(2);
+  });
+
+  it('counts legacy sibling-scope attempts before allocating the canonical Activity anchor', async () => {
+    const legacy = terminalRecords(
+      'attempt-legacy',
+      1,
+      '00000000-0000-4000-8000-000000000071',
+    );
+    const withInteraction = <T extends { interactionId: string }>(record: T): T => ({
+      ...record,
+      interactionId: 'interaction-2',
+    });
+    const anchorPath = 'book_runtime/scopes/student-1/context-1/placement-1/interaction-1';
+    const siblingPath = 'book_runtime/scopes/student-1/context-1/placement-1/interaction-2';
+    const firebase = createFirebaseFetch({
+      [anchorPath]: {
+        draft: {
+          schemaVersion: 1,
+          bindingId: 'binding-1',
+          bindingRevision: 1,
+          recipientId: 'student-1',
+          contextId: 'context-1',
+          placementId: 'placement-1',
+          activityId: 'activity-1',
+          activityVersion: 1,
+          interactionId: 'interaction-1',
+          revision: 1,
+          response: [
+            { interactionId: 'interaction-1', answer: 'first' },
+            { interactionId: 'interaction-2', answer: 'second' },
+          ],
+          updatedByOperationId: '00000000-0000-4000-8000-000000000070',
+          updatedAt: '2026-07-27T00:00:00.000Z',
+        },
+      },
+      [siblingPath]: {
+        attempts: { 'attempt-legacy': withInteraction(legacy.attempt) },
+        results: { 'attempt-legacy:result': withInteraction(legacy.result) },
+        completions: { 'attempt-legacy:completion': withInteraction(legacy.completion) },
+        indexes: { 'attempt-legacy': withInteraction(legacy.index) },
+        operations: { [legacy.receipt.operationId]: legacy.receipt },
+      },
+    });
+    const repository = new FirebaseRestBookRuntimeRepository({
+      env: {
+        FIREBASE_DB_URL: 'https://firebase.test',
+        BOOK_RUNTIME_SERVICE_IDENTITY: 'runtime@example.test',
+      },
+      getAccessToken: async () => 'runtime-token',
+      fetchImpl: firebase.fetchImpl,
+    });
+    await expect(repository.applyCommand({
+      command: command({
+        commandKind: 'submit',
+        operationId: '00000000-0000-4000-8000-000000000072',
+        clientRevision: 1,
+        response: [
+          { interactionId: 'interaction-1', answer: 'first' },
+          { interactionId: 'interaction-2', answer: 'second' },
+        ],
+      }),
+      context: { ...context(), operationKind: 'submit' },
+      attemptId: 'attempt-anchor',
+      attemptPolicy: { maxAttempts: 2 },
+      activitySubmissionBoundary: {
+        submissionScope: 'activity',
+        requiredInteractionIds: ['interaction-1', 'interaction-2'],
+        submittedInteractionIds: ['interaction-1', 'interaction-2'],
+      },
+    })).resolves.toMatchObject({
+      status: 'accepted',
+      attempt: { attemptId: 'attempt-anchor', attemptNumber: 2 },
+    });
+  });
+
+  it('serializes concurrent durable operation-key reuse across interaction scopes', async () => {
+    const firebase = createFirebaseFetch();
+    const repository = new FirebaseRestBookRuntimeRepository({
+      env: {
+        FIREBASE_DB_URL: 'https://firebase.test',
+        BOOK_RUNTIME_SERVICE_IDENTITY: 'runtime@example.test',
+      },
+      getAccessToken: async () => 'runtime-token',
+      fetchImpl: firebase.fetchImpl,
+    });
+    const outcomes = await Promise.all([
+      repository.applyCommand({
+        command: command(),
+        context: context(),
+        attemptId: 'attempt-first-scope',
+      }),
+      repository.applyCommand({
+        command: command({
+          interactionId: 'interaction-2',
+          response: { text: 'different scope' },
+        }),
+        context: { ...context(), interactionId: 'interaction-2' },
+        attemptId: 'attempt-second-scope',
+      }),
+    ]);
+    expect(outcomes.map((result) => result.status).sort()).toEqual(['accepted', 'conflict']);
+    expect([
+      'book_runtime/scopes/student-1/context-1/placement-1/interaction-1',
+      'book_runtime/scopes/student-1/context-1/placement-1/interaction-2',
+    ].filter((path) => firebase.values.has(path))).toHaveLength(1);
   });
 
   it('fails closed when a missing receipt collides with an immutable durable attempt id', async () => {

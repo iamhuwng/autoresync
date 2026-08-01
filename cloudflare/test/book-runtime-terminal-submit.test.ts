@@ -25,6 +25,20 @@ const normalizedActivity = () => ({
   }],
 });
 
+const normalizedMultiInteractionActivity = () => ({
+  ...normalizedActivity(),
+  interactions: [
+    normalizedActivity().interactions[0]!,
+    {
+      family: 'text-entry' as const,
+      interactionId: 'interaction-2',
+      prompt: 'Answer two',
+      itemIdentities: { family: 'text-entry' as const, itemIds: [] as const },
+      answerKey: { family: 'text-entry' as const, acceptedAnswers: ['second'] },
+    },
+  ],
+});
+
 const binding = () => ({
   schemaVersion: 3 as const,
   bindingId: 'binding-1',
@@ -101,6 +115,71 @@ const submit = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('Ticket 28C terminal submit Worker bridge', () => {
+  it('accepts one complete Activity draft boundary and rejects a non-anchor submit', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const baseContext = {
+      actorUid: 'student-1',
+      operationKind: 'autosave' as const,
+      binding: binding(),
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersion: 1,
+      now: '2026-07-30T00:00:00.000Z',
+    };
+    const fullSubmission = [
+      { interactionId: 'interaction-1', answer: 'final' },
+      { interactionId: 'interaction-2', answer: 'second' },
+    ];
+    await repository.applyCommand({
+      command: {
+        ...submit({
+          commandKind: 'autosave',
+          operationId: '00000000-0000-4000-8000-000000000078',
+          clientRevision: 0,
+          response: fullSubmission,
+        }),
+      } as never,
+      context: { ...baseContext, interactionId: 'interaction-1' },
+      attemptId: 'attempt-autosave-activity',
+    });
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedMultiInteractionActivity(),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      now: () => '2026-07-30T00:00:01.000Z',
+      allocateAttemptId: () => 'attempt-multi',
+      requireCanonicalDraftForSubmit: true,
+    });
+    const accepted = await handlers.command({
+      request: request(submit({
+        operationId: '00000000-0000-4000-8000-000000000080',
+        response: fullSubmission,
+      })),
+      env: {},
+      uid: 'student-1',
+    });
+    expect(accepted).toMatchObject({ body: { status: 'accepted', completionStatus: 'completed' } });
+    expect(repository.snapshot().attempts?.['attempt-multi']).toMatchObject({
+      submissionScope: 'activity',
+      requiredInteractionIds: ['interaction-1', 'interaction-2'],
+      submittedInteractionIds: ['interaction-1', 'interaction-2'],
+    });
+    const wrongAnchor = await handlers.command({
+      request: request(submit({
+        operationId: '00000000-0000-4000-8000-000000000081',
+        interactionId: 'interaction-2',
+        response: fullSubmission,
+      })),
+      env: {},
+      uid: 'student-1',
+    });
+    expect(wrongAnchor).toEqual({
+      body: { code: 'runtime_submission_anchor_invalid' },
+      init: { status: 409 },
+    });
+  });
+
   it('returns immutable attempt status without exposing the stored response', async () => {
     const repository = new InMemoryBookRuntimeRepository();
     await repository.applyCommand({

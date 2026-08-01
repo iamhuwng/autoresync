@@ -33,6 +33,12 @@ export interface BookRuntimeAttemptPolicy {
   readonly maxAttempts: number | null;
 }
 
+export interface BookRuntimeActivitySubmissionBoundary {
+  readonly submissionScope: 'activity';
+  readonly requiredInteractionIds: readonly string[];
+  readonly submittedInteractionIds: readonly string[];
+}
+
 export interface BookRuntimeCommandPayload {
   readonly operationId: string;
   readonly commandKind: BookRuntimeCommandKind;
@@ -75,7 +81,7 @@ export interface BookRuntimeDraftRecord {
   readonly updatedAt: string;
 }
 
-export interface BookRuntimeAttemptRecord {
+export interface BookRuntimeAttemptRecord extends BookRuntimeActivitySubmissionBoundary {
   readonly schemaVersion: 1;
   readonly attemptId: string;
   readonly bindingId: string;
@@ -97,7 +103,7 @@ export interface BookRuntimeAttemptRecord {
   readonly createdAt: string;
 }
 
-export interface BookRuntimeResultRecord {
+export interface BookRuntimeResultRecord extends BookRuntimeActivitySubmissionBoundary {
   readonly schemaVersion: 1;
   readonly resultId: string;
   readonly attemptId: string;
@@ -121,7 +127,7 @@ export interface BookRuntimeResultRecord {
   readonly createdAt: string;
 }
 
-export interface BookRuntimeCompletionRecord {
+export interface BookRuntimeCompletionRecord extends BookRuntimeActivitySubmissionBoundary {
   readonly schemaVersion: 1;
   readonly completionId: string;
   readonly attemptId: string;
@@ -144,7 +150,7 @@ export interface BookRuntimeCompletionRecord {
   readonly createdAt: string;
 }
 
-export interface BookRuntimeAttemptIndexRecord {
+export interface BookRuntimeAttemptIndexRecord extends BookRuntimeActivitySubmissionBoundary {
   readonly schemaVersion: 1;
   readonly attemptId: string;
   readonly resultId: string;
