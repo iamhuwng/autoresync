@@ -17,6 +17,10 @@ import type {
   BookHomeworkSagaRecipient,
   BookHomeworkSagaRecipientState,
 } from '../../../../src/services/book-homework/bookHomeworkSaga.types.ts';
+import {
+  bookHomeworkRecipientAuthorityId,
+  bookHomeworkRecipientDeliveryBindingId,
+} from './identity.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -147,6 +151,70 @@ const activityPolicySnapshots = (
   }));
 };
 
+const sortedStrings = (values: readonly string[]): readonly string[] => [...values].sort();
+
+const assertDeliveryPlacementContract = (
+  canonical: BookHomeworkSagaCanonicalState,
+): void => {
+  const sourceVersions = new Map(canonical.deliveryPublication.sourceSet.sources.map((source) => [
+    source.sourceKey,
+    source.sourceVersionId,
+  ]));
+  const required = canonical.manifest.bindings
+    .filter((binding) => binding.state === 'required')
+    .map((binding) => {
+      for (const source of binding.sourceContext) {
+        if (sourceVersions.get(source.sourceKey) !== source.sourceVersionId) {
+          throw new BookHomeworkSagaError(
+            'stale-publication',
+            'Manifest source identity does not match the Delivery publication.',
+          );
+        }
+      }
+      return {
+        placementId: binding.placementId,
+        activityId: binding.activityId,
+        activityVersionId: binding.activityVersionId,
+        activityVersion: binding.activityVersion,
+        nodeKey: binding.nodeKey,
+        order: binding.order,
+        contextMode: binding.contextMode,
+        pageGroupKeys: sortedStrings(binding.pageGroupKeys),
+        sourcePageScopes: binding.sourceContext
+          .map((source) => ({
+            sourceKey: source.sourceKey,
+            pages: [...source.physicalPageNumbers].sort((left, right) => left - right),
+          }))
+          .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)),
+      };
+    })
+    .sort((left, right) => left.placementId.localeCompare(right.placementId));
+  const delivered = canonical.deliveryPublication.placements
+    .map((placement) => ({
+      placementId: placement.placementId,
+      activityId: placement.activityId,
+      activityVersionId: placement.activityVersionId,
+      activityVersion: placement.activityVersion,
+      nodeKey: placement.nodeKey,
+      order: placement.order,
+      contextMode: placement.contextMode,
+      pageGroupKeys: sortedStrings(placement.pageGroupKeys),
+      sourcePageScopes: placement.sourcePageScopes
+        .map((source) => ({
+          sourceKey: source.sourceKey,
+          pages: [...source.pages].sort((left, right) => left - right),
+        }))
+        .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)),
+    }))
+    .sort((left, right) => left.placementId.localeCompare(right.placementId));
+  if (stable(required) !== stable(delivered)) {
+    throw new BookHomeworkSagaError(
+      'stale-publication',
+      'Manifest Placements do not match the Delivery publication.',
+    );
+  }
+};
+
 const assertCommandEnvelope = (
   command: BookHomeworkSagaCommand,
   maxRecipients: number,
@@ -183,8 +251,8 @@ const manifestForRecipient = (manifest: BookHomeworkManifest, recipientId: strin
 
 const entryFor = (assignmentId: string, recipientId: string): BookHomeworkSagaRecipient => ({
   recipientId,
-  authorityId: childId(assignmentId, recipientId, 'authority'),
-  bindingId: childId(assignmentId, recipientId, 'delivery'),
+  authorityId: bookHomeworkRecipientAuthorityId(assignmentId, recipientId),
+  bindingId: bookHomeworkRecipientDeliveryBindingId(assignmentId, recipientId),
   state: 'pending',
 });
 
@@ -254,6 +322,12 @@ const assertCanonical = (
   if (canonical.ownerId !== command.ownerId || canonical.manifest.ownerId !== command.ownerId) {
     throw new BookHomeworkSagaError('owner-mismatch', 'Canonical owner does not match the command.');
   }
+  if (canonical.manifest.context.contextId !== command.assignmentId) {
+    throw new BookHomeworkSagaError(
+      'stale-input',
+      'Canonical Homework context does not match the assignment identity.',
+    );
+  }
   if (canonical.manifest.manifestVersionId !== command.manifestVersionId
     || canonical.publication.manifestVersionId !== command.manifestVersionId
     || canonical.publication.bookId !== canonical.manifest.book.bookId
@@ -291,6 +365,7 @@ const assertCanonical = (
     || canonical.deliveryPublication.schedulePolicy.policyRevision !== canonical.frozenPolicy.policyRevision) {
     throw new BookHomeworkSagaError('stale-publication', 'Delivery publication is not the canonical published publication.');
   }
+  assertDeliveryPlacementContract(canonical);
   for (const [recipientId, extensions] of Object.entries(canonical.studentExtensions)) {
     if (!selected.includes(recipientId) || extensions.some((extension) => !ID.test(extension.nodeKey))) {
       throw new BookHomeworkSagaError('invalid-extension', 'Student extensions exceed the canonical recipient or node boundary.');
@@ -333,7 +408,14 @@ export class BookHomeworkAssignmentSaga {
       this.dependencies.authorityRepository.readStudentProjection(entry.authorityId, studentId),
       this.dependencies.deliveryRepository.resolveCurrent(studentId, record.contextId),
     ]);
-    if (!authority || !delivery || delivery.record.binding.bindingId !== entry.bindingId
+    if (!authority
+      || !delivery
+      || authority.assignmentId !== record.contextId
+      || authority.bookManifest.context.contextId !== record.contextId
+      || authority.bookManifest.context.recipientId !== studentId
+      || delivery.record.binding.bindingId !== entry.bindingId
+      || entry.bindingRevision === undefined
+      || delivery.record.binding.revision !== entry.bindingRevision
       || delivery.record.binding.context.contextId !== record.contextId
       || delivery.record.binding.recipient.recipientId !== studentId) return null;
     return { authority, delivery };
@@ -504,7 +586,7 @@ export class BookHomeworkAssignmentSaga {
     next = await this.replaceEntry(next, index, {
       ...entry,
       state: 'active',
-      bindingRevision: activeDelivery.recordRevision,
+      bindingRevision: activeDelivery.binding.revision,
     }, command.createdAt);
     entry = next.recipients[index];
 
@@ -559,9 +641,15 @@ export class BookHomeworkAssignmentSaga {
       });
       authority = await this.dependencies.authorityRepository.read(entry.authorityId);
     }
-    if (!authority || authority.ownerId !== command.ownerId
+    if (!authority
+      || authority.assignmentId !== entry.authorityId
+      || authority.saga.sagaId !== command.assignmentId
+      || authority.ownerId !== command.ownerId
+      || authority.bookManifest.context.contextId !== command.assignmentId
       || authority.bookManifest.context.recipientId !== entry.recipientId
       || authority.bookManifest.manifestVersionId !== command.manifestVersionId
+      || authority.bookManifest.bindingRevision !== canonical.manifest.bindingRevision
+      || stable(authority.bookManifest) !== stable(manifest)
       || stable(authority.activityPolicies) !== stable(activityPolicySnapshots(canonical))
       || authority.visibility.status === 'compensating') {
       throw new BookHomeworkSagaError('authority-conflict', 'Existing authority does not match the canonical recipient record.');
@@ -594,7 +682,7 @@ export class BookHomeworkAssignmentSaga {
   ): BookDeliveryBinding {
     return createBookDeliveryBinding({
       bindingId: entry.bindingId,
-      revision: 1,
+      revision: canonical.manifest.bindingRevision,
       status: 'draft',
       recipient: { recipientId: entry.recipientId, recipientKind: 'student' },
       issuer: { ownerId: canonical.ownerId, authorityBoundary: 'book-owner' },

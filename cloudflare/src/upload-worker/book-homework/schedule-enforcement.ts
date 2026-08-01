@@ -32,6 +32,11 @@ import type {
 import type {
   BookRuntimeRepository,
 } from '../book-runtime/repository.ts';
+import {
+  bookHomeworkAuthorityMatchesContext,
+  bookHomeworkRecipientDeliveryBindingId,
+  readBookHomeworkRecipientAuthority,
+} from './identity.ts';
 
 export interface BookHomeworkActivitySchedulePolicy {
   readonly policyId: string;
@@ -66,7 +71,11 @@ export const createBookHomeworkActivitySchedulePolicyResolver = (options: {
   readonly runtimeRepository: Pick<BookRuntimeRepository, 'listAttempts'>;
 }): BookHomeworkActivitySchedulePolicyResolver => ({
   async resolve(input) {
-    const stored = await options.authorityStore.read(input.assignmentId);
+    const stored = await readBookHomeworkRecipientAuthority(
+      options.authorityStore,
+      input.assignmentId,
+      input.recipientId,
+    );
     if (!stored) return null;
     try {
       assertValidBookHomeworkAuthorityRecord(stored.value);
@@ -79,8 +88,19 @@ export const createBookHomeworkActivitySchedulePolicyResolver = (options: {
       candidate.state === 'required' && candidate.placementId === input.placementId);
     if (!snapshot
       || !placement
-      || authority.assignmentId !== input.assignmentId
+      || !bookHomeworkAuthorityMatchesContext(
+        authority.assignmentId,
+        authority.saga.sagaId,
+        input.assignmentId,
+        input.recipientId,
+      )
+      || authority.bookManifest.context.contextId !== input.assignmentId
       || authority.bookManifest.context.recipientId !== input.recipientId
+      || (authority.assignmentId !== input.assignmentId
+        && input.bindingId !== bookHomeworkRecipientDeliveryBindingId(
+          input.assignmentId,
+          input.recipientId,
+        ))
       || authority.bookManifest.bindingRevision !== input.bindingRevision
       || authority.visibility.status !== 'committed'
       || authority.saga.state !== 'committed'
@@ -144,7 +164,17 @@ const manifestPlacement = (
 const bindingMatchesAuthority = (
   binding: BookDeliveryBinding,
   authority: BookHomeworkAuthorityRecord,
-): boolean => authority.assignmentId === binding.context.contextId
+): boolean => bookHomeworkAuthorityMatchesContext(
+  authority.assignmentId,
+  authority.saga.sagaId,
+  binding.context.contextId,
+  binding.recipient.recipientId,
+)
+  && (authority.assignmentId === binding.context.contextId
+    || binding.bindingId === bookHomeworkRecipientDeliveryBindingId(
+      binding.context.contextId,
+      binding.recipient.recipientId,
+    ))
   && authority.ownerId === binding.issuer.ownerId
   && authority.assignmentKind === 'book_activity_bundle'
   && authority.visibility.status === 'committed'
@@ -183,7 +213,11 @@ export const createBookHomeworkScheduleEnforcement = (
       || input.binding.context.recipientId !== input.actorUid) {
       throw new Error('runtime_schedule_context_invalid');
     }
-    const stored = await options.authorityStore.read(input.binding.context.contextId);
+    const stored = await readBookHomeworkRecipientAuthority(
+      options.authorityStore,
+      input.binding.context.contextId,
+      input.actorUid,
+    );
     if (!stored) throw new Error('runtime_schedule_authority_missing');
     assertValidBookHomeworkAuthorityRecord(stored.value);
     const authority = stored.value;
@@ -198,7 +232,7 @@ export const createBookHomeworkScheduleEnforcement = (
       throw new Error('runtime_schedule_target_invalid');
     }
     const policy = await options.activityPolicy.resolve({
-      assignmentId: authority.assignmentId,
+      assignmentId: authority.bookManifest.context.contextId,
       recipientId: input.actorUid,
       bindingId: input.binding.bindingId,
       bindingRevision: input.binding.revision,
@@ -221,7 +255,7 @@ export const createBookHomeworkScheduleEnforcement = (
       throw new Error('runtime_schedule_policy_unavailable');
     }
     const decision = resolveBookScheduleWindow({
-      assignmentId: authority.assignmentId,
+      assignmentId: authority.bookManifest.context.contextId,
       recipientId: input.actorUid,
       bindingId: input.binding.bindingId,
       bindingRevision: input.binding.revision,

@@ -160,6 +160,12 @@ export class BookHomeworkAuthorityRepository {
     const stored = await this.store.read(assignmentId);
     if (!stored) return null;
     assertValidBookHomeworkAuthorityRecord(stored.value);
+    if (stored.value.assignmentId !== assignmentId) {
+      throw new BookHomeworkAuthorityError(
+        'invalid-record',
+        'Book Homework authority identity does not match its document path.',
+      );
+    }
     return cloneAuthorityRecord(stored.value);
   }
 
@@ -173,7 +179,7 @@ export class BookHomeworkAuthorityRepository {
       || record.visibility.status !== 'committed'
       || !await this.options.resolveCommittedRoot(record)) return null;
     return clone({
-      assignmentId: record.assignmentId,
+      assignmentId: record.bookManifest.context.contextId,
       schemaVersion: record.schemaVersion,
       assignmentKind: record.assignmentKind,
       manifestVersionId: record.bookManifest.manifestVersionId,

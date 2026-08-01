@@ -37,6 +37,9 @@ import {
   createBookHomeworkActivitySchedulePolicyResolver,
 } from '../book-homework/schedule-enforcement.ts';
 import {
+  readBookHomeworkRecipientAuthority,
+} from '../book-homework/identity.ts';
+import {
   FirebaseRestBookRuntimeRepository,
   type BookRuntimeRepositoryEnv,
 } from '../book-runtime/repository.ts';
@@ -666,7 +669,11 @@ export const createBookDeliveryWorkerHandlers = (options: {
         }
         const authorityStore = options.homeworkAuthorityStore
           ?? new FirebaseRestBookHomeworkDocumentStore({ env: input.env });
-        const stored = await authorityStore.read(input.contextId);
+        const stored = await readBookHomeworkRecipientAuthority(
+          authorityStore,
+          input.contextId,
+          current.record.binding.recipient.recipientId,
+        );
         if (!stored) throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
         const activitySchedulePolicy = options.activitySchedulePolicy
           ?? createBookHomeworkActivitySchedulePolicyResolver({

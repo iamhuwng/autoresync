@@ -334,15 +334,28 @@ describe('Book Homework assignment saga', () => {
     expect((await repository.read('assignment-1'))?.state).toBe('committed');
 
     let changedCalls = 0;
-    const changedResolver: BookHomeworkSagaDependencies['resolveCanonical'] = async () => {
+    const assignmentTwo = {
+      ...first,
+      manifest: {
+        ...first.manifest,
+        context: { ...first.manifest.context, contextId: 'assignment-2' },
+      },
+    };
+    const assignmentTwoResolver: BookHomeworkSagaDependencies['resolveCanonical'] = async () => {
       changedCalls += 1;
-      return changedCalls === 1 ? first : {
-        ...first,
-        frozenPolicy: { ...first.frozenPolicy, fingerprint: 'policy-changed-during-fanout' },
+      return changedCalls === 1 ? assignmentTwo : {
+        ...assignmentTwo,
+        frozenPolicy: {
+          ...assignmentTwo.frozenPolicy,
+          fingerprint: 'policy-changed-during-fanout',
+        },
       };
     };
-    const blocked = makeSaga(first, undefined, changedResolver);
-    const failed = await blocked.saga.execute(command({ assignmentId: 'assignment-2' }));
+    const blocked = makeSaga(assignmentTwo, undefined, assignmentTwoResolver);
+    const failed = await blocked.saga.execute(command({
+      assignmentId: 'assignment-2',
+      expectedManifestFingerprint: stable(assignmentTwo.manifest),
+    }));
     expect(failed.status).toBe('failed_terminal');
     expect(failed.record.visibility).toBe('hidden');
   });
@@ -475,6 +488,7 @@ describe('Book Homework assignment saga', () => {
     expect(expressions).toContain('auth.token.book_homework_ownerId');
     expect(expressions).toContain('!data.exists()');
     expect(expressions).toContain("newData.child('requestFingerprint').isString()");
+    expect(expressions).toContain("newData.child('contextId').val() == $assignmentId");
     expect(expressions).not.toContain('numChildren');
     expect(expressions).toContain("newData.child('authorityId').val() == ($assignmentId + '--' + $recipientId + '--authority')");
     expect(expressions).toContain("newData.parent().parent().child('state').val() != 'committed'");

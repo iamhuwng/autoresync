@@ -32,6 +32,9 @@ import {
   FirebaseRestBookHomeworkDocumentStore,
 } from '../book-homework/repository.ts';
 import {
+  readBookHomeworkRecipientAuthority,
+} from '../book-homework/identity.ts';
+import {
   FirebaseRtdbRestClient,
 } from '../listening-authoring/rtdb.ts';
 import {
@@ -102,6 +105,7 @@ export interface BookSourceDocumentRuntime {
   }) => Promise<BookResultDetail | null>;
   readonly readHomeworkAuthority?: (
     homeworkId: string,
+    studentId?: string,
   ) => Promise<HistoricalAttemptHomeworkAuthority | null>;
   readonly readHistoricalSource?: (input: {
     readonly binding: BookDeliveryBinding;
@@ -239,7 +243,11 @@ const homeworkScheduleOpen = async (
   store: FirebaseRestBookHomeworkDocumentStore,
   now: Date,
 ): Promise<boolean> => {
-  const stored = await store.read(binding.context.contextId);
+  const stored = await readBookHomeworkRecipientAuthority(
+    store,
+    binding.context.contextId,
+    binding.recipient.recipientId,
+  );
   if (!stored) return false;
   validateHomeworkAuthority(stored.value);
   return isBookHomeworkDocumentScheduleOpen(binding, stored.value, now);
@@ -318,13 +326,18 @@ const defaultRuntimeFactory = (
       resultId,
       limit: 1,
     }),
-    readHomeworkAuthority: async (homeworkId) => {
-      const stored = await homeworkStore.read(homeworkId);
+    readHomeworkAuthority: async (homeworkId, studentId) => {
+      const stored = studentId
+        ? await readBookHomeworkRecipientAuthority(homeworkStore, homeworkId, studentId)
+        : await homeworkStore.read(homeworkId);
       if (!stored) return null;
       validateHomeworkAuthority(stored.value);
       const authority = stored.value;
+      if (authority.bookManifest.context.contextId !== homeworkId
+        || (studentId !== undefined
+          && authority.bookManifest.context.recipientId !== studentId)) return null;
       return {
-        homeworkId: authority.assignmentId,
+        homeworkId,
         ownerId: authority.ownerId,
         studentIds: [authority.bookManifest.context.recipientId],
         status: authority.visibility.status === 'committed'
@@ -555,7 +568,7 @@ export const createBookHistoricalAttemptDocumentDeliveryHandler = (
         sourceVersionId: metadata.sourceVersionId,
       });
       const homeworkAuthority = metadata.surface === 'homework'
-        ? await runtime.readHomeworkAuthority!(metadata.contextId)
+        ? await runtime.readHomeworkAuthority!(metadata.contextId, metadata.studentId)
         : null;
       return authorizeHistoricalAttemptDocument({
         viewer: { uid: input.uid, role: profile.role, status: 'active' },

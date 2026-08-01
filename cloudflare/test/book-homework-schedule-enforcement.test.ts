@@ -248,7 +248,11 @@ describe('trusted Book Homework schedule enforcement', () => {
       },
     ] as BookRuntimeAttemptRecord[]);
     const resolver = createBookHomeworkActivitySchedulePolicyResolver({
-      authorityStore: { read: async () => ({ value: current, updateTime: 'firestore-5' }) },
+      authorityStore: {
+        read: async (assignmentId) => assignmentId === 'homework-1'
+          ? { value: current, updateTime: 'firestore-5' }
+          : null,
+      },
       runtimeRepository: { listAttempts },
     });
     await expect(resolver.resolve({
@@ -278,7 +282,9 @@ describe('trusted Book Homework schedule enforcement', () => {
   it('keeps the canonical runtime retry-capable until the authoritative limit is exhausted', async () => {
     const runtimeRepository = new InMemoryBookRuntimeRepository();
     const authorityStore = {
-      read: async () => ({ value: authority(), updateTime: 'firestore-5' }),
+      read: async (assignmentId: string) => assignmentId === 'homework-1'
+        ? { value: authority(), updateTime: 'firestore-5' }
+        : null,
     };
     const activityPolicy = createBookHomeworkActivitySchedulePolicyResolver({
       authorityStore,
@@ -375,7 +381,9 @@ describe('trusted Book Homework schedule enforcement', () => {
     const current = authority();
     const resolver = createBookHomeworkActivitySchedulePolicyResolver({
       authorityStore: {
-        read: async () => ({ value: { ...current, activityPolicies: undefined }, updateTime: 'legacy' }),
+        read: async (assignmentId) => assignmentId === 'homework-1'
+          ? { value: { ...current, activityPolicies: undefined }, updateTime: 'legacy' }
+          : null,
       },
       runtimeRepository: { listAttempts: vi.fn(async () => []) },
     });
@@ -499,7 +507,11 @@ describe('trusted Book Homework schedule enforcement', () => {
 
   it('uses server input time and denies unreleased state/autosave/submit', async () => {
     const enforcement = createBookHomeworkScheduleEnforcement({
-      authorityStore: { read: async () => ({ value: authority(), updateTime: 'firestore-1' }) },
+      authorityStore: {
+        read: async (assignmentId) => assignmentId === 'homework-1'
+          ? { value: authority(), updateTime: 'firestore-1' }
+          : null,
+      },
       activityPolicy: {
         resolve: async () => ({
           policyId: 'policy-1',
@@ -526,7 +538,11 @@ describe('trusted Book Homework schedule enforcement', () => {
   it('allows overdue autosave and applies late policy only to submit', async () => {
     let lateSubmissionAllowed = false;
     const enforcement = createBookHomeworkScheduleEnforcement({
-      authorityStore: { read: async () => ({ value: authority(), updateTime: 'firestore-1' }) },
+      authorityStore: {
+        read: async (assignmentId) => assignmentId === 'homework-1'
+          ? { value: authority(), updateTime: 'firestore-1' }
+          : null,
+      },
       activityPolicy: {
         resolve: async () => ({
           policyId: 'policy-1',
@@ -553,7 +569,9 @@ describe('trusted Book Homework schedule enforcement', () => {
 
   it('returns current authority and no stale allow when schedule changes during mutation', async () => {
     let current = authority();
-    const read = vi.fn(async () => ({ value: current, updateTime: `firestore-${current.revision}` }));
+    const read = vi.fn(async (assignmentId: string) => assignmentId === 'homework-1'
+      ? { value: current, updateTime: `firestore-${current.revision}` }
+      : null);
     const enforcement = createBookHomeworkScheduleEnforcement({
       authorityStore: { read },
       activityPolicy: {
@@ -591,12 +609,16 @@ describe('trusted Book Homework schedule enforcement', () => {
         window: { phase: 'unreleased', outcome: 'denied' },
       },
     });
-    expect(read).toHaveBeenCalledTimes(2);
+    expect(read).toHaveBeenCalledTimes(4);
   });
 
   it('fails closed for missing policy or forged binding/target identity', async () => {
     const enforcement = createBookHomeworkScheduleEnforcement({
-      authorityStore: { read: async () => ({ value: authority(), updateTime: 'firestore-1' }) },
+      authorityStore: {
+        read: async (assignmentId) => assignmentId === 'homework-1'
+          ? { value: authority(), updateTime: 'firestore-1' }
+          : null,
+      },
       activityPolicy: { resolve: async () => null },
     });
     await expect(enforcement.policy.authorize(
@@ -617,16 +639,18 @@ describe('trusted Book Homework schedule enforcement', () => {
   it('retains completed state and review access after a later release edit', async () => {
     const enforcement = createBookHomeworkScheduleEnforcement({
       authorityStore: {
-        read: async () => ({
-          value: {
-            ...authority(6),
-            schedule: {
-              ...authority(6).schedule,
-              availableFrom: '2026-08-20T00:00:00.000Z',
+        read: async (assignmentId) => assignmentId === 'homework-1'
+          ? {
+            value: {
+              ...authority(6),
+              schedule: {
+                ...authority(6).schedule,
+                availableFrom: '2026-08-20T00:00:00.000Z',
+              },
             },
-          },
-          updateTime: 'firestore-6',
-        }),
+            updateTime: 'firestore-6',
+          }
+          : null,
       },
       activityPolicy: {
         resolve: async () => ({

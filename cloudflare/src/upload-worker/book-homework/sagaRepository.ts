@@ -5,6 +5,10 @@ import {
   BOOK_HOMEWORK_SAGA_STATES,
   type BookHomeworkSagaRecord,
 } from '../../../../src/services/book-homework/bookHomeworkSaga.types.ts';
+import {
+  bookHomeworkRecipientAuthorityId,
+  bookHomeworkRecipientDeliveryBindingId,
+} from './identity.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -81,6 +85,9 @@ export function assertValidBookHomeworkSagaRecord(
   assertId(record.manifestVersionId, 'manifest_version_id');
   assertId(record.publicationId, 'publication_id');
   assertId(record.contextId, 'context_id');
+  if (record.contextId !== record.assignmentId) {
+    throw new Error('invalid_book_homework_saga_context_identity');
+  }
   assertIso(record.createdAt, 'created_at');
   assertIso(record.updatedAt, 'updated_at');
   if (!Array.isArray(record.recipients) || record.recipients.length === 0 || record.recipients.length > MAX_RECIPIENTS) {
@@ -97,8 +104,8 @@ export function assertValidBookHomeworkSagaRecord(
     assertId(entry.recipientId, 'recipient_id');
     assertId(entry.authorityId, 'authority_id');
     assertId(entry.bindingId, 'binding_id');
-    if (entry.authorityId !== `${record.assignmentId}--${entry.recipientId}--authority`
-      || entry.bindingId !== `${record.assignmentId}--${entry.recipientId}--delivery`) {
+    if (entry.authorityId !== bookHomeworkRecipientAuthorityId(record.assignmentId, entry.recipientId)
+      || entry.bindingId !== bookHomeworkRecipientDeliveryBindingId(record.assignmentId, entry.recipientId)) {
       throw new Error('invalid_book_homework_saga_deterministic_id');
     }
     if (!BOOK_HOMEWORK_SAGA_RECIPIENT_STATES.includes(entry.state as never) || seen.has(entry.recipientId)) {

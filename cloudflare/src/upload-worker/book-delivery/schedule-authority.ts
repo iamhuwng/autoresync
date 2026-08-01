@@ -15,13 +15,27 @@ import {
 import type {
   BookHomeworkActivitySchedulePolicy,
 } from '../book-homework/schedule-enforcement.ts';
+import {
+  bookHomeworkAuthorityMatchesContext,
+  bookHomeworkRecipientDeliveryBindingId,
+} from '../book-homework/identity.ts';
 
 const bindingMatchesAuthority = (
   binding: BookDeliveryBinding,
   authority: BookHomeworkAuthorityRecord,
 ): boolean => binding.context.kind === 'homework'
   && binding.context.entitlementBasis === 'assignment'
-  && authority.assignmentId === binding.context.contextId
+  && bookHomeworkAuthorityMatchesContext(
+    authority.assignmentId,
+    authority.saga.sagaId,
+    binding.context.contextId,
+    binding.recipient.recipientId,
+  )
+  && (authority.assignmentId === binding.context.contextId
+    || binding.bindingId === bookHomeworkRecipientDeliveryBindingId(
+      binding.context.contextId,
+      binding.recipient.recipientId,
+    ))
   && authority.ownerId === binding.issuer.ownerId
   && authority.visibility.status === 'committed'
   && authority.saga.state === 'committed'
@@ -65,7 +79,7 @@ export const resolveBookHomeworkDocumentWindow = (input: {
     throw new Error('book_document_schedule_target_invalid');
   }
   return resolveBookScheduleWindow({
-    assignmentId: input.authority.assignmentId,
+    assignmentId: input.authority.bookManifest.context.contextId,
     recipientId: input.binding.recipient.recipientId,
     bindingId: input.binding.bindingId,
     bindingRevision: input.binding.revision,
@@ -117,7 +131,7 @@ export const resolveBookHomeworkLaunchWindows = (input: {
       throw new Error('book_launch_schedule_policy_unavailable');
     }
     return [placement.placementId, resolveBookScheduleWindow({
-      assignmentId: input.authority.assignmentId,
+      assignmentId: input.authority.bookManifest.context.contextId,
       recipientId: input.binding.recipient.recipientId,
       bindingId: input.binding.bindingId,
       bindingRevision: input.binding.revision,
