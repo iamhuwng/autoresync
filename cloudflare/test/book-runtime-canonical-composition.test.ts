@@ -8,6 +8,7 @@ import type { BookDeliveryBinding } from '../../src/services/book-delivery/bookD
 import { createBookRouteHandlers } from '../src/upload-worker/book-route-handlers.ts';
 import {
   createBookRuntimeCanonicalHandlers,
+  createBookRuntimeProductionDependencies,
   type BookRuntimeCanonicalDependencies,
 } from '../src/upload-worker/book-runtime/canonical.ts';
 import type { BookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
@@ -238,6 +239,30 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
       body: { code: 'book_runtime_dependencies_unavailable' },
       init: { status: 503 },
     });
+  });
+
+  it('keeps terminal submissions independent of completion credentials when projection is disabled', async () => {
+    const runtimeEnv = {
+      ...env,
+      BOOK_RUNTIME_GOOGLE_SA_KEY: JSON.stringify({ client_email: 'runtime@example.test' }),
+      BOOK_DELIVERY_GOOGLE_SA_KEY: JSON.stringify({ client_email: 'delivery@example.test' }),
+      BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED: 'disabled',
+    };
+    const production = createBookRuntimeProductionDependencies(runtimeEnv, undefined, undefined);
+    const homework = {
+      ...binding(),
+      context: {
+        ...binding().context,
+        kind: 'homework' as const,
+        entitlementBasis: 'assignment' as const,
+      },
+    };
+
+    await expect(production.projectHomeworkCompletion?.({
+      binding: homework,
+      result: {} as never,
+      env: runtimeEnv,
+    })).resolves.toBeUndefined();
   });
 
   it('uses the runtime identity to resolve an exact canonical Activity Version', async () => {

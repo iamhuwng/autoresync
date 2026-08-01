@@ -79,6 +79,11 @@ const requestFor = (
   body: JSON.stringify(body),
 });
 
+const completionAuthority = () => ({
+  assignmentId: 'assignment-1',
+  manifest: { manifestVersionId: 'manifest-1' },
+});
+
 const makeSaga = () => ({
   execute: vi.fn(async (_input: BookHomeworkSagaCommand) => ({
     status: 'committed' as const,
@@ -86,8 +91,35 @@ const makeSaga = () => ({
   })),
   resolveStudentProjection: vi.fn(async () => ({
     authority: { manifestVersionId: 'manifest-1' },
-    delivery: { record: { binding: { bindingId: 'assignment-1--student-1--delivery' } } },
+    completionAuthority: completionAuthority(),
+    delivery: {
+      record: {
+        binding: {
+          bindingId: 'assignment-1--student-1--delivery',
+          revision: 1,
+          context: { contextId: 'assignment-1', recipientId: 'student-1' },
+          recipient: { recipientId: 'student-1' },
+          issuer: { ownerId: 'teacher-1' },
+        },
+      },
+    },
   })),
+  resolveTeacherProjections: vi.fn(async () => [{
+    studentId: 'student-1',
+    authority: { manifestVersionId: 'manifest-1' },
+    completionAuthority: completionAuthority(),
+    delivery: {
+      record: {
+        binding: {
+          bindingId: 'assignment-1--student-1--delivery',
+          revision: 1,
+          context: { contextId: 'assignment-1', recipientId: 'student-1' },
+          recipient: { recipientId: 'student-1' },
+          issuer: { ownerId: 'teacher-1' },
+        },
+      },
+    },
+  }]),
 });
 
 const makeRouter = (saga = makeSaga(), uid = 'teacher-1') => createBookRouter({
@@ -181,16 +213,169 @@ describe('Ticket 33E canonical Book Homework route', () => {
     const response = await router.fetch(request, env({
       BOOK_HOMEWORK_ROUTES_ENABLED: 'disabled',
     }));
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      assignmentId: 'assignment-1',
-      authority: { manifestVersionId: 'manifest-1' },
-      delivery: { record: { binding: { bindingId: 'assignment-1--student-1--delivery' } } },
-    });
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ code: 'book_homework_completion_unavailable' });
     expect(saga.resolveStudentProjection).toHaveBeenCalledWith('assignment-1', 'student-1');
 
     saga.resolveStudentProjection.mockResolvedValueOnce(null as never);
     const missing = await router.fetch(request, env());
     expect(missing.status).toBe(404);
+  });
+
+  it('derives current progress from persisted facts without a write-on-read', async () => {
+    const saga = makeSaga();
+    const resolveCurrentProjection = vi.fn(async () => ({
+        schemaVersion: 1 as const,
+        manifestVersionId: 'manifest-1',
+        recipientId: 'student-1',
+        contextId: 'assignment-1',
+        deliveryBindingId: 'assignment-1--student-1--delivery',
+        bindingRevision: 1,
+        completion: {
+          submittedCount: 1,
+          requiredCount: 2,
+          status: 'in_progress' as const,
+          isComplete: false,
+        },
+        grading: { pendingReviewCount: 1, scoredCount: 0, ungradedSubmittedCount: 0 },
+        activities: [],
+        excludedHistoricalRows: [],
+    }));
+    const router = createBookRouter({
+      handlers: createBookRouteHandlers({
+        homeworkHandlers: createBookHomeworkWorkerHandlers({
+          saga,
+          completionRepositoryFactory: () => ({ resolveCurrentProjection }),
+        }),
+      }),
+      firebaseVerifier: {
+        verifyAuthorizationHeader: async () => ({ valid: true, uid: 'student-1' }),
+      },
+    });
+
+    const response = await router.fetch(new Request(
+      'https://worker.example.test/book-homework/assignments/assignment-1/student-projection',
+      { headers: { Origin: 'http://localhost:5174', Authorization: 'Bearer student-token' } },
+    ), env({ BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED: 'enabled' }));
+
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+    expect(resolveCurrentProjection).toHaveBeenCalledWith(expect.objectContaining({
+      authority: expect.objectContaining({
+        assignmentId: 'assignment-1',
+        manifest: expect.objectContaining({ manifestVersionId: 'manifest-1' }),
+      }),
+      binding: expect.objectContaining({ bindingId: 'assignment-1--student-1--delivery' }),
+    }));
+    await expect(response.json()).resolves.toMatchObject({
+      completion: {
+        contextId: 'assignment-1',
+        recipientId: 'student-1',
+        completion: { submittedCount: 1, requiredCount: 2, isComplete: false },
+      },
+    });
+  });
+
+  it('allows only the owning teacher to request one exact student completion projection', async () => {
+    const saga = makeSaga();
+    const resolveCompletionProjection = vi.fn(async () => ({
+      schemaVersion: 1,
+      contextId: 'assignment-1',
+      recipientId: 'student-1',
+      deliveryBindingId: 'assignment-1--student-1--delivery',
+      bindingRevision: 1,
+      completion: { submittedCount: 1, requiredCount: 2, isComplete: false },
+      grading: { pendingReviewCount: 1, scoredCount: 0, ungradedSubmittedCount: 0 },
+    }));
+    const router = createBookRouter({
+      handlers: createBookRouteHandlers({
+        homeworkHandlers: createBookHomeworkWorkerHandlers({
+          saga,
+          resolveCompletionProjection,
+        }),
+      }),
+      firebaseVerifier: {
+        verifyAuthorizationHeader: async () => ({ valid: true, uid: 'teacher-1' }),
+      },
+    });
+    const request = new Request(
+      'https://worker.example.test/book-homework/assignments/assignment-1/students/student-1/projection',
+      { headers: { Origin: 'http://localhost:5173', Authorization: 'Bearer teacher-token' } },
+    );
+
+    const response = await router.fetch(request, env());
+
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+    expect(saga.resolveStudentProjection).toHaveBeenCalledWith('assignment-1', 'student-1');
+    expect(resolveCompletionProjection).toHaveBeenCalledWith(expect.objectContaining({
+      assignmentId: 'assignment-1',
+      studentId: 'student-1',
+    }));
+    await expect(response.json()).resolves.toMatchObject({
+      completion: {
+        completion: { submittedCount: 1, requiredCount: 2, isComplete: false },
+        grading: { pendingReviewCount: 1 },
+      },
+    });
+
+    saga.resolveStudentProjection.mockResolvedValueOnce({
+      authority: { manifestVersionId: 'manifest-1' },
+      completionAuthority: completionAuthority(),
+      delivery: {
+        record: {
+          binding: {
+            bindingId: 'assignment-1--student-1--delivery',
+            issuer: { ownerId: 'another-teacher' },
+          },
+        },
+      },
+    } as never);
+    const forbidden = await router.fetch(request, env());
+    expect(forbidden.status).toBe(403);
+    expect(resolveCompletionProjection).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns all teacher-owned student completion rows through one bounded route', async () => {
+    const saga = makeSaga();
+    const resolveCompletionProjection = vi.fn(async ({ studentId }: { studentId: string }) => ({
+      schemaVersion: 1,
+      recipientId: studentId,
+      contextId: 'assignment-1',
+      deliveryBindingId: 'assignment-1--student-1--delivery',
+      bindingRevision: 1,
+      completion: { submittedCount: 1, requiredCount: 1, isComplete: true },
+    }));
+    const router = createBookRouter({
+      handlers: createBookRouteHandlers({
+        homeworkHandlers: createBookHomeworkWorkerHandlers({
+          saga,
+          resolveCompletionProjection,
+        }),
+      }),
+      firebaseVerifier: {
+        verifyAuthorizationHeader: async () => ({ valid: true, uid: 'teacher-1' }),
+      },
+    });
+    const response = await router.fetch(new Request(
+      'https://worker.example.test/book-homework/assignments/assignment-1/teacher-projection',
+      { headers: { Origin: 'http://localhost:5173', Authorization: 'Bearer teacher-token' } },
+    ), env());
+
+    expect(response.status).toBe(200);
+    expect(saga.resolveTeacherProjections).toHaveBeenCalledWith('assignment-1', 'teacher-1');
+    expect(resolveCompletionProjection).toHaveBeenCalledTimes(1);
+    await expect(response.json()).resolves.toEqual({
+      assignmentId: 'assignment-1',
+      students: [{
+        studentId: 'student-1',
+        completion: {
+          schemaVersion: 1,
+          recipientId: 'student-1',
+          contextId: 'assignment-1',
+          deliveryBindingId: 'assignment-1--student-1--delivery',
+          bindingRevision: 1,
+          completion: { submittedCount: 1, requiredCount: 1, isComplete: true },
+        },
+      }],
+    });
   });
 });

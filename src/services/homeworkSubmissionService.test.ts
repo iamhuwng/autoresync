@@ -142,6 +142,8 @@ vi.mock('./notificationService', () => ({
 
 import {
     createSubmission,
+    getBookHomeworkProgress,
+    getTeacherBookHomeworkProgress,
     HomeworkSubmissionError,
     resetStudentHomework,
     submitImportedHomeworkSubmission,
@@ -464,6 +466,207 @@ describe('homeworkSubmissionService', () => {
             mockStudentId,
             mockHomeworkId,
             'Protected Homework',
+        );
+    });
+
+    it('reads trusted Book progress without mapping completion into legacy score fields', async () => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            assignmentId: mockHomeworkId,
+            completion: {
+                schemaVersion: 1,
+                manifestVersionId: 'manifest-1',
+                recipientId: mockStudentId,
+                contextId: mockHomeworkId,
+                deliveryBindingId: 'delivery-1',
+                bindingRevision: 1,
+                completion: {
+                    submittedCount: 1,
+                    requiredCount: 2,
+                    status: 'in_progress',
+                    isComplete: false,
+                },
+                grading: {
+                    scoredCount: 0,
+                    pendingReviewCount: 1,
+                    ungradedSubmittedCount: 0,
+                },
+                activities: [{
+                    bindingId: 'activity-binding-1',
+                    placementId: 'placement-1',
+                    activityId: 'activity-1',
+                    activityVersion: 1,
+                    activityVersionId: 'activity-version-1',
+                    order: 1,
+                    contextMode: 'optional',
+                    submitted: true,
+                    gradingState: 'review_required',
+                    terminalId: 'completion-1',
+                }, {
+                    bindingId: 'activity-binding-2',
+                    placementId: 'placement-2',
+                    activityId: 'activity-2',
+                    activityVersion: 1,
+                    activityVersionId: 'activity-version-2',
+                    order: 2,
+                    contextMode: 'none',
+                    submitted: false,
+                    gradingState: 'ungraded',
+                }],
+                excludedHistoricalRows: [],
+            },
+        }), { status: 200 })) as typeof fetch;
+
+        const projection = await getBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            studentId: mockStudentId,
+            fetchImpl,
+            getIdToken: async () => 'token-1',
+        });
+
+        expect(projection?.completion).toEqual({
+            submittedCount: 1,
+            requiredCount: 2,
+            status: 'in_progress',
+            isComplete: false,
+        });
+        expect(projection?.grading.pendingReviewCount).toBe(1);
+        expect(JSON.stringify(projection)).not.toMatch(/"percentage"|"bandScore"|"maxScore"/u);
+        expect(fetchImpl).toHaveBeenCalledWith(
+            new URL(`https://worker.example.test/book-homework/assignments/${mockHomeworkId}/students/${mockStudentId}/projection`),
+            expect.objectContaining({
+                method: 'GET',
+                headers: { Authorization: 'Bearer token-1' },
+            }),
+        );
+    });
+
+    it('fails closed when a Book projection tries to use a legacy aggregate percentage', async () => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            completion: {
+                schemaVersion: 1,
+                manifestVersionId: 'manifest-1',
+                recipientId: mockStudentId,
+                contextId: mockHomeworkId,
+                deliveryBindingId: 'delivery-1',
+                bindingRevision: 1,
+                completion: {
+                    submittedCount: 1,
+                    requiredCount: 1,
+                    status: 'completed',
+                    isComplete: true,
+                },
+                grading: {
+                    scoredCount: 0,
+                    pendingReviewCount: 1,
+                    ungradedSubmittedCount: 0,
+                },
+                activities: [],
+                excludedHistoricalRows: [],
+                percentage: 100,
+            },
+        }), { status: 200 })) as typeof fetch;
+
+        await expect(getBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            fetchImpl,
+            getIdToken: async () => 'token-1',
+        })).rejects.toMatchObject({
+            status: 502,
+            code: 'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE',
+        });
+    });
+
+    it('fails closed when a valid Book projection belongs to another exact context', async () => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            completion: {
+                schemaVersion: 1,
+                manifestVersionId: 'manifest-1',
+                recipientId: mockStudentId,
+                contextId: 'other-homework',
+                deliveryBindingId: 'delivery-1',
+                bindingRevision: 1,
+                completion: {
+                    submittedCount: 1,
+                    requiredCount: 1,
+                    status: 'completed',
+                    isComplete: true,
+                },
+                grading: {
+                    scoredCount: 0,
+                    pendingReviewCount: 0,
+                    ungradedSubmittedCount: 1,
+                },
+                activities: [],
+                excludedHistoricalRows: [],
+            },
+        }), { status: 200 })) as typeof fetch;
+
+        await expect(getBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            studentId: mockStudentId,
+            fetchImpl,
+            getIdToken: async () => 'token-1',
+        })).rejects.toMatchObject({
+            status: 502,
+            code: 'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE',
+        });
+    });
+
+    it('reads teacher Book progress for all students through one bounded request', async () => {
+        const completion = (studentId: string) => ({
+            schemaVersion: 1,
+            manifestVersionId: 'manifest-1',
+            recipientId: studentId,
+            contextId: mockHomeworkId,
+            deliveryBindingId: `delivery-${studentId}`,
+            bindingRevision: 1,
+            completion: {
+                submittedCount: 1,
+                requiredCount: 1,
+                status: 'completed',
+                isComplete: true,
+            },
+            grading: {
+                scoredCount: 0,
+                pendingReviewCount: 1,
+                ungradedSubmittedCount: 0,
+            },
+            activities: [{
+                bindingId: 'activity-binding-1',
+                placementId: 'placement-1',
+                activityId: 'activity-1',
+                activityVersion: 1,
+                activityVersionId: 'activity-version-1',
+                order: 1,
+                contextMode: 'none',
+                submitted: true,
+                gradingState: 'review_required',
+                terminalId: `completion-${studentId}`,
+            }],
+            excludedHistoricalRows: [],
+        });
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            assignmentId: mockHomeworkId,
+            students: [
+                { studentId: 'student-1', completion: completion('student-1') },
+                { studentId: 'student-2', completion: completion('student-2') },
+            ],
+        }), { status: 200 })) as typeof fetch;
+
+        const rows = await getTeacherBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            fetchImpl,
+            getIdToken: async () => 'teacher-token',
+        });
+
+        expect(rows?.map((row) => row.studentId)).toEqual(['student-1', 'student-2']);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).toHaveBeenCalledWith(
+            new URL(`https://worker.example.test/book-homework/assignments/${mockHomeworkId}/teacher-projection`),
+            expect.objectContaining({
+                method: 'GET',
+                headers: { Authorization: 'Bearer teacher-token' },
+            }),
         );
     });
 });

@@ -31,6 +31,7 @@ import type {
 } from '../../../../src/types/bookActivity.types.ts';
 import type {
   BookRuntimeAttemptPolicy,
+  BookRuntimeCommandResult,
   BookRuntimeScore,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 
@@ -80,6 +81,11 @@ export interface BookRuntimeWorkerHandlersOptions {
     readonly interactionId: string;
     readonly env: BookRuntimeWorkerEnv;
   }) => Promise<BookRuntimeAttemptPolicy | null>;
+  readonly projectHomeworkCompletion?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeWorkerEnv;
+  }) => Promise<void>;
 }
 
 const json = (
@@ -158,6 +164,26 @@ export const createBookRuntimeWorkerHandlers = (
       && (user as Record<string, unknown>).disabled === true);
     return { uid: input.uid, disabled };
   });
+  const projectHomeworkCompletion = async (
+    binding: BookDeliveryBinding,
+    result: BookRuntimeCommandResult,
+    env: BookRuntimeWorkerEnv,
+  ): Promise<void> => {
+    if (binding.context.kind !== 'homework'
+      || !options.projectHomeworkCompletion
+      || !result.attempt
+      || !result.result
+      || !result.completion
+      || !result.index) return;
+    try {
+      await options.projectHomeworkCompletion({ binding, result, env });
+    } catch {
+      throw new BookRuntimeWorkerError(
+        'book_homework_completion_projection_unavailable',
+        503,
+      );
+    }
+  };
 
   const command = async (input: {
     readonly request: Request;
@@ -202,6 +228,14 @@ export const createBookRuntimeWorkerHandlers = (
           actorUid: actor.uid,
         });
         if (replayed) {
+          if (options.projectHomeworkCompletion
+            && replayed.status === 'replayed'
+            && replayed.attempt
+            && replayed.result
+            && replayed.completion
+            && replayed.index) {
+            await projectHomeworkCompletion(binding, replayed, input.env);
+          }
           return json(sanitizeResult(replayed), statusFor(replayed.status));
         }
       }
@@ -308,6 +342,15 @@ export const createBookRuntimeWorkerHandlers = (
         ...(score ? { score } : {}),
         ...(activitySubmissionBoundary ? { activitySubmissionBoundary } : {}),
       });
+      if (options.projectHomeworkCompletion
+        && payload.commandKind === 'submit'
+        && (result.status === 'accepted' || result.status === 'replayed')
+        && result.attempt
+        && result.result
+        && result.completion
+        && result.index) {
+        await projectHomeworkCompletion(binding, result, input.env);
+      }
       return json(sanitizeResult(result), statusFor(result.status));
     } catch (error) {
       if (error instanceof BookRuntimeCommandSchemaError

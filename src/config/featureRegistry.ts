@@ -428,6 +428,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       '/student/homework',
       '/student/homework/:homeworkId',
       '/__smoke/book-homework-preview',
+      ROUTES.BOOK_HOMEWORK_COMPLETION_SMOKE,
     ],
     actions: [
       'assignHomework',
@@ -454,6 +455,10 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'bookHomeworkForkRequested',
       'bookHomeworkPreviewConfirmed',
       'bookHomeworkPreviewCanceled',
+      'bookHomeworkProgressBack',
+      'bookHomeworkProgressRetry',
+      'bookHomeworkCompletionSmokeSubjectiveSubmitted',
+      'bookHomeworkCompletionSmokeScoredSubmitted',
     ],
     description: 'Homework assignment and management',
   },

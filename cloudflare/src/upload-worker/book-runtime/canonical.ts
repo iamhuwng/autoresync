@@ -2,6 +2,7 @@ import type { BookDeliveryBinding } from '../../../../src/services/book-delivery
 import type { NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
 import type {
   BookRuntimeAttemptPolicy,
+  BookRuntimeCommandResult,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import {
   assertCanonicalPublishedActivityVersion,
@@ -34,6 +35,13 @@ import {
   createBookHomeworkScheduleEnforcement,
   type BookHomeworkActivitySchedulePolicyResolver,
 } from '../book-homework/schedule-enforcement.ts';
+import {
+  FirebaseRestBookHomeworkCompletionRepository,
+  BookHomeworkCompletionRepositoryError,
+} from '../book-homework/completion-repository.ts';
+import {
+  readBookHomeworkRecipientAuthority,
+} from '../book-homework/identity.ts';
 
 export type BookRuntimeCanonicalEnv =
   & BookRuntimeWorkerEnv
@@ -65,6 +73,11 @@ export interface BookRuntimeCanonicalDependencies {
     readonly interactionId: string;
     readonly env: BookRuntimeCanonicalEnv;
   }) => Promise<BookRuntimeAttemptPolicy | null>;
+  readonly projectHomeworkCompletion?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<void>;
 }
 
 export interface BookRuntimeCanonicalHandlersOptions {
@@ -75,7 +88,7 @@ export interface BookRuntimeCanonicalHandlersOptions {
   readonly activitySchedulePolicy?: BookHomeworkActivitySchedulePolicyResolver;
 }
 
-const productionDependencies = (
+export const createBookRuntimeProductionDependencies = (
   env: BookRuntimeCanonicalEnv,
   schedulePolicy: BookRuntimeSchedulePolicy | undefined,
   activitySchedulePolicy: BookHomeworkActivitySchedulePolicyResolver | undefined,
@@ -153,6 +166,32 @@ const productionDependencies = (
       });
       return policy ? { maxAttempts: policy.maxAttempts } : null;
     },
+    projectHomeworkCompletion: async ({ binding, result }) => {
+      if (binding.context.kind !== 'homework'
+        || env.BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED !== 'enabled') return;
+      const completionRepository = new FirebaseRestBookHomeworkCompletionRepository({ env });
+      if (!result.attempt || !result.result || !result.completion || !result.index) {
+        throw new BookHomeworkCompletionRepositoryError('homework_completion_terminal_missing');
+      }
+      const stored = await readBookHomeworkRecipientAuthority(
+        authorityStore,
+        binding.context.contextId,
+        binding.context.recipientId,
+      );
+      if (!stored || stored.value.visibility.status !== 'committed') {
+        throw new BookHomeworkCompletionRepositoryError('homework_completion_authority_unavailable');
+      }
+      await completionRepository.project({
+        authority: stored.value,
+        binding,
+        terminal: {
+          attempt: result.attempt,
+          result: result.result,
+          completion: result.completion,
+          index: result.index,
+        },
+      });
+    },
   };
 };
 
@@ -166,7 +205,7 @@ export const createBookRuntimeCanonicalHandlers = (
 ) => {
   const schedulePolicy = options.schedulePolicy;
   const createDependencies = options.createDependencies
-    ?? ((env: BookRuntimeCanonicalEnv) => productionDependencies(
+    ?? ((env: BookRuntimeCanonicalEnv) => createBookRuntimeProductionDependencies(
       env,
       schedulePolicy,
       options.activitySchedulePolicy,

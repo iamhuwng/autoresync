@@ -3,6 +3,10 @@ import {
   BookHomeworkSagaError,
   type BookHomeworkSagaResult,
 } from './saga.ts';
+import {
+  FirebaseRestBookHomeworkCompletionRepository,
+  type BookHomeworkCompletionProjection,
+} from './completion-repository.ts';
 import type { BookHomeworkSagaCommand } from '../../../../src/services/book-homework/bookHomeworkSaga.types.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
@@ -26,7 +30,33 @@ export class BookHomeworkWorkerError extends Error {
 
 export interface BookHomeworkWorkerHandlersOptions {
   readonly saga?: Pick<BookHomeworkAssignmentSaga, 'execute'>
-    & Partial<Pick<BookHomeworkAssignmentSaga, 'resolveStudentProjection'>>;
+    & Partial<Pick<
+      BookHomeworkAssignmentSaga,
+      'resolveStudentProjection' | 'resolveTeacherProjections'
+    >>;
+  readonly resolveCompletionProjection?: (input: {
+    readonly assignmentId: string;
+    readonly studentId: string;
+    readonly authority: NonNullable<
+      Awaited<ReturnType<BookHomeworkAssignmentSaga['resolveStudentProjection']>>
+    >['completionAuthority'];
+    readonly delivery: NonNullable<
+      Awaited<ReturnType<BookHomeworkAssignmentSaga['resolveStudentProjection']>>
+    >['delivery'];
+    readonly env: BookHomeworkWorkerEnv;
+  }) => Promise<Record<string, unknown> | null>;
+  readonly completionRepositoryFactory?: (
+    env: BookHomeworkWorkerEnv,
+  ) => {
+    readonly resolveCurrentProjection: (input: {
+      readonly authority: NonNullable<
+        Awaited<ReturnType<BookHomeworkAssignmentSaga['resolveStudentProjection']>>
+      >['completionAuthority'];
+      readonly binding: NonNullable<
+        Awaited<ReturnType<BookHomeworkAssignmentSaga['resolveStudentProjection']>>
+      >['delivery']['record']['binding'];
+    }) => Promise<BookHomeworkCompletionProjection>;
+  };
   readonly now?: () => string;
 }
 
@@ -72,6 +102,18 @@ const safeId = (value: unknown, label: string): string => {
   }
   return value;
 };
+
+const completionMatchesContext = (
+  value: Record<string, unknown>,
+  assignmentId: string,
+  studentId: string,
+  binding: NonNullable<
+    Awaited<ReturnType<BookHomeworkAssignmentSaga['resolveStudentProjection']>>
+  >['delivery']['record']['binding'],
+): boolean => value.contextId === assignmentId
+  && value.recipientId === studentId
+  && value.deliveryBindingId === binding.bindingId
+  && value.bindingRevision === binding.revision;
 
 const routeId = (value: unknown, label: string): string => {
   if (typeof value !== 'string' || !ROUTE_ID.test(value)) {
@@ -200,6 +242,25 @@ const sagaStatus = (code: string): number => {
 export const createBookHomeworkWorkerHandlers = (
   options: BookHomeworkWorkerHandlersOptions = {},
 ) => {
+  const resolveCompletionProjection = options.resolveCompletionProjection
+    ?? (async (input: Parameters<NonNullable<BookHomeworkWorkerHandlersOptions['resolveCompletionProjection']>>[0]) => {
+      try {
+        if (input.env.BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED !== 'enabled') {
+          throw new BookHomeworkWorkerError('book_homework_completion_unavailable', 503);
+        }
+        const repository = options.completionRepositoryFactory
+          ? options.completionRepositoryFactory(input.env)
+          : new FirebaseRestBookHomeworkCompletionRepository({ env: input.env });
+        const projection = await repository.resolveCurrentProjection({
+          authority: input.authority,
+          binding: input.delivery.record.binding,
+        });
+        return projection as unknown as Record<string, unknown>;
+      } catch (error) {
+        if (error instanceof BookHomeworkWorkerError) throw error;
+        throw new BookHomeworkWorkerError('book_homework_completion_unavailable', 503);
+      }
+    });
   const now = options.now ?? (() => new Date().toISOString());
 
   const homeworkAssignmentCommand = async (input: {
@@ -240,35 +301,119 @@ export const createBookHomeworkWorkerHandlers = (
     }
   };
 
-  const homeworkStudentProjection = async (input: {
+  const exactProjection = async (input: {
     readonly assignmentId: string;
     readonly uid: string;
+    readonly studentId: string;
+    readonly env?: BookHomeworkWorkerEnv;
+    readonly teacherRead: boolean;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     if (!options.saga?.resolveStudentProjection) {
       return { body: { code: 'saga_unavailable' }, init: { status: 503 } };
     }
     try {
-      const projection = await options.saga.resolveStudentProjection(
-        routeId(input.assignmentId, 'assignment_id'),
-        safeId(input.uid, 'student_id'),
-      );
+      const assignmentId = routeId(input.assignmentId, 'assignment_id');
+      const studentId = safeId(input.studentId, 'student_id');
+      if (input.teacherRead) await assertTeacher(input.env ?? {}, input.uid);
+      const projection = await options.saga.resolveStudentProjection(assignmentId, studentId);
       if (!projection) {
         return { body: { code: 'book_homework_not_found' }, init: { status: 404 } };
       }
+      if (input.teacherRead
+        && projection.delivery.record.binding.issuer.ownerId !== input.uid) {
+        return { body: { code: 'book_homework_owner_required' }, init: { status: 403 } };
+      }
+      const completion = await resolveCompletionProjection({
+        assignmentId,
+        studentId,
+        authority: projection.completionAuthority,
+        delivery: projection.delivery,
+        env: input.env ?? {},
+      });
+      if (!completion || !completionMatchesContext(completion, assignmentId, studentId, projection.delivery.record.binding)) {
+        return { body: { code: 'book_homework_completion_unavailable' }, init: { status: 503 } };
+      }
       return {
         body: {
-          assignmentId: input.assignmentId,
+          assignmentId,
           authority: projection.authority,
           delivery: projection.delivery,
+          ...(completion ? { completion } : {}),
         },
         init: { status: 200 },
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof BookHomeworkWorkerError) {
+        return { body: { code: error.code }, init: { status: error.status } };
+      }
       return { body: { code: 'book_homework_projection_failed' }, init: { status: 500 } };
     }
   };
 
-  return { homeworkAssignmentCommand, homeworkStudentProjection };
+  const homeworkStudentProjection = (input: {
+    readonly assignmentId: string;
+    readonly uid: string;
+    readonly env?: BookHomeworkWorkerEnv;
+  }) => exactProjection({
+    ...input,
+    studentId: input.uid,
+    teacherRead: false,
+  });
+
+  const homeworkTeacherStudentProjection = (input: {
+    readonly assignmentId: string;
+    readonly studentId: string;
+    readonly uid: string;
+    readonly env?: BookHomeworkWorkerEnv;
+  }) => exactProjection({ ...input, teacherRead: true });
+
+  const homeworkTeacherProjection = async (input: {
+    readonly assignmentId: string;
+    readonly uid: string;
+    readonly env?: BookHomeworkWorkerEnv;
+  }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
+    if (!options.saga?.resolveTeacherProjections) {
+      return { body: { code: 'book_homework_teacher_projection_unavailable' }, init: { status: 503 } };
+    }
+    try {
+      await assertTeacher(input.env ?? {}, input.uid);
+      const assignmentId = routeId(input.assignmentId, 'assignment_id');
+      const resolutions = await options.saga.resolveTeacherProjections(
+        assignmentId,
+        safeId(input.uid, 'teacher_id'),
+      );
+      if (!resolutions) {
+        return { body: { code: 'book_homework_not_found' }, init: { status: 404 } };
+      }
+      const students = await Promise.all(resolutions.map(async (resolution) => {
+        const completion = await resolveCompletionProjection({
+          assignmentId,
+          studentId: resolution.studentId,
+          authority: resolution.completionAuthority,
+          delivery: resolution.delivery,
+          env: input.env ?? {},
+        });
+        if (!completion
+          || !completionMatchesContext(completion, assignmentId, resolution.studentId, resolution.delivery.record.binding)) {
+          throw new BookHomeworkWorkerError('book_homework_completion_missing', 503);
+        }
+        return { studentId: resolution.studentId, completion };
+      }));
+      return { body: { assignmentId, students }, init: { status: 200 } };
+    } catch (error) {
+      if (error instanceof BookHomeworkWorkerError) {
+        return { body: { code: error.code }, init: { status: error.status } };
+      }
+      return { body: { code: 'book_homework_projection_failed' }, init: { status: 500 } };
+    }
+  };
+
+  return {
+    homeworkAssignmentCommand,
+    homeworkStudentProjection,
+    homeworkTeacherStudentProjection,
+    homeworkTeacherProjection,
+  };
 };
 
 export default createBookHomeworkWorkerHandlers;

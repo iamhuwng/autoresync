@@ -60,7 +60,16 @@ export interface BookHomeworkSagaResult {
 
 export interface BookHomeworkStudentResolution {
   readonly authority: Awaited<ReturnType<BookHomeworkAuthorityRepository['readStudentProjection']>>;
+  /** Full trusted manifest for server-only completion derivation; never returned to students. */
+  readonly completionAuthority: {
+    readonly assignmentId: string;
+    readonly manifest: BookHomeworkManifest;
+  };
   readonly delivery: NonNullable<Awaited<ReturnType<BookDeliveryRepository['resolveCurrent']>>>;
+}
+
+export interface BookHomeworkTeacherStudentResolution extends BookHomeworkStudentResolution {
+  readonly studentId: string;
 }
 
 export class BookHomeworkSagaError extends Error {
@@ -404,21 +413,81 @@ export class BookHomeworkAssignmentSaga {
     if (!record || record.state !== 'committed' || record.visibility !== 'committed') return null;
     const entry = record.recipients.find((candidate) => candidate.recipientId === studentId);
     if (!entry || entry.state !== 'committed') return null;
-    const [authority, delivery] = await Promise.all([
+    const [authority, trustedAuthority, delivery] = await Promise.all([
       this.dependencies.authorityRepository.readStudentProjection(entry.authorityId, studentId),
+      this.dependencies.authorityRepository.read(entry.authorityId),
       this.dependencies.deliveryRepository.resolveCurrent(studentId, record.contextId),
     ]);
     if (!authority
+      || !trustedAuthority
       || !delivery
       || authority.assignmentId !== record.contextId
       || authority.bookManifest.context.contextId !== record.contextId
       || authority.bookManifest.context.recipientId !== studentId
+      || trustedAuthority.saga.sagaId !== record.contextId
+      || trustedAuthority.visibility.status !== 'committed'
+      || trustedAuthority.bookManifest.context.contextId !== record.contextId
+      || trustedAuthority.bookManifest.context.recipientId !== studentId
       || delivery.record.binding.bindingId !== entry.bindingId
       || entry.bindingRevision === undefined
       || delivery.record.binding.revision !== entry.bindingRevision
       || delivery.record.binding.context.contextId !== record.contextId
       || delivery.record.binding.recipient.recipientId !== studentId) return null;
-    return { authority, delivery };
+    return {
+      authority,
+      completionAuthority: {
+        assignmentId: record.contextId,
+        manifest: trustedAuthority.bookManifest,
+      },
+      delivery,
+    };
+  }
+
+  async resolveTeacherProjections(
+    assignmentId: string,
+    ownerId: string,
+  ): Promise<readonly BookHomeworkTeacherStudentResolution[] | null> {
+    assertId(assignmentId, 'assignmentId');
+    assertId(ownerId, 'ownerId');
+    const record = await this.dependencies.sagaRepository.read(assignmentId);
+    if (!record
+      || record.state !== 'committed'
+      || record.visibility !== 'committed'
+      || record.ownerId !== ownerId) return null;
+    const rows = await Promise.all(record.recipients
+      .filter((entry) => entry.state === 'committed')
+      .map(async (entry): Promise<BookHomeworkTeacherStudentResolution | null> => {
+        const [authority, trustedAuthority, delivery] = await Promise.all([
+          this.dependencies.authorityRepository.readStudentProjection(entry.authorityId, entry.recipientId),
+          this.dependencies.authorityRepository.read(entry.authorityId),
+          this.dependencies.deliveryRepository.resolveCurrent(entry.recipientId, record.contextId),
+        ]);
+        if (!authority
+          || !trustedAuthority
+          || !delivery
+          || authority.assignmentId !== record.contextId
+          || authority.bookManifest.context.contextId !== record.contextId
+          || authority.bookManifest.context.recipientId !== entry.recipientId
+          || trustedAuthority.saga.sagaId !== record.contextId
+          || trustedAuthority.visibility.status !== 'committed'
+          || trustedAuthority.bookManifest.context.contextId !== record.contextId
+          || trustedAuthority.bookManifest.context.recipientId !== entry.recipientId
+          || delivery.record.binding.bindingId !== entry.bindingId
+          || entry.bindingRevision === undefined
+          || delivery.record.binding.revision !== entry.bindingRevision
+          || delivery.record.binding.context.contextId !== record.contextId
+          || delivery.record.binding.recipient.recipientId !== entry.recipientId) return null;
+        return {
+          studentId: entry.recipientId,
+          authority,
+          completionAuthority: {
+            assignmentId: record.contextId,
+            manifest: trustedAuthority.bookManifest,
+          },
+          delivery,
+        };
+      }));
+    return rows.every((row): row is BookHomeworkTeacherStudentResolution => row !== null) ? rows : null;
   }
 
   private async executeLocked(command: BookHomeworkSagaCommand): Promise<BookHomeworkSagaResult> {

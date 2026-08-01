@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBookRuntimeWorkerHandlers } from '../src/upload-worker/book-runtime/worker.ts';
 import { InMemoryBookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
+import { createBookRuntimeScheduleAuthority } from '../../src/services/book-activity/activityRuntimeAttempt.service.ts';
+import { resolveBookScheduleWindow } from '../../src/services/book-delivery/bookScheduleWindow.service.ts';
 
 const operationId = '00000000-0000-4000-8000-000000000076';
 
@@ -86,6 +88,63 @@ const binding = () => ({
   schedulePolicy: { policyId: 'policy-1', policyRevision: 1, basis: 'immutable-reference' as const },
   createdAt: '2026-07-30T00:00:00.000Z',
 });
+
+const homeworkBinding = () => ({
+  ...binding(),
+  outline: [{
+    nodeKey: 'unit-1',
+    parentNodeKey: null,
+    nodeType: 'unit' as const,
+    order: 1,
+  }],
+  context: {
+    contextId: 'context-1',
+    recipientId: 'student-1',
+    ownerId: 'teacher-1',
+    kind: 'homework' as const,
+    entitlementBasis: 'assignment' as const,
+  },
+});
+
+const homeworkScheduleAuthority = () => createBookRuntimeScheduleAuthority(
+  resolveBookScheduleWindow({
+    assignmentId: 'context-1',
+    recipientId: 'student-1',
+    bindingId: 'binding-1',
+    bindingRevision: 1,
+    placementId: 'placement-1',
+    activityId: 'activity-1',
+    activityVersion: 1,
+    nodeKey: 'unit-1',
+    operation: 'submit',
+    schedule: {
+      schemaVersion: 1,
+      resolverVersion: 1,
+      availableFrom: '2026-07-29T00:00:00.000Z',
+      finalDueAt: '2026-07-31T00:00:00.000Z',
+      scheduleRules: [],
+    },
+    outline: homeworkBinding().outline,
+    studentExtensions: {},
+    lateSubmissionAllowed: false,
+    maxAttempts: 2,
+    attemptsUsed: 0,
+    policyRevision: 1,
+    authorityRevision: 1,
+    evaluatedAt: '2026-07-30T00:00:01.000Z',
+  }),
+);
+
+const homeworkSchedulePolicy = {
+  authorize: () => ({
+    outcome: 'allowed' as const,
+    authority: homeworkScheduleAuthority(),
+  }),
+  revalidate: () => ({
+    outcome: 'allowed' as const,
+    authority: homeworkScheduleAuthority(),
+  }),
+};
 
 const request = (body: Record<string, unknown>) => new Request(
   'https://worker.test/book-runtime/commands',
@@ -265,6 +324,147 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
           },
       },
     });
+  });
+
+  it('projects an accepted Homework terminal submit and replays it without duplicate authority', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    await repository.applyCommand({
+      command: {
+        ...submit({
+          commandKind: 'autosave',
+          operationId: '00000000-0000-4000-8000-000000000077',
+          clientRevision: 0,
+        }),
+      } as never,
+      context: {
+        actorUid: 'student-1',
+        operationKind: 'autosave',
+        binding: homeworkBinding(),
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+        now: '2026-07-30T00:00:00.000Z',
+      },
+      attemptId: 'attempt-autosave',
+    });
+    const projectHomeworkCompletion = vi.fn(async () => undefined);
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => homeworkBinding(),
+      resolveActivity: async () => normalizedActivity(),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      schedulePolicy: homeworkSchedulePolicy,
+      projectHomeworkCompletion,
+      now: () => '2026-07-30T00:00:01.000Z',
+      allocateAttemptId: () => 'attempt-submit',
+      requireCanonicalDraftForSubmit: true,
+    });
+
+    const accepted = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+    const replayed = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+
+    expect(accepted.body.status, JSON.stringify(accepted)).toBe('accepted');
+    expect(replayed.body.status).toBe('replayed');
+    expect(projectHomeworkCompletion).toHaveBeenCalledTimes(2);
+    expect(projectHomeworkCompletion).toHaveBeenLastCalledWith(expect.objectContaining({
+      binding: expect.objectContaining({ bindingId: 'binding-1' }),
+      result: expect.objectContaining({
+        status: 'replayed',
+        completion: expect.objectContaining({ status: 'completed' }),
+      }),
+    }));
+    expect(Object.keys(repository.snapshot().completions ?? {})).toEqual([
+      'attempt-submit:completion',
+    ]);
+  });
+
+  it('never invokes Homework completion projection for a Solo terminal submit', async () => {
+    const projectHomeworkCompletion = vi.fn(async () => undefined);
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository: new InMemoryBookRuntimeRepository(),
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedActivity(),
+      resolveAttemptPolicy: async () => ({ maxAttempts: null }),
+      projectHomeworkCompletion,
+      now: () => '2026-07-30T00:00:01.000Z',
+      allocateAttemptId: () => 'attempt-solo',
+    });
+
+    const accepted = await handlers.command({
+      request: request(submit({ clientRevision: 0 })),
+      env: {},
+      uid: 'student-1',
+    });
+
+    expect(accepted.body.status, JSON.stringify(accepted)).toBe('accepted');
+    expect(projectHomeworkCompletion).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on projection outage and repairs through the same terminal replay', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    await repository.applyCommand({
+      command: {
+        ...submit({
+          commandKind: 'autosave',
+          operationId: '00000000-0000-4000-8000-000000000077',
+          clientRevision: 0,
+        }),
+      } as never,
+      context: {
+        actorUid: 'student-1',
+        operationKind: 'autosave',
+        binding: homeworkBinding(),
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+        now: '2026-07-30T00:00:00.000Z',
+      },
+      attemptId: 'attempt-autosave',
+    });
+    const projectHomeworkCompletion = vi.fn()
+      .mockRejectedValueOnce(new Error('projection unavailable'))
+      .mockResolvedValue(undefined);
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => homeworkBinding(),
+      resolveActivity: async () => normalizedActivity(),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      schedulePolicy: homeworkSchedulePolicy,
+      projectHomeworkCompletion,
+      now: () => '2026-07-30T00:00:01.000Z',
+      allocateAttemptId: () => 'attempt-submit',
+      requireCanonicalDraftForSubmit: true,
+    });
+
+    const unavailable = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+    expect(unavailable).toEqual({
+      body: { code: 'book_homework_completion_projection_unavailable' },
+      init: { status: 503 },
+    });
+    expect(Object.keys(repository.snapshot().completions ?? {})).toHaveLength(1);
+
+    const repaired = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+    expect(repaired.body.status).toBe('replayed');
+    expect(projectHomeworkCompletion).toHaveBeenCalledTimes(2);
+    expect(Object.keys(repository.snapshot().completions ?? {})).toHaveLength(1);
   });
 
   it('rejects a submit whose response differs from the acknowledged canonical draft', async () => {

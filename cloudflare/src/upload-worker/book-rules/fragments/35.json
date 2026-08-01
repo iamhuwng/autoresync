@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "35",
+  "owner": {
+    "ticketId": "35",
+    "issue": 88,
+    "generatedRuleLocations": [
+      "book_runtime/homework_completion/$recipientId/$contextId/.read",
+      "book_runtime/homework_completion/$recipientId/$contextId/.write"
+    ],
+    "serviceIdentity": "book_runtime_service",
+    "leastPrivilegePaths": [
+      "book_runtime/homework_completion/$recipientId/$contextId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_runtime/homework_completion/$recipientId/$contextId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId"
+    },
+    {
+      "path": "book_runtime/homework_completion/$recipientId/$contextId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_runtime_service == true && auth.token.book_runtime_recipientId == $recipientId && auth.token.book_runtime_contextId == $contextId && newData.child('schemaVersion').val() == 1 && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('projection').child('recipientId').val() == $recipientId && newData.child('projection').child('contextId').val() == $contextId && !newData.child('answerKey').exists() && !newData.child('response').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists() && !newData.child('pdfBytes').exists()"
+    }
+  ]
+}

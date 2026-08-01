@@ -99,6 +99,7 @@ export const ROUTES = {
   STUDENT_ACADEMIC_RECORD: '/student/academic-record',
   STUDENT_PRACTICE: '/student/practice/:materialId',
   BOOK_RUNTIME_SMOKE: '/__smoke/book-runtime',
+  BOOK_HOMEWORK_COMPLETION_SMOKE: '/__smoke/book-homework-completion',
   RESULT_DETAIL: '/result/:resultId',
   MATERIAL_UNAVAILABLE: '/material-unavailable/:materialId',
 } as const;

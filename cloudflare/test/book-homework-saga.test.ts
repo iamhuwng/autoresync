@@ -238,7 +238,19 @@ describe('Book Homework assignment saga', () => {
     expect(result.record.visibility).toBe('committed');
     expect(result.record.recipients.map((entry) => entry.recipientId)).toEqual(['student-1', 'student-2']);
     expect((await saga.resolveStudentProjection('assignment-1', 'student-1'))?.delivery.record.status).toBe('active');
-    expect((await saga.resolveStudentProjection('assignment-1', 'student-2'))?.authority?.studentExtensions['unit-1']?.dueAt).toBe('2026-08-21T00:00:00.000Z');
+    const studentTwo = await saga.resolveStudentProjection('assignment-1', 'student-2');
+    expect(studentTwo?.authority?.studentExtensions['unit-1']?.dueAt).toBe('2026-08-21T00:00:00.000Z');
+    expect(studentTwo?.completionAuthority).toMatchObject({
+      assignmentId: 'assignment-1',
+      manifest: {
+        ownerId: 'teacher-1',
+        bindingRevision: 1,
+        context: { contextId: 'assignment-1', recipientId: 'student-2' },
+      },
+    });
+    const teacherRows = await saga.resolveTeacherProjections('assignment-1', 'teacher-1');
+    expect(teacherRows?.map((row) => row.studentId)).toEqual(['student-1', 'student-2']);
+    await expect(saga.resolveTeacherProjections('assignment-1', 'other-teacher')).resolves.toBeNull();
     const firstAuthorityId = result.record.recipients[0]?.authorityId;
     expect((await authority.read(firstAuthorityId as string))?.activityPolicies).toEqual({
       'placement-1': {
