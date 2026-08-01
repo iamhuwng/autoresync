@@ -9,8 +9,8 @@ import type {
   BookHomeworkStructuralOutlineNode,
 } from '../../types/homework.types';
 
-export const BOOK_SCHEDULE_WINDOW_SCHEMA_VERSION = 1 as const;
-export const BOOK_SCHEDULE_WINDOW_RESOLVER_VERSION = 1 as const;
+export const BOOK_SCHEDULE_WINDOW_SCHEMA_VERSION = 2 as const;
+export const BOOK_SCHEDULE_WINDOW_RESOLVER_VERSION = 2 as const;
 
 export type BookScheduleWindowOperation =
   | 'document'
@@ -27,6 +27,7 @@ export type BookScheduleWindowDecisionCode =
   | 'book_assignment_unreleased'
   | 'book_activity_unreleased'
   | 'book_activity_late_submission_denied'
+  | 'book_activity_attempt_limit_reached'
   | 'book_review_unavailable';
 
 export interface BookScheduleWindowWinner {
@@ -73,6 +74,10 @@ export interface BookScheduleWindowDecision {
   readonly operation: BookScheduleWindowOperation;
   readonly phase: BookScheduleWindowPhase;
   readonly completed: boolean;
+  readonly attemptLimit: number | null;
+  readonly attemptsUsed: number;
+  readonly attemptsRemaining: number | null;
+  readonly attemptsExhausted: boolean;
   readonly release: BookScheduleWindowWinner;
   readonly deadline: BookScheduleWindowWinner;
   readonly lateSubmissionAllowed: boolean;
@@ -98,7 +103,8 @@ export interface ResolveBookScheduleWindowInput {
   readonly policyRevision: number;
   readonly authorityRevision: number;
   readonly evaluatedAt: string;
-  readonly completed?: boolean;
+  readonly maxAttempts: number | null;
+  readonly attemptsUsed: number;
 }
 
 const iso = (value: string, label: string): string => {
@@ -162,6 +168,7 @@ const decisionCode = (
   operation: BookScheduleWindowOperation,
   phase: BookScheduleWindowPhase,
   completed: boolean,
+  attemptsExhausted: boolean,
   lateSubmissionAllowed: boolean,
   allowed: boolean,
 ): BookScheduleWindowDecisionCode => {
@@ -169,6 +176,9 @@ const decisionCode = (
   if (operation === 'document') return 'book_assignment_unreleased';
   if (operation === 'review' && !completed) return 'book_review_unavailable';
   if (phase === 'unreleased') return 'book_activity_unreleased';
+  if ((operation === 'autosave' || operation === 'submit') && attemptsExhausted) {
+    return 'book_activity_attempt_limit_reached';
+  }
   if (operation === 'submit' && phase === 'overdue' && !lateSubmissionAllowed) {
     return 'book_activity_late_submission_denied';
   }
@@ -185,6 +195,15 @@ export const resolveBookScheduleWindow = (
   positive(input.schedule.resolverVersion, 'scheduleResolverVersion');
   positive(input.policyRevision, 'policyRevision');
   positive(input.authorityRevision, 'authorityRevision');
+  if (!Number.isSafeInteger(input.attemptsUsed) || input.attemptsUsed < 0) {
+    throw new Error('attemptsUsed must be a non-negative integer.');
+  }
+  if (input.maxAttempts !== null
+    && (!Number.isSafeInteger(input.maxAttempts)
+      || input.maxAttempts <= 0
+      || input.attemptsUsed > input.maxAttempts)) {
+    throw new Error('maxAttempts must be null or a positive limit not below attemptsUsed.');
+  }
 
   const extension = extensionFor(input.nodeKey, input.outline, input.studentExtensions);
   const activityWindow = resolveEffectiveBookHomeworkWindow({
@@ -202,16 +221,20 @@ export const resolveBookScheduleWindow = (
     : activityWindow.isOverdue
       ? 'overdue'
       : 'available';
-  const completed = input.completed === true;
+  const completed = input.attemptsUsed > 0;
+  const attemptsRemaining = input.maxAttempts === null
+    ? null
+    : Math.max(0, input.maxAttempts - input.attemptsUsed);
+  const attemptsExhausted = attemptsRemaining === 0;
   const permissions: BookScheduleWindowPermissions = {
     // Assignment start and entitlement gate document delivery. Nested Activity
     // releases never narrow an already-authorized PDF.
     canAccessDocument: assignmentReleased,
     canLaunch: phase !== 'unreleased',
     canReadState: phase !== 'unreleased' || completed,
-    canAutosave: phase !== 'unreleased' && !completed,
+    canAutosave: phase !== 'unreleased' && !attemptsExhausted,
     canSubmit: phase !== 'unreleased'
-      && !completed
+      && !attemptsExhausted
       && (phase !== 'overdue' || input.lateSubmissionAllowed),
     // A later schedule edit must never hide an existing result.
     canReview: completed || phase === 'overdue',
@@ -240,6 +263,10 @@ export const resolveBookScheduleWindow = (
     operation: input.operation,
     phase,
     completed,
+    attemptLimit: input.maxAttempts,
+    attemptsUsed: input.attemptsUsed,
+    attemptsRemaining,
+    attemptsExhausted,
     release: {
       source: activityWindow.release.source,
       ...(activityWindow.release.nodeKey ? { nodeKey: activityWindow.release.nodeKey } : {}),
@@ -263,6 +290,7 @@ export const resolveBookScheduleWindow = (
       input.operation,
       phase,
       completed,
+      attemptsExhausted,
       input.lateSubmissionAllowed,
       allowed,
     ),
@@ -314,6 +342,7 @@ export const isBookScheduleWindowDecision = (
       'book_assignment_unreleased',
       'book_activity_unreleased',
       'book_activity_late_submission_denied',
+      'book_activity_attempt_limit_reached',
       'book_review_unavailable',
     ].includes(String(value.code))) return false;
   const ids = [
@@ -326,6 +355,22 @@ export const isBookScheduleWindowDecision = (
   ];
   return ids.every((candidate) => typeof candidate === 'string' && candidate.length > 0)
     && typeof value.completed === 'boolean'
+    && (value.attemptLimit === null
+      || (Number.isSafeInteger(value.attemptLimit) && Number(value.attemptLimit) > 0))
+    && Number.isSafeInteger(value.attemptsUsed)
+    && Number(value.attemptsUsed) >= 0
+    && (value.attemptsRemaining === null
+      || (Number.isSafeInteger(value.attemptsRemaining) && Number(value.attemptsRemaining) >= 0))
+    && typeof value.attemptsExhausted === 'boolean'
+    && value.completed === (Number(value.attemptsUsed) > 0)
+    && (value.attemptLimit === null
+      ? value.attemptsRemaining === null && value.attemptsExhausted === false
+      : value.attemptsRemaining === Math.max(
+          0,
+          Number(value.attemptLimit) - Number(value.attemptsUsed),
+        )
+        && Number(value.attemptsUsed) <= Number(value.attemptLimit)
+        && value.attemptsExhausted === (value.attemptsRemaining === 0))
     && typeof value.lateSubmissionAllowed === 'boolean'
     && [
       value.permissions.canAccessDocument,

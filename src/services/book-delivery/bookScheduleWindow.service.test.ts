@@ -43,6 +43,8 @@ const resolve = (
   policyRevision: 4,
   authorityRevision: 7,
   evaluatedAt,
+  maxAttempts: null,
+  attemptsUsed: 0,
   ...override,
 });
 
@@ -114,7 +116,8 @@ describe('trusted Book schedule-window decision', () => {
 
   it('keeps completed review accessible after a schedule moves into the future', () => {
     expect(resolve('review', '2026-08-02T00:00:00.000Z', {
-      completed: true,
+      maxAttempts: 2,
+      attemptsUsed: 1,
       schedule: {
         ...schedule,
         availableFrom: '2026-08-20T00:00:00.000Z',
@@ -123,8 +126,34 @@ describe('trusted Book schedule-window decision', () => {
     })).toMatchObject({
       phase: 'unreleased',
       completed: true,
+      attemptsRemaining: 1,
+      attemptsExhausted: false,
       permissions: { canReview: true, canAutosave: false, canSubmit: false },
       outcome: 'allowed',
+    });
+  });
+
+  it('keeps terminal review distinct from retry exhaustion', () => {
+    expect(resolve('submit', '2026-08-06T00:00:00.000Z', {
+      maxAttempts: 2,
+      attemptsUsed: 1,
+    })).toMatchObject({
+      completed: true,
+      attemptsRemaining: 1,
+      attemptsExhausted: false,
+      permissions: { canReview: true, canAutosave: true, canSubmit: true },
+      outcome: 'allowed',
+    });
+    expect(resolve('submit', '2026-08-06T00:00:00.000Z', {
+      maxAttempts: 2,
+      attemptsUsed: 2,
+    })).toMatchObject({
+      completed: true,
+      attemptsRemaining: 0,
+      attemptsExhausted: true,
+      permissions: { canReview: true, canAutosave: false, canSubmit: false },
+      outcome: 'denied',
+      code: 'book_activity_attempt_limit_reached',
     });
   });
 

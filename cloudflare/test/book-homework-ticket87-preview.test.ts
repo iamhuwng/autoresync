@@ -37,8 +37,28 @@ describe('Ticket 87 production-equivalent preview contract', () => {
         saveStatus: 200,
         submitStatus: 200,
         body: { status: 'accepted' },
-        attemptCount: 1,
-        completionCount: 1,
+        retrySaveStatus: 200,
+        retrySubmitStatus: 200,
+        retryBody: { status: 'accepted', receipt: { attemptNumber: 2 } },
+        exhaustedStatus: 403,
+        exhaustedBody: {
+          code: 'runtime_attempt_limit_reached',
+          currentScheduleAuthority: {
+            window: {
+              completed: true,
+              attemptsUsed: 2,
+              attemptsRemaining: 0,
+              attemptsExhausted: true,
+            },
+          },
+        },
+        replayAfterExhaustionStatus: 200,
+        replayAfterExhaustionBody: {
+          status: 'replayed',
+          receipt: { attemptNumber: 2 },
+        },
+        attemptCount: 2,
+        completionCount: 2,
       },
       forgedBinding: {
         outcome: 'unavailable',

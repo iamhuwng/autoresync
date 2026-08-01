@@ -3,14 +3,15 @@ import { expect, test } from '@playwright/test';
 const openState = async (
   page: import('@playwright/test').Page,
   request: import('@playwright/test').APIRequestContext,
-  state: 'unreleased' | 'available' | 'overdue' | 'late-allowed' | 'review',
+  state: 'unreleased' | 'available' | 'overdue' | 'late-allowed' | 'review-retry' | 'review',
 ) => {
   await request.post('http://localhost:5187/__proof/control', { data: { state } });
   await page.goto(`/__smoke/book-runtime?window=${state}`, { waitUntil: 'domcontentloaded' });
   const marker = page.getByTestId('book-window-state');
-  await expect(marker).toHaveAttribute('data-window-state', state, { timeout: 30_000 });
+  const expectedVisibleState = state === 'review-retry' ? 'review' : state;
+  await expect(marker).toHaveAttribute('data-window-state', expectedVisibleState, { timeout: 30_000 });
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(marker).toHaveAttribute('data-window-state', state, { timeout: 30_000 });
+  await expect(marker).toHaveAttribute('data-window-state', expectedVisibleState, { timeout: 30_000 });
   return marker;
 };
 
@@ -50,6 +51,15 @@ test('student consumes reload-safe effective Book Homework windows', async ({ pa
   await expect(page.getByTestId('book-runtime-submit')).toBeEnabled();
   await page.screenshot({
     path: 'artifacts/prd0062-ticket-87/browser/late-allowed.png',
+    fullPage: true,
+  });
+
+  await openState(page, request, 'review-retry');
+  await expect(page.getByText('Completed Activity review is available.')).toBeVisible();
+  await expect(page.getByTestId('book-runtime-shell')).toBeVisible();
+  await expect(page.getByTestId('book-runtime-submit')).toBeEnabled();
+  await page.screenshot({
+    path: 'artifacts/prd0062-ticket-87/browser/completed-review-retry-available.png',
     fullPage: true,
   });
 

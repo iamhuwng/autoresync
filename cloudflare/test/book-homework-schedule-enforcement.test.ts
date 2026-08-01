@@ -10,6 +10,8 @@ import {
   resolveBookHomeworkDocumentWindow,
   resolveBookHomeworkLaunchWindows,
 } from '../src/upload-worker/book-delivery/schedule-authority';
+import { createBookRuntimeWorkerHandlers } from '../src/upload-worker/book-runtime/worker';
+import { InMemoryBookRuntimeRepository } from '../src/upload-worker/book-runtime/repository';
 
 const binding = (): BookDeliveryBinding => ({
   schemaVersion: 3,
@@ -153,25 +155,107 @@ const input = (operation: 'state' | 'autosave' | 'submit', now: string) => ({
   now,
 });
 
+const runtimeActivity = () => ({
+  schemaVersion: 1 as const,
+  title: 'Retry-capable Activity',
+  taskProfile: null,
+  presentationMode: 'structured' as const,
+  contextRequirement: { mode: 'required' as const, acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Answer.' }],
+  stimulus: null,
+  assetRefs: [],
+  interaction: { family: 'text-entry' as const, variant: 'generic' },
+  answerRule: { defaultPoints: 1, normalization: 'exact' as const },
+  scoring: { mode: 'auto-where-possible' as const },
+  interactions: [{
+    family: 'text-entry' as const,
+    interactionId: 'interaction-1',
+    prompt: 'Answer',
+    itemIdentities: { family: 'text-entry' as const, itemIds: [] as const },
+    answerKey: { family: 'text-entry' as const, acceptedAnswers: ['final'] },
+  }],
+});
+
+const runtimeCommand = (
+  commandKind: 'autosave' | 'submit',
+  operationId: string,
+  clientRevision: number,
+) => new Request('https://worker.test/book-runtime/commands', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    operationId,
+    commandKind,
+    bindingId: 'binding-1',
+    bindingRevision: 2,
+    contextId: 'homework-1',
+    placementId: 'placement-1',
+    activityId: 'activity-1',
+    activityVersion: 1,
+    interactionId: 'interaction-1',
+    clientRevision,
+    response: [{ interactionId: 'interaction-1', answer: 'final' }],
+  }),
+});
+
 describe('trusted Book Homework schedule enforcement', () => {
   it('resolves frozen policy and completion from durable server repositories', async () => {
     const current = authority();
+    const listAttempts = vi.fn(async () => [
+      {
+        attemptId: 'attempt-1',
+        bindingId: 'binding-1',
+        bindingRevision: 2,
+        recipientId: 'student-1',
+        contextId: 'homework-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-v1',
+        activityVersion: 1,
+      },
+      {
+        attemptId: 'attempt-1',
+        bindingId: 'binding-1',
+        bindingRevision: 2,
+        recipientId: 'student-1',
+        contextId: 'homework-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-v1',
+        activityVersion: 1,
+      },
+      {
+        attemptId: 'attempt-other-binding',
+        bindingId: 'binding-other',
+        bindingRevision: 2,
+        recipientId: 'student-1',
+        contextId: 'homework-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-v1',
+        activityVersion: 1,
+      },
+      {
+        attemptId: 'attempt-historical-revision',
+        bindingId: 'binding-1',
+        bindingRevision: 1,
+        recipientId: 'student-1',
+        contextId: 'homework-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-v1',
+        activityVersion: 1,
+      },
+    ] as BookRuntimeAttemptRecord[]);
     const resolver = createBookHomeworkActivitySchedulePolicyResolver({
       authorityStore: { read: async () => ({ value: current, updateTime: 'firestore-5' }) },
-      runtimeRepository: {
-        listAttempts: async () => [{
-          recipientId: 'student-1',
-          contextId: 'homework-1',
-          placementId: 'placement-1',
-          activityId: 'activity-1',
-          activityVersionId: 'activity-v1',
-          activityVersion: 1,
-        } as BookRuntimeAttemptRecord],
-      },
+      runtimeRepository: { listAttempts },
     });
     await expect(resolver.resolve({
       assignmentId: 'homework-1',
       recipientId: 'student-1',
+      bindingId: 'binding-1',
+      bindingRevision: 2,
       policyId: 'policy-1',
       policyRevision: 4,
       placementId: 'placement-1',
@@ -179,8 +263,112 @@ describe('trusted Book Homework schedule enforcement', () => {
       authorityRevision: 5,
       maxAttempts: 2,
       lateSubmissionAllowed: false,
-      completed: true,
+      attemptsUsed: 1,
     });
+    expect(listAttempts).toHaveBeenCalledWith({
+      recipientId: 'student-1',
+      contextId: 'homework-1',
+      placementId: 'placement-1',
+      bindingId: 'binding-1',
+      bindingRevision: 2,
+      limit: 50,
+    });
+  });
+
+  it('keeps the canonical runtime retry-capable until the authoritative limit is exhausted', async () => {
+    const runtimeRepository = new InMemoryBookRuntimeRepository();
+    const authorityStore = {
+      read: async () => ({ value: authority(), updateTime: 'firestore-5' }),
+    };
+    const activityPolicy = createBookHomeworkActivitySchedulePolicyResolver({
+      authorityStore,
+      runtimeRepository,
+    });
+    const schedule = createBookHomeworkScheduleEnforcement({
+      authorityStore,
+      activityPolicy,
+    });
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository: runtimeRepository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => runtimeActivity(),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      schedulePolicy: schedule.policy,
+      now: () => '2026-08-06T00:00:00.000Z',
+      allocateAttemptId: ({ operationId }) => `attempt-${operationId.slice(-3)}`,
+      requireCanonicalDraftForSubmit: true,
+    });
+    const run = (request: Request) => handlers.command({
+      request,
+      env: {},
+      uid: 'student-1',
+    });
+
+    await expect(run(runtimeCommand(
+      'autosave',
+      '00000000-0000-4000-8000-000000000101',
+      0,
+    ))).resolves.toMatchObject({ body: { status: 'accepted' }, init: { status: 200 } });
+    await expect(run(runtimeCommand(
+      'submit',
+      '00000000-0000-4000-8000-000000000102',
+      1,
+    ))).resolves.toMatchObject({
+      body: { status: 'accepted', receipt: { attemptNumber: 1 } },
+      init: { status: 200 },
+    });
+
+    await expect(activityPolicy.resolve({
+      assignmentId: 'homework-1',
+      recipientId: 'student-1',
+      bindingId: 'binding-1',
+      bindingRevision: 2,
+      policyId: 'policy-1',
+      policyRevision: 4,
+      placementId: 'placement-1',
+    })).resolves.toMatchObject({ attemptsUsed: 1, maxAttempts: 2 });
+    await expect(run(runtimeCommand(
+      'autosave',
+      '00000000-0000-4000-8000-000000000103',
+      1,
+    ))).resolves.toMatchObject({ body: { status: 'accepted' }, init: { status: 200 } });
+    await expect(run(runtimeCommand(
+      'submit',
+      '00000000-0000-4000-8000-000000000104',
+      2,
+    ))).resolves.toMatchObject({
+      body: { status: 'accepted', receipt: { attemptNumber: 2 } },
+      init: { status: 200 },
+    });
+
+    await expect(run(runtimeCommand(
+      'submit',
+      '00000000-0000-4000-8000-000000000104',
+      2,
+    ))).resolves.toMatchObject({
+      body: { status: 'replayed', receipt: { attemptNumber: 2 } },
+      init: { status: 200 },
+    });
+    await expect(run(runtimeCommand(
+      'submit',
+      '00000000-0000-4000-8000-000000000105',
+      2,
+    ))).resolves.toMatchObject({
+      body: {
+        code: 'runtime_attempt_limit_reached',
+        currentScheduleAuthority: {
+          window: {
+            completed: true,
+            attemptsUsed: 2,
+            attemptsRemaining: 0,
+            attemptsExhausted: true,
+            permissions: { canReview: true, canSubmit: false },
+          },
+        },
+      },
+      init: { status: 403 },
+    });
+    expect(Object.keys(runtimeRepository.snapshot().attempts)).toHaveLength(2);
   });
 
   it('fails closed when durable policy body is absent', async () => {
@@ -194,6 +382,8 @@ describe('trusted Book Homework schedule enforcement', () => {
     await expect(resolver.resolve({
       assignmentId: 'homework-1',
       recipientId: 'student-1',
+      bindingId: 'binding-1',
+      bindingRevision: 2,
       policyId: 'policy-1',
       policyRevision: 4,
       placementId: 'placement-1',
@@ -226,7 +416,7 @@ describe('trusted Book Homework schedule enforcement', () => {
           placementId: 'placement-1',
           maxAttempts: 2,
           lateSubmissionAllowed: false,
-          completed: false,
+          attemptsUsed: 0,
         },
       },
       evaluatedAt: '2026-08-06T00:00:00.000Z',
@@ -267,12 +457,14 @@ describe('trusted Book Homework schedule enforcement', () => {
           placementId: 'placement-1',
           maxAttempts: 2,
           lateSubmissionAllowed: false,
-          completed: true,
+          attemptsUsed: 1,
         },
       },
       evaluatedAt: '2026-08-06T00:00:00.000Z',
     })['placement-1']).toMatchObject({
       phase: 'unreleased',
+      completed: true,
+      attemptsRemaining: 1,
       permissions: {
         canLaunch: false,
         canReview: true,
@@ -294,7 +486,7 @@ describe('trusted Book Homework schedule enforcement', () => {
           placementId: 'placement-1',
           maxAttempts: 2,
           lateSubmissionAllowed: true,
-          completed: false,
+          attemptsUsed: 0,
         },
       },
       evaluatedAt: '2026-08-11T00:00:00.000Z',
@@ -316,7 +508,7 @@ describe('trusted Book Homework schedule enforcement', () => {
           placementId: 'placement-1',
           maxAttempts: 2,
           lateSubmissionAllowed: false,
-          completed: false,
+          attemptsUsed: 0,
         }),
       },
     });
@@ -343,7 +535,7 @@ describe('trusted Book Homework schedule enforcement', () => {
           placementId: 'placement-1',
           maxAttempts: 2,
           lateSubmissionAllowed,
-          completed: false,
+          attemptsUsed: 0,
         }),
       },
     });
@@ -372,7 +564,7 @@ describe('trusted Book Homework schedule enforcement', () => {
           placementId: 'placement-1',
           maxAttempts: 2,
           lateSubmissionAllowed: false,
-          completed: false,
+          attemptsUsed: 0,
         }),
       },
     });
@@ -444,7 +636,7 @@ describe('trusted Book Homework schedule enforcement', () => {
           placementId: 'placement-1',
           maxAttempts: 2,
           lateSubmissionAllowed: false,
-          completed: true,
+          attemptsUsed: 1,
         }),
       },
     });
@@ -455,6 +647,8 @@ describe('trusted Book Homework schedule enforcement', () => {
       authority: {
         window: {
           completed: true,
+          attemptsRemaining: 1,
+          attemptsExhausted: false,
           phase: 'unreleased',
           permissions: { canReadState: true, canReview: true, canAutosave: false },
         },

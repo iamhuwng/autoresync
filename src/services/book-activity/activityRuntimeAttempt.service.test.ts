@@ -30,6 +30,8 @@ const windowDecision = (operation: 'state' | 'autosave' | 'submit' = 'autosave')
     policyRevision: 1,
     authorityRevision: 2,
     evaluatedAt: '2026-08-05T00:00:00.000Z',
+    maxAttempts: 2,
+    attemptsUsed: 0,
   });
 
 describe('Book runtime effective-window adapter', () => {

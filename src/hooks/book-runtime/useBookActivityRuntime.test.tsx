@@ -46,6 +46,8 @@ const windowDecision = (
   policyRevision: 1,
   authorityRevision: 1,
   evaluatedAt,
+  maxAttempts: 2,
+  attemptsUsed: 0,
 });
 
 const store = (): BookRuntimeRecoveryStore => {

@@ -2,7 +2,10 @@ import type { BookDeliveryBinding } from '../../../../src/services/book-delivery
 import type { BookHomeworkAuthorityRecord } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import { InMemoryBookRuntimeRepository } from '../book-runtime/repository.ts';
 import { createBookRuntimeWorkerHandlers } from '../book-runtime/worker.ts';
-import { createBookHomeworkScheduleEnforcement } from './schedule-enforcement.ts';
+import {
+  createBookHomeworkActivitySchedulePolicyResolver,
+  createBookHomeworkScheduleEnforcement,
+} from './schedule-enforcement.ts';
 import { resolveBookHomeworkDocumentWindow } from '../book-delivery/schedule-authority.ts';
 import { createBookDocumentWorker } from '../book-delivery/document-worker.ts';
 
@@ -238,7 +241,7 @@ const proof = async (request: Request) => {
       placementId: 'ticket87-placement',
       maxAttempts: 2,
       lateSubmissionAllowed: false,
-      completed: false,
+      attemptsUsed: 0,
     }),
   };
   const enforcement = createBookHomeworkScheduleEnforcement({
@@ -323,12 +326,24 @@ const proof = async (request: Request) => {
 
   current = authority(Date.now(), 3, iso(Date.now() - 60_000));
   const submitRepository = new InMemoryBookRuntimeRepository();
+  const submitActivityPolicy = createBookHomeworkActivitySchedulePolicyResolver({
+    authorityStore: {
+      read: async () => ({ value: current, updateTime: `preview-${current.revision}` }),
+    },
+    runtimeRepository: submitRepository,
+  });
+  const submitEnforcement = createBookHomeworkScheduleEnforcement({
+    authorityStore: {
+      read: async () => ({ value: current, updateTime: `preview-${current.revision}` }),
+    },
+    activityPolicy: submitActivityPolicy,
+  });
   const submitRuntime = createBookRuntimeWorkerHandlers({
     repository: submitRepository,
     resolveBinding: async () => binding(),
     resolveActivity: async () => runtimeActivity,
     resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
-    schedulePolicy: enforcement.policy,
+    schedulePolicy: submitEnforcement.policy,
     requireCanonicalDraftForSubmit: true,
     now: () => new Date().toISOString(),
   });
@@ -378,6 +393,90 @@ const proof = async (request: Request) => {
     env: {},
     uid: 'ticket87-student',
   });
+  const savedRetry = await submitRuntime.command({
+    request: new Request('https://preview.invalid/book-runtime/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operationId: '00000000-0000-4000-8000-000000000090',
+        commandKind: 'autosave',
+        bindingId: 'ticket87-binding',
+        bindingRevision: 1,
+        contextId: 'ticket87-homework',
+        placementId: 'ticket87-placement',
+        activityId: 'ticket87-activity',
+        activityVersion: 1,
+        interactionId: 'ticket87-interaction',
+        clientRevision: 1,
+        response,
+      }),
+    }),
+    env: {},
+    uid: 'ticket87-student',
+  });
+  const submittedRetry = await submitRuntime.command({
+    request: new Request('https://preview.invalid/book-runtime/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operationId: '00000000-0000-4000-8000-000000000091',
+        commandKind: 'submit',
+        bindingId: 'ticket87-binding',
+        bindingRevision: 1,
+        contextId: 'ticket87-homework',
+        placementId: 'ticket87-placement',
+        activityId: 'ticket87-activity',
+        activityVersion: 1,
+        interactionId: 'ticket87-interaction',
+        clientRevision: 2,
+        response,
+      }),
+    }),
+    env: {},
+    uid: 'ticket87-student',
+  });
+  const exhausted = await submitRuntime.command({
+    request: new Request('https://preview.invalid/book-runtime/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operationId: '00000000-0000-4000-8000-000000000092',
+        commandKind: 'submit',
+        bindingId: 'ticket87-binding',
+        bindingRevision: 1,
+        contextId: 'ticket87-homework',
+        placementId: 'ticket87-placement',
+        activityId: 'ticket87-activity',
+        activityVersion: 1,
+        interactionId: 'ticket87-interaction',
+        clientRevision: 2,
+        response,
+      }),
+    }),
+    env: {},
+    uid: 'ticket87-student',
+  });
+  const replayedAfterExhaustion = await submitRuntime.command({
+    request: new Request('https://preview.invalid/book-runtime/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operationId: '00000000-0000-4000-8000-000000000091',
+        commandKind: 'submit',
+        bindingId: 'ticket87-binding',
+        bindingRevision: 1,
+        contextId: 'ticket87-homework',
+        placementId: 'ticket87-placement',
+        activityId: 'ticket87-activity',
+        activityVersion: 1,
+        interactionId: 'ticket87-interaction',
+        clientRevision: 2,
+        response,
+      }),
+    }),
+    env: {},
+    uid: 'ticket87-student',
+  });
 
   current = authority(Date.now(), 4, iso(Date.now() + 3_600_000), iso(Date.now() + 3_600_000));
   const refresh = await documentWorker.fetch(new Request('https://preview.invalid/document'), {});
@@ -415,6 +514,13 @@ const proof = async (request: Request) => {
       saveStatus: saved.init.status,
       submitStatus: submitted.init.status,
       body: submitted.body,
+      retrySaveStatus: savedRetry.init.status,
+      retrySubmitStatus: submittedRetry.init.status,
+      retryBody: submittedRetry.body,
+      exhaustedStatus: exhausted.init.status,
+      exhaustedBody: exhausted.body,
+      replayAfterExhaustionStatus: replayedAfterExhaustion.init.status,
+      replayAfterExhaustionBody: replayedAfterExhaustion.body,
       attemptCount: Object.keys(submitRepository.snapshot().attempts).length,
       completionCount: Object.keys(submitRepository.snapshot().completions).length,
     },
@@ -428,8 +534,15 @@ const proof = async (request: Request) => {
       && Object.keys(runtimeRepository.snapshot().drafts).length === 0
       && saved.init.status === 200
       && submitted.init.status === 200
-      && Object.keys(submitRepository.snapshot().attempts).length === 1
-      && Object.keys(submitRepository.snapshot().completions).length === 1
+      && savedRetry.init.status === 200
+      && submittedRetry.init.status === 200
+      && exhausted.init.status === 403
+      && exhausted.body.code === 'runtime_attempt_limit_reached'
+      && replayedAfterExhaustion.init.status === 200
+      && replayedAfterExhaustion.body.status === 'replayed'
+      && replayedAfterExhaustion.body.receipt?.attemptNumber === 2
+      && Object.keys(submitRepository.snapshot().attempts).length === 2
+      && Object.keys(submitRepository.snapshot().completions).length === 2
       && forged.outcome === 'unavailable'
       && finishedAt >= startedAt,
   };

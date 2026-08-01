@@ -40,14 +40,16 @@ export interface BookHomeworkActivitySchedulePolicy {
   readonly placementId: string;
   readonly maxAttempts: number | null;
   readonly lateSubmissionAllowed: boolean;
-  /** Trusted terminal state; completed Activities retain state/review access. */
-  readonly completed: boolean;
+  /** Exact matching terminal attempts; review and retry authority stay distinct. */
+  readonly attemptsUsed: number;
 }
 
 export interface BookHomeworkActivitySchedulePolicyResolver {
   resolve(input: {
     readonly assignmentId: string;
     readonly recipientId: string;
+    readonly bindingId: string;
+    readonly bindingRevision: number;
     readonly policyId: string;
     readonly policyRevision: number;
     readonly placementId: string;
@@ -79,6 +81,7 @@ export const createBookHomeworkActivitySchedulePolicyResolver = (options: {
       || !placement
       || authority.assignmentId !== input.assignmentId
       || authority.bookManifest.context.recipientId !== input.recipientId
+      || authority.bookManifest.bindingRevision !== input.bindingRevision
       || authority.visibility.status !== 'committed'
       || authority.saga.state !== 'committed'
       || snapshot.policyId !== input.policyId
@@ -93,15 +96,20 @@ export const createBookHomeworkActivitySchedulePolicyResolver = (options: {
       recipientId: input.recipientId,
       contextId: input.assignmentId,
       placementId: input.placementId,
+      bindingId: input.bindingId,
+      bindingRevision: input.bindingRevision,
       limit: 50,
     });
-    const completed = attempts.some((attempt) =>
-      attempt.recipientId === input.recipientId
+    const matchingAttemptIds = new Set(attempts.filter((attempt) =>
+      attempt.bindingId === input.bindingId
+      && attempt.bindingRevision === input.bindingRevision
+      && attempt.recipientId === input.recipientId
       && attempt.contextId === input.assignmentId
       && attempt.placementId === placement.placementId
       && attempt.activityId === placement.activityId
       && attempt.activityVersionId === placement.activityVersionId
-      && attempt.activityVersion === placement.activityVersion);
+      && attempt.activityVersion === placement.activityVersion)
+      .map((attempt) => attempt.attemptId));
     return {
       policyId: snapshot.policyId,
       policyRevision: snapshot.policyRevision,
@@ -109,7 +117,7 @@ export const createBookHomeworkActivitySchedulePolicyResolver = (options: {
       placementId: snapshot.placementId,
       maxAttempts: snapshot.maxAttempts,
       lateSubmissionAllowed: snapshot.lateSubmissionAllowed,
-      completed,
+      attemptsUsed: matchingAttemptIds.size,
     };
   },
 });
@@ -162,7 +170,9 @@ const runtimeOperation = (
 const failureCode = (decision: BookScheduleWindowDecision): string =>
   decision.code === 'book_activity_late_submission_denied'
     ? 'runtime_late_submission_denied'
-    : 'runtime_activity_unreleased';
+    : decision.code === 'book_activity_attempt_limit_reached'
+      ? 'runtime_attempt_limit_reached'
+      : 'runtime_activity_unreleased';
 
 export const createBookHomeworkScheduleEnforcement = (
   options: BookHomeworkScheduleEnforcementOptions,
@@ -190,6 +200,8 @@ export const createBookHomeworkScheduleEnforcement = (
     const policy = await options.activityPolicy.resolve({
       assignmentId: authority.assignmentId,
       recipientId: input.actorUid,
+      bindingId: input.binding.bindingId,
+      bindingRevision: input.binding.revision,
       policyId: input.binding.schedulePolicy.policyId,
       policyRevision: input.binding.schedulePolicy.policyRevision,
       placementId: placement.placementId,
@@ -203,7 +215,9 @@ export const createBookHomeworkScheduleEnforcement = (
         && (!Number.isSafeInteger(policy.maxAttempts)
           || policy.maxAttempts <= 0
           || policy.maxAttempts > 50))
-      || typeof policy.completed !== 'boolean') {
+      || !Number.isSafeInteger(policy.attemptsUsed)
+      || policy.attemptsUsed < 0
+      || (policy.maxAttempts !== null && policy.attemptsUsed > policy.maxAttempts)) {
       throw new Error('runtime_schedule_policy_unavailable');
     }
     const decision = resolveBookScheduleWindow({
@@ -223,7 +237,8 @@ export const createBookHomeworkScheduleEnforcement = (
       policyRevision: policy.policyRevision,
       authorityRevision: authority.revision,
       evaluatedAt: input.now,
-      completed: policy.completed,
+      maxAttempts: policy.maxAttempts,
+      attemptsUsed: policy.attemptsUsed,
     });
     return {
       decision,

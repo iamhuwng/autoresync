@@ -677,6 +677,8 @@ export const createBookDeliveryWorkerHandlers = (options: {
           async (placement) => activitySchedulePolicy.resolve({
             assignmentId: current.record.binding.context.contextId,
             recipientId: current.record.binding.recipient.recipientId,
+            bindingId: current.record.binding.bindingId,
+            bindingRevision: current.record.binding.revision,
             policyId: current.record.binding.schedulePolicy.policyId,
             policyRevision: current.record.binding.schedulePolicy.policyRevision,
             placementId: placement.placementId,

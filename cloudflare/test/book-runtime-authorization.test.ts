@@ -99,6 +99,8 @@ const scheduleAuthority = (
     outline: binding().outline,
     studentExtensions: {},
     lateSubmissionAllowed: false,
+    maxAttempts: 2,
+    attemptsUsed: 0,
     policyRevision,
     authorityRevision,
     evaluatedAt: '2026-07-27T00:00:00.000Z',

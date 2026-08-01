@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { resolveBookScheduleWindow } from '../src/services/book-delivery/bookScheduleWindow.service';
 
-type ProofState = 'unreleased' | 'available' | 'overdue' | 'late-allowed' | 'review';
+type ProofState = 'unreleased' | 'available' | 'overdue' | 'late-allowed' | 'review-retry' | 'review';
 
 let state: ProofState = 'available';
 
@@ -35,10 +35,11 @@ const decision = () => resolveBookScheduleWindow({
   authorityRevision: 7,
   evaluatedAt: state === 'unreleased' || state === 'review'
     ? '2026-08-01T00:00:00.000Z'
-    : state === 'available'
+    : state === 'available' || state === 'review-retry'
       ? '2026-08-03T00:00:00.000Z'
       : '2026-08-06T00:00:00.000Z',
-  completed: state === 'review',
+  maxAttempts: 2,
+  attemptsUsed: state === 'review' ? 2 : state === 'review-retry' ? 1 : 0,
 });
 
 const cors = {
@@ -61,7 +62,7 @@ createServer((request, response) => {
     request.on('end', () => {
       const candidate = JSON.parse(body) as { state?: ProofState };
       if (!candidate.state
-        || !['unreleased', 'available', 'overdue', 'late-allowed', 'review'].includes(candidate.state)) {
+        || !['unreleased', 'available', 'overdue', 'late-allowed', 'review-retry', 'review'].includes(candidate.state)) {
         response.writeHead(400, cors);
         response.end(JSON.stringify({ code: 'invalid_state' }));
         return;

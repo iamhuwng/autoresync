@@ -333,6 +333,8 @@ describe('Book Runtime browser client', () => {
       policyRevision: 4,
       authorityRevision: 7,
       evaluatedAt: '2026-08-01T00:00:00.000Z',
+      maxAttempts: 2,
+      attemptsUsed: 0,
     });
     const fetchImpl = vi.fn(async () => jsonResponse({
       code: 'runtime_schedule_authority_stale',

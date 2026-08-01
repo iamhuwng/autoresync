@@ -16,6 +16,10 @@ import type { BookDeliveryBinding } from '../../../../src/services/book-delivery
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 
 export interface BookRuntimeRepository {
+  replayCommand?(input: {
+    readonly command: BookRuntimeCommandPayload;
+    readonly actorUid: string;
+  }): Promise<BookRuntimeCommandResult | null>;
   readDraft(input: {
     readonly recipientId: string;
     readonly contextId: string;
@@ -33,6 +37,8 @@ export interface BookRuntimeRepository {
     readonly recipientId: string;
     readonly contextId: string;
     readonly placementId?: string;
+    readonly bindingId?: string;
+    readonly bindingRevision?: number;
     readonly limit: number;
   }): Promise<readonly BookRuntimeAttemptRecord[]>;
 }
@@ -356,9 +362,9 @@ const draftMatchesCommand = (
   && draft.interactionId === command.interactionId
 );
 
-const fingerprint = (
+const fingerprintForActor = (
   command: BookRuntimeCommandPayload,
-  context: BookRuntimeTrustedCommandContext,
+  actorUid: string,
 ): string => hash({
   operationId: command.operationId,
   commandKind: command.commandKind,
@@ -371,8 +377,13 @@ const fingerprint = (
   interactionId: command.interactionId,
   clientRevision: command.clientRevision,
   response: command.response,
-  actorUid: context.actorUid,
+  actorUid,
 });
+
+const fingerprint = (
+  command: BookRuntimeCommandPayload,
+  context: BookRuntimeTrustedCommandContext,
+): string => fingerprintForActor(command, context.actorUid);
 
 export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
   private drafts: Record<string, BookRuntimeDraftRecord>;
@@ -402,6 +413,59 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     });
   }
 
+  async replayCommand(input: {
+    readonly command: BookRuntimeCommandPayload;
+    readonly actorUid: string;
+  }): Promise<BookRuntimeCommandResult | null> {
+    const existing = this.operations[input.command.operationId];
+    if (!existing) return null;
+    const commandFingerprint = fingerprintForActor(input.command, input.actorUid);
+    if (existing.fingerprint !== commandFingerprint) {
+      return {
+        status: 'conflict',
+        receipt: clone({ ...existing, status: 'conflict' }),
+      };
+    }
+    assertTerminalAggregateIntegrity({
+      attempts: this.attempts,
+      results: this.results,
+      completions: this.completions,
+      indexes: this.indexes,
+      operations: this.operations,
+    });
+    if (existing.status === 'denied') {
+      return { status: 'denied', receipt: clone(existing) };
+    }
+    const attempt = existing.attemptId ? this.attempts[existing.attemptId] : undefined;
+    const result = existing.attemptId ? this.results[`${existing.attemptId}:result`] : undefined;
+    const completion = existing.attemptId
+      ? this.completions[`${existing.attemptId}:completion`]
+      : undefined;
+    const index = existing.attemptId ? this.indexes[existing.attemptId] : undefined;
+    if (existing.attemptId && (!attempt
+      || !result
+      || !completion
+      || !index
+      || existing.attemptNumber !== attempt.attemptNumber
+      || !terminalRecordMatchesAttempt(result, attempt)
+      || !terminalRecordMatchesAttempt(completion, attempt)
+      || !terminalRecordMatchesAttempt(index, attempt))) {
+      throw new BookRuntimeRepositoryError('runtime_operation_replay_incomplete');
+    }
+    return {
+      status: 'replayed',
+      draft: existing.draftRevision !== undefined
+        ? Object.values(this.drafts).find((draft) =>
+          draft.updatedByOperationId === existing.operationId)
+        : undefined,
+      attempt: attempt ? clone(attempt) : undefined,
+      result: result ? clone(result) : undefined,
+      completion: completion ? clone(completion) : undefined,
+      index: index ? clone(index) : undefined,
+      receipt: clone({ ...existing, status: 'replayed' }),
+    };
+  }
+
   async readDraft(input: {
     readonly recipientId: string;
     readonly contextId: string;
@@ -415,6 +479,8 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     readonly recipientId: string;
     readonly contextId: string;
     readonly placementId?: string;
+    readonly bindingId?: string;
+    readonly bindingRevision?: number;
     readonly limit: number;
   }): Promise<readonly BookRuntimeAttemptRecord[]> {
     if (!Number.isSafeInteger(input.limit) || input.limit <= 0 || input.limit > 50) {
@@ -423,7 +489,10 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     return Object.values(this.attempts)
       .filter((attempt) => attempt.recipientId === input.recipientId
         && attempt.contextId === input.contextId
-        && (input.placementId === undefined || attempt.placementId === input.placementId))
+        && (input.placementId === undefined || attempt.placementId === input.placementId)
+        && (input.bindingId === undefined || attempt.bindingId === input.bindingId)
+        && (input.bindingRevision === undefined
+          || attempt.bindingRevision === input.bindingRevision))
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
       .slice(0, input.limit)
       .map(clone);
@@ -437,58 +506,9 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
     readonly score?: BookRuntimeScore;
   }): Promise<BookRuntimeCommandResult> {
     const { command, context } = input;
-    const existing = this.operations[command.operationId];
+    const replayed = await this.replayCommand({ command, actorUid: context.actorUid });
+    if (replayed) return replayed;
     const commandFingerprint = fingerprint(command, context);
-    if (existing) {
-      if (existing.fingerprint !== commandFingerprint) {
-        return {
-          status: 'conflict',
-          receipt: clone({
-            ...existing,
-            status: 'conflict',
-          }),
-        };
-      }
-      assertTerminalAggregateIntegrity({
-        attempts: this.attempts,
-        results: this.results,
-        completions: this.completions,
-        indexes: this.indexes,
-        operations: this.operations,
-      });
-      if (existing.status === 'denied') {
-        return { status: 'denied', receipt: clone(existing) };
-      }
-      const replayed = clone({ ...existing, status: 'replayed' as const });
-      const attempt = existing.attemptId ? this.attempts[existing.attemptId] : undefined;
-      const result = existing.attemptId ? this.results[`${existing.attemptId}:result`] : undefined;
-      const completion = existing.attemptId
-        ? this.completions[`${existing.attemptId}:completion`]
-        : undefined;
-      const index = existing.attemptId ? this.indexes[existing.attemptId] : undefined;
-      if (existing.attemptId && (!attempt
-        || !result
-        || !completion
-        || !index
-        || existing.attemptNumber !== attempt.attemptNumber
-        || !terminalRecordMatchesAttempt(result, attempt)
-        || !terminalRecordMatchesAttempt(completion, attempt)
-        || !terminalRecordMatchesAttempt(index, attempt))) {
-        throw new BookRuntimeRepositoryError('runtime_operation_replay_incomplete');
-      }
-      return {
-        status: 'replayed',
-        draft: existing.draftRevision !== undefined
-          ? Object.values(this.drafts).find((draft) =>
-            draft.updatedByOperationId === existing.operationId)
-          : undefined,
-        attempt: attempt ? clone(attempt) : undefined,
-        result: result ? clone(result) : undefined,
-        completion: completion ? clone(completion) : undefined,
-        index: index ? clone(index) : undefined,
-        receipt: replayed,
-      };
-    }
 
     const recipientId = context.binding.recipient.recipientId;
     const base = {
@@ -892,6 +912,28 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
     }
   }
 
+  async replayCommand(input: {
+    readonly command: BookRuntimeCommandPayload;
+    readonly actorUid: string;
+  }): Promise<BookRuntimeCommandResult | null> {
+    durablePathId(input.command.bindingId, 'binding');
+    durablePathId(input.command.contextId, 'context');
+    durablePathId(input.command.placementId, 'placement');
+    durablePathId(input.command.interactionId, 'interaction');
+    durablePathId(input.actorUid, 'recipient');
+    const value = await this.rtdb.readValue(durableScopePath(
+      input.actorUid,
+      input.command.contextId,
+      input.command.placementId,
+      input.command.interactionId,
+    ));
+    return durableReplay(
+      durableScope(value),
+      input.command.operationId,
+      fingerprintForActor(input.command, input.actorUid),
+    );
+  }
+
   async readDraft(input: {
     readonly recipientId: string;
     readonly contextId: string;
@@ -913,6 +955,8 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
     readonly recipientId: string;
     readonly contextId: string;
     readonly placementId?: string;
+    readonly bindingId?: string;
+    readonly bindingRevision?: number;
     readonly limit: number;
   }): Promise<readonly BookRuntimeAttemptRecord[]> {
     if (!Number.isSafeInteger(input.limit) || input.limit <= 0 || input.limit > 50) {
@@ -938,7 +982,10 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
     return attempts
       .filter((attempt) => attempt.recipientId === input.recipientId
         && attempt.contextId === input.contextId
-        && attempt.placementId === input.placementId)
+        && attempt.placementId === input.placementId
+        && (input.bindingId === undefined || attempt.bindingId === input.bindingId)
+        && (input.bindingRevision === undefined
+          || attempt.bindingRevision === input.bindingRevision))
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
       .slice(0, input.limit)
       .map(durableClone);

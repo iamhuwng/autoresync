@@ -1,4 +1,7 @@
-import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import {
+  BOOK_DELIVERY_SCHEMA_VERSION,
+  type BookDeliveryBinding,
+} from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import {
   authorizeRuntimeDraftRead,
   authorizeRuntimeCommand,
@@ -172,6 +175,33 @@ export const createBookRuntimeWorkerHandlers = (
           env: input.env,
         }),
       ]);
+      if (payload.commandKind === 'submit'
+        && options.repository.replayCommand
+        && actor.uid
+        && !actor.disabled
+        && binding?.schemaVersion === BOOK_DELIVERY_SCHEMA_VERSION
+        && binding.status === 'active'
+        && binding.context.kind === 'homework'
+        && binding.bindingId === payload.bindingId
+        && binding.revision === payload.bindingRevision
+        && binding.context.contextId === payload.contextId
+        && binding.context.recipientId === actor.uid
+        && binding.recipient.recipientKind === 'student'
+        && binding.recipient.recipientId === actor.uid
+        && binding.placements.some((placement) =>
+          placement.placementId === payload.placementId
+          && placement.activityId === payload.activityId
+          && placement.activityVersion === payload.activityVersion)
+        && (binding.scope.kind !== 'placements'
+          || binding.scope.placementIds.includes(payload.placementId))) {
+        const replayed = await options.repository.replayCommand({
+          command: payload,
+          actorUid: actor.uid,
+        });
+        if (replayed) {
+          return json(sanitizeResult(replayed), statusFor(replayed.status));
+        }
+      }
       let resolvedActivity: NormalizedActivity | null = null;
       const resolveTarget = options.resolveActivity
         ? async (targetInput: Pick<BookRuntimeSchedulePolicyInput, 'actorUid' | 'binding' | 'target'>) => {

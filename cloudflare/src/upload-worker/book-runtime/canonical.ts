@@ -145,6 +145,8 @@ const productionDependencies = (
       const policy = await effectiveActivitySchedulePolicy.resolve({
         assignmentId: binding.context.contextId,
         recipientId: binding.recipient.recipientId,
+        bindingId: binding.bindingId,
+        bindingRevision: binding.revision,
         policyId: binding.schedulePolicy.policyId,
         policyRevision: binding.schedulePolicy.policyRevision,
         placementId,

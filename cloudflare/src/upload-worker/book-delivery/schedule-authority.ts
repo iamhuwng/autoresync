@@ -81,6 +81,8 @@ export const resolveBookHomeworkDocumentWindow = (input: {
     policyRevision: input.binding.schedulePolicy.policyRevision,
     authorityRevision: input.authority.revision,
     evaluatedAt: input.evaluatedAt,
+    maxAttempts: null,
+    attemptsUsed: 0,
   });
 };
 
@@ -109,7 +111,9 @@ export const resolveBookHomeworkLaunchWindows = (input: {
           || policy.maxAttempts <= 0
           || policy.maxAttempts > 50))
       || typeof policy.lateSubmissionAllowed !== 'boolean'
-      || typeof policy.completed !== 'boolean') {
+      || !Number.isSafeInteger(policy.attemptsUsed)
+      || policy.attemptsUsed < 0
+      || (policy.maxAttempts !== null && policy.attemptsUsed > policy.maxAttempts)) {
       throw new Error('book_launch_schedule_policy_unavailable');
     }
     return [placement.placementId, resolveBookScheduleWindow({
@@ -126,7 +130,8 @@ export const resolveBookHomeworkLaunchWindows = (input: {
       outline: input.authority.bookManifest.outline,
       studentExtensions: input.authority.studentExtensions[input.binding.recipient.recipientId] ?? {},
       lateSubmissionAllowed: policy.lateSubmissionAllowed,
-      completed: policy.completed,
+      maxAttempts: policy.maxAttempts,
+      attemptsUsed: policy.attemptsUsed,
       policyRevision: policy.policyRevision,
       authorityRevision: input.authority.revision,
       evaluatedAt: input.evaluatedAt,

@@ -302,6 +302,8 @@ describe('Ticket 28A runtime repository', () => {
       recipientId: 'student-1',
       contextId: 'context-1',
       placementId: 'placement-1',
+      bindingId: 'binding-1',
+      bindingRevision: 1,
       limit: 5,
     })).resolves.toHaveLength(2);
     await expect(repository.listAttempts({
@@ -589,6 +591,14 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
       attempt: { attemptId: 'attempt-durable-2', attemptNumber: 2 },
       receipt: { attemptNumber: 2 },
     });
+    await expect(repository.replayCommand({
+      command: secondTerminal,
+      actorUid: 'student-1',
+    })).resolves.toMatchObject({
+      status: 'replayed',
+      attempt: { attemptId: 'attempt-durable-2', attemptNumber: 2 },
+      receipt: { attemptNumber: 2 },
+    });
     const afterSecondTerminal = firebase.values.get(
       'book_runtime/scopes/student-1/context-1/placement-1/interaction-1',
     ) as {
@@ -670,6 +680,8 @@ describe('Ticket 28A durable Firebase runtime repository', () => {
       recipientId: 'student-1',
       contextId: 'context-1',
       placementId: 'placement-1',
+      bindingId: 'binding-1',
+      bindingRevision: 1,
       limit: 5,
     })).resolves.toHaveLength(2);
   });
