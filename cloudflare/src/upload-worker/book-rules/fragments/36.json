@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "36",
+  "owner": {
+    "ticketId": "36",
+    "issue": 89,
+    "generatedRuleLocations": [
+      "book_activity_evaluations/.read",
+      "book_activity_evaluations/.write",
+      "book_activity_evaluations/scopes/.read",
+      "book_activity_evaluations/scopes/.write",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/.read",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/.write",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/current/.validate",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/history/.read",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/history/$revisionKey/.validate",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/corrections/$revisionKey/.validate",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/aggregateScores/$revisionKey/.validate",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/operations/$operationId/.validate"
+    ],
+    "serviceIdentity": "book_activity_evaluation_service",
+    "leastPrivilegePaths": [
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId",
+      "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/history"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_activity_evaluations",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_evaluations",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_evaluations/scopes",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_evaluations/scopes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_evaluation_service == true && auth.token.book_activity_evaluation_recipientId == $recipientId && auth.token.book_activity_evaluation_contextId == $contextId && auth.token.book_activity_evaluation_placementId == $placementId && auth.token.book_activity_evaluation_activityId == $activityId && auth.token.book_activity_evaluation_attemptId == $attemptId"
+    },
+    {
+      "path": "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_evaluation_service == true && auth.token.book_activity_evaluation_recipientId == $recipientId && auth.token.book_activity_evaluation_contextId == $contextId && auth.token.book_activity_evaluation_placementId == $placementId && auth.token.book_activity_evaluation_activityId == $activityId && auth.token.book_activity_evaluation_attemptId == $attemptId && newData.hasChildren(['current', 'history', 'corrections', 'operations']) && newData.child('current').child('target').child('recipientId').val() == $recipientId && newData.child('current').child('target').child('contextId').val() == $contextId && newData.child('current').child('target').child('placementId').val() == $placementId && newData.child('current').child('target').child('activityId').val() == $activityId && newData.child('current').child('target').child('attemptId').val() == $attemptId && !newData.child('visibility').exists() && !newData.child('releasePolicy').exists() && !newData.child('response').exists() && !newData.child('answerKey').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+    },
+    {
+      "path": "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/current",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.child('schemaVersion').val() == 1 && newData.child('revision').isNumber() && ((!data.exists() && newData.child('revision').val() == 1 && newData.child('previousRevision').val() == 0) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('previousRevision').val() == data.child('revision').val())) && newData.child('target').child('attemptId').val() == $attemptId && newData.child('target').child('recipientId').val() == $recipientId && newData.child('target').child('contextId').val() == $contextId && newData.child('target').child('placementId').val() == $placementId && newData.child('target').child('activityId').val() == $activityId && !newData.child('visibility').exists() && !newData.child('releasePolicy').exists() && !newData.child('response').exists()"
+    },
+    {
+      "path": "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/history",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_evaluation_service == true && auth.token.book_activity_evaluation_recipientId == $recipientId && auth.token.book_activity_evaluation_contextId == $contextId && auth.token.book_activity_evaluation_placementId == $placementId && auth.token.book_activity_evaluation_activityId == $activityId && auth.token.book_activity_evaluation_attemptId == $attemptId && query.orderByKey && query.limitToLast != null && query.limitToLast <= 100"
+    },
+    {
+      "path": "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/history/$revisionKey",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "!data.exists() && newData.exists() && newData.hasChildren(['schemaVersion', 'revision', 'previousRevision', 'operationId', 'commandKind', 'commandFingerprint', 'scorerVersion', 'activitySchemaVersion', 'target', 'facts', 'evaluatedBy', 'evaluatedAt']) && newData.child('schemaVersion').val() == 1 && newData.child('revision').isNumber() && newData.child('previousRevision').val() == newData.child('revision').val() - 1 && newData.child('operationId').isString() && newData.child('commandFingerprint').isString() && newData.child('scorerVersion').val() == 1 && newData.child('activitySchemaVersion').val() == 1 && newData.child('facts').child('status').isString() && newData.child('facts').child('correctionFacts').exists() && newData.child('evaluatedBy').child('kind').isString() && newData.child('evaluatedAt').isString() && newData.child('target').child('attemptId').val() == $attemptId && newData.child('target').child('recipientId').val() == $recipientId && newData.child('target').child('contextId').val() == $contextId && newData.child('target').child('placementId').val() == $placementId && newData.child('target').child('activityId').val() == $activityId && !newData.child('visibility').exists() && !newData.child('releasePolicy').exists() && !newData.child('response').exists()"
+    },
+    {
+      "path": "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/corrections/$revisionKey",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "!data.exists() && newData.exists() && newData.child('revision').isNumber() && !newData.child('visibility').exists() && !newData.child('releasePolicy').exists()"
+    },
+    {
+      "path": "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/aggregateScores/$revisionKey",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "!data.exists() && newData.exists() && newData.child('revision').isNumber() && newData.child('earnedScore').isNumber() && newData.child('maximumScore').isNumber() && newData.child('earnedScore').val() >= 0 && newData.child('earnedScore').val() <= newData.child('maximumScore').val() && newData.child('maximumScore').val() <= 10000 && !newData.child('visibility').exists() && !newData.child('releasePolicy').exists()"
+    },
+    {
+      "path": "book_activity_evaluations/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/operations/$operationId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "!data.exists() && newData.exists() && newData.child('operationId').val() == $operationId && newData.child('commandFingerprint').isString() && newData.child('actorFingerprint').isString() && newData.child('revision').isNumber()"
+    }
+  ]
+}
