@@ -313,6 +313,7 @@ const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
           status: 'accepted',
           bindingId: payload.bindingId,
           attemptId: `attempt-${payload.activityId}`,
+          attemptNumber: 1,
           createdAt: new Date().toISOString(),
         },
       };

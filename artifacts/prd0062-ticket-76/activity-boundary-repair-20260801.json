@@ -31,5 +31,12 @@
     "runtimeRuleFragment": "2 passed",
     "typecheck": "inconclusive; pre-existing unrelated errors remain outside owned paths"
   },
+  "browserProof": {
+    "url": "http://localhost:5174/__smoke/book-runtime?window=available",
+    "role": "Student Test",
+    "journey": "selected Statement A, submitted the canonical Activity draft bundle, observed Activity submitted, success announcement, and disabled submit control",
+    "consoleErrors": 0,
+    "fixtureRepair": "terminal acknowledgement now includes the required positive attemptNumber"
+  },
   "evidenceDate": "2026-08-01"
 }
