@@ -55,7 +55,6 @@ describe('Ticket 38B1 notification producer inventory', () => {
     it('keeps raw notification-content writes inside owned compatibility paths', () => {
         const allowed = new Set([
             'src/services/accountDeletionService.ts',
-            'src/services/migrations/migrateNotifications.ts',
             'src/services/notificationService.ts',
         ]);
         const rawNotificationPaths = filesUnder(sourceRoot)

@@ -107,4 +107,29 @@ describe('notification metadata contract', () => {
             createdAt: 100,
         });
     });
+
+    it('keeps migrated and untouched rows compatibility-readable after rollback', () => {
+        const migrated = {
+            id: 'legacy-id',
+            type: 'feedback',
+            title: 'Feedback ready',
+            message: 'Your teacher left feedback.',
+            read: true,
+            createdAt: 123,
+            link: '/results/legacy-id',
+            metadata: { resultId: 'result-1' },
+        };
+        const untouched = {
+            id: 'per-user-legacy-id',
+            type: 'info',
+            title: 'Original per-user notice',
+            message: 'This compatibility row was not migrated.',
+            read: false,
+            createdAt: 122,
+        };
+
+        expect(adaptStoredNotification(migrated, 'legacy-id')).toEqual(migrated);
+        expect(adaptStoredNotification({ ...migrated, read: false }, 'legacy-id').read).toBe(false);
+        expect(adaptStoredNotification(untouched, 'per-user-legacy-id')).toEqual(untouched);
+    });
 });
