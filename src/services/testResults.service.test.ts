@@ -19,16 +19,14 @@ import { database } from './firebase';
 import { ref, set, get, push, update } from 'firebase/database';
 
 const {
-    mockCreateNotification,
-    mockSendReviewedNotification,
+    mockCreateTrustedNotification,
     mockResolveResultOwnership,
     mockClassifyTeacherResultVisibility,
     mockClearUnresolvedResultVisibilityReport,
     mockUpsertUnresolvedResultVisibilityReport,
     mockTriggerFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
-    mockCreateNotification: vi.fn(),
-    mockSendReviewedNotification: vi.fn(),
+    mockCreateTrustedNotification: vi.fn(),
     mockResolveResultOwnership: vi.fn(),
     mockClassifyTeacherResultVisibility: vi.fn(),
     mockClearUnresolvedResultVisibilityReport: vi.fn(),
@@ -72,9 +70,8 @@ vi.mock('./resultVisibilityReporting.service', () => ({
     upsertUnresolvedResultVisibilityReport: mockUpsertUnresolvedResultVisibilityReport,
 }));
 
-vi.mock('./notificationService', () => ({
-    createNotification: mockCreateNotification,
-    sendReviewedNotification: mockSendReviewedNotification,
+vi.mock('./notificationProducerClient', () => ({
+    createTrustedNotification: mockCreateTrustedNotification,
 }));
 
 vi.mock('./resultFeedbackGeneration.service', () => ({
@@ -137,8 +134,7 @@ describe('testResults.service', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (ref as any).mockImplementation((_database: unknown, path?: string) => path ?? '__root__');
-        mockCreateNotification.mockResolvedValue(undefined);
-        mockSendReviewedNotification.mockResolvedValue(undefined);
+        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
         mockClearUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockUpsertUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockResolveResultOwnership.mockImplementation(async ({ result }: any) => ({
@@ -240,15 +236,16 @@ describe('testResults.service', () => {
                 })
             );
             expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledWith('result-123');
-            expect(mockCreateNotification).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    userId: studentId,
-                    link: '/result/result-123',
-                    metadata: expect.objectContaining({
-                        resultId: 'result-123',
-                    }),
-                })
-            );
+            expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+                producerFamily: 'result',
+                authorityRecordId: 'result-123',
+                recipientId: studentId,
+                operationKey: 'test-complete:result-123',
+                type: 'success',
+                title: '\u2705 Test Complete',
+                message: 'You completed "Test". Score: 10/20',
+                link: '/result/result-123',
+            });
         });
 
         it('writes a stable solo result id with operation identity for idempotent reload recovery', async () => {
@@ -348,7 +345,7 @@ describe('testResults.service', () => {
             expect(resultId).toBe('listening_solo__self_study__student-1__TEST-1__attempt-001__submit');
             expect(set).not.toHaveBeenCalled();
             expect(update).not.toHaveBeenCalled();
-            expect(mockCreateNotification).not.toHaveBeenCalled();
+            expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
             expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
         });
 
@@ -561,10 +558,10 @@ describe('testResults.service', () => {
                 }),
             );
 
-            expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+            await vi.waitFor(() => expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
                 'result-ielts-1',
                 { triggerSource: 'saveTestResult' },
-            );
+            ));
         });
 
         it('does not trigger initial feedback for pending-review writing saves', async () => {
@@ -2673,6 +2670,16 @@ describe('testResults.service', () => {
             expect(updates.reviewedBy).toBe('teacher-1');
             expect(updates.reviewedAt).toBeDefined();
             expect(updates.updatedAt).toBeDefined();
+            expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+                producerFamily: 'result',
+                authorityRecordId: 'result-test-1',
+                recipientId: 'student-1',
+                operationKey: 'result-reviewed:result-test-1',
+                type: 'success',
+                title: 'Writing Test Reviewed',
+                message: 'teacher-1 has reviewed your writing test "Writing Test 1". View your score.',
+                link: '/result/result-test-1',
+            });
         });
 
         it('should throw error if result not found', async () => {
@@ -2721,13 +2728,27 @@ describe('testResults.service', () => {
                 val: () => mockResult
             });
 
-            mockSendReviewedNotification.mockRejectedValueOnce(new Error('Notification failed'));
+            mockCreateTrustedNotification.mockRejectedValueOnce(new Error('Notification failed'));
 
             // Should not throw even if notification fails
             await expect(markAsReviewed('result-test-1', 'teacher-1')).resolves.not.toThrow();
 
             // But status update should still happen
             expect(update).toHaveBeenCalled();
+        });
+
+        it('skips the reviewed notification when the canonical result authority is missing', async () => {
+            const { markAsReviewed } = await import('./testResults.service');
+
+            (get as any).mockResolvedValue({
+                exists: () => true,
+                val: () => ({ ...mockResult, resultId: '' }),
+            });
+
+            await markAsReviewed('result-test-1', 'teacher-1');
+
+            expect(update).toHaveBeenCalled();
+            expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
         });
     });
 

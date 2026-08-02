@@ -15,6 +15,7 @@ const inventoryPath = join(
 const sourceExtensions = /\.(?:js|jsx|ts|tsx)$/u;
 const testFile = /\.(?:test|spec)\.[^.]+$/u;
 const producerCall = /\b(?:createNotification|createBulkNotifications|createTrustedNotification|createTrustedBulkNotifications|send[A-Z]\w*Notification|send(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
+const legacyNotificationProducerCall = /\b(?:createNotification|createBulkNotifications|send(?!Trusted)[A-Z]\w*Notification|send(?!Trusted)(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
 
 const filesUnder = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
@@ -92,6 +93,24 @@ describe('Ticket 38B1 notification producer inventory', () => {
                 expect(source, relativeFile).toContain('authorityRecordId');
                 expect(source, relativeFile).toContain('operationKey');
             }
+        }
+    });
+
+    it('requires #96 producers to use the trusted seam with explicit authority', () => {
+        const owned = [
+            ['src/components/results/TeacherFeedbackManager.tsx', 'feedback'],
+            ['src/components/thcs-grading/InlineWritingGrader.tsx', 'result'],
+            ['src/services/homeworkSubmissionService.ts', 'homework'],
+            ['src/services/testResults.service.ts', 'result'],
+        ];
+        for (const [relativeFile, producerFamily] of owned) {
+            const source = readFileSync(join(root, relativeFile), 'utf8');
+            expect(source, relativeFile).not.toContain('notificationService');
+            expect(source, relativeFile).not.toMatch(legacyNotificationProducerCall);
+            expect(source, relativeFile).toContain('notificationProducerClient');
+            expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
+            expect(source, relativeFile).toContain('authorityRecordId');
+            expect(source, relativeFile).toContain('operationKey');
         }
     });
 

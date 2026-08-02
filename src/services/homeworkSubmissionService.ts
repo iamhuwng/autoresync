@@ -39,6 +39,8 @@ import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
 import type { BookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.types';
 import { validateBookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.service';
 import { resolveBookHomeworkWorkerOrigin } from './homeworkAssignmentClient';
+import { buildRoute } from '../constants/routes';
+import { createTrustedNotification } from './notificationProducerClient';
 
 const SUBMISSION_COLLECTION = 'homework_submissions';
 
@@ -67,6 +69,10 @@ export class BookHomeworkProgressReadError extends Error {
 }
 
 const BOOK_HOMEWORK_READ_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
+
+const isTrustedNotificationIdentifier = (value: unknown): value is string =>
+    typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -1028,17 +1034,35 @@ export async function resetStudentHomework(
         // Non-critical — submissions are already deleted
     }
 
-    // 8. Send notification to the student
-    try {
-        const { sendHomeworkResetNotification } = await import('./notificationService');
-        await sendHomeworkResetNotification(
-            studentId,
-            homeworkId,
-            homeworkTitle || 'Homework'
-        );
-    } catch (err) {
-        console.warn('Failed to send homework reset notification:', err);
-        // Non-critical
+    // 8. Emit a trusted command for the student notification. The recipient
+    // comes from the canonical submission row, never from the reset request.
+    const submissionRecipientId = submissions[0]?.studentId;
+    const hasConsistentSubmissionRecipient = Boolean(
+        submissionRecipientId
+        && submissions.every((submission) => submission.studentId === submissionRecipientId)
+    );
+    const authorityHomeworkId = homework?.id === homeworkId ? homework.id : undefined;
+    if (
+        hasConsistentSubmissionRecipient
+        && authorityHomeworkId
+        && isTrustedNotificationIdentifier(submissionRecipientId)
+        && isTrustedNotificationIdentifier(authorityHomeworkId)
+    ) {
+        await createTrustedNotification({
+            producerFamily: 'homework',
+            authorityRecordId: authorityHomeworkId,
+            recipientId: submissionRecipientId,
+            operationKey: `homework-reset:${authorityHomeworkId}`,
+            type: 'warning',
+            title: '\uD83D\uDD04 Homework Reset',
+            message: `Your homework "${homeworkTitle || 'Homework'}" has been reset by your teacher. You can now retake it.`,
+            link: buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId: authorityHomeworkId }),
+        }).catch((err) => {
+            console.warn('Failed to send homework reset notification:', err);
+            // Non-critical
+        });
+    } else {
+        console.warn('Skipped homework reset notification: trusted recipient or authority was unavailable.');
     }
 
     console.log(

@@ -14,6 +14,7 @@ import { ref, set, get, push, update } from 'firebase/database';
 // @ts-ignore
 import { database } from './firebase';
 import { buildRoute } from '../constants/routes';
+import { createTrustedNotification } from './notificationProducerClient';
 import { TestMarkingResult } from './autoMarking.service';
 import {
   ReMarkEntry,
@@ -44,6 +45,10 @@ import {
 } from './resultVisibilityReindex.service';
 import { classifyTeacherResultVisibility } from './resultVisibility.service';
 import { classifySavedResultFeedbackKind } from './feedbackClassification.service';
+
+const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
+const isTrustedNotificationIdentifier = (value: unknown): value is string =>
+  typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
 
 /**
  * Complete test result record
@@ -871,22 +876,29 @@ export async function saveTestResult(
 
     console.log(`💾 Test result saved: ${resultId}`);
 
-    // PRD-0002: Dashboard feed notification (non-guest only)
-    if (!isGuest) {
-      try {
-        const { createNotification } = await import('./notificationService');
-        await createNotification({
-          userId: studentId,
-          type: 'success',
-          title: '✅ Test Complete',
-          message: `You completed "${testMetadata.title}". Score: ${markingResult.totalScore}/${markingResult.maxScore}`,
-          link: buildRoute('RESULT_DETAIL', { resultId }),
-          metadata: { resultId, testName: testMetadata.title, score: markingResult.totalScore, maxScore: markingResult.maxScore }
-        });
-        console.log(`📢 [TestResults] Feed notification sent for student ${studentId} completing test ${resultId}`);
-      } catch (notifError) {
+    // PRD-0002: Dashboard feed notification (non-guest only). The canonical
+    // persisted result is the authority for both recipient and content.
+    const notificationRecipientId = persistedResultRecord.studentId;
+    const notificationAuthorityId = persistedResultRecord.resultId;
+    if (
+      !persistedResultRecord.isGuest
+      && isTrustedNotificationIdentifier(notificationRecipientId)
+      && isTrustedNotificationIdentifier(notificationAuthorityId)
+      && typeof persistedResultRecord.testTitle === 'string'
+      && persistedResultRecord.testTitle.trim()
+    ) {
+      await createTrustedNotification({
+        producerFamily: 'result',
+        authorityRecordId: notificationAuthorityId,
+        recipientId: notificationRecipientId,
+        operationKey: `test-complete:${notificationAuthorityId}`,
+        type: 'success',
+        title: '\u2705 Test Complete',
+        message: `You completed "${persistedResultRecord.testTitle}". Score: ${persistedResultRecord.totalScore}/${persistedResultRecord.maxScore}`,
+        link: buildRoute('RESULT_DETAIL', { resultId: notificationAuthorityId }),
+      }).catch((notifError) => {
         console.warn('⚠️ [TestResults] Failed to send test-complete notification (non-blocking):', notifError);
-      }
+      });
     }
 
     return resultId;
@@ -1276,20 +1288,33 @@ export async function markAsReviewed(
 
     console.log(`✅ Result ${resultId} marked as reviewed by ${reviewedBy}`);
 
-    // PRD-0015: Phase 7 & 8 - Send notification to student
-    // Import is added at the top of the file
-    try {
-      const { sendReviewedNotification } = await import('./notificationService');
-      await sendReviewedNotification(
-        result.studentId,
-        resultId,
-        result.testTitle,
-        result.testSkill as 'writing' | 'speaking',
-        reviewedBy
-      );
-    } catch (notifError) {
-      // Don't fail the whole operation if notification fails
-      console.error('Failed to send reviewed notification:', notifError);
+    // PRD-0015: Phase 7 & 8 - Emit a trusted command. The canonical result
+    // supplies the recipient and authority; a review retry reuses its key.
+    const notificationRecipientId = result.studentId;
+    const notificationAuthorityId = result.resultId === resultId ? result.resultId : undefined;
+    const notificationSkill = typeof result.testSkill === 'string' ? result.testSkill : '';
+    if (
+      notificationAuthorityId
+      && isTrustedNotificationIdentifier(notificationRecipientId)
+      && isTrustedNotificationIdentifier(notificationAuthorityId)
+      && typeof result.testTitle === 'string'
+      && result.testTitle.trim()
+      && notificationSkill.trim()
+    ) {
+      const skillCapitalized = notificationSkill.charAt(0).toUpperCase() + notificationSkill.slice(1);
+      await createTrustedNotification({
+        producerFamily: 'result',
+        authorityRecordId: notificationAuthorityId,
+        recipientId: notificationRecipientId,
+        operationKey: `result-reviewed:${notificationAuthorityId}`,
+        type: 'success',
+        title: `${skillCapitalized} Test Reviewed`,
+        message: `${reviewedBy ? `${reviewedBy} has` : 'Your teacher has'} reviewed your ${notificationSkill} test "${result.testTitle}". View your score.`,
+        link: buildRoute('RESULT_DETAIL', { resultId: notificationAuthorityId }),
+      }).catch((notifError) => {
+        // Don't fail the whole operation if notification fails
+        console.error('Failed to send reviewed notification:', notifError);
+      });
     }
   } catch (error) {
     console.error('Error marking result as reviewed:', error);

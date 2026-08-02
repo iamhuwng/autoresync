@@ -19,7 +19,7 @@ const mockGetEffectiveHomeworkDueDate = vi.hoisted(() => vi.fn());
 const mockGetStudentOverride = vi.hoisted(() => vi.fn(() => ({})));
 const mockIsStudentExemptedFromHomework = vi.hoisted(() => vi.fn(() => false));
 const mockDeleteTestResult = vi.hoisted(() => vi.fn());
-const mockSendHomeworkResetNotification = vi.hoisted(() => vi.fn());
+const mockCreateTrustedNotification = vi.hoisted(() => vi.fn());
 
 vi.mock('firebase/firestore', () => {
     const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -136,8 +136,8 @@ vi.mock('./testResults.service', () => ({
     deleteTestResult: (...args: unknown[]) => mockDeleteTestResult(...args),
 }));
 
-vi.mock('./notificationService', () => ({
-    sendHomeworkResetNotification: (...args: unknown[]) => mockSendHomeworkResetNotification(...args),
+vi.mock('./notificationProducerClient', () => ({
+    createTrustedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
 }));
 
 import {
@@ -236,7 +236,7 @@ describe('homeworkSubmissionService', () => {
         mockGetStudentOverride.mockReturnValue({});
         mockIsStudentExemptedFromHomework.mockReturnValue(false);
         mockDeleteTestResult.mockResolvedValue(undefined);
-        mockSendHomeworkResetNotification.mockResolvedValue(undefined);
+        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
         mockUpdateHomework.mockResolvedValue(undefined);
     });
 
@@ -462,11 +462,30 @@ describe('homeworkSubmissionService', () => {
                 completionRate: 0,
             },
         });
-        expect(mockSendHomeworkResetNotification).toHaveBeenCalledWith(
-            mockStudentId,
-            mockHomeworkId,
-            'Protected Homework',
-        );
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            producerFamily: 'homework',
+            authorityRecordId: mockHomeworkId,
+            recipientId: mockStudentId,
+            operationKey: `homework-reset:${mockHomeworkId}`,
+            type: 'warning',
+            title: '\uD83D\uDD04 Homework Reset',
+            message: 'Your homework "Protected Homework" has been reset by your teacher. You can now retake it.',
+            link: `/student/homework/${mockHomeworkId}`,
+        });
+    });
+
+    it('skips the reset notification when the homework authority is unavailable', async () => {
+        seedSubmission(buildSubmission({
+            id: 'missing-authority-submission',
+            status: 'submitted',
+            submittedAt: Date.now() - 5_000,
+            resultId: 'result-missing-authority',
+        }));
+        mockGetHomeworkById.mockResolvedValue(undefined);
+
+        await resetStudentHomework(mockHomeworkId, mockStudentId, 'Protected Homework');
+
+        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
     });
 
     it('reads trusted Book progress without mapping completion into legacy score fields', async () => {
