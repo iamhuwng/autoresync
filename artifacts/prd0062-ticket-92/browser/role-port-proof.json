@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "ticket": 92,
+  "capturedAt": "2026-08-02T13:10:00+07:00",
+  "evidence": "authenticated-role-port-browser-proof",
+  "ports": {
+    "teacher": {
+      "url": "http://localhost:5173",
+      "authenticatedRoute": "/lobby",
+      "title": "Materials | MySTUdent Workspace",
+      "homeworkRoute": "/teacher/homework",
+      "observed": [
+        "Teacher Test identity was visible",
+        "Homework Management was visible",
+        "13 total, 12 visible, and 12 active homework counts were visible",
+        "No Book Homework fixture was present in this seeded environment"
+      ]
+    },
+    "student": {
+      "url": "http://localhost:5174",
+      "authenticatedRoute": "/student",
+      "title": "Feed | MySTUdent Workspace",
+      "observed": [
+        "student@test.com identity was visible",
+        "Student workspace was visible",
+        "No integrity report, signal count, or severity detail was present in the student projection"
+      ]
+    }
+  },
+  "limits": [
+    "The seeded browser data had no Book Homework submission, so a live submit-to-report click-through could not be exercised without inventing data.",
+    "Production-equivalent submit/replay, teacher ownership, student denial, and rollback are covered by the focused preview tests.",
+    "The Wrangler production-equivalent preview uses BOOK_INTEGRITY_REPORT_ROUTES_ENABLED=disabled and BOOK_INTEGRITY_LINKAGE_ENABLED=disabled by default."
+  ]
+}

@@ -18,6 +18,7 @@ import {
   isIntegrityReport,
 } from '../../utils/integrityUtils';
 import './IntegrityDetailPanel.css';
+import type { BookIntegrityReport } from '../../services/book-activity/bookIntegrityReport.types';
 
 interface IntegrityDetailPanelProps {
   report: IntegrityViewData;
@@ -174,3 +175,101 @@ export const IntegrityDetailPanel: React.FC<IntegrityDetailPanelProps> = ({
 };
 
 export default IntegrityDetailPanel;
+
+/**
+ * Book Activity's post-submit report is intentionally a separate presentation
+ * from the legacy PRD-0036 panel above.  It uses cautious language and owns no
+ * grading, release, completion, or correction controls.
+ */
+export interface BookActivityIntegrityDetailPanelProps {
+  readonly report: BookIntegrityReport;
+  readonly studentName: string;
+  readonly activityLabel: string;
+  readonly onClose?: () => void;
+}
+
+const BOOK_SIGNAL_LABELS: Readonly<Record<keyof BookIntegrityReport['counts'], string>> = {
+  visibility_loss: 'Page visibility loss',
+  focus_loss: 'Focus loss',
+  route_reload_close: 'Route, reload, or close',
+  paste: 'Paste',
+  protected_copy: 'Protected copy',
+  focus_mode_exit: 'Required focus-mode exit',
+  concurrent_attempt: 'Concurrent attempt',
+  inactivity: 'Bounded inactivity',
+};
+
+const riskCopy = (risk: BookIntegrityReport['risk']): string => {
+  if (risk === 'normal') return 'No bounded integrity signals were recorded for this submitted Activity.';
+  if (risk === 'integrity_high_risk') return 'Several bounded integrity signals were recorded for teacher review.';
+  return 'Bounded integrity signals were recorded for teacher review.';
+};
+
+export const BookActivityIntegrityDetailPanel: React.FC<BookActivityIntegrityDetailPanelProps> = ({
+  report,
+  studentName,
+  activityLabel,
+  onClose,
+}) => (
+  <section className="book-integrity-detail-panel" aria-labelledby="book-integrity-detail-title">
+    <header className="book-integrity-detail-panel__header">
+      <div>
+        <p className="book-integrity-detail-panel__eyebrow">Post-submit integrity review</p>
+        <h3 id="book-integrity-detail-title">{activityLabel}</h3>
+        <p>{studentName}</p>
+      </div>
+      {onClose ? (
+        <button type="button" onClick={onClose} aria-label="Close integrity review">Close</button>
+      ) : null}
+    </header>
+    <p className="book-integrity-detail-panel__caution">{riskCopy(report.risk)}</p>
+    <dl className="book-integrity-detail-panel__summary">
+      <div>
+        <dt>Report status</dt>
+        <dd>Sealed after submission</dd>
+      </div>
+      <div>
+        <dt>Risk status</dt>
+        <dd>{report.risk.replace('integrity_', '').replace('_', ' ')}</dd>
+      </div>
+      <div>
+        <dt>Total signals</dt>
+        <dd>{report.totalEventCount}</dd>
+      </div>
+      <div>
+        <dt>Attempt</dt>
+        <dd>{report.terminal.attemptNumber}</dd>
+      </div>
+    </dl>
+    <section aria-labelledby="book-integrity-counts-title">
+      <h4 id="book-integrity-counts-title">Signal counts</h4>
+      <ul className="book-integrity-detail-panel__counts">
+        {(Object.keys(BOOK_SIGNAL_LABELS) as Array<keyof BookIntegrityReport['counts']>).map((signal) => (
+          <li key={signal}>
+            <span>{BOOK_SIGNAL_LABELS[signal]}</span>
+            <strong>{report.counts[signal]}</strong>
+          </li>
+        ))}
+      </ul>
+    </section>
+    <section aria-labelledby="book-integrity-events-title">
+      <h4 id="book-integrity-events-title">Recorded signal times</h4>
+      {report.eventRefs.length === 0 ? (
+        <p className="book-integrity-detail-panel__empty">No signal events were recorded.</p>
+      ) : (
+        <ol className="book-integrity-detail-panel__events">
+          {report.eventRefs.map((event) => (
+            <li key={event.eventId}>
+              <span>{BOOK_SIGNAL_LABELS[event.signal]}</span>
+              <time dateTime={event.recordedAt}>{new Date(event.recordedAt).toLocaleString()}</time>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+    <p className="book-integrity-detail-panel__note">
+      This report is informational for the owning teacher. It does not change grading, feedback release,
+      completion, eligibility, or attempt count.
+    </p>
+  </section>
+);

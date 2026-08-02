@@ -42,6 +42,15 @@ import {
 import {
   readBookHomeworkRecipientAuthority,
 } from '../book-homework/identity.ts';
+import {
+  FirebaseRestBookIntegrityReportRepository,
+} from '../book-activity-integrity/report-repository.ts';
+import {
+  createTrustedBookIntegrityReportService,
+} from '../../../../src/services/book-activity/bookIntegrityReport.service.ts';
+import type {
+  BookIntegrityTerminalAttempt,
+} from '../../../../src/services/book-activity/bookIntegrityReport.types.ts';
 
 export type BookRuntimeCanonicalEnv =
   & BookRuntimeWorkerEnv
@@ -74,6 +83,11 @@ export interface BookRuntimeCanonicalDependencies {
     readonly env: BookRuntimeCanonicalEnv;
   }) => Promise<BookRuntimeAttemptPolicy | null>;
   readonly projectHomeworkCompletion?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<void>;
+  readonly linkIntegrityReport?: (input: {
     readonly binding: BookDeliveryBinding;
     readonly result: BookRuntimeCommandResult;
     readonly env: BookRuntimeCanonicalEnv;
@@ -190,6 +204,101 @@ export const createBookRuntimeProductionDependencies = (
           completion: result.completion,
           index: result.index,
         },
+      });
+    },
+    linkIntegrityReport: async ({ binding, result, env: runtimeEnv }) => {
+      if (runtimeEnv.BOOK_INTEGRITY_LINKAGE_ENABLED !== 'enabled'
+        || binding.context.kind !== 'homework'
+        || !result.attempt
+        || !result.result
+        || !result.completion) return;
+      const attempt = result.attempt;
+      const terminalResult = result.result;
+      const completion = result.completion;
+      const index = result.index;
+      const placement = binding.placements.find((entry) => entry.placementId === attempt.placementId);
+      if (!index
+        || !placement
+        || binding.bindingId !== attempt.bindingId
+        || binding.revision !== attempt.bindingRevision
+        || binding.context.kind !== 'homework'
+        || binding.context.contextId !== attempt.contextId
+        || binding.context.recipientId !== attempt.recipientId
+        || binding.recipient.recipientId !== attempt.recipientId
+        || binding.issuer.ownerId !== binding.context.ownerId
+        || placement.activityId !== attempt.activityId
+        || placement.activityVersion !== attempt.activityVersion
+        || placement.activityVersionId !== attempt.activityVersionId
+        || terminalResult.attemptId !== attempt.attemptId
+        || terminalResult.resultId !== `${attempt.attemptId}:result`
+        || completion.attemptId !== attempt.attemptId
+        || completion.completionId !== `${attempt.attemptId}:completion`
+        || completion.resultId !== terminalResult.resultId
+        || index.attemptId !== attempt.attemptId
+        || index.resultId !== terminalResult.resultId
+        || terminalResult.bindingId !== attempt.bindingId
+        || completion.bindingId !== attempt.bindingId
+        || index.bindingId !== attempt.bindingId
+        || terminalResult.bindingRevision !== attempt.bindingRevision
+        || completion.bindingRevision !== attempt.bindingRevision
+        || index.bindingRevision !== attempt.bindingRevision
+        || terminalResult.recipientId !== attempt.recipientId
+        || completion.recipientId !== attempt.recipientId
+        || index.recipientId !== attempt.recipientId
+        || terminalResult.contextId !== attempt.contextId
+        || completion.contextId !== attempt.contextId
+        || index.contextId !== attempt.contextId
+        || terminalResult.placementId !== attempt.placementId
+        || completion.placementId !== attempt.placementId
+        || index.placementId !== attempt.placementId
+        || terminalResult.activityId !== attempt.activityId
+        || completion.activityId !== attempt.activityId
+        || index.activityId !== attempt.activityId
+        || terminalResult.activityVersion !== attempt.activityVersion
+        || completion.activityVersion !== attempt.activityVersion
+        || index.activityVersion !== attempt.activityVersion
+        || terminalResult.activityVersionId !== attempt.activityVersionId
+        || completion.activityVersionId !== attempt.activityVersionId
+        || index.activityVersionId !== attempt.activityVersionId
+        || terminalResult.attemptNumber !== attempt.attemptNumber
+        || completion.attemptNumber !== attempt.attemptNumber
+        || index.attemptNumber !== attempt.attemptNumber
+        || attempt.submissionScope !== 'activity'
+        || terminalResult.submissionScope !== 'activity'
+        || completion.submissionScope !== 'activity'
+        || index.submissionScope !== 'activity'
+        || terminalResult.createdAt !== attempt.createdAt
+        || completion.createdAt !== attempt.createdAt
+        || index.createdAt !== attempt.createdAt
+        || (terminalResult.status !== 'pending_review' && terminalResult.status !== 'submitted')
+        || completion.status !== 'completed') return;
+      const terminal: BookIntegrityTerminalAttempt = {
+        attemptId: attempt.attemptId,
+        terminalId: completion.completionId,
+        resultId: terminalResult.resultId,
+        completionId: completion.completionId,
+        attemptNumber: attempt.attemptNumber,
+        submittedAt: completion.createdAt,
+        recipientId: attempt.recipientId,
+        ownerId: binding.context.ownerId,
+        bookId: binding.book.bookId,
+        bindingId: attempt.bindingId,
+        bindingRevision: attempt.bindingRevision,
+        contextKind: 'homework',
+        contextId: attempt.contextId,
+        placementId: attempt.placementId,
+        activityId: attempt.activityId,
+        activityVersion: attempt.activityVersion,
+        activityVersionId: attempt.activityVersionId,
+        submissionScope: 'activity',
+        resultStatus: terminalResult.status,
+        completionStatus: completion.status,
+      };
+      const repository = new FirebaseRestBookIntegrityReportRepository({ env: runtimeEnv });
+      const service = createTrustedBookIntegrityReportService({ repository });
+      await service.sealSubmittedAttempt({
+        ownerId: binding.context.ownerId,
+        terminal,
       });
     },
   };

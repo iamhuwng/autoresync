@@ -349,6 +349,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       attemptId: 'attempt-autosave',
     });
     const projectHomeworkCompletion = vi.fn(async () => undefined);
+    const linkIntegrityReport = vi.fn(async () => undefined);
     const handlers = createBookRuntimeWorkerHandlers({
       repository,
       resolveBinding: async () => homeworkBinding(),
@@ -356,6 +357,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
       schedulePolicy: homeworkSchedulePolicy,
       projectHomeworkCompletion,
+      linkIntegrityReport,
       now: () => '2026-07-30T00:00:01.000Z',
       allocateAttemptId: () => 'attempt-submit',
       requireCanonicalDraftForSubmit: true,
@@ -375,6 +377,14 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
     expect(accepted.body.status, JSON.stringify(accepted)).toBe('accepted');
     expect(replayed.body.status).toBe('replayed');
     expect(projectHomeworkCompletion).toHaveBeenCalledTimes(2);
+    expect(linkIntegrityReport).toHaveBeenCalledTimes(2);
+    expect(linkIntegrityReport).toHaveBeenLastCalledWith(expect.objectContaining({
+      binding: expect.objectContaining({ context: expect.objectContaining({ kind: 'homework' }) }),
+      result: expect.objectContaining({
+        status: 'replayed',
+        completion: expect.objectContaining({ status: 'completed' }),
+      }),
+    }));
     expect(projectHomeworkCompletion).toHaveBeenLastCalledWith(expect.objectContaining({
       binding: expect.objectContaining({ bindingId: 'binding-1' }),
       result: expect.objectContaining({
@@ -385,6 +395,62 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
     expect(Object.keys(repository.snapshot().completions ?? {})).toEqual([
       'attempt-submit:completion',
     ]);
+  });
+
+  it('keeps accepted and replayed Homework submits available when linkage fails', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    await repository.applyCommand({
+      command: {
+        ...submit({
+          commandKind: 'autosave',
+          operationId: '00000000-0000-4000-8000-000000000077',
+          clientRevision: 0,
+        }),
+      } as never,
+      context: {
+        actorUid: 'student-1',
+        operationKind: 'autosave',
+        binding: homeworkBinding(),
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+        now: '2026-07-30T00:00:00.000Z',
+      },
+      attemptId: 'attempt-autosave',
+    });
+    const linkIntegrityReport = vi.fn().mockRejectedValue(new Error('report unavailable'));
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => homeworkBinding(),
+      resolveActivity: async () => normalizedActivity(),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      schedulePolicy: homeworkSchedulePolicy,
+      linkIntegrityReport,
+      now: () => '2026-07-30T00:00:01.000Z',
+      allocateAttemptId: () => 'attempt-submit',
+      requireCanonicalDraftForSubmit: true,
+    });
+
+    const accepted = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+    const replayed = await handlers.command({
+      request: request(submit()),
+      env: {},
+      uid: 'student-1',
+    });
+
+    expect(accepted).toMatchObject({ body: { status: 'accepted', completionStatus: 'completed' }, init: { status: 200 } });
+    expect(replayed).toMatchObject({ body: { status: 'replayed', completionStatus: 'completed' }, init: { status: 200 } });
+    expect(linkIntegrityReport).toHaveBeenCalledTimes(2);
+    expect(repository.snapshot()).toMatchObject({
+      attempts: { 'attempt-submit': { attemptId: 'attempt-submit' } },
+      results: { 'attempt-submit:result': { attemptId: 'attempt-submit' } },
+      completions: { 'attempt-submit:completion': { status: 'completed' } },
+    });
   });
 
   it('never invokes Homework completion projection for a Solo terminal submit', async () => {

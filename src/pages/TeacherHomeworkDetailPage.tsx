@@ -11,6 +11,7 @@ import HomeworkSubmissionTable, { HomeworkSubmissionTableRow } from '../componen
 import { HomeworkStatusBadge } from '../components/homework/HomeworkStatusBadge';
 import { ResultDetailModal } from '../components/results/ResultDetailModal';
 import { BookActivityGradingPanel } from '../components/results/BookActivityGradingPanel';
+import { BookActivityIntegrityPanel } from '../components/results/BookActivityIntegrityPanel';
 import ExtendStudentDeadlineModal from '../components/homework/ExtendStudentDeadlineModal';
 import ExemptStudentModal from '../components/homework/ExemptStudentModal';
 import { useHomeworkDetail } from '../hooks/useHomeworkDetail';
@@ -76,6 +77,7 @@ export function TeacherBookHomeworkProgressPanel({
     onBack,
     onRetry,
     onGradeActivity,
+    onViewIntegrity,
 }: {
     rows: readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null;
     error: string | null;
@@ -83,6 +85,10 @@ export function TeacherBookHomeworkProgressPanel({
     onBack: () => void;
     onRetry?: () => void;
     onGradeActivity?: (
+        studentId: string,
+        activity: BookHomeworkProgressActivity,
+    ) => void;
+    onViewIntegrity?: (
         studentId: string,
         activity: BookHomeworkProgressActivity,
     ) => void;
@@ -192,6 +198,15 @@ export function TeacherBookHomeworkProgressPanel({
                                                             style={{ minWidth: 44, minHeight: 44 }}
                                                         >
                                                             {activity.gradingState === 'scored' ? 'Review / regrade' : 'Grade Activity'}
+                                                        </button>
+                                                    ) : null}
+                                                    {activity.submitted && activity.terminalId && onViewIntegrity ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onViewIntegrity(studentId, activity)}
+                                                            style={{ minWidth: 44, minHeight: 44 }}
+                                                        >
+                                                            View integrity signals
                                                         </button>
                                                     ) : null}
                                                 </span>
@@ -344,6 +359,11 @@ function TeacherHomeworkDetailPage() {
     const [bookProgressRetry, setBookProgressRetry] = useState(0);
     const [selectedBookEvaluation, setSelectedBookEvaluation] = useState<{
         locator: BookActivityEvaluationLocator;
+        studentName: string;
+        activityLabel: string;
+    } | null>(null);
+    const [selectedBookIntegrity, setSelectedBookIntegrity] = useState<{
+        locator: { bookId: string; terminalId: string };
         studentName: string;
         activityLabel: string;
     } | null>(null);
@@ -987,6 +1007,22 @@ function TeacherHomeworkDetailPage() {
                                     });
                                 }
                                 : undefined}
+                            onViewIntegrity={bookManifest
+                                ? (studentId, activity) => {
+                                    if (!activity.terminalId) return;
+                                    trackAction('bookActivityIntegrityOpened', {
+                                        activityId: activity.activityId,
+                                    });
+                                    setSelectedBookIntegrity({
+                                        locator: {
+                                            bookId: bookManifest.book.bookId,
+                                            terminalId: activity.terminalId,
+                                        },
+                                        studentName: studentNames.get(studentId) || studentId,
+                                        activityLabel: `Activity ${activity.order || activity.activityId}: ${activity.activityId}`,
+                                    });
+                                }
+                                : undefined}
                         />
                     )}
                     {selectedBookEvaluation && (
@@ -994,6 +1030,20 @@ function TeacherHomeworkDetailPage() {
                             locator={selectedBookEvaluation.locator}
                             studentName={selectedBookEvaluation.studentName}
                             activityLabel={selectedBookEvaluation.activityLabel}
+                            onAction={(action, metadata) => trackAction(action, metadata)}
+                        />
+                    )}
+                    {selectedBookIntegrity && (
+                        <BookActivityIntegrityPanel
+                            locator={selectedBookIntegrity.locator}
+                            studentName={selectedBookIntegrity.studentName}
+                            activityLabel={selectedBookIntegrity.activityLabel}
+                            onClose={() => {
+                                trackAction('bookActivityIntegrityClosed', {
+                                    terminalId: selectedBookIntegrity.locator.terminalId,
+                                });
+                                setSelectedBookIntegrity(null);
+                            }}
                             onAction={(action, metadata) => trackAction(action, metadata)}
                         />
                     )}

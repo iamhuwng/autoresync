@@ -86,6 +86,16 @@ export interface BookRuntimeWorkerHandlersOptions {
     readonly result: BookRuntimeCommandResult;
     readonly env: BookRuntimeWorkerEnv;
   }) => Promise<void>;
+  /**
+   * Additive #92 seam.  This callback consumes an already accepted terminal
+   * result; failures are isolated so integrity cannot affect submission,
+   * grading, feedback release, completion, or attempt accounting.
+   */
+  readonly linkIntegrityReport?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeWorkerEnv;
+  }) => Promise<void>;
 }
 
 const json = (
@@ -185,6 +195,25 @@ export const createBookRuntimeWorkerHandlers = (
     }
   };
 
+  const linkIntegrityReport = (
+    binding: BookDeliveryBinding,
+    result: BookRuntimeCommandResult,
+    env: BookRuntimeWorkerEnv,
+  ): void => {
+    if (binding.context.kind !== 'homework'
+      || !options.linkIntegrityReport
+      || !result.attempt
+      || !result.result
+      || !result.completion
+      || !result.index) return;
+    // Deliberately detach this observational write. Submission latency and
+    // availability must not depend on report storage or teacher indexing.
+    void options.linkIntegrityReport({ binding, result, env }).catch(() => {
+      // Integrity is observational and non-punitive. A linkage outage must
+      // never turn an accepted or replayed submission into a failed command.
+    });
+  };
+
   const command = async (input: {
     readonly request: Request;
     readonly env: BookRuntimeWorkerEnv;
@@ -235,6 +264,9 @@ export const createBookRuntimeWorkerHandlers = (
             && replayed.completion
             && replayed.index) {
             await projectHomeworkCompletion(binding, replayed, input.env);
+          }
+          if (replayed.status === 'replayed') {
+            await linkIntegrityReport(binding, replayed, input.env);
           }
           return json(sanitizeResult(replayed), statusFor(replayed.status));
         }
@@ -350,6 +382,10 @@ export const createBookRuntimeWorkerHandlers = (
         && result.completion
         && result.index) {
         await projectHomeworkCompletion(binding, result, input.env);
+      }
+      if (payload.commandKind === 'submit'
+        && (result.status === 'accepted' || result.status === 'replayed')) {
+        await linkIntegrityReport(binding, result, input.env);
       }
       return json(sanitizeResult(result), statusFor(result.status));
     } catch (error) {

@@ -18,6 +18,7 @@ import {
   bookTeacherAssemblyDocumentRouteDescriptor,
 } from '../book-delivery/route.ts';
 import { bookSourceRouteDescriptors } from '../book-source/route.ts';
+import { bookIntegrityReportRouteDescriptor } from '../book-activity-integrity/route.ts';
 import type {
   BookRouteDomain,
   BookRouteManifest,
@@ -384,6 +385,21 @@ const futureRoutes: BookRouteManifest = [
     responseLimitBytes: 8 * 1024,
     identityEnv: 'BOOK_INTEGRITY_SERVICE_IDENTITY',
     credentialEnv: 'BOOK_INTEGRITY_GOOGLE_SA_KEY',
+  }),
+  future({
+    id: bookIntegrityReportRouteDescriptor.id,
+    methods: bookIntegrityReportRouteDescriptor.methods,
+    pathTemplate: bookIntegrityReportRouteDescriptor.pathTemplate,
+    owner: '#92',
+    domain: 'integrity',
+    handler: bookIntegrityReportRouteDescriptor.handler,
+    firebaseAuth: bookIntegrityReportRouteDescriptor.firebaseAuth,
+    rateClass: bookIntegrityReportRouteDescriptor.rateClass,
+    gateEnv: bookIntegrityReportRouteDescriptor.gateEnv,
+    requestBodyBytes: bookIntegrityReportRouteDescriptor.requestBodyBytes,
+    responseLimitBytes: bookIntegrityReportRouteDescriptor.responseLimitBytes,
+    identityEnv: bookIntegrityReportRouteDescriptor.identityEnv,
+    credentialEnv: bookIntegrityReportRouteDescriptor.credentialEnv,
   }),
   future({
     id: 'book.notifications.command',

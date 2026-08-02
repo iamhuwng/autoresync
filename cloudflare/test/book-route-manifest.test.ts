@@ -29,7 +29,7 @@ describe('canonical Book route contract catalog', () => {
 
   it('registers all future boundaries as disabled seams', () => {
     const future = canonicalBookRouteManifest.filter((route) => route.source === 'future-seam');
-    expect(future).toHaveLength(10);
+    expect(future).toHaveLength(11);
     expect(new Set(future.map((route) => route.domain))).toEqual(new Set([
       'homework', 'evaluation-history', 'integrity', 'notifications',
       'impact-snapshot', 'updates', 'replacement-cleanup',
