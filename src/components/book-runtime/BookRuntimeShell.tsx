@@ -21,6 +21,14 @@ import type {
   BookActivityRuntimeStatus,
   BookRuntimeConflict,
 } from '../../hooks/book-runtime/useBookActivityRuntime';
+import {
+  useBookIntegrityCapture,
+} from '../../hooks/book-runtime/useBookIntegrityCapture';
+import type {
+  BookIntegrityCaptureClient,
+  BookIntegrityFrozenPolicy,
+  BookIntegrityWarning,
+} from '../../services/book-activity/bookIntegrityCapture.types';
 import { ActivityRendererHost } from './interactions/ActivityRendererHost';
 import './BookRuntimeShell.css';
 
@@ -63,6 +71,14 @@ export type BookRuntimeAction =
   | 'bookRuntimeTabSwitched'
   | 'bookRuntimeResponseChanged';
 
+export interface BookRuntimeIntegrityCaptureSeam {
+  readonly client: BookIntegrityCaptureClient;
+  readonly frozenPoliciesByPlacementId: Readonly<Record<string, BookIntegrityFrozenPolicy>>;
+  readonly enabled: boolean;
+  readonly active: boolean;
+  readonly onWarning: (warning: BookIntegrityWarning) => void;
+}
+
 export interface BookRuntimeShellProps {
   readonly deliveryProjection: BookRuntimeDeliveryProjection;
   readonly activities: readonly BookRuntimeShellActivity[];
@@ -83,6 +99,11 @@ export interface BookRuntimeShellProps {
   readonly onNavigationError?: (error: unknown, reason: BookRuntimeNavigationReason) => void;
   readonly onAction?: (action: BookRuntimeAction, metadata?: Record<string, unknown>) => void;
   readonly personalTimer?: ReactNode;
+  /**
+   * Dedicated Book-only integrity seam. The shell derives the exact active
+   * placement target; the host supplies only frozen trusted policy snapshots.
+   */
+  readonly integrityCapture?: BookRuntimeIntegrityCaptureSeam;
   readonly persistence?: {
     readonly status: BookActivityRuntimeStatus;
     readonly message: string;
@@ -209,6 +230,27 @@ const statusMessage = (
   return null;
 };
 
+const BookRuntimeIntegrityBoundary = ({
+  children,
+  options,
+}: {
+  readonly children: ReactNode;
+  readonly options: Parameters<typeof useBookIntegrityCapture>[0];
+}) => {
+  useBookIntegrityCapture(options);
+  return (
+    <div
+      data-book-integrity-copy-protected={
+        options.frozenPolicy.signals.protected_copy ? 'true' : undefined
+      }
+      data-testid="book-integrity-protected-content"
+      style={{ display: 'contents' }}
+    >
+      {children}
+    </div>
+  );
+};
+
 export const BookRuntimeShell = (props: BookRuntimeShellProps) => {
   const resolution = useMemo(
     () => resolveActivities(props.deliveryProjection, props.activities),
@@ -244,6 +286,7 @@ const BookRuntimeShellReady = ({
   onNavigationError,
   onAction,
   personalTimer,
+  integrityCapture,
   persistence,
 }: BookRuntimeShellReadyProps) => {
   const navigationActivities = useMemo(
@@ -311,7 +354,7 @@ const BookRuntimeShellReady = ({
     onResponseChange(interactionId, response);
   };
 
-  return (
+  const shell = (
     <div
       className="book-runtime-shell"
       data-desktop-view={navigation.state.desktopView}
@@ -631,6 +674,34 @@ const BookRuntimeShellReady = ({
         </aside>
       </div>
     </div>
+  );
+  if (!integrityCapture) return shell;
+  const frozenPolicy = integrityCapture.frozenPoliciesByPlacementId[
+    activeActivity.placement.placementId
+  ];
+  if (!frozenPolicy) return shell;
+  return (
+    <BookRuntimeIntegrityBoundary
+      options={{
+        client: integrityCapture.client,
+        target: {
+          bookId: deliveryProjection.book.bookId,
+          bindingId: deliveryProjection.bindingId,
+          bindingRevision: deliveryProjection.bindingRevision,
+          contextKind: 'homework',
+          contextId: deliveryProjection.context.contextId,
+          placementId: activeActivity.placement.placementId,
+          activityId: activeActivity.placement.activityId,
+          activityVersion: activeActivity.placement.activityVersion,
+        },
+        frozenPolicy,
+        enabled: integrityCapture.enabled,
+        active: integrityCapture.active,
+        onWarning: integrityCapture.onWarning,
+      }}
+    >
+      {shell}
+    </BookRuntimeIntegrityBoundary>
   );
 };
 

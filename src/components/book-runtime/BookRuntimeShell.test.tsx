@@ -7,6 +7,10 @@ import {
   registerActivityRenderer,
   type ActivityRendererProps,
 } from '../../services/book-activity/runtime/activityRenderer.types';
+import { createDefaultBookIntegrityPolicy } from '../../services/book-activity/bookIntegrityCapture.service';
+import type {
+  BookIntegritySignalRequest,
+} from '../../services/book-activity/bookIntegrityCapture.types';
 import type { BookRuntimeDeliveryProjection } from '../../services/book-delivery/bookDelivery.types';
 import { BookRuntimeShell } from './BookRuntimeShell';
 
@@ -123,6 +127,55 @@ const shellProps = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('BookRuntimeShell', () => {
+  it('derives the exact active placement through the dedicated integrity seam', async () => {
+    const requests: BookIntegritySignalRequest[] = [];
+    const policy = createDefaultBookIntegrityPolicy('accountable', {
+      policyId: 'policy-1',
+      policyRevision: 1,
+    });
+    render(<BookRuntimeShell {...shellProps({
+      integrityCapture: {
+        client: {
+          recordSignal: async (request: BookIntegritySignalRequest) => {
+            requests.push(request);
+            return request.signal === 'concurrent_attempt'
+              ? {
+                  status: 'ignored' as const,
+                  signal: request.signal,
+                  reason: 'not_concurrent' as const,
+                  recordedEventCount: 0,
+                }
+              : {
+                  status: 'recorded' as const,
+                  eventId: 'integrity-v1-0000000000000000000000000000000000000001',
+                  signal: request.signal,
+                  recordedAt: '2026-08-02T00:00:00.000Z',
+                  recordedEventCount: 1,
+                };
+          },
+        },
+        frozenPoliciesByPlacementId: { 'placement-1': policy },
+        enabled: true,
+        active: true,
+        onWarning: vi.fn(),
+      },
+    })} />);
+
+    fireEvent.paste(document);
+    await waitFor(() => expect(requests.some((request) => request.signal === 'paste')).toBe(true));
+    expect(requests.find((request) => request.signal === 'paste')?.target).toEqual({
+      bookId: 'book-1',
+      bindingId: 'binding-1',
+      bindingRevision: 1,
+      contextKind: 'homework',
+      contextId: 'context-1',
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersion: 1,
+    });
+    expect(screen.getByTestId('book-integrity-protected-content')).toBeInTheDocument();
+  });
+
   it('keeps projection order, navigates groups, focuses PDF, and preserves response callbacks', async () => {
     const user = userEvent.setup();
     const flush = vi.fn();

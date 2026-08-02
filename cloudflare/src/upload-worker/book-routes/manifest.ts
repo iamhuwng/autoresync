@@ -380,8 +380,10 @@ const futureRoutes: BookRouteManifest = [
     firebaseAuth: 'firebase-id-token-student',
     rateClass: 'book-future',
     gateEnv: 'BOOK_INTEGRITY_ROUTES_ENABLED',
-    requestBodyBytes: MAX_CONTROL_REQUEST_BYTES,
-    responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+    requestBodyBytes: 4 * 1024,
+    responseLimitBytes: 8 * 1024,
+    identityEnv: 'BOOK_INTEGRITY_SERVICE_IDENTITY',
+    credentialEnv: 'BOOK_INTEGRITY_GOOGLE_SA_KEY',
   }),
   future({
     id: 'book.notifications.command',

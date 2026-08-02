@@ -9,6 +9,12 @@ import { useAuth } from '../hooks/useAuth';
 import { bookActivityRendererRegistry } from '../services/book-activity/runtime/activityRendererRegistry';
 import { createBookRuntimeClient } from '../services/book-activity/activityRuntime.browser';
 import { useBookActivityRuntime } from '../hooks/book-runtime/useBookActivityRuntime';
+import { createDefaultBookIntegrityPolicy } from '../services/book-activity/bookIntegrityCapture.service';
+import {
+  BOOK_INTEGRITY_SIGNAL_TYPES,
+  type BookIntegrityCaptureClient,
+  type BookIntegrityCaptureResult,
+} from '../services/book-activity/bookIntegrityCapture.types';
 import { storage } from '../core/platform/storage';
 import type { BookRuntimeDeliveryProjection } from '../services/book-delivery/bookDelivery.types';
 import type { BookRuntimeNavigationState } from '../hooks/book-runtime/useBookRuntimeNavigation';
@@ -250,6 +256,54 @@ let fixtureRuntimeMode: FixtureRuntimeMode = 'none';
 
 const FIXTURE_RUNTIME_STORE_KEY = 'prd0062-book-runtime-worker-fixture-v1';
 const FIXTURE_RUNTIME_TERMINAL_STORE_KEY = 'prd0062-book-runtime-terminal-fixture-v1';
+const fixtureIntegrityEvents = new Map<string, BookIntegrityCaptureResult>();
+let fixtureIntegrityEventCount = 0;
+
+const fixtureIntegrityPolicy = {
+  ...createDefaultBookIntegrityPolicy('accountable', {
+    policyId: 'ticket91-accountable-fixture',
+    policyRevision: 1,
+  }),
+  inactivityThresholdMs: 5_000,
+};
+
+const fixtureIntegrityClient: BookIntegrityCaptureClient = {
+  async recordSignal(request) {
+    if (request.signal === 'concurrent_attempt') {
+      return {
+        status: 'ignored',
+        signal: request.signal,
+        reason: 'not_concurrent',
+        recordedEventCount: fixtureIntegrityEventCount,
+      };
+    }
+    const key = `${request.clientSessionId}:${request.sequence}`;
+    const prior = fixtureIntegrityEvents.get(key);
+    if (prior) return prior;
+    fixtureIntegrityEventCount = Math.min(64, fixtureIntegrityEventCount + 1);
+    const suffix = request.sequence.toString(16).padStart(40, '0').slice(-40);
+    const result: BookIntegrityCaptureResult = {
+      status: 'recorded',
+      eventId: `integrity-v1-${suffix}`,
+      signal: request.signal,
+      recordedAt: new Date().toISOString(),
+      recordedEventCount: fixtureIntegrityEventCount,
+    };
+    fixtureIntegrityEvents.set(key, result);
+    return result;
+  },
+};
+
+const integritySignalLabels: Readonly<Record<(typeof BOOK_INTEGRITY_SIGNAL_TYPES)[number], string>> = {
+  visibility_loss: 'Page visibility loss',
+  focus_loss: 'Focus loss',
+  route_reload_close: 'Route, reload, or close',
+  paste: 'Paste',
+  protected_copy: 'Protected copy',
+  focus_mode_exit: 'Required focus-mode exit',
+  concurrent_attempt: 'Concurrent attempt',
+  inactivity: 'Bounded inactivity',
+};
 
 const componentPagesFromSearchParams = (searchParams: URLSearchParams): Readonly<Record<string, number>> => {
   const pages: Record<string, number> = {};
@@ -415,6 +469,7 @@ export default function BookRuntimeShellSmokePage() {
   const [activeActivityId, setActiveActivityId] = useState(
     initialActivityId,
   );
+  const [integrityEventCount, setIntegrityEventCount] = useState(fixtureIntegrityEventCount);
   const previousPersistenceStatus = useRef<string | null>(null);
   const requestedBookId = searchParams.get('bookId');
   const requestedUnitKey = searchParams.get('unitKey');
@@ -509,6 +564,19 @@ export default function BookRuntimeShellSmokePage() {
       ...(metric.payloadBytes === undefined ? {} : { payloadBytes: metric.payloadBytes }),
     }),
   });
+  const integrityClient = useMemo<BookIntegrityCaptureClient>(() => ({
+    async recordSignal(request, options) {
+      const result = await fixtureIntegrityClient.recordSignal(request, options);
+      setIntegrityEventCount((count) => Math.max(count, result.recordedEventCount));
+      return result;
+    },
+  }), []);
+  const integrityPolicies = useMemo(() => Object.fromEntries(
+    activeProjection.activities.map((placement) => [
+      placement.placementId,
+      fixtureIntegrityPolicy,
+    ]),
+  ), [activeProjection.activities]);
   const initialNavigation = useMemo<Partial<BookRuntimeNavigationState>>(() => ({
     activityId: searchParams.get('activity') ?? undefined,
     pageGroupKey: searchParams.get('pageGroup') ?? undefined,
@@ -646,6 +714,33 @@ export default function BookRuntimeShellSmokePage() {
               : 'The deadline has passed; review remains available and submission is closed.'
             : 'This Activity is available.'}
       </p>
+      <section
+        aria-labelledby="book-integrity-proof-title"
+        aria-live="polite"
+        data-testid="book-integrity-proof"
+        style={{
+          background: 'var(--surface-info-subtle, #eff6ff)',
+          border: '1px solid var(--border-info, #93c5fd)',
+          borderRadius: 12,
+          marginBottom: 12,
+          padding: 12,
+        }}
+      >
+        <h2 id="book-integrity-proof-title" style={{ fontSize: '1rem', margin: 0 }}>
+          Book Activity integrity signals
+        </h2>
+        <p style={{ margin: '6px 0' }}>
+          This accountable Activity records only the configured events below. Recording never locks,
+          submits, scores, consumes an attempt, or blocks completion.
+        </p>
+        <ul data-testid="book-integrity-configured-signals" style={{ margin: '6px 0', paddingLeft: 20 }}>
+          {BOOK_INTEGRITY_SIGNAL_TYPES.filter((signal) => fixtureIntegrityPolicy.signals[signal])
+            .map((signal) => <li key={signal}>{integritySignalLabels[signal]}</li>)}
+        </ul>
+        <strong data-testid="book-integrity-recorded-count">
+          Recorded events this active attempt: {integrityEventCount}
+        </strong>
+      </section>
       <div aria-label="Runtime proof controls" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
         <button
           onClick={() => { fixtureRuntimeMode = 'failure'; }}
@@ -696,40 +791,47 @@ export default function BookRuntimeShellSmokePage() {
         </button>
       </div>
       <BookRuntimeShell
-        activities={fixtureActivities}
-        deliveryProjection={activeProjection}
-        initialNavigation={initialNavigation}
-        onAction={(action, metadata) => trackAction(action, metadata)}
-        onFlushBeforeNavigate={onFlushBeforeNavigate}
-        onNavigationStateChange={onNavigationStateChange}
-        onResponseChange={onResponseChange}
-        personalTimer={(
-          <PersonalTimer
-            timerKey={`${activeProjection.recipientId}:${activeProjection.bindingId}:${activeProjection.context.contextId}`}
-          />
-        )}
-        registry={bookActivityRendererRegistry}
-        persistence={{
-          status: runtime.status,
-          message: runtime.message,
-          isDirty: runtime.isDirty,
-          conflict: runtime.conflict,
-          onRetry: () => {
-            trackAction('bookRuntimeAutosaveRetry');
-            return runtime.retry().then(() => undefined);
-          },
-          onReload: () => {
-            trackAction('bookRuntimeAutosaveReload');
-            return runtime.reload();
-          },
-          onDiscardLocal: () => {
-            trackAction('bookRuntimeAutosaveDiscard');
-            return runtime.discardLocal();
-          },
-        }}
-        responses={runtime.responses}
-        viewer={viewer}
-      />
+          activities={fixtureActivities}
+          deliveryProjection={activeProjection}
+          initialNavigation={initialNavigation}
+          integrityCapture={{
+            client: integrityClient,
+            frozenPoliciesByPlacementId: integrityPolicies,
+            enabled: true,
+            active: runtime.terminalResult === null,
+            onWarning: ({ message }) => toast.warning(message),
+          }}
+          onAction={(action, metadata) => trackAction(action, metadata)}
+          onFlushBeforeNavigate={onFlushBeforeNavigate}
+          onNavigationStateChange={onNavigationStateChange}
+          onResponseChange={onResponseChange}
+          personalTimer={(
+            <PersonalTimer
+              timerKey={`${activeProjection.recipientId}:${activeProjection.bindingId}:${activeProjection.context.contextId}`}
+            />
+          )}
+          registry={bookActivityRendererRegistry}
+          persistence={{
+            status: runtime.status,
+            message: runtime.message,
+            isDirty: runtime.isDirty,
+            conflict: runtime.conflict,
+            onRetry: () => {
+              trackAction('bookRuntimeAutosaveRetry');
+              return runtime.retry().then(() => undefined);
+            },
+            onReload: () => {
+              trackAction('bookRuntimeAutosaveReload');
+              return runtime.reload();
+            },
+            onDiscardLocal: () => {
+              trackAction('bookRuntimeAutosaveDiscard');
+              return runtime.discardLocal();
+            },
+          }}
+          responses={runtime.responses}
+          viewer={viewer}
+        />
     </StudentLayout>
   );
 }
