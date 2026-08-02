@@ -1,0 +1,60 @@
+{
+  "recordedAt": "2026-08-02T23:18:26.7857317+07:00",
+  "graphArtifact": "artifacts/prd0062-graph-20260802-ticket99-contract-repair.json",
+  "graphHash": "a9c07b926f855325cb5d52ecb967a9e024959a1359df36ad9b0909d8181b0098",
+  "roadmapState": {
+    "issueCount": 112,
+    "openCount": 36,
+    "closedCount": 76,
+    "rawEdgeCount": 311,
+    "uniqueEdgeCount": 311,
+    "missingReferences": [],
+    "duplicateEdges": [],
+    "cycles": [],
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Restrictive notification fragment and browser read-state compatibility",
+  "selectedTicket": {
+    "number": 99,
+    "title": "PRD0062 38B5 — Activate restrictive notification rules after compatibility window",
+    "closedDirectPrerequisites": [
+      91,
+      98
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 21,
+    "acceptanceReadiness": "READY_FOR_IMPLEMENTATION",
+    "selectionReason": "The destination-first contract repair now aligns #99 fragment/client/local proof with #118 generated-rules ownership and #134 deployed/canary ownership. #99 remains graph-clear with all direct and transitive prerequisites closed."
+  },
+  "candidateDecisions": [
+    {
+      "number": 99,
+      "decision": "SELECTED",
+      "reason": "Sole selected primary after authoritative contract repair; owns the restrictive fragment, exact browser read-state leaf writes, local security/browser proof, and pre-activation handoff."
+    },
+    {
+      "numbers": [
+        101,
+        102,
+        103,
+        106
+      ],
+      "decision": "DEFERRED_LATER_RUNTIME",
+      "reason": "Impact/privacy, Course/Class placement, and public-content workflows remain later roadmap phases."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "decision": "DEFERRED_FINAL_PROOF",
+      "reason": "Final integrated browser/regression proof owners remain after outstanding implementation producers."
+    }
+  ],
+  "secondaryTickets": [],
+  "selectedPrimaryCount": 1,
+  "implementationStarted": false
+}

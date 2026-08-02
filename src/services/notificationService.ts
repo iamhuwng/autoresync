@@ -111,8 +111,12 @@ export async function getUnreadNotifications(userId: string): Promise<Notificati
  */
 export async function markNotificationAsRead(userId: string, notificationId: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const notificationRef = ref(database, `${NOTIFICATIONS_REF}/${userId}/${notificationId}`);
-        await update(notificationRef, { read: true });
+        const readStateRef = ref(database, `${NOTIFICATIONS_REF}/${userId}/${notificationId}/read`);
+        const readState = await get(readStateRef);
+        if (readState.exists() && readState.val() === true) {
+            return { success: true };
+        }
+        await set(readStateRef, true);
         return { success: true };
     } catch (error) {
         console.error('Error marking notification as read:', error);
@@ -126,15 +130,12 @@ export async function markNotificationAsRead(userId: string, notificationId: str
 export async function markAllNotificationsAsRead(userId: string): Promise<{ success: boolean; error?: string }> {
     try {
         const notifications = await getUnreadNotifications(userId);
-        const updates: Record<string, any> = {};
-
-        notifications.forEach(notification => {
-            updates[`${NOTIFICATIONS_REF}/${userId}/${notification.id}/read`] = true;
-        });
-
-        if (Object.keys(updates).length > 0) {
-            await update(ref(database), updates);
-        }
+        await Promise.all(notifications.map(notification =>
+            set(
+                ref(database, `${NOTIFICATIONS_REF}/${userId}/${notification.id}/read`),
+                true
+            )
+        ));
 
         return { success: true };
     } catch (error) {

@@ -1,0 +1,59 @@
+{
+  "ticket": 99,
+  "recordedAt": "2026-08-02T23:18:26.7857317+07:00",
+  "proofClass": "local pre-activation handoff",
+  "producerBuilds": {
+    "ticket95": "fb9fc8dfa3fc51163aa51059f945c1ea73581c21",
+    "ticket96": "e4d08d81199bacd7b41362d2333579d85efd6cb0",
+    "ticket97": "fd40b9c28be43cbfbc1ea8527adc4367147a01e4"
+  },
+  "migration": {
+    "ticket": 98,
+    "commit": "fe72d0a791fa3e5ed62874af196cd9ea2dafcd07",
+    "checkpointPath": "notification_migrations/prd0062-38b4-legacy-notifications-v1/checkpoint",
+    "checkpointBatch": 21,
+    "checkpointState": "integrity-verified-paused",
+    "compatibilityReadback": {
+      "topLevelContainers": 20,
+      "nestedNotifications": 490,
+      "errors": 0,
+      "conflicts": 0
+    }
+  },
+  "compatibleRulesSnapshot": {
+    "commit": "397c9041bb15108e8af140c4ee10232a15004afb",
+    "path": "database.rules.json",
+    "sha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a",
+    "onlyPermittedRulesRollbackTarget": true,
+    "mayRestoreArbitraryBrowserNotificationContentWrites": false
+  },
+  "localRollback": {
+    "boundary": "before ticket #118 composes or activates fragment 38B5",
+    "actions": [
+      "remove the uncomposed 38B5 fragment",
+      "restore notificationService read-state implementation from commit 397c9041bb15108e8af140c4ee10232a15004afb"
+    ],
+    "afterGeneratedActivationOwner": 118,
+    "afterGeneratedActivationTarget": "only the recorded compatible rules snapshot",
+    "mayRestoreArbitraryBrowserNotificationContentWrites": false
+  },
+  "compatibilityWindow": {
+    "startEvidence": "https://github.com/iamhuwng/autoresync/issues/98#issuecomment-5158765753",
+    "startRecordedAt": "2026-08-02T15:09:39Z",
+    "endRecordedAt": null,
+    "endOwner": 118
+  },
+  "cutover": {
+    "boundary": "Ticket #118 deterministic composition and generated-rules deployment of 38B5.json",
+    "activeRulesHash": null,
+    "postCutoverProbes": null,
+    "owner": 118
+  },
+  "deployedCanary": {
+    "serviceCreateProbe": null,
+    "recipientRoleJourney": null,
+    "rollbackDrill": null,
+    "owner": 134
+  },
+  "status": "READY_FOR_DESTINATION_CONSUMPTION_AFTER_TICKET_99_CLOSURE"
+}

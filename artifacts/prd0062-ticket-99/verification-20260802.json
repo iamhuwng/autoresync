@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "ticket": 99,
+  "recordedAt": "2026-08-02T17:16:10Z",
+  "verifiedSourceSha256": {
+    "src/services/notificationService.ts": "d9088981f0ce634873333058279eecea1bf8817688c0c6c03459deb6844e07b2",
+    "src/services/notificationService.test.ts": "a5ece0ba8c8760fff48d83548cfdcef245e002a099647c8ac2843caa07118cb5",
+    "cloudflare/src/upload-worker/book-rules/fragments/38B5.json": "f88e1fb5b5d4a416c3dfbb245a2134dbad2ad220ad46f05ce73de6f44ad51ff0",
+    "src/__tests__/security/notificationFirebaseRules.emulator.test.ts": "4e1ce0fb924a1260a7dce43c92b8055391ea0e10f2043a3159453ba447a019e7",
+    "vitest.security-emulator.config.ts": "ef7334eb6faa53a87bdbe810c7a9e748d238131add2873df291188e546d0405e",
+    "artifacts/prd0062-ticket-99/browser-role-proof.mjs": "11dbfc8b6f930b5c761129b64cbac9277aea44f63c69803fe927382760d7666f",
+    "artifacts/prd0062-ticket-99/browser-rules.json": "52e1d97ecc039ea0380c0d41d39d031fb7979d51b418918d60b4f41c1dd38940"
+  },
+  "results": [
+    {
+      "name": "notification client, rendering, destination, producer inventory, producer client, and command client regressions",
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/notificationService.test.ts src/services/notificationProducerInventory.test.ts src/services/notificationProducerClient.test.ts src/services/notificationCommandClient.test.ts src/components/notifications/NotificationBell.test.tsx src/components/notifications/NotificationPanel.test.tsx",
+      "exitCode": 0,
+      "testFiles": 6,
+      "tests": 40,
+      "passed": 40
+    },
+    {
+      "name": "trusted notification command repository regressions",
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/notification-command-worker.test.ts",
+      "exitCode": 0,
+      "testFiles": 1,
+      "tests": 7,
+      "passed": 7
+    },
+    {
+      "name": "ticket-owned restrictive notification fragment emulator matrix",
+      "command": "node scripts/harness/run-tool.mjs firebase . emulators:exec --only database \"node node_modules/vitest/vitest.mjs run --config vitest.security-emulator.config.ts src/__tests__/security/notificationFirebaseRules.emulator.test.ts --passWithNoTests=false\"",
+      "requiredEnvironment": "FIREBASE_DATABASE_EMULATOR_HOST is supplied by firebase emulators:exec",
+      "exitCode": 0,
+      "testFiles": 1,
+      "tests": 6,
+      "passed": 6
+    },
+    {
+      "name": "scoped lint and evidence syntax",
+      "commands": [
+        "npm exec eslint -- src/services/notificationService.ts src/services/notificationService.test.ts src/__tests__/security/notificationFirebaseRules.emulator.test.ts vitest.security-emulator.config.ts",
+        "node --check artifacts/prd0062-ticket-99/browser-role-proof.mjs",
+        "JSON.parse on all ticket-owned JSON artifacts"
+      ],
+      "exitCode": 0
+    }
+  ]
+}

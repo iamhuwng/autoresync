@@ -236,16 +236,90 @@ describe('notificationService', () => {
     });
 
     describe('markNotificationAsRead', () => {
-        it('should mark notification as read', async () => {
-            mockUpdate.mockResolvedValueOnce(undefined);
+        it('writes only the notification read leaf', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => false,
+            });
+            mockSet.mockResolvedValueOnce(undefined);
 
             const result = await markNotificationAsRead('user-123', 'n1');
 
             expect(result.success).toBe(true);
-            expect(mockUpdate).toHaveBeenCalledWith(
-                'notifications/user-123/n1',
-                { read: true }
+            expect(mockSet).toHaveBeenCalledWith(
+                'notifications/user-123/n1/read',
+                true
             );
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
+
+        it('does not rewrite an already-read notification', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => true,
+            });
+
+            const result = await markNotificationAsRead('user-123', 'n1');
+
+            expect(result.success).toBe(true);
+            expect(mockSet).not.toHaveBeenCalled();
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('markAllNotificationsAsRead', () => {
+        it('writes each unread notification read leaf without a root update', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    n1: {
+                        id: 'n1',
+                        userId: 'user-123',
+                        type: 'info',
+                        title: 'Legacy title',
+                        message: 'Legacy message',
+                        createdAt: 100,
+                        read: false,
+                        link: '/student/homework/legacy',
+                        metadata: { legacy: true },
+                    },
+                    n2: {
+                        id: 'n2',
+                        type: 'success',
+                        title: 'Current title',
+                        message: 'Current message',
+                        createdAt: 200,
+                        read: false,
+                        metadata: { schemaVersion: 1, kind: 'book' },
+                    },
+                    n3: { id: 'n3', createdAt: 300, read: true },
+                }),
+            });
+            mockSet.mockResolvedValue(undefined);
+
+            const result = await markAllNotificationsAsRead('user-123');
+
+            expect(result.success).toBe(true);
+            expect(mockSet).toHaveBeenCalledTimes(2);
+            expect(mockSet).toHaveBeenCalledWith('notifications/user-123/n1/read', true);
+            expect(mockSet).toHaveBeenCalledWith('notifications/user-123/n2/read', true);
+            expect(mockSet.mock.calls.every(([, value]) => value === true)).toBe(true);
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
+
+        it('does not write when every notification is already read', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    n1: { id: 'n1', createdAt: 100, read: true },
+                }),
+            });
+
+            const result = await markAllNotificationsAsRead('user-123');
+
+            expect(result.success).toBe(true);
+            expect(mockSet).not.toHaveBeenCalled();
+            expect(mockUpdate).not.toHaveBeenCalled();
         });
     });
 
