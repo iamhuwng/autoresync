@@ -1,0 +1,60 @@
+{
+  "recordedAt": "2026-08-02T13:42:40+07:00",
+  "graphArtifact": "artifacts/prd0062-graph-20260802-post-ticket92-closed.json",
+  "graphHash": "95dbd659d6083c3d5ea5151c7935c238cfb8219e3f063c30b5cb0cc2c8651d42",
+  "roadmapState": {
+    "issueCount": 112,
+    "openCount": 38,
+    "closedCount": 74,
+    "rawEdgeCount": 311,
+    "uniqueEdgeCount": 311,
+    "missingReferences": [],
+    "duplicateEdges": [],
+    "cycles": [],
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Trusted notification producer migration",
+  "selectedTicket": {
+    "number": 96,
+    "title": "PRD0062 38B3A — Migrate Homework, result, and feedback notification producers",
+    "closedDirectPrerequisites": [
+      88,
+      94
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 23,
+    "acceptanceReadiness": "READY_FOR_IMPLEMENTATION",
+    "selectionReason": "Ticket #96 is the next graph-clear published implementation primary after completing #92. Its trusted 38B1 producer migration is the remaining notification command phase; later privacy, placement, public-content, and final-proof frontiers remain deferred."
+  },
+  "candidateDecisions": [
+    {
+      "number": 96,
+      "decision": "SELECTED",
+      "reason": "Highest-leverage remaining implementation producer with all direct and transitive prerequisites closed."
+    },
+    {
+      "numbers": [
+        101,
+        102,
+        103,
+        106
+      ],
+      "decision": "DEFERRED_LATER_RUNTIME",
+      "reason": "Impact/privacy, Course/Class placement, and public-content workflows remain later roadmap phases."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "decision": "DEFERRED_FINAL_PROOF",
+      "reason": "Final integrated browser/regression proof owners remain after outstanding implementation producers."
+    }
+  ],
+  "secondaryTickets": [],
+  "selectedPrimaryCount": 1,
+  "implementationStarted": false
+}
