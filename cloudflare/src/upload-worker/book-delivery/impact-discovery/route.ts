@@ -21,6 +21,11 @@ export interface BookImpactDiscoveryRouteInput {
   /** Verified Firebase identity from the canonical Worker boundary. */
   readonly uid: string;
   readonly repository: BookImpactDiscoveryReadRepository;
+  /** Trusted server-composition clock input; never read from the URL. */
+  readonly evaluatedAt?: string;
+  readonly clock?: () => string;
+  /** Trusted server-composition bound; never read from the URL. */
+  readonly limit?: number;
 }
 
 const json = (body: unknown, status: number): Response => new Response(JSON.stringify(body), {
@@ -31,9 +36,34 @@ const json = (body: unknown, status: number): Response => new Response(JSON.stri
   },
 });
 
-const contextKind = (value: string | null): BookImpactDiscoveryContextKind | null => (
+const contextKind = (value: string | undefined): BookImpactDiscoveryContextKind | null => (
   value === 'solo' || value === 'homework' ? value : null
 );
+
+/**
+ * Cloudflare-local canonical matcher. The isolated Worker project cannot
+ * import the root router graph; this mirrors its exact path/query boundary
+ * without activating the #59 manifest or dispatcher.
+ */
+const canonicalImpactDiscoveryPath = /^\/v1\/book-impact\/discovery\/(solo|homework)$/u;
+
+const matchCanonicalBookRoute = (
+  request: Request,
+): { readonly params: Readonly<{ readonly contextKind: string }> } | null => {
+  const target = request.url;
+  if (target.includes('?') || target.includes('#')) return null;
+  const pathname = new URL(target).pathname;
+  if (pathname.endsWith('/') || pathname.includes('//')) return null;
+  const match = canonicalImpactDiscoveryPath.exec(pathname);
+  if (!match) return null;
+  let contextKind = match[1] ?? '';
+  try {
+    contextKind = decodeURIComponent(contextKind);
+  } catch {
+    return null;
+  }
+  return { params: { contextKind } };
+};
 
 /**
  * GET-only, default-disabled seam handler. Composition supplies the verified
@@ -45,16 +75,18 @@ export const handleBookImpactDiscoveryRead = async (
   if (input.request.method !== 'GET' || !isBookImpactDiscoverySafeId(input.uid)) {
     return json({ code: 'book_impact_discovery_forbidden' }, 403);
   }
-  const url = new URL(input.request.url);
-  const pathSegments = url.pathname.split('/').filter(Boolean);
-  const kind = contextKind(url.searchParams.get('contextKind') ?? pathSegments[pathSegments.length - 1] ?? null);
-  const evaluatedAt = url.searchParams.get('at');
-  if (!kind || !evaluatedAt || !isBookImpactDiscoveryTimestamp(evaluatedAt)) {
-    return json({ code: 'book_impact_discovery_query_invalid' }, 400);
+  const matched = matchCanonicalBookRoute(input.request);
+  if (!matched) {
+    return json({ code: 'book_impact_discovery_canonical_route_required' }, 404);
   }
-  const rawLimit = url.searchParams.get('limit');
-  const limit = rawLimit === null ? undefined : Number(rawLimit);
-  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit <= 0 || limit > BOOK_IMPACT_DISCOVERY_MAX_CONTEXTS)) {
+  const kind = contextKind(matched.params.contextKind);
+  const evaluatedAt = input.evaluatedAt ?? input.clock?.();
+  if (!kind || !evaluatedAt || !isBookImpactDiscoveryTimestamp(evaluatedAt)) {
+    return json({ code: 'book_impact_discovery_composition_invalid' }, 400);
+  }
+  const limit = input.limit;
+  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit <= 0
+    || limit > BOOK_IMPACT_DISCOVERY_MAX_CONTEXTS)) {
     return json({ code: 'book_impact_discovery_limit_invalid' }, 413);
   }
   let result: BookImpactDiscoveryResult;

@@ -84,7 +84,7 @@
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_impact_read_service == true && auth.token.book_impact_ownerId == $ownerId && auth.token.book_impact_contextKind == $contextKind && ($contextKind == 'solo' || $contextKind == 'homework')"
+      "expression": "auth != null && auth.token.book_impact_read_service == true && auth.token.book_impact_ownerId == $ownerId && auth.token.book_impact_contextKind == $contextKind && ($contextKind == 'solo' || $contextKind == 'homework') && query.orderByKey == true && query.limitToFirst != null && query.limitToFirst <= 100"
     },
     {
       "path": "book_impact_discovery/indexes/$ownerId/$contextKind",

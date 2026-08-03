@@ -89,14 +89,32 @@ describe('39B Worker impact discovery boundary', () => {
     expect([...fragment39B.owner.generatedRuleLocations].sort()).toEqual(
       fragment39B.operations.map((operation) => `${operation.path}/${operation.rule}`).sort(),
     );
-    expect(fragment39B.operations.every((operation) => (
-      operation.rule === '.read' || operation.expression === 'false'
+    const rootAndAncestor = fragment39B.operations.filter((operation) => (
+      operation.path === 'book_impact_discovery'
+      || operation.path === 'book_impact_discovery/scopes'
+      || operation.path === 'book_impact_discovery/indexes'
+    ));
+    expect(rootAndAncestor.length).toBe(6);
+    expect(rootAndAncestor.every((operation) => operation.expression === 'false')).toBe(true);
+    expect(fragment39B.operations.filter((operation) => operation.rule === '.write')
+      .every((operation) => operation.expression === 'false')).toBe(true);
+    const scopedReads = fragment39B.operations.filter((operation) => (
+      operation.rule === '.read' && operation.path.includes('$ownerId')
+    ));
+    expect(scopedReads).toHaveLength(2);
+    expect(scopedReads.every((operation) => (
+      operation.expression.includes('auth != null')
+      && operation.expression.includes('book_impact_read_service')
+      && operation.expression.includes('book_impact_ownerId')
+      && operation.expression.includes('book_impact_contextKind')
     ))).toBe(true);
-    expect(fragment39B.operations.every((operation) => !operation.path.includes('database.rules'))).toBe(true);
-    expect(JSON.stringify(fragment39B)).not.toMatch(/answer|pdfBytes|credential|privateObjectKey|mutation/iu);
-    expect(fragment39B.operations
-      .filter((operation) => operation.rule === '.read' && operation.path.includes('$ownerId'))
-      .every((operation) => operation.expression.includes('book_impact_ownerId'))).toBe(true);
+    expect(scopedReads.find((operation) => operation.path.includes('indexes/'))
+      ?.expression).toContain('query.orderByKey == true');
+    expect(scopedReads.find((operation) => operation.path.includes('indexes/'))
+      ?.expression).toContain('query.limitToFirst <= 100');
+    expect(JSON.stringify(fragment39B)).not.toMatch(
+      /answer|pdfBytes|credential|privateObjectKey|teacherOnly|teacherNotes|providerAuthority|objectKey|storageLocation|secret|rawResponse|database\.rules\.json|assembled|emulator/iu,
+    );
   });
 
   it('rejects invalid identity before any indexed read', () => {
@@ -131,21 +149,52 @@ describe('39B Worker impact discovery boundary', () => {
     expect(repository).not.toHaveProperty('write');
   });
 
-  it('keeps the GET route read-only and default-compatible', async () => {
+  it('accepts only the canonical path and trusted server-composition inputs', async () => {
     const store = {
       authorize: async () => authorizeBookSoloImpactRead({ actorId: 'student-1' }),
       readOwnedContexts: async () => ({ contexts: [], complete: true as const }),
     };
     const route = createBookImpactDiscoveryRoute(store, localAdapters);
+    expect(Object.keys(route)).toEqual(['read']);
+    expect(route).not.toHaveProperty('write');
     const response = await route.read({
       uid: 'student-1',
-      request: new Request(`https://worker.test/v1/book-impact/discovery/solo?at=${encodeURIComponent(at)}`),
+      request: new Request('https://worker.test/v1/book-impact/discovery/solo'),
+      evaluatedAt: at,
+      limit: 2,
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ status: 'ok', contextKind: 'solo' });
+    const clockResponse = await route.read({
+      uid: 'student-1',
+      request: new Request('https://worker.test/v1/book-impact/discovery/solo'),
+      clock: () => at,
+    });
+    expect(clockResponse.status).toBe(200);
+    for (const crafted of [
+      'https://worker.test/v1/book-impact/discovery/homework?contextKind=solo&at='
+        + encodeURIComponent('2027-01-01T00:00:00.000Z') + '&limit=1',
+      'https://worker.test/v1/book-impact/discovery/solo#homework',
+      'https://worker.test/v1/book-impact/discovery/solo/',
+      'https://worker.test/v1/book-impact/discovery/solo/extra',
+      'https://worker.test/v1/book-impact/discovery/solo//extra',
+      'https://worker.test/v1/book-impact/discovery/solo%2Fextra',
+    ]) {
+      const rejected = await route.read({
+        uid: 'student-1',
+        request: new Request(crafted),
+        evaluatedAt: '2027-01-01T00:00:00.000Z',
+        limit: 1,
+      });
+      expect(rejected.status).toBe(404);
+      expect(await rejected.json()).toMatchObject({
+        code: 'book_impact_discovery_canonical_route_required',
+      });
+    }
     const post = await route.read({
       uid: 'student-1',
-      request: new Request(`https://worker.test/v1/book-impact/discovery/solo?at=${encodeURIComponent(at)}`, { method: 'POST' }),
+      request: new Request('https://worker.test/v1/book-impact/discovery/solo', { method: 'POST' }),
+      evaluatedAt: at,
     });
     expect(post.status).toBe(403);
   });

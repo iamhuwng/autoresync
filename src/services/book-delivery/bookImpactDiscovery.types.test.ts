@@ -41,6 +41,29 @@ describe('39B impact discovery contract registration', () => {
     );
   });
 
+  it('registers every closed 39A classification effect for conformance fixtures', () => {
+    const registry = createBookImpactDiscoveryConformanceRegistry([
+      declaration('book-solo-impact-v1', 'solo'),
+    ]);
+    const supported = registry.declarations[0]?.classification.supportedEffects ?? [];
+    expect(supported).toEqual(BOOK_IMPACT_DISCOVERY_EFFECTS);
+    expect(new Set(supported).size).toBe(12);
+    expect(supported).toEqual(expect.arrayContaining([
+      'unchanged',
+      'display-only',
+      'regrade',
+      'redo-required',
+      'added',
+      'removed',
+      'reordered',
+      'moved',
+      'mapping-source-context',
+      'successor',
+      'invalidation',
+      'unsupported',
+    ]));
+  });
+
   it.each([
     ['uncertain conformance', { conformance: { status: 'uncertain', contractVersion: 1, verifiedAdapterVersion: 1 } }],
     ['stale conformance', { conformance: { status: 'verified', contractVersion: 1, verifiedAdapterVersion: 2 } }],

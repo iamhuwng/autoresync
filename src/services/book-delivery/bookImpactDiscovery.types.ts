@@ -175,8 +175,26 @@ export interface BookImpactEffectiveWindow {
   readonly dueAt: string | null;
   readonly extensionDueAt: string | null;
   readonly winner: 'none' | 'assignment' | 'node' | 'student-extension';
+  /** Canonical per-placement release authority from the homework scheduler. */
+  readonly release: BookImpactWindowResolution;
+  /** Canonical per-placement deadline authority, including recipient extensions. */
+  readonly deadline: BookImpactWindowResolution;
+  /** The recipient extension revision used when deadline.source is student-extension. */
+  readonly extensionRevision: number | null;
   readonly policyRevision: number;
   readonly authorityRevision: number;
+}
+
+export type BookImpactWindowSource =
+  | 'open-access'
+  | 'assignment'
+  | 'ancestor'
+  | 'student-extension';
+
+export interface BookImpactWindowResolution {
+  readonly source: BookImpactWindowSource;
+  readonly nodeKey: string | null;
+  readonly at: string | null;
 }
 
 export interface BookImpactAttemptSummary {
@@ -197,6 +215,8 @@ export interface BookImpactPlacementInput {
   readonly activityVersion: number;
   readonly nodeKey: string;
   readonly order: number;
+  /** Immutable effective-window authority for this exact placement. */
+  readonly effectiveWindow: BookImpactEffectiveWindow | null;
   readonly sourceRefs: readonly BookImpactSourceReference[];
 }
 
@@ -372,7 +392,7 @@ export const containsBookImpactSensitiveKey = (value: unknown): boolean => {
   const seen = new WeakSet<object>();
   const visit = (candidate: unknown): boolean => {
     if (candidate === null || typeof candidate !== 'object') return false;
-    if (seen.has(candidate)) return true;
+    if (seen.has(candidate)) return false;
     seen.add(candidate);
     return Reflect.ownKeys(candidate).some((key) => {
       if (typeof key === 'string'
@@ -414,11 +434,11 @@ export class BookImpactDiscoveryDeclarationError extends Error {
   }
 }
 
-const exactRecord = (
+function exactRecord(
   value: unknown,
   keys: readonly string[],
   label: string,
-): asserts value is Record<string, unknown> => {
+): asserts value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)
     || (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) {
     throw new BookImpactDiscoveryDeclarationError(`${label} must be a plain object.`);
