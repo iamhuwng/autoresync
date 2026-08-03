@@ -11,6 +11,7 @@
     "lint:mantine": "node scripts/check-mantine-boundary.mjs",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:book-notifications": "vitest run --config vitest.book-notification.config.mjs",
     "test:scripts": "npm run test:scripts:node && npm run test:scripts:vitest",
     "test:scripts:node": "node --test scripts/__tests__/branch-doctor.test.mjs scripts/__tests__/check-assessment-unification-guardrails.test.mjs scripts/__tests__/check-mantine-boundary.test.mjs scripts/__tests__/end-active-sessions.test.mjs scripts/__tests__/prd0062b-dormant-plan.test.mjs scripts/__tests__/run-security-tests.test.mjs scripts/__tests__/notification-migration.test.mjs",
     "test:scripts:vitest": "vitest run --config vitest.scripts.config.ts",
