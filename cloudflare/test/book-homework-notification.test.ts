@@ -13,6 +13,7 @@ import {
 } from '../src/upload-worker/book-homework/worker.ts';
 import {
   InMemoryNotificationCommandRepository,
+  type NotificationCommandRepository,
 } from '../src/upload-worker/notifications/repository.ts';
 
 const operationId = '00000000-0000-4000-8000-000000000100';
@@ -21,6 +22,7 @@ const committedAt = '2026-08-03T12:00:00.000Z';
 
 const record = (
   state: BookHomeworkSagaRecord['state'] = 'committed',
+  recipientIds: readonly string[] = ['student-2', 'student-1'],
 ): BookHomeworkSagaRecord => {
   const committed = state === 'committed';
   return {
@@ -37,15 +39,15 @@ const record = (
     requestFingerprint: 'request-fingerprint-1',
     state,
     visibility: committed ? 'committed' : 'hidden',
-    recipients: ['student-2', 'student-1'].map((recipientId) => ({
+    recipients: recipientIds.map((recipientId) => ({
       recipientId,
       authorityId: `${assignmentId}--${recipientId}--authority`,
       bindingId: `${assignmentId}--${recipientId}--delivery`,
       state: committed ? 'committed' as const : 'pending' as const,
       ...(committed ? { authorityRevision: 1, bindingRevision: 1 } : {}),
     })),
-    recipientCount: 2,
-    committedRecipientCount: committed ? 2 : 0,
+    recipientCount: recipientIds.length,
+    committedRecipientCount: committed ? recipientIds.length : 0,
     revision: committed ? 2 : 1,
     createdAt: '2026-08-03T11:59:00.000Z',
     updatedAt: committedAt,
@@ -217,5 +219,125 @@ describe('Book Homework committed notification integration', () => {
     expect(disabledExecute).toHaveBeenCalledTimes(1);
     expect(source).not.toHaveBeenCalled();
     expect(notificationRepositoryFactory).not.toHaveBeenCalled();
+  });
+
+  it('re-enters emission after a committed action crashes before its first write', async () => {
+    const sagaRepository = new InMemoryBookHomeworkSagaRepository();
+    await sagaRepository.create(record());
+    const notifications = new InMemoryNotificationCommandRepository();
+    const execute = vi.fn(async () => ({
+      status: 'committed' as const,
+      record: record(),
+    }));
+    let repositoryUnavailable = true;
+    const handlers = createBookHomeworkWorkerHandlers({
+      saga: {
+        execute,
+        readCommittedAssignment: (rootAssignmentId) =>
+          sagaRepository.read(rootAssignmentId),
+      },
+      notificationRepositoryFactory: () => {
+        if (repositoryUnavailable) {
+          repositoryUnavailable = false;
+          throw new Error('notification_repository_unavailable');
+        }
+        return notifications;
+      },
+      now: () => committedAt,
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const first = await handlers.homeworkAssignmentCommand({
+      request: request(),
+      env: env(true),
+      uid: 'teacher-1',
+      assignmentId,
+    });
+    expect(first).toEqual({
+      body: { code: 'book_homework_command_failed' },
+      init: { status: 500 },
+    });
+    expect(notifications.snapshot()).toEqual({});
+
+    const replay = await handlers.homeworkAssignmentCommand({
+      request: request(),
+      env: env(true),
+      uid: 'teacher-1',
+      assignmentId,
+    });
+    expect(replay.init.status).toBe(200);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(Object.keys(notifications.snapshot())
+      .map((key) => key.split('/')[1])
+      .sort()).toEqual(['student-1', 'student-2']);
+    consoleError.mockRestore();
+  });
+
+  it('finishes only missing frozen recipients after lost acknowledgement', async () => {
+    const sagaRepository = new InMemoryBookHomeworkSagaRepository();
+    await sagaRepository.create(record());
+    const durable = new InMemoryNotificationCommandRepository();
+    let failAfterFirstPersistence = true;
+    const notificationRepository: NotificationCommandRepository = {
+      create: vi.fn(async (input) => {
+        const result = await durable.create(input);
+        if (failAfterFirstPersistence) {
+          failAfterFirstPersistence = false;
+          throw new Error('lost_acknowledgement');
+        }
+        return result;
+      }),
+    };
+    const surroundingRecipients = ['student-2', 'student-1'];
+    const execute = vi.fn(async () => ({
+      status: 'committed' as const,
+      record: record('committed', surroundingRecipients),
+    }));
+    const handlers = createBookHomeworkWorkerHandlers({
+      saga: {
+        execute,
+        readCommittedAssignment: (rootAssignmentId) =>
+          sagaRepository.read(rootAssignmentId),
+      },
+      notificationRepositoryFactory: () => notificationRepository,
+      now: () => committedAt,
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const first = await handlers.homeworkAssignmentCommand({
+      request: request(),
+      env: env(true),
+      uid: 'teacher-1',
+      assignmentId,
+    });
+    expect(first.init.status).toBe(500);
+    expect(Object.keys(durable.snapshot())).toHaveLength(1);
+
+    surroundingRecipients.push('student-3');
+    const replay = await handlers.homeworkAssignmentCommand({
+      request: request(),
+      env: env(true),
+      uid: 'teacher-1',
+      assignmentId,
+    });
+    expect(replay.init.status).toBe(200);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(Object.keys(durable.snapshot())
+      .map((key) => key.split('/')[1])
+      .sort()).toEqual(['student-1', 'student-2']);
+    expect(JSON.stringify(durable.snapshot())).not.toContain('student-3');
+
+    const duplicate = await handlers.homeworkAssignmentCommand({
+      request: request(),
+      env: env(true),
+      uid: 'teacher-1',
+      assignmentId,
+    });
+    expect(duplicate.init.status).toBe(200);
+    expect(Object.keys(durable.snapshot())
+      .map((key) => key.split('/')[1])
+      .sort()).toEqual(['student-1', 'student-2']);
+    expect(notificationRepository.create).toHaveBeenCalledTimes(5);
+    consoleError.mockRestore();
   });
 });
