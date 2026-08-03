@@ -1,46 +1,29 @@
 import {
-  createBookHomeworkImpactAdapter,
-} from '../../../../../src/services/book-delivery/bookHomeworkImpactAdapter.service.ts';
-import {
-  createBookSoloImpactAdapter,
-} from '../../../../../src/services/book-delivery/bookSoloImpactAdapter.service.ts';
-import type {
-  BookHomeworkImpactReader,
-  BookSoloImpactReader,
-} from '../../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
-import {
   authorizeBookImpactRead,
   type BookImpactReadIdentity,
 } from './authorization.ts';
 import type {
   BookImpactDiscoveryAuthorizationResult,
   BookImpactDiscoveryContextKind,
-  BookImpactDiscoveryReadPage,
   BookImpactDiscoveryQuery,
   BookImpactDiscoveryResult,
-} from '../../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
+  BookImpactDiscoveryReadAdapters,
+  BookImpactDiscoveryReadReader,
+  BookImpactDiscoveryReadStore,
+} from './contract.ts';
 
-export interface BookImpactDiscoveryReadStore {
-  /** Authorization metadata only; this runs before any context read. */
-  authorize(input: {
-    readonly actorId: string;
-    readonly contextKind: BookImpactDiscoveryContextKind;
-  }): Promise<BookImpactDiscoveryAuthorizationResult>;
-  /** One bounded, complete owner/index read; truncation and pagination fail closed. */
-  readOwnedContexts(input: {
-    readonly actorId: string;
-    readonly contextKind: BookImpactDiscoveryContextKind;
-    readonly limit: number;
-  }): Promise<BookImpactDiscoveryReadPage>;
-}
+export type {
+  BookImpactDiscoveryReadAdapters,
+  BookImpactDiscoveryReadStore,
+} from './contract.ts';
 
 export interface BookImpactDiscoveryReadRepository {
   readonly discover: (
     contextKind: BookImpactDiscoveryContextKind,
     query: BookImpactDiscoveryQuery,
   ) => Promise<BookImpactDiscoveryResult>;
-  readonly soloReader: BookSoloImpactReader;
-  readonly homeworkReader: BookHomeworkImpactReader;
+  readonly soloReader: BookImpactDiscoveryReadReader;
+  readonly homeworkReader: BookImpactDiscoveryReadReader;
 }
 
 const readerFor = (
@@ -64,19 +47,29 @@ const readerFor = (
  */
 export const createBookImpactDiscoveryReadRepository = (
   store: BookImpactDiscoveryReadStore,
+  adapters: BookImpactDiscoveryReadAdapters,
 ): BookImpactDiscoveryReadRepository => {
   if (!store || typeof store.authorize !== 'function' || typeof store.readOwnedContexts !== 'function') {
     throw new TypeError('book_impact_discovery_read_store_invalid');
   }
+  if (!adapters || typeof adapters.solo !== 'function' || typeof adapters.homework !== 'function') {
+    throw new TypeError('book_impact_discovery_read_adapters_invalid');
+  }
   const soloReader = readerFor(store, 'solo');
   const homeworkReader = readerFor(store, 'homework');
+  const soloAdapter = adapters.solo({ reader: soloReader });
+  const homeworkAdapter = adapters.homework({ reader: homeworkReader });
+  if (!soloAdapter || typeof soloAdapter.discover !== 'function'
+    || !homeworkAdapter || typeof homeworkAdapter.discover !== 'function') {
+    throw new TypeError('book_impact_discovery_read_adapter_invalid');
+  }
   return Object.freeze({
     soloReader: Object.freeze(soloReader),
     homeworkReader: Object.freeze(homeworkReader),
     discover: (contextKind: BookImpactDiscoveryContextKind, query: BookImpactDiscoveryQuery) => (
       contextKind === 'solo'
-        ? createBookSoloImpactAdapter({ reader: soloReader }).discover(query)
-        : createBookHomeworkImpactAdapter({ reader: homeworkReader }).discover(query)
+        ? soloAdapter.discover(query)
+        : homeworkAdapter.discover(query)
     ),
   });
 };

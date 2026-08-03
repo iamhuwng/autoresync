@@ -4,12 +4,13 @@ import {
   isBookImpactDiscoveryTimestamp,
   type BookImpactDiscoveryContextKind,
   type BookImpactDiscoveryResult,
-} from '../../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
+  type BookImpactDiscoveryReadAdapters,
+} from './contract.ts';
 import {
   createBookImpactDiscoveryReadRepository,
   type BookImpactDiscoveryReadRepository,
-  type BookImpactDiscoveryReadStore,
 } from './repository.ts';
+import type { BookImpactDiscoveryReadStore } from './contract.ts';
 import {
   projectBookImpactDiscoveryResponse,
   type BookImpactDiscoveryHttpProjection,
@@ -80,8 +81,9 @@ export const handleBookImpactDiscoveryRead = async (
 /** Test/local composition helper; it still exposes no write operation. */
 export const createBookImpactDiscoveryRoute = (
   store: BookImpactDiscoveryReadStore,
+  adapters: BookImpactDiscoveryReadAdapters,
 ) => {
-  const repository = createBookImpactDiscoveryReadRepository(store);
+  const repository = createBookImpactDiscoveryReadRepository(store, adapters);
   return Object.freeze({
     read: (input: Omit<BookImpactDiscoveryRouteInput, 'repository'>) => handleBookImpactDiscoveryRead({
       ...input,

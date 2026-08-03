@@ -11,10 +11,64 @@ import {
   createBookImpactDiscoveryRoute,
 } from '../src/upload-worker/book-delivery/impact-discovery/route.ts';
 import {
+  BOOK_IMPACT_DISCOVERY_ADAPTER_VERSION,
+  BOOK_IMPACT_DISCOVERY_CONTRACT_VERSION,
+  BOOK_IMPACT_DISCOVERY_INPUT_VERSION,
+  BOOK_IMPACT_DISCOVERY_OUTPUT_VERSION,
+  type BookImpactDiscoveryContextKind,
+  type BookImpactDiscoveryReadAdapterFactory,
+  type BookImpactDiscoveryReadAdapters,
+} from '../src/upload-worker/book-delivery/impact-discovery/contract.ts';
+import {
   bookImpactDiscoveryRouteDescriptor,
 } from '../src/upload-worker/book-delivery/route.ts';
 
 const at = '2026-08-01T00:00:00.000Z';
+
+/**
+ * The isolated Worker test injects a local adapter factory.  In production,
+ * #59 composition supplies the factories that conform to the root 39B
+ * adapters; this test intentionally does not import the app source tree.
+ */
+const emptyReadAdapter = (
+  adapterId: string,
+  contextKind: BookImpactDiscoveryContextKind,
+): BookImpactDiscoveryReadAdapterFactory => ({ reader }) => ({
+  discover: async (query) => {
+    const base = {
+      contractVersion: BOOK_IMPACT_DISCOVERY_CONTRACT_VERSION,
+      inputVersion: BOOK_IMPACT_DISCOVERY_INPUT_VERSION,
+      outputVersion: BOOK_IMPACT_DISCOVERY_OUTPUT_VERSION,
+      adapterId,
+      adapterVersion: BOOK_IMPACT_DISCOVERY_ADAPTER_VERSION,
+      contextKind,
+      evaluatedAt: query.evaluatedAt,
+    } as const;
+    const authorization = await reader.authorize({ actorId: query.actorId });
+    if (!authorization.authorized) {
+      return { ...base, status: 'blocked' as const, code: authorization.code };
+    }
+    const limit = query.limit ?? authorization.maxContexts;
+    const page = await reader.readOwnedContexts({
+      actorId: query.actorId,
+      limit: Math.min(limit, authorization.maxContexts),
+    });
+    if (!page.complete || !Array.isArray(page.contexts) || page.contexts.length > limit) {
+      return { ...base, status: 'blocked' as const, code: 'unbounded' as const };
+    }
+    return {
+      ...base,
+      status: 'ok' as const,
+      impacts: [],
+      replacementScopes: [],
+    };
+  },
+});
+
+const localAdapters: BookImpactDiscoveryReadAdapters = {
+  solo: emptyReadAdapter('test-solo-impact', 'solo'),
+  homework: emptyReadAdapter('test-homework-impact', 'homework'),
+};
 
 describe('39B Worker impact discovery boundary', () => {
   it('publishes one fixed 09D seam descriptor without activating dispatch', () => {
@@ -70,7 +124,7 @@ describe('39B Worker impact discovery boundary', () => {
         return { contexts: [], complete: true as const };
       }),
     };
-    const repository = createBookImpactDiscoveryReadRepository(store);
+    const repository = createBookImpactDiscoveryReadRepository(store, localAdapters);
     const result = await repository.discover('solo', { actorId: 'student-1', evaluatedAt: at, limit: 2 });
     expect(result).toMatchObject({ status: 'ok', impacts: [] });
     expect(calls).toEqual(['authorize:solo', 'read:solo:2']);
@@ -82,7 +136,7 @@ describe('39B Worker impact discovery boundary', () => {
       authorize: async () => authorizeBookSoloImpactRead({ actorId: 'student-1' }),
       readOwnedContexts: async () => ({ contexts: [], complete: true as const }),
     };
-    const route = createBookImpactDiscoveryRoute(store);
+    const route = createBookImpactDiscoveryRoute(store, localAdapters);
     const response = await route.read({
       uid: 'student-1',
       request: new Request(`https://worker.test/v1/book-impact/discovery/solo?at=${encodeURIComponent(at)}`),

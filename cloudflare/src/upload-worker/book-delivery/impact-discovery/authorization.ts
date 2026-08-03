@@ -3,7 +3,7 @@ import {
   isBookImpactDiscoverySafeId,
   type BookImpactDiscoveryAuthorizationResult,
   type BookImpactDiscoveryContextKind,
-} from '../../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
+} from './contract.ts';
 
 export interface BookImpactReadIdentity {
   readonly actorId: string;

@@ -84,7 +84,11 @@ describe('39B Solo impact adapter', () => {
     const readOwnedContexts = vi.fn(async () => ({
       contexts: [
         context(),
-        context({ contextId: 'closed-context', status: 'closed' }),
+        context({
+          contextId: 'closed-context',
+          bindingId: 'closed-context-binding-1',
+          status: 'closed',
+        }),
       ],
       complete: true as const,
     }));
@@ -93,6 +97,7 @@ describe('39B Solo impact adapter', () => {
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
       expect(result.impacts.map((impact) => impact.contextId)).toEqual(['solo-context-1']);
+      expect(result.impacts.every((impact) => impact.status === 'active')).toBe(true);
       expect(Object.isFrozen(result)).toBe(true);
       expect(Object.isFrozen(result.impacts[0])).toBe(true);
       expect(JSON.stringify(result)).not.toMatch(/answer|pdf|credential|privateObjectKey/iu);

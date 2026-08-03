@@ -3,9 +3,9 @@ import {
   containsBookImpactSensitiveKey,
   freezeBookImpactValue,
   type BookImpactDiscoveryResult,
-} from '../../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
+} from './contract.ts';
 
-export const BOOK_IMPACT_DISCOVERY_RESPONSE_LIMIT_BYTES = 256 * 1024 as const;
+export const BOOK_IMPACT_DISCOVERY_RESPONSE_LIMIT_BYTES = 256 * 1024;
 
 export type BookImpactDiscoveryHttpProjection =
   | { readonly ok: true; readonly status: 200; readonly body: BookImpactDiscoveryResult }
