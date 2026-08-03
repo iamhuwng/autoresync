@@ -8,6 +8,15 @@ import {
   type BookHomeworkCompletionProjection,
 } from './completion-repository.ts';
 import type { BookHomeworkSagaCommand } from '../../../../src/services/book-homework/bookHomeworkSaga.types.ts';
+import {
+  createBookHomeworkNotificationEmitter,
+  resolveBookHomeworkNotificationIdentity,
+  type BookHomeworkNotificationEnvironment,
+} from './notification.ts';
+import type { NotificationCommandRepository } from '../notifications/repository.ts';
+import {
+  runBookMutationWithPostCommitNotification,
+} from '../notifications/post-commit.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_FINGERPRINT_BYTES = 128 * 1024;
@@ -32,8 +41,13 @@ export interface BookHomeworkWorkerHandlersOptions {
   readonly saga?: Pick<BookHomeworkAssignmentSaga, 'execute'>
     & Partial<Pick<
       BookHomeworkAssignmentSaga,
-      'resolveStudentProjection' | 'resolveTeacherProjections'
+      | 'resolveStudentProjection'
+      | 'resolveTeacherProjections'
+      | 'readCommittedAssignment'
     >>;
+  readonly notificationRepositoryFactory?: (
+    env: BookHomeworkNotificationEnvironment,
+  ) => NotificationCommandRepository;
   readonly resolveCompletionProjection?: (input: {
     readonly assignmentId: string;
     readonly studentId: string;
@@ -262,6 +276,15 @@ export const createBookHomeworkWorkerHandlers = (
       }
     });
   const now = options.now ?? (() => new Date().toISOString());
+  const notificationEmitter = options.saga?.readCommittedAssignment
+    ? createBookHomeworkNotificationEmitter({
+      source: {
+        readCommittedAssignment: (assignmentId) =>
+          options.saga!.readCommittedAssignment!(assignmentId),
+      },
+      repositoryFactory: options.notificationRepositoryFactory,
+    })
+    : undefined;
 
   const homeworkAssignmentCommand = async (input: {
     readonly request: Request;
@@ -270,19 +293,32 @@ export const createBookHomeworkWorkerHandlers = (
     readonly assignmentId: string;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     try {
-      await assertTeacher(input.env, input.uid);
-      const command = parseCommand(
-        await readBody(input.request),
-        routeId(input.assignmentId, 'assignment_id'),
-        input.request.headers.get('idempotency-key'),
-      );
-      if (!options.saga) throw new BookHomeworkWorkerError('saga_unavailable', 503);
-      const result = await options.saga.execute({
-        ...command,
-        ownerId: input.uid,
-        createdAt: now(),
+      return await runBookMutationWithPostCommitNotification({
+        env: input.env,
+        emitter: notificationEmitter,
+        resolveActionIdentity: ({ result }) =>
+          resolveBookHomeworkNotificationIdentity(result),
+        commit: async () => {
+          await assertTeacher(input.env, input.uid);
+          const command = parseCommand(
+            await readBody(input.request),
+            routeId(input.assignmentId, 'assignment_id'),
+            input.request.headers.get('idempotency-key'),
+          );
+          if (!options.saga) {
+            throw new BookHomeworkWorkerError('saga_unavailable', 503);
+          }
+          const result = await options.saga.execute({
+            ...command,
+            ownerId: input.uid,
+            createdAt: now(),
+          });
+          return {
+            body: resultBody(result),
+            init: { status: statusFor(result.status) },
+          };
+        },
       });
-      return { body: resultBody(result), init: { status: statusFor(result.status) } };
     } catch (error) {
       if (error instanceof BookHomeworkWorkerError) {
         return { body: { code: error.code }, init: { status: error.status } };

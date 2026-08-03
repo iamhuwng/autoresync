@@ -15,9 +15,11 @@ export interface BookPostCommitEmissionEnvironment
   readonly [key: string]: unknown;
 }
 
-export interface BookPostCommitEmissionOptions {
+export interface BookPostCommitEmissionOptions<
+  Result extends BookMutationResponse = BookMutationResponse,
+> {
   readonly env: BookPostCommitEmissionEnvironment;
-  readonly commit: () => Promise<BookMutationResponse>;
+  readonly commit: () => Promise<Result>;
   readonly emitter?: {
     emit(
       identity: BookNotificationActionIdentity,
@@ -25,7 +27,7 @@ export interface BookPostCommitEmissionOptions {
     ): Promise<unknown>;
   };
   readonly resolveActionIdentity?: (input: {
-    readonly result: BookMutationResponse;
+    readonly result: Result;
     readonly env: BookPostCommitEmissionEnvironment;
   }) => BookNotificationActionIdentity | null
     | Promise<BookNotificationActionIdentity | null>;
@@ -43,9 +45,11 @@ const isCommittedResult = (result: BookMutationResponse): boolean => {
  * Shared post-commit seam for the existing Book Worker. It deliberately owns
  * no route, queue, persistence, or recipient authority.
  */
-export const runBookMutationWithPostCommitNotification = async (
-  options: BookPostCommitEmissionOptions,
-): Promise<BookMutationResponse> => {
+export const runBookMutationWithPostCommitNotification = async <
+  Result extends BookMutationResponse,
+>(
+  options: BookPostCommitEmissionOptions<Result>,
+): Promise<Result> => {
   const emissionEnabled = isBookNotificationEmissionEnabled(
     undefined,
     options.env,

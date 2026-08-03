@@ -6,6 +6,8 @@ export default defineConfig({
     include: [
       'cloudflare/test/book-notification-emitter.test.ts',
       'cloudflare/test/book-notification-post-commit.test.ts',
+      'cloudflare/test/book-homework-notification.test.ts',
+      'cloudflare/test/book-homework-saga.test.ts',
       'cloudflare/test/notification-command-worker.test.ts',
     ],
   },

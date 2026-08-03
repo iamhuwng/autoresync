@@ -388,6 +388,21 @@ export class BookHomeworkAssignmentSaga {
 
   constructor(private readonly dependencies: BookHomeworkSagaDependencies) {}
 
+  async readCommittedAssignment(
+    assignmentId: string,
+  ): Promise<BookHomeworkSagaRecord | null> {
+    assertId(assignmentId, 'assignmentId');
+    const record = await this.dependencies.sagaRepository.read(assignmentId);
+    if (!record) return null;
+    assertValidBookHomeworkSagaRecord(record);
+    return record.state === 'committed'
+      && record.visibility === 'committed'
+      && record.committedRecipientCount === record.recipientCount
+      && record.recipients.every((recipient) => recipient.state === 'committed')
+      ? record
+      : null;
+  }
+
   async execute(command: BookHomeworkSagaCommand): Promise<BookHomeworkSagaResult> {
     const previous = this.queues.get(command.assignmentId) ?? Promise.resolve();
     let release!: () => void;

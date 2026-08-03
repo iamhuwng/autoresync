@@ -179,6 +179,17 @@ disposable migration, identity/readback, cleanup, or operational rollback drill;
   #65/#66 retain strategy adapters and local teacher publication proof; #118
   retains generated-rules proof; #134 retains deployed/canary publication,
   identity, cleanup, and rollback drills.
+- For #100 notification composition, #59 consumes but does not invent the
+  trusted Book Homework runtime. Reopened #86 must first provide the
+  production-safe #85/#84 saga and canonical-state resolver; the ticket-86
+  preview fixture is not production authority. #59 then injects that provider
+  and #100's in-process post-commit adapter exactly once at
+  `futureSeam.homeworkAssignmentCommand`. #85 retains saga, authority,
+  recipient, replay, and compensation semantics; #100 retains notification
+  identity, frozen-recipient resolution, privacy, failure, and rollback
+  behavior. #118 retains assembled rules and #134 retains deployment/canary
+  proof. Missing enabled composition fails closed; default-deny remains
+  unchanged.
 - #70 owns unpublished source-strategy migration planning, explicit page
   remapping, staged candidate CAS/confirmation/discard, migration-specific
   local Worker/browser proof and source-byte preservation. It consumes the
