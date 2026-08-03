@@ -17,6 +17,10 @@ import type { NotificationCommandRepository } from '../notifications/repository.
 import {
   runBookMutationWithPostCommitNotification,
 } from '../notifications/post-commit.ts';
+import type {
+  BookHomeworkTrustedSaga,
+  BookHomeworkTrustedSagaFactory,
+} from './runtime.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_FINGERPRINT_BYTES = 128 * 1024;
@@ -37,14 +41,11 @@ export class BookHomeworkWorkerError extends Error {
   }
 }
 
+export type BookHomeworkSagaPort = BookHomeworkTrustedSaga;
+
 export interface BookHomeworkWorkerHandlersOptions {
-  readonly saga?: Pick<BookHomeworkAssignmentSaga, 'execute'>
-    & Partial<Pick<
-      BookHomeworkAssignmentSaga,
-      | 'resolveStudentProjection'
-      | 'resolveTeacherProjections'
-      | 'readCommittedAssignment'
-    >>;
+  readonly saga?: BookHomeworkSagaPort;
+  readonly sagaFactory?: BookHomeworkTrustedSagaFactory;
   readonly notificationRepositoryFactory?: (
     env: BookHomeworkNotificationEnvironment,
   ) => NotificationCommandRepository;
@@ -256,6 +257,13 @@ const sagaStatus = (code: string): number => {
 export const createBookHomeworkWorkerHandlers = (
   options: BookHomeworkWorkerHandlersOptions = {},
 ) => {
+  if (options.saga && options.sagaFactory) {
+    throw new Error('book_homework_runtime_ambiguous');
+  }
+  const resolveSaga = async (
+    env: BookHomeworkWorkerEnv,
+  ): Promise<BookHomeworkSagaPort | undefined> =>
+    options.saga ?? await options.sagaFactory?.(env);
   const resolveCompletionProjection = options.resolveCompletionProjection
     ?? (async (input: Parameters<NonNullable<BookHomeworkWorkerHandlersOptions['resolveCompletionProjection']>>[0]) => {
       try {
@@ -276,16 +284,6 @@ export const createBookHomeworkWorkerHandlers = (
       }
     });
   const now = options.now ?? (() => new Date().toISOString());
-  const notificationEmitter = options.saga?.readCommittedAssignment
-    ? createBookHomeworkNotificationEmitter({
-      source: {
-        readCommittedAssignment: (assignmentId) =>
-          options.saga!.readCommittedAssignment!(assignmentId),
-      },
-      repositoryFactory: options.notificationRepositoryFactory,
-    })
-    : undefined;
-
   const homeworkAssignmentCommand = async (input: {
     readonly request: Request;
     readonly env: BookHomeworkWorkerEnv;
@@ -293,22 +291,32 @@ export const createBookHomeworkWorkerHandlers = (
     readonly assignmentId: string;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     try {
+      await assertTeacher(input.env, input.uid);
+      const command = parseCommand(
+        await readBody(input.request),
+        routeId(input.assignmentId, 'assignment_id'),
+        input.request.headers.get('idempotency-key'),
+      );
+      const saga = await resolveSaga(input.env);
+      const notificationEmitter = saga?.readCommittedAssignment
+        ? createBookHomeworkNotificationEmitter({
+          source: {
+            readCommittedAssignment: (assignmentId) =>
+              saga.readCommittedAssignment!(assignmentId),
+          },
+          repositoryFactory: options.notificationRepositoryFactory,
+        })
+        : undefined;
       return await runBookMutationWithPostCommitNotification({
         env: input.env,
         emitter: notificationEmitter,
         resolveActionIdentity: ({ result }) =>
           resolveBookHomeworkNotificationIdentity(result),
         commit: async () => {
-          await assertTeacher(input.env, input.uid);
-          const command = parseCommand(
-            await readBody(input.request),
-            routeId(input.assignmentId, 'assignment_id'),
-            input.request.headers.get('idempotency-key'),
-          );
-          if (!options.saga) {
+          if (!saga) {
             throw new BookHomeworkWorkerError('saga_unavailable', 503);
           }
-          const result = await options.saga.execute({
+          const result = await saga.execute({
             ...command,
             ownerId: input.uid,
             createdAt: now(),
@@ -344,14 +352,15 @@ export const createBookHomeworkWorkerHandlers = (
     readonly env?: BookHomeworkWorkerEnv;
     readonly teacherRead: boolean;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
-    if (!options.saga?.resolveStudentProjection) {
-      return { body: { code: 'saga_unavailable' }, init: { status: 503 } };
-    }
     try {
       const assignmentId = routeId(input.assignmentId, 'assignment_id');
       const studentId = safeId(input.studentId, 'student_id');
       if (input.teacherRead) await assertTeacher(input.env ?? {}, input.uid);
-      const projection = await options.saga.resolveStudentProjection(assignmentId, studentId);
+      const saga = await resolveSaga(input.env ?? {});
+      if (!saga?.resolveStudentProjection) {
+        return { body: { code: 'saga_unavailable' }, init: { status: 503 } };
+      }
+      const projection = await saga.resolveStudentProjection(assignmentId, studentId);
       if (!projection) {
         return { body: { code: 'book_homework_not_found' }, init: { status: 404 } };
       }
@@ -408,13 +417,14 @@ export const createBookHomeworkWorkerHandlers = (
     readonly uid: string;
     readonly env?: BookHomeworkWorkerEnv;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
-    if (!options.saga?.resolveTeacherProjections) {
-      return { body: { code: 'book_homework_teacher_projection_unavailable' }, init: { status: 503 } };
-    }
     try {
       await assertTeacher(input.env ?? {}, input.uid);
       const assignmentId = routeId(input.assignmentId, 'assignment_id');
-      const resolutions = await options.saga.resolveTeacherProjections(
+      const saga = await resolveSaga(input.env ?? {});
+      if (!saga?.resolveTeacherProjections) {
+        return { body: { code: 'book_homework_teacher_projection_unavailable' }, init: { status: 503 } };
+      }
+      const resolutions = await saga.resolveTeacherProjections(
         assignmentId,
         safeId(input.uid, 'teacher_id'),
       );

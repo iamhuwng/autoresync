@@ -9,7 +9,12 @@ import {
   type BookAssemblyPublicationRouteOptions,
 } from './book-assembly/publication-route-handlers.ts';
 import { createBookRuntimeCanonicalHandlers } from './book-runtime/canonical.ts';
-import { createBookHomeworkWorkerHandlers } from './book-homework/worker.ts';
+import type {
+  BookHomeworkWorkerHandlersOptions,
+} from './book-homework/worker.ts';
+import {
+  createCanonicalBookHomeworkHandlers,
+} from './book-routes/homework-composition.ts';
 import { createBookSourceUploadWorkerHandlers } from './book-source/worker.ts';
 import {
   createBookHistoricalAttemptDocumentDeliveryHandler,
@@ -77,6 +82,7 @@ export interface BookRouteHandlersOptions {
   readonly assemblySuccessorHandlers?: Record<string, unknown>;
   readonly assemblyMappingRevisionHandlers?: Record<string, unknown>;
   readonly runtimeHandlers?: Record<string, unknown>;
+  readonly homework?: BookHomeworkWorkerHandlersOptions;
   readonly homeworkHandlers?: Record<string, unknown>;
   readonly sourceUploadHandlers?: Record<string, unknown>;
   readonly sourceDocument?: BookSourceDocumentDeliveryOptions;
@@ -99,7 +105,8 @@ export const createBookRouteHandlers = (
   const assemblySuccessor = options.assemblySuccessorHandlers ?? {};
   const assemblyMappingRevision = options.assemblyMappingRevisionHandlers ?? {};
   const runtime = options.runtimeHandlers ?? createBookRuntimeCanonicalHandlers();
-  const homework = options.homeworkHandlers ?? createBookHomeworkWorkerHandlers();
+  const homework = options.homeworkHandlers
+    ?? createCanonicalBookHomeworkHandlers(options.homework);
   const sourceUpload = options.sourceUploadHandlers ?? createBookSourceUploadWorkerHandlers();
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
