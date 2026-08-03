@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "39B",
+  "owner": {
+    "ticketId": "39B",
+    "issue": 101,
+    "generatedRuleLocations": [
+      "book_impact_discovery/.read",
+      "book_impact_discovery/.write",
+      "book_impact_discovery/scopes/.read",
+      "book_impact_discovery/scopes/.write",
+      "book_impact_discovery/scopes/$ownerId/$contextKind/$contextId/.read",
+      "book_impact_discovery/scopes/$ownerId/$contextKind/$contextId/.write",
+      "book_impact_discovery/indexes/.read",
+      "book_impact_discovery/indexes/.write",
+      "book_impact_discovery/indexes/$ownerId/$contextKind/.read",
+      "book_impact_discovery/indexes/$ownerId/$contextKind/.write"
+    ],
+    "serviceIdentity": "book_impact_read_service",
+    "leastPrivilegePaths": [
+      "book_impact_discovery/indexes/$ownerId/$contextKind",
+      "book_impact_discovery/scopes/$ownerId/$contextKind/$contextId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_impact_discovery",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_discovery",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_discovery/scopes",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_discovery/scopes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_discovery/scopes/$ownerId/$contextKind/$contextId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_impact_read_service == true && auth.token.book_impact_ownerId == $ownerId && auth.token.book_impact_contextKind == $contextKind && ($contextKind == 'solo' || $contextKind == 'homework')"
+    },
+    {
+      "path": "book_impact_discovery/scopes/$ownerId/$contextKind/$contextId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_discovery/indexes",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_discovery/indexes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_discovery/indexes/$ownerId/$contextKind",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_impact_read_service == true && auth.token.book_impact_ownerId == $ownerId && auth.token.book_impact_contextKind == $contextKind && ($contextKind == 'solo' || $contextKind == 'homework')"
+    },
+    {
+      "path": "book_impact_discovery/indexes/$ownerId/$contextKind",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    }
+  ]
+}

@@ -70,3 +70,23 @@ export const bookDocumentRouteDescriptors = [
   bookHistoricalAttemptDocumentRouteDescriptor,
   bookTeacherAssemblyDocumentRouteDescriptor,
 ] as const;
+
+/**
+ * Ticket 39B read-only impact seam. Ticket 09D owns dispatch composition;
+ * this descriptor is deliberately not added to the canonical manifest here.
+ */
+export const bookImpactDiscoveryRouteDescriptor = {
+  method: 'GET',
+  path: '/v1/book-impact/discovery/:contextKind',
+  handler: 'readImpactDiscovery',
+  serverOnly: true,
+  owner: '#101 / 39B impact discovery; #59 / 09D composition',
+  authorizationOwner: '#101 / 39B',
+  destination: '#59 / 09D top-level composition',
+  auth: 'firebase-id-token-before-lookup',
+  rateClass: 'book-read',
+  gate: 'BOOK_IMPACT_DISCOVERY_ROUTES_ENABLED-default-disabled',
+  requestBodyBytes: 0,
+  responseLimit: 256 * 1024,
+  response: 'bounded immutable impact-summary only',
+} as const;
