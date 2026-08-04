@@ -2,10 +2,22 @@ import { SignJWT, importPKCS8 } from 'jose';
 
 export interface RepositoryEnv {
   FIREBASE_DB_URL?: string;
+  FIREBASE_WEB_API_KEY?: string;
   GOOGLE_SA_KEY?: string;
   LISTENING_AUTHORING_IDEMPOTENCY_SECRET?: string;
   LISTENING_AUTHORING_DEV_WRITES_ENABLED?: string;
   readDatabaseValue?: (path: string, query?: FirebaseRtdbQuery) => Promise<unknown>;
+}
+
+export interface CourseBookAuthority102Claims {
+  readonly operation: 'enrollment-transition';
+  readonly actorUid: string;
+  readonly courseId: string;
+  readonly studentId: string;
+  readonly legacyEnrollmentId: string;
+  readonly expectedLegacyRevision: number;
+  readonly expectedAuthorityRevision: number;
+  readonly operationId: string;
 }
 
 export interface FirebaseRtdbQuery {
@@ -25,6 +37,8 @@ interface TokenResponse {
 }
 
 const OAUTH2_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken';
+const FIREBASE_CUSTOM_TOKEN_AUDIENCE = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
 const FIREBASE_SCOPES = [
   'https://www.googleapis.com/auth/firebase.database',
   'https://www.googleapis.com/auth/datastore',
@@ -88,6 +102,7 @@ class TokenCache {
 }
 
 const tokenCaches = new Map<string, TokenCache>();
+const courseAuthorityTokenCaches = new Map<string, { token: string; expiresAt: number }>();
 
 const getTokenCache = (saKeyJson: string, fetchImpl: typeof fetch): TokenCache => {
   let cache = tokenCaches.get(saKeyJson);
@@ -96,6 +111,67 @@ const getTokenCache = (saKeyJson: string, fetchImpl: typeof fetch): TokenCache =
     tokenCaches.set(saKeyJson, cache);
   }
   return cache;
+};
+
+const stableCourseClaims = (claims: CourseBookAuthority102Claims): string => JSON.stringify({
+  operation: claims.operation, actorUid: claims.actorUid, courseId: claims.courseId,
+  studentId: claims.studentId, legacyEnrollmentId: claims.legacyEnrollmentId,
+  expectedLegacyRevision: claims.expectedLegacyRevision,
+  expectedAuthorityRevision: claims.expectedAuthorityRevision, operationId: claims.operationId,
+});
+
+const assertCourseClaims = (claims: CourseBookAuthority102Claims): void => {
+  const id = /^[A-Za-z0-9][A-Za-z0-9:_-]{2,159}$/u;
+  const operation = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+  if (claims.operation !== 'enrollment-transition'
+    || ![claims.actorUid, claims.courseId, claims.studentId, claims.legacyEnrollmentId].every((value) => id.test(value))
+    || !operation.test(claims.operationId)
+    || !Number.isSafeInteger(claims.expectedLegacyRevision)
+    || !Number.isSafeInteger(claims.expectedAuthorityRevision)
+    || claims.expectedLegacyRevision < 0 || claims.expectedAuthorityRevision < 0) {
+    throw new Error('invalid_course_book_authority_102_claims');
+  }
+};
+
+/** Mints and exchanges a short-lived Firebase ID token for one exact #102 mutation. */
+export const createCourseBookAuthority102TokenProvider = (options: {
+  readonly env: RepositoryEnv;
+  readonly fetchImpl?: typeof fetch;
+  readonly now?: () => number;
+}) => {
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const now = options.now ?? Date.now;
+  return async (claims: CourseBookAuthority102Claims): Promise<string> => {
+    assertCourseClaims(claims);
+    const serviceAccountJson = options.env.GOOGLE_SA_KEY?.trim();
+    const apiKey = options.env.FIREBASE_WEB_API_KEY?.trim();
+    if (!serviceAccountJson) throw new Error('missing_course_book_authority_google_sa_key');
+    if (!apiKey) throw new Error('missing_course_book_authority_firebase_web_api_key');
+    let serviceAccount: ServiceAccountKey;
+    try { serviceAccount = JSON.parse(serviceAccountJson) as ServiceAccountKey; } catch { throw new Error('invalid_course_book_authority_google_sa_key'); }
+    if (!serviceAccount.client_email || !serviceAccount.private_key) throw new Error('invalid_course_book_authority_google_sa_key');
+    const cacheKey = `${serviceAccount.client_email}:${stableCourseClaims(claims)}`;
+    const cached = courseAuthorityTokenCaches.get(cacheKey);
+    if (cached && now() < cached.expiresAt - 60_000) return cached.token;
+    const issuedAt = Math.floor(now() / 1000);
+    const privateKey = await importPKCS8(serviceAccount.private_key, 'RS256');
+    const customToken = await new SignJWT({
+      iss: serviceAccount.client_email, sub: serviceAccount.client_email,
+      aud: FIREBASE_CUSTOM_TOKEN_AUDIENCE, iat: issuedAt, exp: issuedAt + 300,
+      uid: `course-book-authority-102:${claims.operationId}`,
+      claims: { courseBookAuthority102: true, ...claims },
+    }).setProtectedHeader({ alg: 'RS256', typ: 'JWT' }).sign(privateKey);
+    let response: Response;
+    try { response = await fetchImpl.call(globalThis, `${IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL}?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: customToken, returnSecureToken: true }) }); } catch { throw new Error('course_book_authority_token_exchange_transport_failed'); }
+    const raw = await response.text();
+    if (!response.ok) throw new Error(`course_book_authority_token_exchange_failed:${response.status}`);
+    let exchanged: { idToken?: unknown; expiresIn?: unknown };
+    try { exchanged = JSON.parse(raw) as { idToken?: unknown; expiresIn?: unknown }; } catch { throw new Error('course_book_authority_token_exchange_invalid_response'); }
+    if (typeof exchanged.idToken !== 'string' || exchanged.idToken.length < 16 || !/^\d+$/u.test(String(exchanged.expiresIn))) throw new Error('course_book_authority_token_exchange_invalid_response');
+    const lifetime = Math.min(300, Math.max(1, Number(exchanged.expiresIn))) * 1000;
+    courseAuthorityTokenCaches.set(cacheKey, { token: exchanged.idToken, expiresAt: now() + lifetime });
+    return exchanged.idToken;
+  };
 };
 
 const parseJsonBody = (value: string): unknown => {
@@ -148,6 +224,7 @@ export class FirebaseRtdbRestClient {
       fetchImpl: typeof fetch;
       getAccessToken?: () => Promise<string>;
       firebaseAuthToken?: boolean;
+      getFirebaseAuthToken?: () => Promise<string>;
     },
   ) {}
 
@@ -221,7 +298,9 @@ export class FirebaseRtdbRestClient {
     url: string;
     headers: Record<string, string>;
   }> {
-    const token = await this.accessToken();
+    const token = this.options.firebaseAuthToken && this.options.getFirebaseAuthToken
+      ? await this.options.getFirebaseAuthToken()
+      : await this.accessToken();
     const url = rtdbUrl(this.options.env, path);
     return this.options.firebaseAuthToken
       ? { url: withQuery(url, query, token), headers: {} }
