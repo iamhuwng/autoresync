@@ -217,7 +217,9 @@ describe('Ticket 38B1 trusted notification command seam', () => {
       title: 'Homework assigned',
       message: 'A new assignment is ready.',
       link: '/student/homework/homework-1',
-      metadata: body().notification.metadata,
+      metadata: Object.fromEntries(
+        Object.entries(body().notification.metadata).reverse(),
+      ),
       read: true,
       createdAt: 1_722_220_000_000,
     };

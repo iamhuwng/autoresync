@@ -39,19 +39,28 @@ type StoredNotification = Omit<Notification, 'metadata'> & {
 const clone = <T>(value: T): T => structuredClone(value);
 const pathFor = (recipientId: string, operationId: string): string =>
   `notifications/${recipientId}/${operationId}`;
+const canonical = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, canonical(child)]));
+  }
+  return value;
+};
 const semantic = (value: {
   readonly type: Notification['type'];
   readonly title: string;
   readonly message: string;
   readonly link?: string;
   readonly metadata?: StructuredNotificationMetadata;
-}): string => JSON.stringify({
+}): string => JSON.stringify(canonical({
   type: value.type,
   title: value.title,
   message: value.message,
   ...(value.link === undefined ? {} : { link: value.link }),
   ...(value.metadata === undefined ? {} : { metadata: value.metadata }),
-});
+}));
 const validStored = (value: unknown, operationId: string): value is StoredNotification => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Partial<StoredNotification>;
