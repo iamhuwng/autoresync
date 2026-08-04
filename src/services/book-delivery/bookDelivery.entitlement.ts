@@ -85,4 +85,3 @@ export interface BookDeliveryRepository {
     now: string;
   }): Promise<BookDeliveryMutationResult>;
 }
-

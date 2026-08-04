@@ -183,4 +183,3 @@ export class BookDeliveryEntitlementLifecycle {
     return { status: 'not-found', receipt: receipt(operationId, null, 'not-found', now) };
   }
 }
-
