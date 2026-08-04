@@ -1,44 +1,44 @@
 {
   "schemaVersion": 1,
-  "status": "BLOCKED_INTEGRATION",
+  "status": "PASS",
   "branch": "codex/prd0062b-implementation",
-  "head": "0093b900e44099c317a9222a673a8446b9317e62",
+  "head": "b8cd836c08ad68cf1a1c7513f8af813e31f11d4a",
   "acceptedProducer": {
     "ref": "origin/codex/prd0062-39b",
     "commit": "973ffa10ab61f87509eb21168b4039659ec09cee",
     "refCommit": "973ffa10ab61f87509eb21168b4039659ec09cee",
-    "headIncludes": false
+    "headIncludes": true
   },
   "commitAncestry": [
     {
       "id": "reading-listening-adapters",
       "commit": "a7522986597c816283c8fc68b1b251384b67ff91",
       "acceptedProducerIncludes": true,
-      "headIncludes": false
+      "headIncludes": true
     },
     {
       "id": "personal-timer",
       "commit": "ba8b2d59d9ccaae2b6cc7a74a34b55b32e1b1c70",
       "acceptedProducerIncludes": true,
-      "headIncludes": false
+      "headIncludes": true
     },
     {
       "id": "content-catalog",
       "commit": "b1d0d729695a9ebdba2f7f21a1776c57bdf03e97",
       "acceptedProducerIncludes": true,
-      "headIncludes": false
+      "headIncludes": true
     },
     {
       "id": "impact-discovery",
       "commit": "d387ecae1dbc270958a600b4088973bfc2bbfb28",
       "acceptedProducerIncludes": true,
-      "headIncludes": false
+      "headIncludes": true
     },
     {
       "id": "accepted-notification-homework-proof",
       "commit": "973ffa10ab61f87509eb21168b4039659ec09cee",
       "acceptedProducerIncludes": true,
-      "headIncludes": false
+      "headIncludes": true
     }
   ],
   "pathChecks": [
@@ -46,100 +46,39 @@
       "id": "canonical-runtime-composition",
       "path": "cloudflare/src/upload-worker/book-runtime/canonical.ts",
       "acceptedTreeExists": true,
-      "headTreeExists": false
+      "headTreeExists": true
     },
     {
       "id": "notification-homework-producer",
       "path": "cloudflare/src/upload-worker/book-homework/notification.ts",
       "acceptedTreeExists": true,
-      "headTreeExists": false
+      "headTreeExists": true
     },
     {
       "id": "impact-discovery-producer",
       "path": "src/services/book-delivery/bookImpactDiscovery.engine.ts",
       "acceptedTreeExists": true,
-      "headTreeExists": false
+      "headTreeExists": true
     },
     {
       "id": "content-catalog-producer",
       "path": "src/services/materialCatalog/contentCatalog.service.ts",
       "acceptedTreeExists": true,
-      "headTreeExists": false
+      "headTreeExists": true
     },
     {
       "id": "listening-adapter-producer",
       "path": "src/services/book-activity/adapters/listening/listeningActivityAdapter.ts",
       "acceptedTreeExists": true,
-      "headTreeExists": false
+      "headTreeExists": true
     },
     {
       "id": "personal-timer-producer",
       "path": "src/components/book-runtime/PersonalTimer.tsx",
       "acceptedTreeExists": true,
-      "headTreeExists": false
+      "headTreeExists": true
     }
   ],
-  "missingItems": [
-    {
-      "kind": "accepted_producer_ancestry",
-      "id": "accepted-producer",
-      "commit": "973ffa10ab61f87509eb21168b4039659ec09cee"
-    },
-    {
-      "kind": "settled_commit_ancestry",
-      "id": "reading-listening-adapters",
-      "commit": "a7522986597c816283c8fc68b1b251384b67ff91"
-    },
-    {
-      "kind": "settled_commit_ancestry",
-      "id": "personal-timer",
-      "commit": "ba8b2d59d9ccaae2b6cc7a74a34b55b32e1b1c70"
-    },
-    {
-      "kind": "settled_commit_ancestry",
-      "id": "content-catalog",
-      "commit": "b1d0d729695a9ebdba2f7f21a1776c57bdf03e97"
-    },
-    {
-      "kind": "settled_commit_ancestry",
-      "id": "impact-discovery",
-      "commit": "d387ecae1dbc270958a600b4088973bfc2bbfb28"
-    },
-    {
-      "kind": "settled_commit_ancestry",
-      "id": "accepted-notification-homework-proof",
-      "commit": "973ffa10ab61f87509eb21168b4039659ec09cee"
-    },
-    {
-      "kind": "head_tree_path",
-      "id": "canonical-runtime-composition",
-      "path": "cloudflare/src/upload-worker/book-runtime/canonical.ts"
-    },
-    {
-      "kind": "head_tree_path",
-      "id": "notification-homework-producer",
-      "path": "cloudflare/src/upload-worker/book-homework/notification.ts"
-    },
-    {
-      "kind": "head_tree_path",
-      "id": "impact-discovery-producer",
-      "path": "src/services/book-delivery/bookImpactDiscovery.engine.ts"
-    },
-    {
-      "kind": "head_tree_path",
-      "id": "content-catalog-producer",
-      "path": "src/services/materialCatalog/contentCatalog.service.ts"
-    },
-    {
-      "kind": "head_tree_path",
-      "id": "listening-adapter-producer",
-      "path": "src/services/book-activity/adapters/listening/listeningActivityAdapter.ts"
-    },
-    {
-      "kind": "head_tree_path",
-      "id": "personal-timer-producer",
-      "path": "src/components/book-runtime/PersonalTimer.tsx"
-    }
-  ],
+  "missingItems": [],
   "diagnostics": []
 }
