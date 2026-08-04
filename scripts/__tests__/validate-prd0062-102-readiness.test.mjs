@@ -34,6 +34,9 @@ test('fails closed for duplicate ownership, missing symbol, and stale baseline s
     fixture.contract.owners.pop(); fixture.contract.codeEvidence[0].symbol = 'not-present'; writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
     assert.ok(inspectReadiness({ repo: fixture.root, contractPath: fixture.contractPath }).diagnostics.some((item) => item.startsWith('symbol_missing:')));
     fixture.contract.codeEvidence[0].symbol = sourceContract.codeEvidence[0].symbol; writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
+    delete fixture.contract.courseAuthorityAdapter; writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
+    assert.ok(inspectReadiness({ repo: fixture.root, contractPath: fixture.contractPath }).diagnostics.includes('course_authority_adapter_incomplete'));
+    fixture.contract.courseAuthorityAdapter = structuredClone(sourceContract.courseAuthorityAdapter); writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
     write(fixture.root, 'unrelated.txt', 'stale\n'); git(fixture.root, ['add', '.']); git(fixture.root, ['commit', '-m', 'unrelated']);
     assert.ok(inspectReadiness({ repo: fixture.root, contractPath: fixture.contractPath }).diagnostics.some((item) => item.startsWith('baseline_head_stale:')));
   } finally { rmSync(fixture.root, { recursive: true, force: true }); }

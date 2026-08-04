@@ -34,6 +34,26 @@
     "book_delivery/current_entitlements/{studentId}/{entitlementId}",
     "book_delivery/entitlements/{studentId}/{entitlementId}"
   ],
+  "courseAuthorityAdapter": {
+    "version": 1,
+    "boundedReads": 6,
+    "facts": [
+      {"id":"course","path":"courses/{courseId}","fields":["id","ownerId","archivedAt"],"writer":"courseManager.createCourse/updateCourse/archiveCourse"},
+      {"id":"module","path":"course_modules/{moduleId}","fields":["id","courseId","accessType"],"writer":"courseManager.createModule/updateModule"},
+      {"id":"material","path":"course_materials/{courseMaterialId}","fields":["id","courseId","moduleId","materialId","isCopy"],"writer":"courseManager.addMaterialToModule"},
+      {"id":"enrollment","path":"course_book_authority/enrollments/{courseId}/{studentId}","fields":["courseId","studentId","status","expiresAt"],"writer":"#102 enrollment projection producer"},
+      {"id":"moduleRelease","path":"course_book_authority/releases/{courseId}/{moduleId}/{studentId}","fields":["courseId","moduleId","studentId","released"],"writer":"#102 Course release projection producer"},
+      {"id":"publication","path":"book_delivery/publications/{bookId}/{publicationId}","fields":["bookId","publicationId","ownerId","status"],"writer":"accepted Book publication producer"}
+    ],
+    "immutable": ["courseMaterialId","courseId","moduleId","materialId","bookId","publicationId","unitVersionId","sourceVersionId","activityId","activityVersionId","bindingRevision","ownerId"],
+    "mutable": ["enrollment.status","enrollment.expiresAt","moduleRelease.released","course.archivedAt","binding.status"],
+    "invalidation": {"archive":"revoke resolution","unenrolmentOrExpiry":"deny resolution","moduleLock":"deny resolution","revoke":"deny resolution; retain history","rollback":"deny new issuance; retain immutable records"},
+    "compatibility":"Legacy random enrollment IDs and bare-materialId non-Book readers remain untouched; only Book placement uses the additive exact projections.",
+    "classBoundary":"#103 owns Class locks, class progress, copies, and class-course identity; this adapter never reads class_progress or class copies.",
+    "handoffs":{"#104":"resolved immutable projection only","#118":"compose projection paths/indexes into generated rules"},
+    "rulesFragment":{"root":"course_book_authority","indexes":["enrollments/courseId/studentId","releases/courseId/moduleId/studentId"],"writes":"trusted #102 projection producers only","browserWrites":"deny"},
+    "fixtures":["legacy-random-enrollment-id","bare-material-non-book","expired-enrollment","module-lock","course-archive","revoke-replay","class-copy-excluded"]
+  },
   "owners": [
     {"ticket":"#102","scope":"shared identity contract and Course vertical"},
     {"ticket":"#103","scope":"Class/copy consumer; cannot redefine shared identity"},

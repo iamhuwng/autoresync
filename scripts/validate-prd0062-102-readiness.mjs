@@ -10,6 +10,9 @@ const OWNED_SUCCESSOR_PATHS = new Set([
   'documentation/tasks/PRD0062/evidence/stage-0-baseline-health-and-102-readiness-2026-08-04.json',
   'scripts/validate-prd0062-102-readiness.mjs',
   'scripts/__tests__/validate-prd0062-102-readiness.test.mjs',
+  'src/services/book-delivery/courseBookPlacement.service.ts',
+  'src/services/book-delivery/courseBookPlacement.service.test.ts',
+  'documentation/tasks/PRD0062/evidence/102-course-placement-local-2026-08-05.json',
 ]);
 const CLASSIFICATIONS = new Set(['PASS', 'PRE_EXISTING', 'TICKET_OWNED', 'INTEGRATION_OWNED']);
 const requiredArrays = ['authority', 'owners', 'handoffs', 'stateMatrix', 'failureClasses', 'proofClasses', 'fixtures', 'codeEvidence', 'baselineIssues'];
@@ -42,6 +45,14 @@ export const inspectReadiness = ({ repo, contractPath }) => {
   if (identity.placementId !== 'courseMaterialId' || !Array.isArray(identity.contexts) || identity.contexts.join(',') !== 'course,class-course' || !Array.isArray(identity.requiredPins) || !requiredIdentityPins.every((pin) => identity.requiredPins.includes(pin)) || !String(identity.copyIdentity ?? '').includes('copyId')) diagnostics.push('identity_contract_incomplete');
   for (const key of ['legacyMode', 'newBookRule', 'migration', 'rollback']) if (!String(contract.compatibility?.[key] ?? '').trim()) diagnostics.push(`compatibility_missing:${key}`);
   if (!String(contract.authorityModel?.owner ?? '').trim() || !String(contract.authorityModel?.enrolment ?? '').trim()) diagnostics.push('authority_missing');
+  const adapter = contract.courseAuthorityAdapter;
+  const requiredFacts = ['course', 'module', 'material', 'enrollment', 'moduleRelease', 'publication'];
+  if (!adapter || adapter.version !== 1 || !Number.isSafeInteger(adapter.boundedReads) || adapter.boundedReads < 6 || !Array.isArray(adapter.facts)
+    || !requiredFacts.every((id) => adapter.facts.some((fact) => fact?.id === id && typeof fact.path === 'string' && Array.isArray(fact.fields) && fact.fields.length > 0 && typeof fact.writer === 'string' && fact.writer.length > 0))
+    || !Array.isArray(adapter.immutable) || !Array.isArray(adapter.mutable) || !adapter.invalidation || !['archive', 'unenrolmentOrExpiry', 'moduleLock', 'revoke', 'rollback'].every((key) => typeof adapter.invalidation[key] === 'string' && adapter.invalidation[key].length > 0)
+    || !String(adapter.compatibility ?? '').trim() || !String(adapter.classBoundary ?? '').includes('#103') || !adapter.handoffs?.['#104'] || !adapter.handoffs?.['#118']
+    || !adapter.rulesFragment || !Array.isArray(adapter.rulesFragment.indexes) || adapter.rulesFragment.indexes.length < 2 || adapter.rulesFragment.browserWrites !== 'deny'
+    || !Array.isArray(adapter.fixtures) || adapter.fixtures.length < 7) diagnostics.push('course_authority_adapter_incomplete');
   const ownerTickets = (contract.owners ?? []).map((item) => item?.ticket).filter(Boolean);
   if (!unique(ownerTickets) || ownerTickets.length < 7 || !ownerTickets.includes('#102')) diagnostics.push('ownership_missing_or_duplicate');
   const consumers = (contract.handoffs ?? []).map((item) => item?.consumer).filter(Boolean);

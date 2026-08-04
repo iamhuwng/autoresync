@@ -23,3 +23,7 @@ Rules are represented by `database.rules.json`; notification production remains 
 #102 owns this shared identity/authority contract and the Course vertical. #103 consumes it for Class/copy, #104 only dispatches an already-resolved binding, #107 exposes read-only adapters, #118 implements generated/active rules, and #130/#134 own browser and canary proof. Static and unit evidence here is not emulator, browser, or deployed evidence.
 
 The validator reads Git tree objects, not working-tree path presence. It rejects duplicate ownership/handoffs, stale baseline ancestry, missing code evidence, incomplete state/failure/proof classes, compatibility or rollback omissions, and unlabeled baseline findings.
+
+## Trusted Course authority adapter
+
+The existing client reader scans legacy `course_enrollments` and `course_materials`; the Worker must not reuse those scans. #102 therefore requires the additive `course_book_authority` projection: exact keyed enrollment and module-release records, together with direct reads of Course, Module, CourseMaterial, and accepted Book publication. Six bounded reads establish all authority facts. Course/archive, enrollment expiry, release lock, and binding revoke invalidate resolution without deleting immutable placement history. Browser writes are denied. #103 owns all Class locks/copies and is explicitly excluded.
