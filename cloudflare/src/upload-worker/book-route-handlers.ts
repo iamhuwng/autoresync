@@ -22,6 +22,7 @@ import {
   type BookSourceDocumentDeliveryOptions,
 } from './book-source/document.ts';
 import { createTeacherAssemblyPreviewWorker } from './book-delivery/teacher-assembly-preview-worker.js';
+import { createCourseBookPlacementWorkerHandlers } from './course-book-placement/worker.ts';
 import type {
   BookRouteParams,
   BookRouterEnv,
@@ -110,7 +111,7 @@ export const createBookRouteHandlers = (
   const homework = options.homeworkHandlers
     ?? createCanonicalBookHomeworkHandlers(options.homework);
   const sourceUpload = options.sourceUploadHandlers ?? createBookSourceUploadWorkerHandlers();
-  const courseBook = options.courseBookHandlers ?? {};
+  const courseBook = options.courseBookHandlers ?? createCourseBookPlacementWorkerHandlers();
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
     ['create', 'activate', 'supersede', 'revoke'], 'bookDelivery', () => []);
