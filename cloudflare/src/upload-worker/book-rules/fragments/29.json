@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "29",
+  "owner": {
+    "ticketId": "29",
+    "issue": 77,
+    "generatedRuleLocations": [
+      "book_result_read_models/.read",
+      "book_result_read_models/.write",
+      "book_result_read_models/students/$studentId/books/$bookId/group_summaries/.read",
+      "book_result_read_models/students/$studentId/books/$bookId/group_summaries/.indexOn",
+      "book_result_read_models/students/$studentId/books/$bookId/group_summaries/$groupKey/.write",
+      "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/.read",
+      "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.read",
+      "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.write",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/.read",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/.indexOn",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey/.write",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/.read",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.read",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.write",
+      "book_result_read_models/details/$resultId/.read"
+    ],
+    "serviceIdentity": "book_result_read_service",
+    "leastPrivilegePaths": [
+      "book_result_read_models/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
+      "book_result_read_models/details/$resultId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_result_read_models",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models/students",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && query.orderByChild == 'latestSubmittedAt' && query.limitToLast != null && query.limitToLast <= 25"
+    },
+    {
+      "path": "book_result_read_models/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".indexOn",
+      "merge": "replace-exact-index",
+      "requiresExistingRule": false,
+      "expression": "latestSubmittedAt"
+    },
+    {
+      "path": "book_result_read_models/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+    },
+    {
+      "path": "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && query.orderByKey == true && query.limitToFirst != null && query.limitToFirst <= 51"
+    },
+    {
+      "path": "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId"
+    },
+    {
+      "path": "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+    },
+    {
+      "path": "book_result_read_models/homework",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && query.orderByChild == 'latestSubmittedAt' && query.limitToLast != null && query.limitToLast <= 25"
+    },
+    {
+      "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".indexOn",
+      "merge": "replace-exact-index",
+      "requiresExistingRule": false,
+      "expression": "latestSubmittedAt"
+    },
+    {
+      "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+    },
+    {
+      "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && query.orderByKey == true && query.limitToFirst != null && query.limitToFirst <= 51"
+    },
+    {
+      "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId"
+    },
+    {
+      "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+    },
+    {
+      "path": "book_result_read_models/details",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models/details/$resultId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_resultId == $resultId"
+    },
+    {
+      "path": "book_result_read_models/details/$resultId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_resultId == $resultId && newData.child('schemaVersion').val() == 1 && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+    },
+    {
+      "path": "book_result_read_models/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    }
+  ]
+}

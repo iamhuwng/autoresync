@@ -17,7 +17,7 @@ import {
     linkMaterialToModule
 } from './materialLinkManager';
 import { getClass } from './classManager';
-import { createNotification } from './notificationService';
+import { createTrustedNotification } from './notificationProducerClient';
 
 const LINK_REF = 'class_course_links';
 const ENROLLMENTS_REF = 'course_enrollments';
@@ -480,8 +480,11 @@ export async function sendExpirationWarning(classId: string, courseId: string): 
             if (link) {
                 const classData = await getClass(classId);
                 if (classData) {
-                    await createNotification({
-                        userId: classData.createdBy,
+                    await createTrustedNotification({
+                        producerFamily: 'enrollment',
+                        authorityRecordId: link.id,
+                        recipientId: classData.createdBy,
+                        operationKey: `course-expiration:${link.id}`,
                         type: 'warning',
                         title: 'Course Expiration Warning',
                         message: `Course for class ${classData.name} will expire soon.`,

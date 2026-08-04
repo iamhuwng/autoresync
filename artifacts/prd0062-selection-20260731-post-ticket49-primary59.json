@@ -1,0 +1,107 @@
+{
+  "generatedAt": "2026-07-31T05:37:41.200Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260731-post-ticket49-closed.json",
+  "graphHash": "1a8c93bc4a56211eef428c356cc5880d95b1406a5733678e8ce68bfc3cec3731",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 50,
+    "closedCount": 62,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Runtime",
+  "graphClearFrontier": [
+    59,
+    65,
+    66,
+    68,
+    129,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 59,
+    "title": "PRD0062 09D - Integrate Book Worker route dispatch",
+    "directPrerequisites": [
+      44,
+      51,
+      52,
+      58
+    ],
+    "closedPrerequisites": [
+      44,
+      51,
+      52,
+      58
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      44,
+      45,
+      46,
+      47,
+      48,
+      51,
+      52,
+      55,
+      56,
+      57,
+      58
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 60,
+    "acceptanceReadiness": "All direct and transitive prerequisites are formally CLOSED. The live #59 contract confines this repair to canonical dispatcher composition, durable #74 runtime dependency and target-resolver injection, generic auth/rate/CORS/gate enforcement, deny-by-default deployment readback, and fail-closed route probes. Existing route harnesses, the canonical Worker, the named media profile, and rollback-by-gate/version are available. Positive activated domain identity and browser journeys remain explicitly destination-owned by #128/#134 and are not prerequisites for #59 closure.",
+    "requiredAuthority": [
+      "canonical cloudflare/worker.js and cloudflare/src/upload-worker dispatcher composition ownership",
+      "read-only live issue and deployed Worker/configuration readback",
+      "local route, manifest, compatibility, and security harnesses",
+      "named Cloudflare media profile for dry-run or deny-by-default deployment/readback if current-state proof is required",
+      "rollback authority limited to Book route gates or the canonical dispatcher version while preserving unrelated routes"
+    ],
+    "selectionReason": "#59 is the earliest unresolved Runtime root/enabler after the Foundation private-B2 boundary closed. It has the strongest immediate canonical-integration leverage, all 22 transitive prerequisites are closed, and its reopened destination contract blocks downstream runtime and publication work until the durable repository and target resolver are injected at the top-level dispatcher. Its acceptance remains executable without advancing #50A or any production trusted-action gate."
+  },
+  "candidateRejections": [
+    {
+      "numbers": [
+        65,
+        66
+      ],
+      "reason": "Graph-clear but deferred behind the earlier canonical Runtime enabler. Full-PDF and component-PDF publication strategy work must consume the unique #59 dispatcher/publication composition rather than proceed around its reopened production-injection repair."
+    },
+    {
+      "number": 68,
+      "reason": "Graph-clear but later Teacher-workflow revision work. It depends operationally on canonical route composition and must not bypass the unresolved #59 Runtime seam."
+    },
+    {
+      "numbers": [
+        129,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear only at the dependency-graph level. Final browser, accessibility, contract/security, legacy, backup, and recovery suites remain later roadmap work and are not acceptance-ready while canonical Runtime and downstream assembled/activated surfaces remain incomplete."
+    }
+  ],
+  "governingSafety": {
+    "privateB2": "disabled; #49 disposable-preview exception disabled",
+    "03B": "disabled",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny",
+    "masterKey": "offline provisioning-only; never a runtime binding",
+    "selectionOnly": "No #59 implementation, gate enablement, deployment mutation, or issue mutation is performed by this snapshot."
+  }
+}

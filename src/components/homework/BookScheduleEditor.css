@@ -1,0 +1,144 @@
+.book-schedule-editor {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid #d7dee8;
+  background: #fff;
+  padding: 1rem;
+}
+
+.book-schedule-editor h4,
+.book-schedule-editor p {
+  margin: 0;
+}
+
+.book-schedule-editor__heading,
+.book-schedule-editor__assignment,
+.book-schedule-editor__rule-fields {
+  display: flex;
+  gap: 1rem;
+}
+
+.book-schedule-editor__heading {
+  align-items: start;
+  justify-content: space-between;
+}
+
+.book-schedule-editor__heading > span {
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #125ea8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.65rem;
+  white-space: nowrap;
+}
+
+.book-schedule-editor label,
+.book-schedule-editor__rules {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.book-schedule-editor__assignment > label,
+.book-schedule-editor__rule-fields > label {
+  flex: 1;
+}
+
+.book-schedule-editor label > span,
+.book-schedule-editor legend {
+  font-weight: 700;
+}
+
+.book-schedule-editor input,
+.book-schedule-editor button {
+  min-height: 44px;
+  border: 1px solid #aeb8c5;
+  border-radius: 0.25rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+}
+
+.book-schedule-editor button {
+  align-self: end;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.book-schedule-editor button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.book-schedule-editor :is(input, button):focus-visible {
+  outline: 3px solid #0b63ce;
+  outline-offset: 2px;
+}
+
+.book-schedule-editor__authority {
+  border-left: 4px solid #1769aa;
+  background: #eaf3fb;
+  padding: 0.75rem;
+}
+
+.book-schedule-editor__conflict {
+  border-left: 4px solid #b42318;
+  background: #fff0ee;
+  color: #7a271a;
+  padding: 0.75rem;
+}
+
+.book-schedule-editor fieldset {
+  min-width: 0;
+  border: 1px solid #d7dee8;
+  padding: 0.75rem;
+}
+
+.book-schedule-editor fieldset p,
+.book-schedule-editor small {
+  color: #5b6472;
+  overflow-wrap: anywhere;
+}
+
+.book-schedule-editor__windows {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.book-schedule-editor__windows caption {
+  padding-bottom: 0.5rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.book-schedule-editor__windows :is(th, td) {
+  border: 1px solid #d7dee8;
+  padding: 0.6rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .book-schedule-editor__heading,
+  .book-schedule-editor__assignment,
+  .book-schedule-editor__rule-fields {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .book-schedule-editor__heading > span {
+    align-self: start;
+  }
+}
+
+@media (max-width: 560px) {
+  .book-schedule-editor {
+    padding: 0.75rem;
+  }
+
+  .book-schedule-editor__windows {
+    display: block;
+    overflow-x: auto;
+  }
+}

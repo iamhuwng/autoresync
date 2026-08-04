@@ -6,6 +6,9 @@ import { getCourse } from './courseManager';
 import { getSubmission } from './writingSubmissionService';
 import type { EnhancedTestResultRecord } from '../types/results.types';
 import type {
+    BookResultOwnershipAttemptInput,
+    BookResultOwnershipDecision,
+    BookResultViewerIdentity,
     ResultOwnerResolutionSource,
     ResultVisibilityContextType,
     ResultVisibilitySnapshot,
@@ -86,6 +89,84 @@ export interface ResultOwnershipResolverDependencies {
     getSubmission: (
         submissionId: string
     ) => Promise<{ success: boolean; data?: WritingSubmissionRecord; error?: string }>;
+}
+
+export interface BookResultOwnershipResolverDependencies {
+    /**
+     * Resolves current Homework authority in one bounded call. Projection
+     * snapshots are provenance, never current authorization by themselves.
+     */
+    resolveHomeworkOwners: (
+        input: {
+            studentId: string;
+            contextIds: readonly string[];
+        }
+    ) => Promise<Readonly<Record<string, string | null | undefined>>>;
+}
+
+export interface ResolveBookResultGroupOwnershipInput {
+    viewer: BookResultViewerIdentity;
+    studentId: string;
+    attempts: readonly BookResultOwnershipAttemptInput[];
+}
+
+export async function resolveBookResultGroupOwnership(
+    input: ResolveBookResultGroupOwnershipInput,
+    dependencies: BookResultOwnershipResolverDependencies
+): Promise<readonly BookResultOwnershipDecision[]> {
+    if (input.viewer.role === 'student') {
+        return input.attempts.map((attempt) => ({
+            attemptId: attempt.attemptId,
+            visible: input.viewer.uid === input.studentId
+                && attempt.recipientId === input.studentId,
+            viewerRole: 'student',
+            reason: input.viewer.uid === input.studentId
+                && attempt.recipientId === input.studentId
+                ? 'visible'
+                : 'wrong_student',
+        }));
+    }
+
+    const homeworkContextIds = [...new Set(
+        input.attempts
+            .filter((attempt) => attempt.contextKind === 'homework')
+            .map((attempt) => attempt.contextId)
+    )];
+    const currentOwners = homeworkContextIds.length > 0
+        ? await dependencies.resolveHomeworkOwners({
+            studentId: input.studentId,
+            contextIds: homeworkContextIds,
+        })
+        : {};
+
+    return input.attempts.map((attempt) => {
+        if (attempt.contextKind === 'solo') {
+            return {
+                attemptId: attempt.attemptId,
+                visible: false,
+                viewerRole: 'teacher',
+                reason: 'private_solo',
+            };
+        }
+        const currentOwner = currentOwners[attempt.contextId] ?? null;
+        if (!attempt.ownerTeacherIdSnapshot || !currentOwner) {
+            return {
+                attemptId: attempt.attemptId,
+                visible: false,
+                viewerRole: 'teacher',
+                reason: 'unresolved_owner',
+            };
+        }
+        const visible = attempt.recipientId === input.studentId
+            && attempt.ownerTeacherIdSnapshot === input.viewer.uid
+            && currentOwner === input.viewer.uid;
+        return {
+            attemptId: attempt.attemptId,
+            visible,
+            viewerRole: 'teacher',
+            reason: visible ? 'visible' : 'wrong_teacher',
+        };
+    });
 }
 
 type NormalizedIdentifiers = {

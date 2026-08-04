@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "08B",
+  "owner": {
+    "ticketId": "08B",
+    "issue": 31,
+    "generatedRuleLocations": [
+      "book_delivery/.read",
+      "book_delivery/.write",
+      "book_delivery/current/.read",
+      "book_delivery/current/.write",
+      "book_delivery/indexes/.read",
+      "book_delivery/indexes/.write",
+      "book_delivery/records/$bindingId/.read",
+      "book_delivery/records/$bindingId/.write",
+      "book_delivery/current/$recipientId/$contextId/.read",
+      "book_delivery/current/$recipientId/$contextId/.write",
+      "book_delivery/operations/$operationId/.read",
+      "book_delivery/operations/$operationId/.write"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_delivery",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_delivery",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_delivery/current",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_delivery/current",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_delivery/indexes",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_delivery/indexes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_delivery/records/$bindingId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && (auth.uid == data.child('binding/recipient/recipientId').val() || auth.token.book_delivery_service == true)"
+    },
+    {
+      "path": "book_delivery/records/$bindingId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true && newData.child('binding/issuer/ownerId').val() == auth.token.book_delivery_ownerId"
+    },
+    {
+      "path": "book_delivery/current/$recipientId/$contextId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && (auth.uid == $recipientId || auth.token.book_delivery_service == true)"
+    },
+    {
+      "path": "book_delivery/current/$recipientId/$contextId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true"
+    },
+    {
+      "path": "book_delivery/operations/$operationId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true"
+    },
+    {
+      "path": "book_delivery/operations/$operationId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_delivery_service == true"
+    }
+  ]
+}

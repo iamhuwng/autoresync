@@ -17,12 +17,15 @@ import React from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { TeacherHeader } from '../components/navigation';
+import { BookResultAdapter } from '../components/results/BookResultAdapter';
 import { LegacyResultDetailView } from '../components/results/LegacyResultDetailView';
+import { parseBookResultRouteHandle } from '../services/bookResult.browser';
 
 export const ResultDetailPage: React.FC = () => {
     const { resultId } = useParams<{ resultId: string }>();
     const navigate = useNavigate();
     const { user, profile, loading: authLoading, logout } = useAuth();
+    const bookResultAddress = parseBookResultRouteHandle(resultId);
 
     const handleLogout = React.useCallback(async () => {
         try {
@@ -71,11 +74,21 @@ export const ResultDetailPage: React.FC = () => {
      * Students are redirected to the academic record page with ?result= query param
      * so the slide panel opens there instead of a standalone page.
      */
-    if (profile?.role === 'student') {
+    if (profile?.role === 'student' && !bookResultAddress) {
         return (
             <Navigate
                 to={`/student/academic-record?result=${resultId}`}
                 replace
+            />
+        );
+    }
+
+    if (profile?.role === 'student' && bookResultAddress) {
+        return (
+            <BookResultAdapter
+                routeHandle={resultId}
+                viewerRole="student"
+                viewerId={user?.uid}
             />
         );
     }
@@ -100,10 +113,22 @@ export const ResultDetailPage: React.FC = () => {
             />
             <div style={teacherShellContentStyle}>
                 <div style={teacherShellPanelStyle}>
-                    <LegacyResultDetailView
-                        resultId={resultId}
-                        onReturn={() => navigate(-1)}
-                    />
+                    {bookResultAddress && profile?.role === 'teacher' ? (
+                        <BookResultAdapter
+                            routeHandle={resultId}
+                            viewerRole="teacher"
+                            viewerId={user?.uid}
+                        />
+                    ) : bookResultAddress ? (
+                        <div role="alert" style={bookAccessDeniedStyle}>
+                            This Activity result is available only to its student or current Homework teacher.
+                        </div>
+                    ) : (
+                        <LegacyResultDetailView
+                            resultId={resultId}
+                            onReturn={() => navigate(-1)}
+                        />
+                    )}
                 </div>
             </div>
         </div>
@@ -156,6 +181,14 @@ const teacherShellContentStyle: React.CSSProperties = {
 const teacherShellPanelStyle: React.CSSProperties = {
     maxWidth: '1200px',
     margin: '0 auto',
+};
+
+const bookAccessDeniedStyle: React.CSSProperties = {
+    padding: '1rem',
+    border: '1px solid #efcaca',
+    borderRadius: '0.75rem',
+    background: '#fff5f5',
+    color: '#8a3131',
 };
 
 export default ResultDetailPage;

@@ -1,0 +1,83 @@
+{
+  "ticket": 74,
+  "recordedAt": "2026-07-30T09:50:00.000Z",
+  "result": "PASS_LOCAL_CLOSURE_EVIDENCE_COMPLETE",
+  "selection": {
+    "roadmapPhase": "Runtime",
+    "primary": 74,
+    "graphArtifact": "artifacts/prd0062-graph-20260730-ticket59-target-destination-contract.json",
+    "selectionArtifact": "artifacts/prd0062-selection-20260730-ticket74-schedule-seam-repair.json",
+    "allDirectAndTransitivePrerequisitesClosed": true,
+    "downstreamLeverage": 52
+  },
+  "closureContradiction": [
+    "The prior schedule-policy port received only the complete Delivery binding and could not distinguish Activity-specific windows within one Homework binding.",
+    "Draft-state reads bypassed the state schedule operation.",
+    "Schedule decisions could not distinguish denial, stale authority conflict, and unavailable authority or carry a bounded revalidation identity.",
+    "Interaction membership was resolved only for submit, so state and autosave could pass an unvalidated Interaction to policy and persistence.",
+    "Draft records did not carry bindingRevision and stale binding or Activity identities could be returned or submitted.",
+    "Runtime authority objects were validated but serialized without an explicit allowlist projection."
+  ],
+  "repairs": [
+    "Schedule policy receives the authenticated actor plus exact Placement, Activity, Activity Version, and Interaction target.",
+    "A required server-side target resolver proves Interaction membership in the immutable Activity before state, autosave, or submit policy and repository access; missing, failed, or mismatched resolution fails closed.",
+    "Draft reads use operation state and the same target validation and policy boundary as mutations.",
+    "Allowed, denied, conflict, and unavailable outcomes use a bounded decision contract with versioned schedule authority.",
+    "Homework mutations revalidate schedule authority immediately before repository mutation and reject changed authority revisions with no write.",
+    "Schedule authority is projected to exactly scheduleSchemaVersion, resolverVersion, policyRevision, authorityRevision, and evaluatedAt before trusted context or browser error exposure.",
+    "Draft records now persist bindingRevision; Worker and both repository implementations reject missing or mismatched binding, revision, recipient, context, Placement, Activity Version, or Interaction identity.",
+    "Browser draft parsing requires the exact bindingRevision and rejects legacy rows that omit it.",
+    "#59 received the destination-first canonical production Activity/Interaction resolver-injection contract; #74 retains local port, ordering, and conformance ownership."
+  ],
+  "verification": [
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-runtime-authorization.test.ts test/book-runtime-worker.test.ts test/book-runtime-canonical-composition.test.ts test/book-runtime-repository.test.ts test/book-runtime-terminal-submit.test.ts test/book-runtime-command-schema.test.ts test/book-runtime-route-integration.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "result": "PASS: 7 files, 44 tests, 0 type errors"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/book-activity/activityRuntime.browser.test.ts src/hooks/book-runtime/useBookActivityRuntime.test.tsx src/services/book-activity/activityDomain.service.test.ts src/services/book-activity/activityDomain.property.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "result": "PASS after isolated rerun: 4 files, 35 tests, 0 type errors; one concurrent build-contention timeout was discarded as no result"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/__tests__/security/bookRuntimeRuleFragment.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "result": "PASS: 1 file, 2 tests, 0 type errors"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-route-manifest.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "result": "PASS: 1 file, 24 tests, 0 type errors"
+    },
+    {
+      "command": "npm run lint -- <twelve scoped runtime/browser source and test paths>",
+      "result": "PASS: ESLint and Mantine boundary"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs vite . build",
+      "result": "PASS: Vite production build, 9448 modules transformed, built in 2m 40s"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --config wrangler.jsonc --dry-run",
+      "result": "PASS: 994.86 KiB upload / 188.35 KiB gzip; BOOK_RUNTIME_ROUTES_ENABLED and every Book/trusted route remain disabled"
+    },
+    {
+      "command": "strict UTF-8 scan and git diff --check over the active seam",
+      "result": "PASS"
+    },
+    {
+      "command": "independent read-only review with gpt-5.6-luna at x-high reasoning, no service-tier override",
+      "result": "PASS after two repair rounds; no actionable finding remains"
+    }
+  ],
+  "destinationProof": {
+    "59": "Canonical production Activity Version/Interaction resolver injection; re-audit immediately after #74 closes and reopen if still absent.",
+    "87": "Nested Homework schedule semantics and effective-window policy.",
+    "118": "Assembled generated-rules emulator/hash/readback/rollback proof.",
+    "134": "Activated deployed/canary identity, disposable rows, telemetry, cleanup, and operational rollback."
+  },
+  "safetyState": {
+    "03B": "DISABLED",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "privateB2": "DISABLED_PENDING_ACCEPTANCE",
+    "trustedActions": "DISABLED_BY_DEFAULT",
+    "productionDeploymentPerformed": false
+  }
+}

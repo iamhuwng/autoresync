@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-07-30",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket74-repair-ready.json",
+  "graphHash": "6cf3563e64743f8eb79fbccb11051ebde67ac463ca26701ff2adad45a777277f",
+  "selectedTicket": 74,
+  "roadmapPhase": "runtime",
+  "selectionStatus": "PRIMARY_REPAIR_CONTINUES",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 49,
+    "closedCount": 63,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 74, 129, 131, 132, 133]
+  },
+  "closedDirectPrerequisites": [31, 34, 59, 72],
+  "openTransitivePrerequisites": [],
+  "downstreamLeverage": 52,
+  "acceptanceReadiness": "READY_FOR_LOCAL_REPAIR_CLOSURE",
+  "destinationFirstTransfers": [
+    {
+      "destination": 118,
+      "proof": "assembled generated database.rules.json, Firebase emulator enforcement, active rules hash/readback, and generated-rules rollback"
+    },
+    {
+      "destination": 59,
+      "proof": "canonical production durable repository, Delivery resolver, service-identity, and schedule-policy injection"
+    },
+    {
+      "destination": 134,
+      "proof": "deployed/canary runtime identity, disposable rows, telemetry, cleanup, and operational rollback"
+    }
+  ],
+  "retainedProof": [
+    "durable Firebase RTDB scoped ETag-CAS repository",
+    "atomic draft/attempt/result/completion/index aggregate",
+    "idempotency and conflicting-key denial",
+    "bounded reads and timeout/retry limits",
+    "service-identity validation before writes",
+    "fragment-level sensitive-field and direct/ancestor denial",
+    "local Worker/route/authorization/schedule conformance",
+    "disabled route and local rollback boundary"
+  ],
+  "safetyState": {
+    "03B": "DISABLED",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "privateB2": "DISABLED_PENDING_ACCEPTANCE",
+    "trustedActions": "DISABLED_BY_DEFAULT"
+  }
+}

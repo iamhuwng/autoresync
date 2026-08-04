@@ -13,22 +13,32 @@ import {
     type ReadingPassageHomeworkCandidate,
 } from '../../services/reading-v2/readingV2PassageHomework.service';
 import type {
-    HomeworkConfig,
+  HomeworkConfig,
     HomeworkContentRef,
     HomeworkMaterialSkill,
     HomeworkMaterialType,
     HomeworkTarget,
     ReadingPassageHomeworkSet,
-    ReadingPassageHomeworkSnapshot,
+  ReadingPassageHomeworkSnapshot,
 } from '../../types/homework.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
+import { FEATURE_IDS } from '../../config/featureRegistry';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import BookHomeworkPreviewPanel, {
+    type BookHomeworkScheduleEditor,
+} from './BookHomeworkPreviewPanel';
+import BookScheduleEditor from './BookScheduleEditor';
+import type {
+    BookHomeworkPreviewDraft,
+    BookHomeworkPreviewSource,
+} from '../../services/book-homework/bookHomeworkPreview.service';
 import { resolvePreset, getContextDefaults } from '../../utils/antiCheatPresets';
 // @ts-ignore - JS service
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
 import { getClasses, getClass } from '../../services/classManager';
 import { THCSHomeworkAssignDialog } from '../thcs-editor/THCSHomeworkAssignDialog';
 import TemplateSaveModal from './TemplateSaveModal';
-import ToastNotification from '../modern/ToastNotification';
+import ToastNotification, { toast } from '../modern/ToastNotification';
 import { hasGoogleDriveAudio } from '../../services/retirement/retiredMaterialClassifier';
 import './HomeworkCreateModal.css';
 
@@ -47,6 +57,9 @@ interface HomeworkCreateModalProps {
     };
     preselectedContentRef?: HomeworkContentRef;
     createHomeworkAssignment?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => Promise<string>;
+    preselectedBookHomework?: BookHomeworkPreviewSource;
+    onBookHomeworkConfirm?: (draft: BookHomeworkPreviewDraft) => Promise<void> | void;
+    onBookHomeworkForkBeforeAssign?: () => void;
 }
 
 type Step = 'material' | 'target' | 'config' | 'review';
@@ -155,9 +168,13 @@ export function HomeworkCreateModal({
     preselectedReadingPassageSet,
     preselectedContentRef,
     createHomeworkAssignment,
+    preselectedBookHomework,
+    onBookHomeworkConfirm,
+    onBookHomeworkForkBeforeAssign,
 }: HomeworkCreateModalProps) {
     const { user } = useAuth();
     const { tags: availableTags } = useHomeworkTags();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
 
     // Step management
     const [currentStep, setCurrentStep] = useState<Step>('material');
@@ -218,11 +235,22 @@ export function HomeworkCreateModal({
     // Load materials
     useEffect(() => {
         if (isOpen) {
-            loadMaterials();
-            loadClasses();
-            loadStudents();
+            if (!preselectedBookHomework) {
+                loadMaterials();
+                loadClasses();
+                loadStudents();
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, preselectedBookHomework]);
+
+    useEffect(() => {
+        if (isOpen && preselectedBookHomework) {
+            trackAction('bookHomeworkPreviewOpened', {
+                bookId: preselectedBookHomework.delivery.book.bookId,
+                publicationId: preselectedBookHomework.delivery.book.publicationId,
+            });
+        }
+    }, [isOpen, preselectedBookHomework, trackAction]);
 
     const effectivePreselectedMaterialId = preselectedMaterial
         ? preselectedMaterial.id
@@ -476,6 +504,70 @@ export function HomeworkCreateModal({
         }
     };
 
+    const renderBookScheduleEditor: BookHomeworkScheduleEditor = (props) => (
+        <BookScheduleEditor {...props} />
+    );
+
+    const renderLegacyScheduleEditor = ({
+        value,
+        onChange,
+    }: Pick<Parameters<BookHomeworkScheduleEditor>[0], 'value' | 'onChange'>) => (
+        <div className="additional-fields">
+            <div className="field-group">
+                <label className="field-label">📅 Available From</label>
+                <input
+                    aria-label="Available From"
+                    type="datetime-local"
+                    className="config-input"
+                    value={value.availableFrom}
+                    onChange={(event) => onChange({ ...value, availableFrom: event.target.value })}
+                />
+                <p className="config-hint">Leave empty to make available immediately</p>
+            </div>
+            <div className="field-group">
+                <label className="field-label">⏰ Due Date *</label>
+                <input
+                    aria-label="Due Date"
+                    type="datetime-local"
+                    className="config-input"
+                    value={value.dueDate}
+                    onChange={(event) => onChange({ ...value, dueDate: event.target.value })}
+                    required
+                />
+            </div>
+        </div>
+    );
+
+    const handleBookHomeworkCancel = (): void => {
+        toast.info('Book Homework preview canceled; no assignment or Delivery binding changed.');
+        handleClose();
+    };
+
+    const handleBookHomeworkConfirm = async (draft: BookHomeworkPreviewDraft): Promise<void> => {
+        if (!onBookHomeworkConfirm) {
+            setError('Book Homework assignment handoff is not configured. No assignment was created.');
+            toast.warning('Book Homework handoff is not configured; no assignment was created.');
+            return;
+        }
+
+        setSubmitting(true);
+        setError(null);
+        try {
+            await onBookHomeworkConfirm(draft);
+            toast.success('Book Homework preview confirmed for assignment handoff.');
+            onSuccess();
+            handleClose();
+        } catch (err) {
+            const message = err instanceof Error && err.message
+                ? err.message
+                : 'Book Homework assignment handoff failed.';
+            setError(message);
+            toast.error(message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleSaveAsTemplate = () => {
         setTemplateSaveError(null);
         setShowTemplateSaveModal(true);
@@ -591,7 +683,7 @@ export function HomeworkCreateModal({
                 </div>
 
                 {/* Progress Steps */}
-                <div className="progress-steps">
+                {!preselectedBookHomework && <div className="progress-steps">
                     <div className={`step ${currentStep === 'material' ? 'active' : ''} ${['target', 'config', 'review'].includes(currentStep) ? 'completed' : ''}`}>
                         <div className="step-number">1</div>
                         <div className="step-label">Material</div>
@@ -611,7 +703,7 @@ export function HomeworkCreateModal({
                         <div className="step-number">4</div>
                         <div className="step-label">Review</div>
                     </div>
-                </div>
+                </div>}
 
                 {/* Error Display */}
                 {error && (
@@ -622,6 +714,17 @@ export function HomeworkCreateModal({
 
                 {/* Step Content */}
                 <div className="modal-content">
+                    {preselectedBookHomework ? (
+                        <BookHomeworkPreviewPanel
+                            source={preselectedBookHomework}
+                            renderScheduleEditor={renderBookScheduleEditor}
+                            onConfirm={handleBookHomeworkConfirm}
+                            onCancel={handleBookHomeworkCancel}
+                            onForkBeforeAssign={onBookHomeworkForkBeforeAssign}
+                            onAction={trackAction}
+                        />
+                    ) : (
+                        <>
                     {/* Step 1: Material Selection */}
                     {currentStep === 'material' && (
                         <div className="step-content">
@@ -768,30 +871,13 @@ export function HomeworkCreateModal({
                             <h3 className="step-title">⚙️ Configure Settings</h3>
 
                             {/* ── Scheduling (all materials) ─────────────── */}
-                            <div className="additional-fields">
-                                <div className="field-group">
-                                    <label className="field-label">📅 Available From</label>
-                                    <input
-                                        aria-label="Available From"
-                                        type="datetime-local"
-                                        className="config-input"
-                                        value={availableFrom}
-                                        onChange={(e) => setAvailableFrom(e.target.value)}
-                                    />
-                                    <p className="config-hint">Leave empty to make available immediately</p>
-                                </div>
-                                <div className="field-group">
-                                    <label className="field-label">⏰ Due Date *</label>
-                                    <input
-                                        aria-label="Due Date"
-                                        type="datetime-local"
-                                        className="config-input"
-                                        value={dueDate}
-                                        onChange={(e) => setDueDate(e.target.value)}
-                                        required
-                                    />
-                                </div>
-                            </div>
+                            {renderLegacyScheduleEditor({
+                                value: { availableFrom, dueDate, scheduleRules: [] },
+                                onChange: (next) => {
+                                    setAvailableFrom(next.availableFrom);
+                                    setDueDate(next.dueDate);
+                                },
+                            })}
 
                             {/* ── Writing-specific config ────────────────── */}
                             {selectedMaterial?.skill === 'writing' && (
@@ -1039,10 +1125,12 @@ export function HomeworkCreateModal({
                             </div>
                         </div>
                     )}
+                        </>
+                    )}
                 </div>
 
                 {/* Footer */}
-                <div className="modal-footer">
+                {!preselectedBookHomework && <div className="modal-footer">
                     <button
                         className="cancel-btn"
                         onClick={handleClose}
@@ -1084,7 +1172,7 @@ export function HomeworkCreateModal({
                             </button>
                         )}
                     </div>
-                </div>
+                </div>}
             </div>
 
             {/* Student Selector Modal */}

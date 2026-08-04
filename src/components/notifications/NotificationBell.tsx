@@ -8,12 +8,19 @@ import {
 import { Notification } from '../../types/notification.types';
 import NotificationPanel from './NotificationPanel';
 import { NotificationSettingsModal } from './NotificationSettingsModal';
+import { useNavigation } from '../../hooks/useNavigation';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { resolveNotificationDestination } from '../../services/notificationDestinationResolver';
+import type { NotificationResolverRole } from '../../services/notificationDestinationResolver';
 
 interface NotificationBellProps {
     userId: string;
+    role?: NotificationResolverRole;
 }
 
-export function NotificationBell({ userId }: NotificationBellProps) {
+export function NotificationBell({ userId, role = 'student' }: NotificationBellProps) {
+    const { currentPath, navigateTo } = useNavigation(role);
+    const { trackAction } = useFeatureTracking();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [opened, setOpened] = useState(false);
     const [settingsOpened, setSettingsOpened] = useState(false);
@@ -54,7 +61,31 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     };
 
     const handleMarkAllRead = async () => {
+        trackAction('markAllFeedRead', { source: 'notification_bell' });
         await markAllNotificationsAsRead(userId);
+    };
+
+    const handleOpenNotification = async (notification: Notification) => {
+        const resolution = await resolveNotificationDestination(notification, {
+            userId,
+            currentPath,
+            role,
+        });
+
+        trackAction('openFeedLink', {
+            source: 'notification_bell',
+            notificationId: notification.id,
+            outcome: resolution.status,
+            ...(resolution.status === 'allowed'
+                ? { destination: resolution.destination }
+                : { reason: resolution.reason }),
+        });
+
+        if (resolution.status === 'allowed') {
+            navigateTo(resolution.destination, resolution.params, { reason: 'notification_open' });
+        }
+
+        return resolution;
     };
 
     return (
@@ -70,6 +101,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                         padding: '0.375rem',
                         cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        minWidth: '44px', minHeight: '44px',
                         transition: 'background 0.2s, color 0.2s'
                     }}
                     aria-label="Notifications"
@@ -102,6 +134,22 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                         notifications={notifications}
                         onMarkAsRead={handleMarkAsRead}
                         onMarkAllRead={handleMarkAllRead}
+                        onOpenNotification={handleOpenNotification}
+                        onSeeAll={() => {
+                            const destination = role === 'student'
+                                ? 'STUDENT_DASHBOARD'
+                                : role === 'admin'
+                                    ? 'ADMIN_DASHBOARD'
+                                    : 'TEACHER_GRADING';
+                            trackAction('openFeedLink', {
+                                source: 'notification_see_all',
+                                destination,
+                            });
+                            navigateTo(destination, undefined, {
+                                reason: 'notifications_see_all',
+                                state: { view: 'feed' },
+                            });
+                        }}
                         onClose={() => setOpened(false)}
                         onOpenSettings={() => {
                             setOpened(false);

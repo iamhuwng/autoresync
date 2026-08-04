@@ -10,6 +10,8 @@ const {
   getTestFromFirebaseMock,
   firebaseGetMock,
   firebaseRefMock,
+  getBookHomeworkProgressMock,
+  isBookHomeworkAssignmentMock,
   navigateMock,
   startAttemptMock,
   useHomeworkSubmissionMock,
@@ -26,6 +28,8 @@ const {
   getTestFromFirebaseMock: vi.fn(),
   firebaseGetMock: vi.fn(),
   firebaseRefMock: vi.fn(),
+  getBookHomeworkProgressMock: vi.fn(),
+  isBookHomeworkAssignmentMock: vi.fn(),
   navigateMock: vi.fn(),
   startAttemptMock: vi.fn(),
   useHomeworkSubmissionMock: vi.fn(),
@@ -43,6 +47,14 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../hooks/useHomeworkSubmission', () => ({
   useHomeworkSubmission: (...args: unknown[]) => useHomeworkSubmissionMock(...args),
+}));
+
+vi.mock('../services/homeworkSubmissionService', () => ({
+  getBookHomeworkProgress: (...args: unknown[]) => getBookHomeworkProgressMock(...args),
+}));
+
+vi.mock('../services/book-homework/bookHomeworkManifest.service', () => ({
+  isBookHomeworkAssignment: (...args: unknown[]) => isBookHomeworkAssignmentMock(...args),
 }));
 
 vi.mock('../contexts/AuthContext', () => ({
@@ -151,6 +163,8 @@ describe('StudentHomeworkDetailPage', () => {
       exists: () => false,
       val: () => null,
     });
+    getBookHomeworkProgressMock.mockResolvedValue(null);
+    isBookHomeworkAssignmentMock.mockReturnValue(false);
 
     useHomeworkSubmissionMock.mockReturnValue({
       homework: {
@@ -452,5 +466,169 @@ describe('StudentHomeworkDetailPage', () => {
     fireEvent.click(resumeButton);
 
     expect(navigateTo).toHaveBeenCalled();
+  });
+
+  it('renders scoped Book progress for a partial submission without a whole-Book submit action', async () => {
+    isBookHomeworkAssignmentMock.mockReturnValue(true);
+    getBookHomeworkProgressMock.mockResolvedValue({
+      schemaVersion: 1,
+      manifestVersionId: 'manifest-1',
+      recipientId: 'student-1',
+      contextId: 'hw-1',
+      deliveryBindingId: 'delivery-1',
+      bindingRevision: 1,
+      completion: {
+        submittedCount: 1,
+        requiredCount: 2,
+        status: 'in_progress',
+        isComplete: false,
+      },
+      grading: {
+        scoredCount: 1,
+        pendingReviewCount: 0,
+        ungradedSubmittedCount: 0,
+      },
+      activities: [{
+        bindingId: 'binding-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        activityVersionId: 'activity-1-v1',
+        order: 1,
+        contextMode: 'required',
+        submitted: true,
+        gradingState: 'scored',
+        score: { earnedScore: 1, maximumScore: 1 },
+      }, {
+        bindingId: 'binding-2',
+        placementId: 'placement-2',
+        activityId: 'activity-2',
+        activityVersion: 1,
+        activityVersionId: 'activity-2-v1',
+        order: 2,
+        contextMode: 'required',
+        submitted: false,
+        gradingState: 'ungraded',
+      }],
+      excludedHistoricalRows: [],
+    });
+    useHomeworkSubmissionMock.mockReturnValue({
+      homework: {
+        id: 'hw-1',
+        title: 'Book Homework',
+        assignmentKind: 'book_activity_bundle',
+        bookManifest: {},
+      },
+      currentSubmission: null,
+      allSubmissions: [],
+      bestSubmission: null,
+      maxAttempts: null,
+      attemptsUsed: 0,
+      attemptsRemaining: null,
+      isLoading: false,
+      error: null,
+      isOverdue: false,
+      isAvailable: true,
+      canStartAttempt: false,
+      hasInProgressAttempt: false,
+      startAttempt: startAttemptMock,
+    });
+
+    renderPage();
+
+    const panel = await screen.findByTestId('student-book-homework-progress');
+    expect(panel).toHaveTextContent('1 of 2');
+    expect(panel).toHaveTextContent('In progress');
+    expect(panel).toHaveTextContent('Activity score: 1 / 1');
+    expect(panel).toHaveTextContent('Activity 2: activity-2');
+    expect(panel).not.toHaveTextContent(/Book score|Book percentage|Book band/i);
+    expect(panel.querySelector('button')).toHaveTextContent('Back to Homework List');
+    expect(screen.queryByRole('button', { name: /submit.*book/i })).not.toBeInTheDocument();
+    expect(getBookHomeworkProgressMock).toHaveBeenCalledWith('hw-1');
+  });
+
+  it('keeps completed Book completion distinct from pending review and historical rows', async () => {
+    isBookHomeworkAssignmentMock.mockReturnValue(true);
+    getBookHomeworkProgressMock.mockResolvedValue({
+      schemaVersion: 1,
+      manifestVersionId: 'manifest-1',
+      recipientId: 'student-1',
+      contextId: 'hw-1',
+      deliveryBindingId: 'delivery-1',
+      bindingRevision: 1,
+      completion: {
+        submittedCount: 2,
+        requiredCount: 2,
+        status: 'completed',
+        isComplete: true,
+      },
+      grading: {
+        scoredCount: 1,
+        pendingReviewCount: 1,
+        ungradedSubmittedCount: 0,
+      },
+      activities: [{
+        bindingId: 'binding-1',
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        activityVersionId: 'activity-1-v1',
+        order: 1,
+        contextMode: 'required',
+        submitted: true,
+        gradingState: 'scored',
+        score: { earnedScore: 1, maximumScore: 1, displayScore: '1 / 1' },
+      }, {
+        bindingId: 'binding-2',
+        placementId: 'placement-2',
+        activityId: 'activity-2',
+        activityVersion: 1,
+        activityVersionId: 'activity-2-v1',
+        order: 2,
+        contextMode: 'required',
+        submitted: true,
+        gradingState: 'review_required',
+      }],
+      excludedHistoricalRows: [{
+        reason: 'excluded-binding',
+        source: 'manifest-binding',
+        activityBindingId: 'historical-binding',
+        placementId: 'historical-placement',
+        activityId: 'activity-old',
+        activityVersion: 1,
+        activityVersionId: 'activity-old-v1',
+      }],
+    });
+    useHomeworkSubmissionMock.mockReturnValue({
+      homework: {
+        id: 'hw-1',
+        title: 'Book Homework',
+        assignmentKind: 'book_activity_bundle',
+        bookManifest: {},
+      },
+      currentSubmission: null,
+      allSubmissions: [],
+      bestSubmission: null,
+      maxAttempts: null,
+      attemptsUsed: 0,
+      attemptsRemaining: null,
+      isLoading: false,
+      error: null,
+      isOverdue: false,
+      isAvailable: true,
+      canStartAttempt: false,
+      hasInProgressAttempt: false,
+      startAttempt: startAttemptMock,
+    });
+
+    renderPage();
+
+    const panel = await screen.findByTestId('student-book-homework-progress');
+    expect(panel).toHaveTextContent('Complete');
+    expect(panel).toHaveTextContent('1 pending review');
+    expect(panel).toHaveTextContent('Pending review');
+    expect(panel).toHaveTextContent('Historical / excluded Activities');
+    expect(panel).toHaveTextContent('Excluded from current completion: Excluded Binding');
+    expect(panel).not.toHaveTextContent(/Book (score|percentage|band)/i);
   });
 });

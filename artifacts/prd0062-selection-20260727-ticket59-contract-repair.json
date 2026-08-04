@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-07-27T06:41:00Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260727-ticket59-contract-repair.json",
+  "issueHash": "59e5260bf7cb5ab1e9aeac4c67a9513764d3683707bf088c6b67d596427d1f80",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 77,
+    "closedCount": 35,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": "112/112",
+    "graphClearFrontier": [49, 50, 59, 60, 61, 65, 66, 70, 129, 130, 131, 132, 133]
+  },
+  "procedureHealthCheck": {
+    "hardDependenciesRepresentImplementationNecessity": true,
+    "downstreamProofIncorrectlyBlockingProducer": "repaired",
+    "ownershipAndProofClass": "destination-first transfer added to #128 and #134 before narrowing #59",
+    "browserAndDeploymentLayering": "repaired: #59 owns route composition/readback/fail-closed probes/rollback; #128/#134 own positive activated drills",
+    "riskReduction": "repaired issue contract prevents enabling gates or provisioning identities merely to close the route producer"
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "reason": "Graph-clear but private B2 provisioning/browser proof is not executable in current shell; no B2/BACKBLAZE authority is present."
+    },
+    {
+      "ticket": 50,
+      "reason": "Graph-clear but shares private B2 lifecycle-cleanup/disposable exact-version proof authority with #49."
+    },
+    {
+      "ticket": 60,
+      "reason": "Later teacher workflow descendant; #59 route producer now has stronger critical-path leverage and matching executable acceptance gates."
+    },
+    {
+      "ticket": 61,
+      "reason": "Later teacher workflow; trusted Activity/Assembly command deployment proof depends on route foundation."
+    },
+    {
+      "tickets": [65, 66, 70],
+      "reason": "Runtime/operations tickets; later than unresolved route foundation and require scoped publication/Assembly deployment authority."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "reason": "Final closure phase ineligible while foundation/runtime/teacher/student/operations tickets remain open."
+    }
+  ],
+  "selection": {
+    "ticket": 59,
+    "title": "PRD0062 09D — Integrate Book Worker route dispatch",
+    "roadmapPhase": "foundation/runtime route foundation",
+    "closedPrerequisites": [44, 51, 52, 58],
+    "downstreamLeverage": 37,
+    "acceptanceReadiness": "executable after destination-first contract repair",
+    "requiredAuthority": [
+      "Cloudflare media profile for Wrangler dry-run/deploy/readback",
+      "No 50A/03B/trusted-action enablement required"
+    ],
+    "selectionReason": "#59 is the earliest unresolved route foundation producer with all direct/transitive prerequisites closed; revised gates match available route composition, fail-closed deployed probes, active Worker readback, and rollback evidence."
+  }
+}

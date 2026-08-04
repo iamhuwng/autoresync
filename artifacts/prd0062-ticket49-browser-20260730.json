@@ -1,0 +1,39 @@
+{
+  "ticket": 49,
+  "generatedAt": "2026-07-30",
+  "role": "teacher",
+  "url": "http://localhost:5173/lobby",
+  "fixture": {
+    "bookId": "book-prd0062-ticket49-1785372769166",
+    "title": "PRD0062 Ticket49 B2 acceptance 1785372769166",
+    "sourceFile": "artifacts/prd0062-ticket-06b/browser/upload-fixture.pdf",
+    "bytes": 578,
+    "physicalPages": 2,
+    "sha256Prefix": "0d59c5ed76a5d7ef"
+  },
+  "steps": [
+    "Teacher authenticated session opened the disposable private PDF Book.",
+    "Browser file access was enabled and the PDF chooser completed.",
+    "Local PDF inspection completed with exact size, two physical pages, and SHA-256 claim.",
+    "Capacity probe was refreshed successfully: HTTP 200, state complete, status healthy.",
+    "Upload authorization was retried through the canonical preview Worker."
+  ],
+  "result": "CLOSURE_BLOCKED",
+  "failure": {
+    "classification": "trusted-rollout-authority",
+    "evidence": [
+      "No new operation was written to book_source_upload_accounts/book_b2_primary.",
+      "The canonical Worker version readback contains BOOK_SOURCE_UPLOAD_ROUTES_ENABLED=enabled but no BOOK_ACTIVITY_ROLLOUT_CONFIG_JSON or BOOK_ACTIVITY_ROLLOUT_ENVIRONMENT binding.",
+      "The trusted upload seam evaluates the absent rollout policy as deny-by-default."
+    ],
+    "owner": "#126 activation owner / canonical rollout authority",
+    "requiredAction": "Provide an explicitly approved disposable preview rollout contract or leave the gate denied; do not enable #50A by inference.",
+    "impact": "Tiny upload, replay, provider-version readback, completion, and integrated cleanup/rollback evidence cannot proceed until the authorized preview gate exists."
+  },
+  "safetyState": {
+    "03B": "DISABLED_BY_DEFAULT",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "privateB2": "PREVIEW_PROVISIONED_NOT_ACTIVATED",
+    "masterKey": "OFFLINE_PROVISIONING_ONLY"
+  }
+}

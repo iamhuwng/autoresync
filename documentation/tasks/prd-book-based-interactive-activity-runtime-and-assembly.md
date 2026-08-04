@@ -1,3 +1,7 @@
+> **DORMANT PRD0062 HISTORICAL EVIDENCE - NOT CURRENT IMPLEMENTATION AUTHORITY**
+>
+> Preserved for possible future reimplementation. Read the [PRD0062b dormant status](PRD0062b/DORMANT-STATUS-2026-07-18.md) first. The body below records dated design history; it does not describe current implementation, deployment, task closure, or mutation authority. Reuse requires fresh baseline validation and separate approval.
+
 # PRD: Book-Based Interactive Activity Runtime and Assembly Workspace
 
 ## 0. Document authority
@@ -15,8 +19,6 @@ This PRD is the current source of truth for the feature discussed in the session
 This revision also incorporates the continued schema grilling after the first PRD draft. In particular, it replaces the temporary generic Task Group/Task Set proposal with one atomic generic Activity model. Existing Reading V2 and Listening concepts remain prior art and independent feature contracts; they are not replaced or modified by this PRD.
 
 This is a requirements document, not evidence that the feature is implemented. Every storage path, security rule, backend extension, route, and UI action named here must still be implemented and verified.
-
-This revision incorporates the approved peer-review report that classified the design as coherent but too large for one normal V1 implementation. The PRD remains the full product contract; implementation must be split into hard release packets with explicit storage, rules, UI, migration, test, and browser-proof contracts before code work begins.
 
 Normative words:
 
@@ -349,61 +351,14 @@ The platform term is **Activity**. A source book may retain words such as “Exe
 27. Teacher pages keep `TeacherHeader` attached to the shell top edge; page padding belongs inside `main`.
 28. Every new route and user action must be registered and observable.
 29. Every new RTDB node or Firestore collection requires explicit rules, indexes where needed, backup coverage, and emulator/rule tests.
-30. This PRD is the full product contract, not one implementation packet. Codex MUST NOT implement all phases in one branch.
-31. Each implementation packet MUST define its storage contract, rules contract, UI contract, migration/compatibility contract, test contract, and browser-proof checklist before source changes.
-32. The first implementation packet MUST create or deepen the central Material Capability Registry before adding `interactive-activity` to UI, assignment, launch, result, or security flows.
-33. Do not scatter `kind === 'interactive-activity'` checks across components or services.
-34. Do not squeeze Book Homework into legacy one-material `HomeworkSubmission` score fields.
-35. Do not store Book completion percentage in academic score/percentage fields.
-36. Do not reuse auto-submit-capable anti-cheat presets directly for Book Homework.
-37. New Book Activity assembly/runtime logic MUST be fully typed. Existing `// @ts-nocheck` Book editor seams must not become the place where new Activity placement, manifest, source, or homework invariants are enforced without a typed wrapper or cleanup.
 
 ---
 
 ## 7. Release scope and internal phasing
 
-Book/chapter homework is required by the full product contract. It is not deferred to a separate product decision.
+Book/chapter homework is required. It is not deferred to a separate product decision.
 
-The implementation MUST be delivered through internal phases. The feature is not product-complete until the V1 acceptance criteria in this PRD pass, but those acceptance criteria MUST NOT be treated as permission to implement everything in one branch.
-
-### Implementation guardrail
-
-Codex MUST treat this PRD as a master product contract, not a single task packet. Each implementation phase must produce, before broad coding begins:
-
-1. storage contract;
-2. rules/security contract;
-3. UI contract;
-4. test contract;
-5. migration/compatibility check;
-6. browser-proof checklist.
-
-No implementation packet may claim completion if source behavior, tests, taskboxes, findings, traceability, architecture/current-state docs, and dirty-path scope disagree.
-
-### First shippable pilot cut line
-
-The first shippable pilot is limited to:
-
-- central Material Capability Registry;
-- `interactive-activity` material kind foundation;
-- `unit` Book node support;
-- typed Activity schema and validation;
-- source PDF version metadata;
-- manifest/page mapping;
-- Book Assembly Workspace for one Unit;
-- source-assisted/structured runtime preview or Solo runtime;
-- student-safe Activity projection;
-- Activity autosave/submission/result for the pilot surface.
-
-The first pilot MUST NOT include:
-
-- whole-Book or structural-subtree homework;
-- selective homework update;
-- review checkpoints;
-- Course/Class delivery;
-- public playable source-assisted Books;
-- anti-cheat default rollout.
-
-Later phases may implement those required V1 product capabilities only after the earlier storage/rules/runtime contracts are stable.
+The implementation may be delivered through internal phases, but the feature is not product-complete until the V1 acceptance criteria in this PRD pass.
 
 ### Phase A: domain and security foundation
 
@@ -580,27 +535,15 @@ Hardcoded checks such as:
 kind === 'grammar-worksheet' || kind === 'vocabulary-set' || kind === 'interactive-activity'
 ```
 
-must not spread through callers. Use a central capability registry before adding `interactive-activity` to any UI, homework, launch, result, or rule path.
+must not spread through callers. Use a central capability registry:
 
-Minimum capability entry:
-
-```ts
-interface MaterialCapabilityEntry {
-  materialKind: MaterialCatalogMaterialKind;
-  playable: boolean;
-  assignable: boolean;
-  embeddableInBook: boolean;
-  gradable: boolean;
-  supportsSourceContext: boolean;
-  supportsPlacementScopedProgress: boolean;
-  launchAdapterId?: string;
-  assignmentAdapterId?: string;
-  resultAdapterId?: string;
-  projectionAdapterId?: string;
-}
+```text
+playable
+assignable
+embeddable
+gradable
+supportsSourceContext
 ```
-
-The current repository may already have a material integration registry, but that is not automatically sufficient. Implementation MUST verify the registry can answer capability questions for picker filtering, publish validation, assignment eligibility, student launch routing, result ownership, and security-rule projection before using it as the Activity capability authority.
 
 ### 9.2 Three-layer data separation
 
@@ -883,29 +826,14 @@ In source-assisted mode:
 - context requirement must be `required`;
 - mapped Book pages must exist;
 - question labels on the right must correspond clearly to the PDF;
-- each response control must include minimum accessible metadata, including a question label, short accessible prompt, expected response shape, and relationship to the visible PDF label;
 - autosave, submission, scoring, review, and update behavior remain normal;
 - no custom per-Activity React renderer is created.
-
-Example source-assisted accessible metadata:
-
-```json
-{
-  "questionLabel": "1.3",
-  "accessiblePrompt": "Answer the blank labelled 1.3 on the left page.",
-  "responseShape": "short-text",
-  "sourceExerciseLabel": "Exercise 2",
-  "sourcePartLabel": "B"
-}
-```
-
-V1 does not require full PDF transcription, but the answer controls must remain understandable without relying on the PDF image alone.
 
 The external JSON producer selects the mode using the versioned prompt. The app validates technical consistency. Teacher preview remains available as the semantic verification surface.
 
 V1 does not require a separate source-assisted acknowledgement checkbox. A valid manifest, valid Activity JSON metadata, valid page mapping, and successful deterministic validation are sufficient for the normal publish gate.
 
-V1 correction path for a wrongly generated presentation mode is JSON re-import only. The Workspace may repair page mapping, but it MUST NOT override semantic `presentationMode` in UI. This avoids two sources of truth between Activity content and placement metadata.
+Whether V1 corrects a wrongly generated presentation mode through JSON re-import, a workspace override, or another controlled workflow remains unresolved.
 
 ### 9.8 V1 stimulus and asset boundary
 
@@ -1116,8 +1044,6 @@ Activity 5
 ```
 
 The UI MUST NOT show a second source/PDF ordering system beside app order. Descriptive titles preserve recognition. Hidden IDs preserve identity and historical links.
-
-Source labels MAY appear as helper metadata when needed to reduce student confusion, for example `Exercise 2 · Part B`, but they must not create an alternate ordering system or become identity. Canonical runtime order remains the app Activity order.
 
 ---
 
@@ -1434,8 +1360,6 @@ Then:
 
 Activity JSON does not need reimport when Activity content is unchanged.
 
-If `presentationMode = source-assisted` and page labels, physical page indexes, cropped ranges, page rotation, or page grouping changed, teacher preview approval is required even when stable keys match. The Activity may still be semantically unchanged, but the visual context can point to the wrong place.
-
 ### 12.6 Rare edge cases
 
 The reconciliation design must explicitly handle:
@@ -1452,12 +1376,7 @@ The reconciliation design must explicitly handle:
 - duplicate Activity JSON;
 - concurrent teacher edits;
 - publish failure after source processing;
-- retry after partial cross-system work;
-- password-protected or corrupted PDF;
-- scanned/image-only PDF;
-- rotated/landscape/mixed-size pages;
-- source page range accidentally includes answer-key pages;
-- signed URL expires during runtime refresh.
+- retry after partial cross-system work.
 
 Split/merge MUST NOT be silently inferred. Teacher must choose which existing Activity identity, if any, survives.
 
@@ -1698,19 +1617,6 @@ Required behavior:
 
 The implementation must use repo-safe async state patterns and avoid stale closures or undefined Firebase fields.
 
-Every autosave request must include at least:
-
-- student ID;
-- Activity ID;
-- Activity Version ID;
-- surface;
-- exact placement/delivery ID;
-- assignment binding revision when homework-owned;
-- attempt ID or draft ID;
-- client draft revision.
-
-If a teacher applies an update while the student has unsaved local answers, the server MUST reject stale autosaves into the new binding. The client must reload the current binding and preserve the previous draft/attempt under the old version or Review Checkpoint rules. Late autosaves MUST NOT overwrite new work.
-
 ### 14.10 Launch and delivery projection
 
 Book runtime MUST launch through the same asynchronous student entry pattern used by existing Solo Practice, Homework, and Course material.
@@ -1834,7 +1740,6 @@ Cross-context answer/feedback visibility policy:
 - When a teacher assigns a Book Activity with delayed/manual feedback, the app MUST warn if selected Activities are also available through Solo or if deterministic prior-attempt metadata shows students may already have seen feedback.
 - The warning is informational by default. Teacher may continue.
 - If secrecy matters, teacher should fork/copy the Activity for that assignment or placement so it receives a new Activity ID and separate result history.
-- V1 fork/copy entry point is the assignment preview warning. Additional fork entry points in Activity revision, Assembly Workspace, Course placement, or Affected Homework Review are V1.1 unless separately approved.
 - V1 does not lock Solo access automatically, because that would make Book assignment unexpectedly change unrelated practice access.
 
 Example:
@@ -1857,13 +1762,11 @@ V1 Book Homework MUST support teacher-configurable anti-cheat mode.
 
 This is not optional product polish. It is required because Book Homework may be assigned for accountable independent work, and students can otherwise leave the runtime to search for answer keys.
 
-Assignment intent and default:
+Default:
 
-- teacher must choose or confirm assignment intent: `accountable` or `practice`;
-- `accountable` Book Homework has anti-cheat/integrity mode ON by default;
-- `practice` Book Homework has anti-cheat/integrity mode OFF by default;
-- the create/assign UI must make the intent selector visible before the integrity toggle;
-- teacher may override the default only through the explicit assignment setting;
+- anti-cheat/integrity mode is ON by default for Book Homework;
+- teacher may turn it OFF only when the assignment is casual practice;
+- the create/assign UI must label the toggle clearly and explain what turning it off means;
 - disabling anti-cheat is stored in assignment metadata for audit.
 
 Scope:
@@ -1919,10 +1822,6 @@ Teacher result page shows integrity report.
 Teacher sees it after submission only.
 Student sees no post-submission integrity summary.
 ```
-
-Integrity events are evidence, not proof of misconduct. Teacher UI must use language such as `recorded events` or `integrity signals`, not `cheating`. Severity labels describe system confidence/risk, not a proven student offense.
-
-Book Homework MUST NOT reuse any existing anti-cheat preset or hook configuration that can auto-submit, auto-lock, nullify remaining attempts, zero a score, or block completion. If existing detection hooks are reused, a Book-specific adapter must force those behaviors off.
 
 Important limit:
 
@@ -2002,26 +1901,7 @@ The exact engine/runtime requires a technical spike. The choice must prove:
 - no dependency on legacy parser;
 - local and deployed authorization tests.
 
-The spike must explicitly test and document behavior for:
-
-- password-protected PDFs;
-- corrupted PDFs;
-- scanned/image-only PDFs;
-- rotated pages;
-- landscape pages;
-- mixed page sizes;
-- large file sizes;
-- wrong page count;
-- printed page label mismatch;
-- answer-key pages accidentally selected inside an excerpt range;
-- slow extraction and retry timeout;
-- temporary R2 object cleanup;
-- signed URL expiry during student runtime;
-- browser refresh after URL expiry.
-
 OCR and content extraction are not part of this V1 path.
-
-The app can prevent supported routes from delivering the full source PDF. It cannot prevent screenshots, screen recording, browser print/save of delivered excerpts, or external camera capture. Product copy and teacher guidance MUST NOT imply stronger protection than excerpt-limited delivery provides.
 
 ### 15.4 Rights prerequisite
 
@@ -2082,8 +1962,6 @@ The UI may show:
 - excluded historical rows.
 
 It must not display one aggregate Book percentage until a separate grading policy is approved.
-
-Completion percentage is not academic score percentage. Implementation MUST NOT populate legacy `HomeworkSubmission.percentage`, `score`, `maxScore`, `bandScore`, or academic-record grade fields with Book completion progress. Book homework list/detail surfaces show completion progress separately from Activity scores.
 
 ### 16.5 Book browsing versus homework
 
@@ -2177,17 +2055,15 @@ V1 rule:
 - `maxAttempts` applies per Activity attempt within the assigned Book/subtree;
 - feedback timing applies per Activity result;
 - late policy applies to each Activity according to its own inherited deadline;
-- assignment intent is explicit: `accountable` or `practice`;
-- accountable Book Homework enables anti-cheat/integrity mode by default and applies it per active Activity attempt;
-- practice Book Homework disables anti-cheat/integrity mode by default;
-- teacher may override the default only through the explicit assignment setting;
+- anti-cheat/integrity mode is ON by default and applies per active Activity attempt;
+- teacher may disable anti-cheat only for casual practice assignments;
 - anti-cheat never blocks the student from finishing the assigned work;
 - whole-Book completion is aggregated from required Activity completion.
 
 Example:
 
 ```text
-Teacher assigns Unit 11 as accountable work with maxAttempts = 2 and anti-cheat on.
+Teacher assigns Unit 11 with maxAttempts = 2 and anti-cheat on.
 
 Activity 1.1: student used 1 attempt, 1 remains.
 Activity 1.2: student used 0 attempts, 2 remain.
@@ -2395,8 +2271,6 @@ Closed or archived homework stays untouched.
 - New or redo-required work cannot be added under an expired effective deadline.
 - Teacher must set a replacement deadline for affected scope.
 - One replacement may be applied to selected homework with per-homework override.
-- Replacement-deadline validation must evaluate each student's effective deadline, including per-student extensions.
-- Affected Homework Review must show how many students need a replacement deadline because their effective deadline has already expired.
 
 ---
 
@@ -2502,8 +2376,6 @@ Only show when policy permits:
 - marking details.
 
 Force update MUST NOT reveal hidden answers early.
-
-If an answer-key, rubric, or feedback correction changes information the student already saw, the current result/review view must show an audit-visible correction note. The app must not silently replace previously visible correctness/feedback with no explanation.
 
 ---
 
@@ -2677,42 +2549,21 @@ Archived Books:
 
 ### 23.5 Result identity and attempt grouping
 
-The primary persistence identity for each immutable Book Activity attempt is a globally unique `attemptId`.
-
-Each attempt must include these identity and context dimensions:
-
-- student ID;
-- Activity ID;
-- Activity Version ID;
-- attempt ID;
-- surface;
-- exact placement or delivery context ID;
-- assignment ID or Course material ID where applicable;
-- creation and submission timestamps;
-- visibility-owner context.
-
-Student result UX may group attempts by:
+Book Activity attempts group by:
 
 ```text
 studentId + activityId
 ```
 
-This is viewer/query grouping only. It is not attempt identity and MUST NOT transfer completion between placements or delivery contexts.
-
-Viewer queries MUST additionally filter by permitted surfaces and owned delivery contexts. A teacher opening Homework results must not see private Solo attempts for the same student and Activity unless those attempts were created under teacher-owned authority.
-
 Each attempt also stores:
 
+- surface;
+- delivery context ID;
+- placement ID;
+- Activity Version ID;
 - Source Version ID when source-assisted;
+- submission time;
 - grading/regrading history.
-
-Assigned completion remains placement-scoped:
-
-```text
-studentId + assignmentId/courseMaterialId + placementId + activityId + activityVersionId
-```
-
-No placement may satisfy another placement unless a later explicit product rule adds and tests that behavior.
 
 Result display:
 
@@ -2747,8 +2598,6 @@ The runtime may still show the needed source page context if required.
 ```
 
 Course/Class must resolve the exact `courseMaterialId` or equivalent placement context. Existing code that resolves only by `materialId` is ambiguous when the same material appears in multiple Courses and must not be copied for Book.
-
-Course/Class Book placement storage must include or resolve the selected subtree/Activity placement, pinned manifest/source/activity versions, binding revision, and completion aggregation policy. A plain `materialId` junction is not sufficient for Book Activity delivery.
 
 Class-linked Course copies follow explicit sync rules. Adding a new Book Activity or updating a Book placement in the source Course does not silently mutate already copied class Courses.
 
@@ -2926,20 +2775,6 @@ Never log:
 
 Use IDs, schema versions, counts, classifications, durations, and error codes.
 
-### 24.6 Public Library and source rights
-
-Public Book publication must validate source-rights status separately from ordinary private/assigned delivery.
-
-Public Book states:
-
-1. metadata-only public;
-2. tree/ref public but runtime blocked;
-3. playable public with approved source excerpt rights.
-
-If source excerpt rights are not approved, public projection may show safe metadata and public Book structure where otherwise allowed, but it MUST block source-assisted runtime launch and source-page delivery. Public projection MUST NOT expose private source object keys, signed URLs, answer-key pages, teacher notes, authoring candidates, or homework/update metadata.
-
-A Book being public does not make all Activity versions, source pages, or answer feedback public. Public launch still goes through Book Delivery and student-safe/public-safe projection rules.
-
 ---
 
 ## 25. Reliability and transactional requirements
@@ -2991,9 +2826,7 @@ Use revision/precondition checks:
 - manifest candidate based on known current revision;
 - Activity candidate based on known draft/published version;
 - Affected Homework plan based on known assignment revision;
-- autosave based on known Activity Version and assignment binding revision;
 - reject stale publish/update confirmation;
-- reject stale autosave into a newer binding/version;
 - reload diff instead of overwriting newer work.
 
 ### 25.5 Failure UX
@@ -3402,7 +3235,6 @@ This list is not permission to modify every file. Each implementation packet mus
 
 Prove:
 
-- central Material Capability Registry answers playable, assignable, embeddable-in-Book, gradable, source-context, launch-adapter, assignment-adapter, result-adapter, and projection-adapter questions without scattered `interactive-activity` checks;
 - every supported interaction family validates;
 - unsupported types fail closed;
 - one Activity cannot declare mixed interaction families or conflicting answer rules;
@@ -3413,7 +3245,6 @@ Prove:
 - unresolved required context blocks publish;
 - `structured` and `source-assisted` are the only supported presentation modes;
 - source-assisted mode without mapped required Book pages fails closed;
-- source-assisted response controls require accessible prompt/label/response-shape metadata;
 - hidden Interaction IDs are generated by the app and rejected in editable JSON;
 - exact structurally safe revisions preserve hidden Interaction IDs by position;
 - changed/added/removed/reordered Interactions receive new IDs and classify as redo-required;
@@ -3429,9 +3260,7 @@ Prove:
 Prove:
 
 - `unit` is accepted;
-- `unit` counts as a structural node for Book readiness/status derivation;
 - legacy `test` remains accepted;
-- old test-based Books remain ready/publishable after `unit` support is added;
 - depth limit remains five;
 - cycles/missing parents/duplicate keys fail;
 - current Activity numbering compacts after delete/move;
@@ -3450,8 +3279,7 @@ Prove:
 - one page maps to multiple Activities;
 - reference-only page works;
 - page gaps/overlaps/duplicates fail or warn according to contract;
-- source replacement preserves Activities and requires mapping reconciliation;
-- source-assisted Activity with changed page labels/indexes/rotation/page groups requires teacher preview approval before publish/update.
+- source replacement preserves Activities and requires mapping reconciliation.
 
 ### 31.4 Runtime component tests
 
@@ -3471,7 +3299,6 @@ Prove:
 - pill navigation focuses correct Activity/question;
 - autosave flushes before page switch;
 - failed save warns and retries;
-- stale autosave with old Activity Version or assignment binding revision is rejected into the new binding and previous work remains preserved;
 - submission remains per Activity.
 
 ### 31.5 Source delivery security tests
@@ -3492,9 +3319,7 @@ Negative:
 - answer-key page denied;
 - old/expired grant denied;
 - direct private R2 object unavailable;
-- full original PDF unavailable;
-- expired signed URL refresh requires a new authorization check;
-- public metadata-only Book cannot launch source-assisted runtime or receive source excerpts.
+- full original PDF unavailable.
 
 ### 31.6 Homework schedule tests
 
@@ -3522,8 +3347,7 @@ For not-started, in-progress, and submitted students, prove each:
 - reorder;
 - move;
 - new Unit;
-- expired deadline;
-- per-student extension mixed with expired default deadline.
+- expired deadline.
 
 Specific assertions:
 
@@ -3536,24 +3360,20 @@ Specific assertions:
 - excluded removal has no points/completion/marking effect;
 - retry creates no duplicates;
 - notification wording/metadata matches case;
-- feedback release policy remains enforced;
-- correction note appears when previously visible feedback/correct answer changes;
-- removed Activity clears current pending-review workload but remains in historical/excluded view when teacher feedback already exists.
+- feedback release policy remains enforced.
 
 Book Homework settings assertions:
 
 - `maxAttempts` is counted per Activity, not per whole Book assignment;
 - feedback timing is evaluated per Activity result;
 - late policy follows each Activity's inherited deadline;
-- Book completion progress is never written into legacy academic score/percentage fields;
-- assignment intent selector supports `accountable` and `practice`;
-- accountable mode enables anti-cheat by default;
-- practice mode disables anti-cheat by default;
-- explicit teacher override is saved in assignment metadata;
+- anti-cheat is ON by default for Book Homework;
+- teacher can disable anti-cheat only through an explicit casual-practice setting;
+- disabled anti-cheat state is saved in assignment metadata;
 - anti-cheat mode logs focus/tab/paste/session events per Activity attempt;
 - anti-cheat warning appears to the student immediately after a recorded event;
 - repeated events raise integrity severity;
-- anti-cheat never auto-submits, auto-locks, auto-zeroes, nullifies remaining attempts, or prevents completion;
+- anti-cheat never auto-submits, auto-locks, auto-zeroes, or prevents completion;
 - teacher result page shows Activity integrity report after submission;
 - teacher cannot view live integrity monitoring for Book Homework in V1;
 - V1 does not add built-in post-homework action buttons or special consequence workflow;
@@ -3569,17 +3389,14 @@ Prove:
 - Solo draft does not overwrite Homework draft for the same Activity;
 - Homework draft does not overwrite Course draft for the same Activity;
 - two Course placements of the same Activity have separate draft/progress state;
-- same Activity placed twice in one Book uses placement-scoped completion for assigned work;
 - same Activity attempts from Solo and Homework group under one Activity result panel/dropdown;
 - grouped result display does not transfer completion between Solo, Homework, Course, and Class contexts;
 - teacher-owned Homework/Course/Class result visibility does not expose private Solo attempts;
 - Homework feedback release timing gates Homework attempt feedback;
 - assignment flow warns when delayed/manual-feedback Homework selects Activities that may already be visible through Solo or prior feedback;
 - warning-first policy does not automatically lock Solo access;
-- assignment preview warning is the V1 fork/copy entry point when teacher needs secrecy;
 - forked/copied Activity uses separate Activity ID and separate result history when teacher needs secrecy;
 - Course material placement resolves by exact placement/context, not ambiguous bare `materialId`;
-- Course Book placement storage includes or resolves selected subtree/Activity placement, pinned versions, binding revision, and completion policy;
 - Course item for a Book subtree completes when required Activities are submitted;
 - optional Homework-created-from-Course progress credit updates Course progress only when enabled;
 - class-linked Course copies receive Book changes only through explicit sync/update;
@@ -3588,15 +3405,6 @@ Prove:
 ### 31.9 Rules and emulator tests
 
 Prove role and ownership boundaries for every new data node. Include malicious cross-owner/cross-student writes and reads.
-
-Additional negative tests:
-
-- student cannot read private source object keys or full source PDFs;
-- student cannot read authoring candidates, answer keys before release, or update audits;
-- teacher cannot read private Solo attempts through Homework/Course result queries;
-- teacher cannot update homework owned by another teacher through crafted IDs;
-- public user cannot launch source-assisted runtime when source excerpt rights are not approved;
-- browser client cannot rewrite pinned homework bindings, create Review Checkpoints, or mark historical rows excluded.
 
 ### 31.10 Regression tests
 
@@ -3635,33 +3443,15 @@ Required browser matrix:
 
 ---
 
-## 32. Validation plans
+## 32. Pilot plan
 
-### 32.1 First shippable foundation pilot
-
-Use one representative Unit from one supplied source.
-
-The foundation pilot:
-
-1. uploads one immutable PDF;
-2. imports one page/activity manifest;
-3. imports answer-key evidence and one Unit Activity JSON bundle;
-4. validates, repairs page mapping, and previews the Unit in the Assembly Workspace;
-5. publishes the Unit;
-6. completes the Unit through desktop and mobile Solo/preview runtime with server-backed autosave and Activity-level submission/result;
-7. records correction rate, unsupported interaction patterns, import errors, runtime issues, and teacher effort.
-
-This pilot stops before Book or structural-subtree homework, selective updates, Review Checkpoints, Course/Class delivery, public playable source-assisted Books, and integrity rollout.
-
-### 32.2 Full V1 end-to-end validation
-
-After later implementation packets add the deferred V1 capabilities, use one representative Unit from each supplied source:
+Use one representative Unit from each supplied source:
 
 1. *IELTS Grammar for Bands 6.5 and Above*;
-2. *IELTS Vocabulary up to Band 6.0*;
+2. *IELTS Vocabulary up to Band 6.0*.
 3. *IELTS Vocabulary for Bands 6.5 and Above*, including the inspected Listening note-completion practice and Reading practice with matching plus Y/N/NG.
 
-For each full-V1 validation Unit:
+For each pilot Unit:
 
 1. user uploads immutable PDF;
 2. user supplies a page/activity manifest;
@@ -3685,8 +3475,6 @@ The V1 feature is accepted only when all statements below are true.
 ### Assembly
 
 - [ ] Existing Book system can create/host the new Book without parallel storage.
-- [ ] Central Material Capability Registry exists before `interactive-activity` enters UI, assignment, launch, result, or security flows.
-- [ ] `unit` is added to Book node taxonomy and structural readiness/status logic while legacy `test` Books still work.
 - [ ] Source PDF upload creates an immutable version.
 - [ ] Manifest import creates a validated proposed Content Tree.
 - [ ] Stable node and Activity keys bind to immutable internal IDs.
@@ -3696,7 +3484,6 @@ The V1 feature is accepted only when all statements below are true.
 - [ ] Unit can publish while later Units remain missing.
 - [ ] Page mapping can be repaired without editing Activity JSON.
 - [ ] Source replacement reconciles links without reimporting unchanged Activities.
-- [ ] Source-assisted source/page-label/context changes require teacher preview approval even when Activity JSON is unchanged.
 - [ ] Unit and revision prompt-copy flows work with fallback.
 - [ ] Copied Unit prompt requires namespaced Task Profiles where applicable, one interaction family, context requirement, and presentation mode.
 - [ ] Copied Unit prompt explains structured versus source-assisted selection with examples and forbids unsupported visual approximation.
@@ -3711,7 +3498,6 @@ The V1 feature is accepted only when all statements below are true.
 - [ ] Context requirement supports none, optional, and required.
 - [ ] Hidden Interaction IDs support autosave/results and safe regrading without appearing in editable JSON.
 - [ ] Both structured and source-assisted presentation modes work.
-- [ ] Source-assisted controls include accessible prompt/label/response-shape metadata and are understandable without relying only on the PDF image.
 - [ ] Student receives only authorized Unit pages.
 - [ ] Full PDF and answer-key pages are inaccessible.
 - [ ] Single-page navigation is deterministic.
@@ -3722,7 +3508,6 @@ The V1 feature is accepted only when all statements below are true.
 - [ ] Desktop panel collapse preserves state.
 - [ ] Mobile tabs preserve state.
 - [ ] Autosave survives reload and page changes.
-- [ ] Stale autosave with old Activity Version or assignment binding revision cannot overwrite a newer binding.
 - [ ] Activity submit/result/review works.
 - [ ] No enforced timer exists; optional personal timer has no academic effect.
 
@@ -3738,15 +3523,12 @@ The V1 feature is accepted only when all statements below are true.
 - [ ] Book completion aggregates current required Activities.
 - [ ] No whole-Book submit exists.
 - [ ] No unapproved aggregate Book grade is shown.
-- [ ] Book completion progress is never written into legacy academic score/percentage fields.
 - [ ] `maxAttempts`, feedback timing, and late policy apply per Activity/delivery.
 - [ ] Teacher can configure Book Homework anti-cheat/integrity mode.
-- [ ] Book Homework requires an explicit `accountable` or `practice` assignment intent.
-- [ ] Accountable Book Homework enables anti-cheat/integrity mode by default.
-- [ ] Practice Book Homework disables anti-cheat/integrity mode by default.
-- [ ] Teacher can override the anti-cheat default only through explicit assignment setting.
+- [ ] Book Homework anti-cheat/integrity mode is ON by default.
+- [ ] Teacher can turn anti-cheat OFF only through explicit casual-practice assignment setting.
 - [ ] Anti-cheat records focus/tab/paste/session events per Activity attempt.
-- [ ] Anti-cheat warns student but never blocks completion, auto-locks, auto-zeroes, nullifies attempts, or force-submits.
+- [ ] Anti-cheat warns student but never blocks completion or force-submits.
 - [ ] Teacher result page shows integrity report and severity after submission.
 - [ ] Book Homework V1 has no live teacher integrity monitoring while students are working.
 - [ ] V1 adds no special post-homework action buttons or consequence workflow for flagged work.
@@ -3759,12 +3541,10 @@ The V1 feature is accepted only when all statements below are true.
 - [ ] Solo Book Practice Run works as navigation/progress container.
 - [ ] Course/Class can place a Book subtree or Activity as one material item.
 - [ ] Course/Class placement resolves exact context, not ambiguous `materialId`.
-- [ ] Course/Class Book placement stores or resolves selected subtree/Activity placement, pinned versions, binding revision, and completion aggregation policy.
 - [ ] Activity attempts/results are grouped by student plus Activity with an attempt dropdown.
 - [ ] Drafts, attempts, completion, and feedback gates remain context-scoped.
 - [ ] Teacher result visibility never exposes private Solo attempts.
 - [ ] Delayed/manual-feedback assignment warns when Activities may already be visible in Solo or prior feedback.
-- [ ] Assignment preview is the V1 fork/copy entry point when secrecy matters.
 - [ ] V1 does not automatically lock Solo access; secrecy uses fork/copy.
 - [ ] Archived Books block new placement while preserving already pinned deliveries.
 - [ ] Live Session data contract is prepared, but Book Activity execution in Live is not required for V1.
@@ -3780,7 +3560,7 @@ The V1 feature is accepted only when all statements below are true.
 - [ ] Point/key/rubric changes regrade without redo.
 - [ ] Removal excludes historical row without deleting it or reopening work.
 - [ ] Reorder does not reset work.
-- [ ] New content requires a valid future deadline per affected student's effective deadline, including per-student extensions.
+- [ ] New content requires a valid future deadline.
 - [ ] One case-specific persistent notification is created per student/update action.
 - [ ] Update retry is idempotent.
 
@@ -3841,7 +3621,7 @@ The following statements from the baseline document or early discussion are no l
 | Course should explode a selected Unit into many Course material cards | Course uses one material item per selected Book subtree or Activity; Activity progress appears inside that item. |
 | Existing Homework submission can represent a whole assigned Book | Book Homework uses Activity-level submissions/progress plus assignment aggregation; no whole-Book submit exists. |
 | Book Activity execution inside Live Session is V1 | V1 prepares contracts only; Live execution is a later adapter with separate session-freezing and monitor rules. |
-| No anti-cheat mode for Book Homework V1 | Rejected; V1 includes teacher-configurable anti-cheat/integrity mode. Accountable assignments enable it by default; practice assignments disable it by default; both warn/record suspicious events without blocking completion when enabled. |
+| No anti-cheat mode for Book Homework V1 | Rejected; V1 includes teacher-configurable anti-cheat/integrity mode that is ON by default and warns/records suspicious events without blocking completion. |
 | Live teacher monitoring for Book Homework integrity in V1 | Rejected; Book Homework integrity report appears on teacher result page after submission only. |
 
 ---
@@ -3865,10 +3645,8 @@ Teacher forks/copies the Activity when secrecy matters.
 ```text
 Book Homework settings apply per Activity/delivery.
 Book Homework supports teacher-configurable anti-cheat/integrity mode.
-Book Homework requires `accountable` or `practice` assignment intent.
-Accountable assignments enable anti-cheat by default.
-Practice assignments disable anti-cheat by default.
-Teacher may override the default only through explicit assignment metadata.
+Book Homework anti-cheat/integrity mode is ON by default.
+Teacher may disable anti-cheat only for casual practice assignments.
 Anti-cheat warns and records suspicious events, but does not block completion or force submit.
 Teacher result page shows the integrity report after submission.
 Book Homework V1 has no live teacher integrity monitoring while students are working.
@@ -3878,7 +3656,7 @@ Student receives warnings during work only and sees no post-submission integrity
 
 These items require technical validation, not new product discovery:
 
-1. Storage-design packet before implementation, covering Activity materials, drafts, candidates, versions, student-safe projections, source versions, manifest versions, page groups, placements, Book homework manifests, Activity attempts, autosave drafts, review checkpoints, update audit records, integrity logs, notification records, indexes, rules, backups, and migrations.
+1. Exact persistent storage layout for Activity versions, candidates, Placements, Page Groups, Source/Manifest versions, update actions, and Review Checkpoints.
 2. Exact trusted backend runtime and PDF engine for private Unit rendition generation.
 3. Whether Unit renditions are generated at publish time, lazily, or through a hybrid cache.
 4. Exact result adapter/component reuse for Activity review.
@@ -3887,8 +3665,8 @@ These items require technical validation, not new product discovery:
 7. Exact future visual quick-edit fields after pilot correction patterns are known.
 8. Exact initial embedded stimulus registry and supported existing image/audio asset-reference forms.
 9. Which existing Reading/Listening pure components or services are genuinely reusable unchanged versus should only inform new Book-owned implementations.
-10. Exact anti-cheat event thresholds and severity labels after implementation spike.
-11. Exact public-library projection and launch policy for rights-approved versus metadata-only Books.
+10. Whether V1 corrects a wrong generated presentation mode through JSON re-import, a workspace override, or another controlled workflow. Recommendation: JSON re-import first unless pilot use proves this is too slow.
+11. Exact anti-cheat event thresholds and severity labels after implementation spike.
 
 One product decision intentionally remains closed for V1:
 

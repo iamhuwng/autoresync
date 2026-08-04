@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "13A",
+  "owner": {
+    "ticketId": "13A",
+    "issue": 55,
+    "generatedRuleLocations": [
+      "book_assembly/.read",
+      "book_assembly/.write",
+      "book_assembly/books/$bookId/.read",
+      "book_assembly/books/$bookId/.write",
+      "book_assembly/books/$bookId/units/$unitKey/.read",
+      "book_assembly/books/$bookId/units/$unitKey/.write"
+    ],
+    "serviceIdentity": "book_assembly_service",
+    "leastPrivilegePaths": [
+      "users/$ownerId",
+      "book_assembly/books/$bookId/units/$unitKey"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_assembly",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly/books/$bookId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly/books/$bookId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly/books/$bookId/units/$unitKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_service == true && auth.token.book_assembly_bookId == $bookId && auth.token.book_assembly_unitKey == $unitKey && auth.token.book_assembly_ownerId != null"
+    },
+    {
+      "path": "book_assembly/books/$bookId/units/$unitKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_service == true && auth.token.book_assembly_bookId == $bookId && auth.token.book_assembly_unitKey == $unitKey && auth.token.book_assembly_ownerId != null"
+    }
+  ]
+}

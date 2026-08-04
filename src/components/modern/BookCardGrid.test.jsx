@@ -41,6 +41,7 @@ describe('BookCardGrid', () => {
   it('shows metadata chips, tooltip title, and only allowed Book actions', async () => {
     const user = userEvent.setup();
     const onOpenBook = vi.fn();
+    const onCreateSuccessor = vi.fn();
     const onArchiveBook = vi.fn();
     const book = makeBook();
 
@@ -48,6 +49,7 @@ describe('BookCardGrid', () => {
       <BookCardGrid
         books={[book]}
         onOpenBook={onOpenBook}
+        onCreateSuccessor={onCreateSuccessor}
         onArchiveBook={onArchiveBook}
       />,
     );
@@ -63,15 +65,18 @@ describe('BookCardGrid', () => {
     expect(within(card).getByText('draft-empty')).toBeInTheDocument();
 
     expect(within(card).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Change mode' })).toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: 'Edit metadata' })).not.toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Start Test/i })).not.toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Assign Homework/i })).not.toBeInTheDocument();
 
     await user.click(within(card).getByRole('button', { name: 'Edit' }));
+    await user.click(within(card).getByRole('button', { name: 'Change mode' }));
     await user.click(within(card).getByRole('button', { name: 'Archive' }));
 
     expect(onOpenBook).toHaveBeenCalledWith(book, expect.any(HTMLButtonElement));
+    expect(onCreateSuccessor).toHaveBeenCalledWith(book);
     expect(onArchiveBook).toHaveBeenCalledWith(book);
   });
 
@@ -96,6 +101,7 @@ describe('BookCardGrid', () => {
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit metadata' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change mode' })).not.toBeInTheDocument();
   });
 
   it('passes Book selection state and toggles selected Books', async () => {

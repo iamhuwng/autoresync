@@ -1,0 +1,118 @@
+{
+  "ticket": 83,
+  "title": "PRD0062 34A — Model and edit nested Book schedules",
+  "generatedAt": "2026-07-28T15:46:00.000Z",
+  "selection": {
+    "artifact": "artifacts/prd0062-selection-20260728-post-ticket82-ticket83.json",
+    "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket82-closed.json",
+    "issueHash": "568cabf9b4d206d4626dd263b6c5616f5a16d9cababd87c180a6fb3d7d992bfc",
+    "directPrerequisites": [
+      82
+    ],
+    "openTransitivePrerequisites": []
+  },
+  "ownedProof": {
+    "scheduleModel": [
+      "One final due date plus stable structural-node release/deadline rules.",
+      "Nearest-ancestor release and deadline resolve independently.",
+      "Nested deadlines may equal but cannot exceed the parent or final due date.",
+      "Open access creates no prerequisite graph and overdue content remains accessible.",
+      "Later per-student extensions win with an auditable explanation."
+    ],
+    "teacherIntent": [
+      "Add, extend, shorten, remove, and unchanged deadline intents are typed.",
+      "Unknown affected-student state fails closed for add/shorten.",
+      "The typed preview handoff carries deadline mutation intents to ticket 33D.",
+      "Book edits cannot enter the legacy partial-write path; the shared warning announcement is emitted.",
+      "Legacy one-level Homework updates remain unchanged."
+    ],
+    "scopeSafety": [
+      "Activity targets without placement IDs resolve only when the Activity placement is unique.",
+      "Unavailable or ambiguous exact targets do not widen to whole-Book scope.",
+      "Rules and mutation intents outside a newly selected manifest scope are filtered before handoff."
+    ]
+  },
+  "verification": {
+    "focusedVitest": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/book-homework/bookHomeworkSchedule.service.test.ts src/components/homework/BookScheduleEditor.test.tsx src/components/homework/BookHomeworkPreviewPanel.test.tsx src/components/homework/HomeworkCreateModal.test.tsx src/components/homework/HomeworkEditModal.test.tsx src/config/featureRegistry.test.ts",
+      "result": "PASS",
+      "files": 6,
+      "tests": 44
+    },
+    "lint": {
+      "command": "npm run lint -- --quiet",
+      "result": "PASS",
+      "mantineBoundaryChangedSourceFiles": 61
+    },
+    "productionBuild": {
+      "command": "npm run build",
+      "result": "PASS",
+      "modules": 9446,
+      "bundleBudget": "PASS",
+      "rootEntry": "236KB"
+    },
+    "diffCheck": "PASS",
+    "typecheckContext": "The broad repository typecheck has pre-existing diagnostics in unrelated dirty Book Assembly/runtime paths; no diagnostic names a ticket-83-owned path."
+  },
+  "browser": {
+    "tool": "OpenAI bundled in-app Browser",
+    "url": "http://localhost:5173/__smoke/book-homework-preview",
+    "currentSourcePreview": {
+      "build": "Harness Vite build --mode test into an isolated temporary outDir",
+      "serve": "Harness Vite preview from that exact outDir on localhost:5173",
+      "consoleWarningsOrErrors": [],
+      "pageErrors": []
+    },
+    "desktop": {
+      "readingBeforeRemoval": {
+        "release": "2026-08-01T01:00:00.000Z",
+        "deadline": "2026-08-10T13:00:00.000Z"
+      },
+      "writingBeforeRemoval": {
+        "release": "2026-08-01T01:00:00.000Z",
+        "deadline": "2026-08-30T13:00:00.000Z"
+      },
+      "readingAfterUnitOverrideRemoval": {
+        "release": "2026-08-01T01:00:00.000Z",
+        "deadline": "2026-08-30T13:00:00.000Z"
+      },
+      "handoff": "Read-only handoff prepared for 2 Activity record(s)."
+    },
+    "responsive": {
+      "375": {
+        "overlayClientAndScroll": "375/375",
+        "modalClientAndScroll": "347/347",
+        "editorClientAndScroll": "307/307",
+        "confirmVisible": true
+      },
+      "320": {
+        "overlayClientAndScroll": "320/320",
+        "modalClientAndScroll": "292/292",
+        "editorClientAndScroll": "289/289",
+        "confirmVisible": true
+      }
+    }
+  },
+  "independentReview": {
+    "result": "PASS after repair",
+    "repairs": [
+      "Prevented activity-scope widening.",
+      "Removed hidden out-of-scope rules after scope changes.",
+      "Carried typed mutation intent through the ticket-33B handoff to ticket 33D.",
+      "Made unknown student state fail closed.",
+      "Used the shared warning announcement for denied Book edits."
+    ]
+  },
+  "rollback": {
+    "gate": "Hide nested schedule controls.",
+    "behavior": "The existing final Homework due date remains authoritative; nested rules remain preserved but unused.",
+    "writesPerformedByProof": false
+  },
+  "safety": {
+    "ticket33DProtectedMutationAuthority": "unchanged and disabled",
+    "ticket50A": "all-six-deny/default-deny preserved",
+    "ticket03B": "disabled",
+    "privateB2": "disabled",
+    "full112TicketScope": "preserved"
+  }
+}

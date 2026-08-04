@@ -1,9 +1,12 @@
 // @ts-nocheck
 import {
   materialCatalogIds,
+  isMaterialBookMode,
+  resolveMaterialBookMode,
   type BookListScope,
   type MaterialBookId,
   type MaterialBookMetadata,
+  type MaterialBookMode,
   type MaterialBookNode,
   type MaterialBookPublicProjection,
   type MaterialBookPublicProjectionNode,
@@ -29,6 +32,7 @@ import {
 
 export interface MaterialBooksIndexRow {
   readonly bookId: MaterialBookId;
+  readonly bookMode: MaterialBookMode;
   readonly ownerId: string;
   readonly title: string;
   readonly subtitle?: string;
@@ -77,6 +81,7 @@ export interface PublicBookReviewDecisionInput {
 export interface MaterialBookListRow {
   readonly id: string;
   readonly bookId: string;
+  readonly bookMode: MaterialBookMode;
   readonly ownerId: string;
   readonly title: string;
   readonly subtitle?: string;
@@ -111,6 +116,7 @@ export interface MaterialBooksAdapter {
 
 export interface CreateBookDraftInput {
   readonly bookId?: MaterialBookId;
+  readonly bookMode: MaterialBookMode;
   readonly ownerId: string;
   readonly title: string;
   readonly subtitle?: string;
@@ -149,12 +155,43 @@ const assertValid = (validation: ReturnType<typeof validateMaterialBook>): void 
   }
 };
 
-const cloneBook = (value: MaterialBookMetadata): MaterialBookMetadata => ({
-  ...value,
-  authors: normalizeStringList(value.authors),
-  testTypeIds: normalizeStringList(value.testTypeIds) as MaterialBookMetadata['testTypeIds'],
-  tags: normalizeStringList(value.tags),
-});
+const LEGACY_BOOK_MODE_MISSING = Symbol('legacy-book-mode-missing');
+
+type MaterialBookWithReadState = MaterialBookMetadata & {
+  readonly [LEGACY_BOOK_MODE_MISSING]?: true;
+};
+
+const cloneBook = (value: MaterialBookMetadata): MaterialBookMetadata => {
+  const cloned: MaterialBookWithReadState = {
+    ...value,
+    bookMode: resolveMaterialBookMode(value.bookMode),
+    authors: normalizeStringList(value.authors),
+    testTypeIds: normalizeStringList(value.testTypeIds) as MaterialBookMetadata['testTypeIds'],
+    tags: normalizeStringList(value.tags),
+  };
+
+  if (value.bookMode === undefined) {
+    Object.defineProperty(cloned, LEGACY_BOOK_MODE_MISSING, { value: true });
+  }
+
+  return cloned;
+};
+
+const canonicalBookWrite = (
+  book: MaterialBookMetadata,
+  previous?: MaterialBookMetadata | null,
+): MaterialBookMetadata => {
+  const previousWasLegacy = previous !== undefined && previous !== null && (
+    previous.bookMode === undefined ||
+    (previous as MaterialBookWithReadState)[LEGACY_BOOK_MODE_MISSING] === true
+  );
+  if (!previousWasLegacy) {
+    return book;
+  }
+
+  const { bookMode: _resolvedLegacyMode, ...withoutBookMode } = book;
+  return withoutBookMode as MaterialBookMetadata;
+};
 
 const isBook = (value: unknown): value is MaterialBookMetadata =>
   Boolean(value) &&
@@ -178,6 +215,7 @@ const normalizePublicBookProjection = (
   value: MaterialBookPublicProjection,
 ): MaterialBookPublicProjection => ({
   ...value,
+  bookMode: resolveMaterialBookMode(value.bookMode),
   authors: Array.isArray(value.authors) ? value.authors : [],
   testTypeIds: Array.isArray(value.testTypeIds) ? value.testTypeIds : [],
   tags: Array.isArray(value.tags) ? value.tags : [],
@@ -234,6 +272,7 @@ const toIndexRow = (book: MaterialBookMetadata): MaterialBooksIndexRow => {
 
   return {
     bookId: book.bookId,
+    bookMode: resolveMaterialBookMode(book.bookMode),
     ownerId: book.ownerId,
     title: book.title,
     subtitle: book.subtitle,
@@ -313,7 +352,7 @@ export const createMaterialBooksRepository = (
   async listBooksByIndex(query) {
     const path = 'material_catalog/book_indexes/by_visibility/public-library-pending-review';
     const value = await adapter.read(path);
-    return Object.values(value ?? {}).filter(isBook);
+    return Object.values(value ?? {}).filter(isBook).map(cloneBook);
   },
   async readPublicMaterialSummary(materialId) {
     const value = await adapter.read(`material_catalog/material_indexes/by_visibility/public/${materialId}`);
@@ -340,7 +379,7 @@ const buildBookWithIndexesUpdate = (
   book: MaterialBookMetadata,
   previous?: MaterialBookMetadata | null,
 ): Record<string, unknown | null> => ({
-  [materialCatalogPaths.books(book.bookId)]: book,
+  [materialCatalogPaths.books(book.bookId)]: canonicalBookWrite(book, previous),
   ...Object.fromEntries(buildMaterialBookIndexCleanup(previous, book).map((path) => [path, null])),
   ...Object.fromEntries(buildMaterialBookIndexWrites(book).map((write) => [write.path, write.value])),
   ...buildMaterialSummaryUpdatePayload(
@@ -370,6 +409,10 @@ export const createBookDraft = async (
   repository: MaterialBooksRepository,
   context: MaterialBookValidationContext,
 ): Promise<MaterialBookMetadata> => {
+  if (!isMaterialBookMode(input.bookMode)) {
+    throw new Error('Material Book creation requires a valid bookMode.');
+  }
+
   const now = input.now?.() ?? contextNow(context);
   const bookId = input.bookId ?? materialCatalogIds.bookId(`book-${Date.now().toString(36)}`);
   const nodes = input.initialNodes ?? [];
@@ -379,6 +422,7 @@ export const createBookDraft = async (
   ]);
   const book: MaterialBookMetadata = {
     bookId,
+    bookMode: input.bookMode,
     ownerId: input.ownerId,
     title: input.title,
     subtitle: input.subtitle,
@@ -416,10 +460,27 @@ export const createBookDraft = async (
 
 export const updateBookMetadata = async (
   bookId: string,
-  updates: Partial<Omit<MaterialBookMetadata, 'bookId' | 'ownerId' | 'createdAt' | 'createdBy'>>,
+  updates: Partial<Omit<
+    MaterialBookMetadata,
+    'bookId' | 'bookMode' | 'modeSuccessorLineage' | 'reusedActivityRefs'
+      | 'sourceStrategySuccessorLineage' | 'ownerId' | 'createdAt' | 'createdBy'
+  >>,
   repository: MaterialBooksRepository,
   context: MaterialBookValidationContext,
 ): Promise<MaterialBookMetadata> => {
+  if ('bookMode' in updates) {
+    throw new Error('Material Book mode is immutable. Create a successor Book instead.');
+  }
+  if ('modeSuccessorLineage' in updates) {
+    throw new Error('Material Book successor lineage is immutable.');
+  }
+  if ('reusedActivityRefs' in updates) {
+    throw new Error('Material Book successor Activity reuse is immutable.');
+  }
+  if ('sourceStrategySuccessorLineage' in updates) {
+    throw new Error('Material Book source-strategy successor lineage is immutable.');
+  }
+
   const current = await requireBook(repository, bookId);
   const nodes = await repository.listBookNodes(bookId);
   const now = contextNow(context);
@@ -427,6 +488,9 @@ export const updateBookMetadata = async (
     ...current,
     ...updates,
     bookId: current.bookId,
+    modeSuccessorLineage: current.modeSuccessorLineage,
+    reusedActivityRefs: current.reusedActivityRefs,
+    sourceStrategySuccessorLineage: current.sourceStrategySuccessorLineage,
     ownerId: current.ownerId,
     createdAt: current.createdAt,
     createdBy: current.createdBy,
@@ -583,6 +647,7 @@ const buildPublicBookProjection = async (
 
   return {
     bookId: book.bookId,
+    bookMode: resolveMaterialBookMode(book.bookMode),
     title: book.title,
     subtitle: book.subtitle,
     authors: book.authors,
@@ -788,6 +853,7 @@ export const listTeacherBooks = async (input: {
           return {
             id: book.bookId,
             bookId: book.bookId,
+            bookMode: resolveMaterialBookMode(book.bookMode),
             ownerId: book.ownerId,
             title: book.title,
             subtitle: book.subtitle,
@@ -823,6 +889,7 @@ export const listTeacherBooks = async (input: {
         return {
           id: projection.bookId,
           bookId: projection.bookId,
+          bookMode: resolveMaterialBookMode(projection.bookMode),
           ownerId: summary.ownerId,
           title: projection.title,
           subtitle: projection.subtitle,
@@ -871,6 +938,7 @@ export const listPublicBookReviewQueue = async (input: {
       return {
         id: book.bookId,
         bookId: book.bookId,
+        bookMode: resolveMaterialBookMode(book.bookMode),
         ownerId: book.ownerId,
         title: book.title,
         subtitle: book.subtitle,

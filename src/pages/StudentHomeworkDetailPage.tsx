@@ -6,15 +6,23 @@
  * homework workflow while using the shared student design tokens.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { get, ref } from 'firebase/database';
 import { useHomeworkSubmission } from '../hooks/useHomeworkSubmission';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { getTestFromFirebase, TestData } from '../services/testStorage';
 import { database } from '../services/firebase';
+import { getBookHomeworkProgress } from '../services/homeworkSubmissionService';
+import { isBookHomeworkAssignment } from '../services/book-homework/bookHomeworkManifest.service';
+import type {
+    BookHomeworkProgressActivity,
+    BookHomeworkProgressProjection,
+} from '../services/book-homework/bookHomeworkProgress.types';
 import {
     buildReadingV2LaunchReadPlan,
     createReadingV2LaunchMaterialSummary,
@@ -644,6 +652,224 @@ const Modal = ({ opened, onClose, title, children, shellStyle, backdropStyle, co
     );
 };
 
+const bookProgressPanelStyle: React.CSSProperties = {
+    background: studentTokens.bgSurface,
+    border: `1px solid ${studentTokens.borderSoft}`,
+    borderRadius: studentTokens.radiusPanel,
+    boxShadow: 'none',
+};
+
+const bookProgressInsetStyle: React.CSSProperties = {
+    background: studentTokens.bgShell,
+    border: `1px solid ${studentTokens.borderWhisper}`,
+    borderRadius: studentTokens.radiusSoft,
+    padding: '0.9rem 1rem',
+};
+
+const getBookCompletionLabel = (status: BookHomeworkProgressProjection['completion']['status']): string => {
+    if (status === 'completed') return 'Complete';
+    if (status === 'in_progress') return 'In progress';
+    return 'Not started';
+};
+
+const getBookActivityStateLabel = (activity: BookHomeworkProgressActivity): string => {
+    if (!activity.submitted) return 'Not submitted';
+    if (activity.gradingState === 'review_required') return 'Pending review';
+    if (activity.gradingState === 'scored') return 'Scored';
+    return 'Submitted';
+};
+
+const getHistoricalReasonLabel = (reason: string): string => reason
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+export function BookHomeworkProgressPanel({
+    progress,
+    error,
+    title,
+    isMobile,
+    onBack,
+    onRetry,
+}: {
+    progress: BookHomeworkProgressProjection | null;
+    error: string | null;
+    title: string;
+    isMobile: boolean;
+    onBack: () => void;
+    onRetry?: () => void;
+}) {
+    const completionLabel = progress
+        ? getBookCompletionLabel(progress.completion.status)
+        : 'Unavailable';
+
+    return (
+        <div
+            className="student-view-root"
+            data-testid="student-book-homework-progress"
+            style={{
+                maxWidth: '900px',
+                margin: '0 auto',
+                padding: isMobile ? '1rem 0 1.5rem' : '2rem 1rem',
+                width: '100%',
+            }}
+        >
+            <section aria-labelledby="book-homework-progress-title" style={bookProgressPanelStyle}>
+                <div style={{ padding: isMobile ? '1rem' : '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div style={{ minWidth: 0 }}>
+                            <p style={{
+                                margin: 0,
+                                fontSize: '0.6875rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: studentTokens.textMuted,
+                            }}>
+                                Book Homework progress
+                            </p>
+                            <h1 id="book-homework-progress-title" style={{
+                                margin: '0.35rem 0 0',
+                                color: studentTokens.textPrimary,
+                                fontSize: isMobile ? '1.45rem' : '1.75rem',
+                                lineHeight: 1.2,
+                                overflowWrap: 'anywhere',
+                            }}>
+                                {title}
+                            </h1>
+                        </div>
+                        <span
+                            aria-label={`Book completion status: ${completionLabel}`}
+                            style={{
+                                border: `1px solid ${studentTokens.borderSoft}`,
+                                borderRadius: studentTokens.radiusPill,
+                                color: studentTokens.textBody,
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                padding: '0.4rem 0.7rem',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {completionLabel}
+                        </span>
+                    </div>
+
+                    {!progress ? (
+                        <div style={{ marginTop: '1.5rem' }}>
+                            <div role={error ? 'alert' : 'status'} style={{ color: studentTokens.textBody }}>
+                                {error || 'Book progress is not available yet.'}
+                            </div>
+                            {error && onRetry ? (
+                                <button type="button" onClick={onRetry} style={{ marginTop: '0.75rem', minHeight: 44 }}>
+                                    Retry Book progress
+                                </button>
+                            ) : null}
+                        </div>
+                    ) : (
+                        <>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: '0.75rem', marginTop: '1.5rem' }}>
+                                <div style={bookProgressInsetStyle}>
+                                    <div style={{ color: studentTokens.textMuted, fontSize: '0.8rem' }}>Activities submitted</div>
+                                    <strong style={{ color: studentTokens.textPrimary, fontSize: '1.15rem' }}>
+                                        {progress.completion.submittedCount} of {progress.completion.requiredCount}
+                                    </strong>
+                                </div>
+                                <div style={bookProgressInsetStyle}>
+                                    <div style={{ color: studentTokens.textMuted, fontSize: '0.8rem' }}>Completion</div>
+                                    <strong style={{ color: studentTokens.textPrimary, fontSize: '1.15rem' }}>{completionLabel}</strong>
+                                </div>
+                                <div style={bookProgressInsetStyle}>
+                                    <div style={{ color: studentTokens.textMuted, fontSize: '0.8rem' }}>Review state</div>
+                                    <strong style={{ color: studentTokens.textPrimary, fontSize: '1.15rem' }}>
+                                        {progress.grading.pendingReviewCount > 0
+                                            ? `${progress.grading.pendingReviewCount} pending review`
+                                            : progress.grading.ungradedSubmittedCount > 0
+                                                ? `${progress.grading.ungradedSubmittedCount} awaiting score`
+                                                : 'No pending review'}
+                                    </strong>
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: '1.75rem' }}>
+                                <h2 style={{ color: studentTokens.textPrimary, fontSize: '1.1rem', margin: '0 0 0.75rem' }}>Activities</h2>
+                                {progress.activities.length === 0 ? (
+                                    <p style={{ color: studentTokens.textBody, margin: 0 }}>No current Activities are assigned.</p>
+                                ) : (
+                                    <div style={{ display: 'grid', gap: '0.65rem' }}>
+                                        {progress.activities.map((activity, index) => (
+                                            <div
+                                                key={activity.bindingId}
+                                                data-testid={`book-activity-${activity.bindingId}`}
+                                                style={{ ...bookProgressInsetStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}
+                                            >
+                                                <div style={{ minWidth: 0 }}>
+                                                    <strong style={{ color: studentTokens.textPrimary, overflowWrap: 'anywhere' }}>
+                                                        Activity {activity.order > 0 ? activity.order : index + 1}: {activity.activityId}
+                                                    </strong>
+                                                    <div style={{ color: studentTokens.textBody, marginTop: '0.25rem' }}>
+                                                        {getBookActivityStateLabel(activity)}
+                                                    </div>
+                                                </div>
+                                                {activity.score ? (
+                                                    <span style={{ color: studentTokens.textBody, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+                                                        Activity score: {activity.score.displayScore ?? `${activity.score.earnedScore} / ${activity.score.maximumScore}`}
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {progress.excludedHistoricalRows.length > 0 && (
+                                <div style={{ marginTop: '1.75rem' }}>
+                                    <h2 style={{ color: studentTokens.textPrimary, fontSize: '1.1rem', margin: '0 0 0.35rem' }}>Historical / excluded Activities</h2>
+                                    <p style={{ color: studentTokens.textBody, margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+                                        These historical results remain available for review but are excluded from current completion.
+                                    </p>
+                                    <div style={{ display: 'grid', gap: '0.65rem' }}>
+                                        {progress.excludedHistoricalRows.map((row, index) => (
+                                            <div key={`${row.terminalId ?? row.activityBindingId ?? 'historical'}-${index}`} style={bookProgressInsetStyle}>
+                                                <strong style={{ color: studentTokens.textPrimary, overflowWrap: 'anywhere' }}>
+                                                    {row.activityId ?? row.activityBindingId ?? 'Historical Activity'}
+                                                </strong>
+                                                <div style={{ color: studentTokens.textBody, marginTop: '0.25rem' }}>
+                                                    Excluded from current completion: {getHistoricalReasonLabel(row.reason)}
+                                                </div>
+                                                {row.score ? (
+                                                    <div style={{ color: studentTokens.textBody, marginTop: '0.25rem' }}>
+                                                        Historical Activity score: {row.score.displayScore ?? `${row.score.earnedScore} / ${row.score.maximumScore}`}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        style={{
+                            minHeight: 44,
+                            marginTop: '1.5rem',
+                            border: `1px solid ${studentTokens.borderSoft}`,
+                            borderRadius: studentTokens.radiusSoft,
+                            background: studentTokens.bgSurface,
+                            color: studentTokens.textBody,
+                            cursor: 'pointer',
+                            padding: '0.6rem 1rem',
+                        }}
+                    >
+                        Back to Homework List
+                    </button>
+                </div>
+            </section>
+        </div>
+    );
+}
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -652,6 +878,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     const { homeworkId } = useParams<{ homeworkId: string }>();
     const { user, profile, logout } = useAuth();
     const { navigateTo } = useNavigation('student');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
     const isMobile = useMediaQuery('(max-width: 768px)');
     const resolvedStudentName = user?.displayName || user?.email || 'Student';
     const sidebar = <StudentSidebar activePage="homework" />;
@@ -663,6 +890,15 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     const [isStarting, setIsStarting] = useState(false);
     const [startError, setStartError] = useState<string | null>(null);
     const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+    const [bookProgress, setBookProgress] = useState<BookHomeworkProgressProjection | null>(null);
+    const [bookProgressLoading, setBookProgressLoading] = useState(false);
+    const [bookProgressError, setBookProgressError] = useState<string | null>(null);
+    const [bookProgressAttempted, setBookProgressAttempted] = useState(false);
+    const [bookProgressRetry, setBookProgressRetry] = useState(0);
+    const bookProgressRequestRef = useRef<{
+        key: string;
+        promise: Promise<BookHomeworkProgressProjection | null>;
+    } | null>(null);
 
     // Fetch homework data
     const {
@@ -686,9 +922,81 @@ export const StudentHomeworkDetailPage: React.FC = () => {
         studentName: resolvedStudentName,
     });
 
+    const isBookHomework = Boolean(
+        homework
+        && isBookHomeworkAssignment(
+            homework as unknown as Parameters<typeof isBookHomeworkAssignment>[0],
+        ),
+    );
+
+    // Book Homework has its own completion projection. A missing legacy shell
+    // is also a supported path because Book assignments are owned by the Book
+    // service rather than the legacy homework collections.
+    useEffect(() => {
+        const shouldLoadBookProgress = Boolean(
+            homeworkId
+            && user?.uid
+            && (isBookHomework || error === 'Homework not found')
+        );
+
+        if (!shouldLoadBookProgress) {
+            bookProgressRequestRef.current = null;
+            setBookProgress(null);
+            setBookProgressError(null);
+            setBookProgressLoading(false);
+            setBookProgressAttempted(false);
+            return;
+        }
+
+        let cancelled = false;
+        setBookProgressAttempted(true);
+        setBookProgressLoading(true);
+        setBookProgressError(null);
+
+        const requestKey = `${homeworkId}:${user!.uid}`;
+        const cachedRequest = bookProgressRequestRef.current?.key === requestKey
+            ? bookProgressRequestRef.current.promise
+            : null;
+        const progressRequest = cachedRequest ?? getBookHomeworkProgress(homeworkId!);
+        if (!cachedRequest) {
+            bookProgressRequestRef.current = { key: requestKey, promise: progressRequest };
+        }
+
+        progressRequest
+            .then((projection) => {
+                if (!cancelled) {
+                    setBookProgress(projection);
+                    if (!projection) {
+                        setBookProgressError('Book progress is not available for this assignment.');
+                    }
+                }
+            })
+            .catch((progressError: unknown) => {
+                if (!cancelled) {
+                    bookProgressRequestRef.current = null;
+                    setBookProgress(null);
+                    setBookProgressError(progressError instanceof Error
+                        ? progressError.message
+                        : 'Book progress could not be loaded.');
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setBookProgressLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [bookProgressRetry, error, homeworkId, isBookHomework, user?.uid]);
+
     // Load material data
     useEffect(() => {
         const loadMaterial = async () => {
+            if (isBookHomework) {
+                setMaterialLoading(false);
+                return;
+            }
+
             if (!homework?.materialId) return;
 
             try {
@@ -759,7 +1067,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
         };
 
         loadMaterial();
-    }, [homework]);
+    }, [homework, isBookHomework]);
 
     const navigateToTest = (submission?: any) => {
         if (!homework?.materialId || !homeworkId) return;
@@ -860,6 +1168,44 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     const mobileFullWidthButtonStyle: React.CSSProperties = isMobile ? { ...mobileStyles.fullWidthButton } : {};
     const mobileHeaderTitleStyle: React.CSSProperties = isMobile ? { fontSize: '1.5rem' } : {};
     const mobileSubtitleStyle: React.CSSProperties = isMobile ? mobileStyles.feedSubtitleHidden : {};
+
+    const isBookProgressSurface = isBookHomework
+        || (bookProgressAttempted && (error === 'Homework not found' || Boolean(bookProgress)));
+
+    if (isBookProgressSurface) {
+        const bookTitle = homework?.title || homework?.materialTitle || 'Book Homework';
+        const progressPanel = bookProgressLoading || (!bookProgress && !bookProgressAttempted)
+            ? (
+                <Center style={{ minHeight: '45vh' }}>
+                    <Stack align="center" gap="md">
+                        <Loader size="xl" color={studentTokens.accent} type="bars" />
+                        <Text c={studentTokens.textBody} fw={500}>Loading Book progress...</Text>
+                    </Stack>
+                </Center>
+            )
+            : (
+                <BookHomeworkProgressPanel
+                    progress={bookProgress}
+                    error={bookProgressError}
+                    title={bookTitle}
+                    isMobile={isMobile}
+                    onBack={() => {
+                        trackAction('bookHomeworkProgressBack', { role: 'student' });
+                        navigateTo('STUDENT_HOMEWORK', {}, { reason: 'student_homework_detail_book_progress_back' });
+                    }}
+                    onRetry={() => {
+                        trackAction('bookHomeworkProgressRetry', { role: 'student' });
+                        setBookProgressRetry((value) => value + 1);
+                    }}
+                />
+            );
+
+        return (
+            <StudentLayout sidebar={sidebar} mobileTitle="Homework Details">
+                {progressPanel}
+            </StudentLayout>
+        );
+    }
 
     // Loading state
     if (isLoading || materialLoading) {

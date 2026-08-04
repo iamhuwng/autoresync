@@ -1,0 +1,59 @@
+{
+  "ticket": 54,
+  "title": "PRD0062 10B - Render accessible PDF.js viewer and runtime shell",
+  "date": "2026-07-27",
+  "retainedOwner": "#54",
+  "retainedProof": [
+    "reusable BookPdfViewer implementation",
+    "projection-agnostic BookPdfViewerHost composition seam",
+    "viewer-local PDF.js bounded-range bridge over #53 transport",
+    "page navigation, zoom, fit-width/fit-page, resize, loading, retry, denied, source-revoked, and safe error states",
+    "StrictMode-safe transport lifecycle with destroy on host cleanup",
+    "PDF.js loading-task cleanup on unmount",
+    "student-view token-aligned soft shell styling, keyboard-visible focus, and 44px controls",
+    "teacher localhost:5173 smoke fixture with quick-login, authenticated transport header, HEAD forced-token retry, bounded 206 range, desktop/mobile/320px checks, 200% zoom smoke, and no route/token leakage"
+  ],
+  "destinationOwnedProof": {
+    "#73": [
+      "assembled student BookRuntimeShell launch at http://localhost:5174",
+      "student Delivery projection, canonical route/CSP, structural desktop/mobile shell, reload restoration, registry/adapters, and no-write proof",
+      "integrated anonymous/copied-route, cross-user, revoked, replaced-source, schedule-closed, malformed-document, and direct-B2 denial at assembled student boundary"
+    ],
+    "#59": [
+      "canonical deployed Worker route composition, live route reachability, active Worker config/readback, and route rollback"
+    ],
+    "#72": [
+      "server-side Delivery projection and exact pinned identity proof"
+    ]
+  },
+  "verification": [
+    {
+      "command": "npx vitest run src/components/book-runtime/BookPdfViewer.test.tsx src/components/book-runtime/BookPdfViewerHost.test.tsx --reporter=dot",
+      "result": "PASS - 2 files, 5 tests"
+    },
+    {
+      "command": "npx tsc --noEmit --pretty false",
+      "result": "PASS"
+    },
+    {
+      "command": "npx playwright test --config playwright.prd0062-book-viewer.config.mjs",
+      "result": "PASS - 1 browser test on http://localhost:5173"
+    },
+    {
+      "command": "git diff --check -- src/components/book-runtime/BookPdfViewer.tsx src/components/book-runtime/BookPdfViewer.css src/components/book-runtime/BookPdfViewer.test.tsx src/components/book-runtime/BookPdfViewerHost.tsx src/components/book-runtime/BookPdfViewerHost.test.tsx src/pages/BookPdfViewerSmokePage.tsx src/routes/PublicRoutes.tsx e2e/prd0062-book-viewer.spec.ts playwright.prd0062-book-viewer.config.mjs",
+      "result": "PASS"
+    },
+    {
+      "command": "npx eslint src/components/book-runtime/BookPdfViewer.tsx src/components/book-runtime/BookPdfViewerHost.tsx src/components/book-runtime/BookPdfViewer.test.tsx src/components/book-runtime/BookPdfViewerHost.test.tsx src/pages/BookPdfViewerSmokePage.tsx src/routes/PublicRoutes.tsx e2e/prd0062-book-viewer.spec.ts playwright.prd0062-book-viewer.config.mjs",
+      "result": "PASS"
+    }
+  ],
+  "capabilitySafety": [
+    "50A remains all-deny/default-deny",
+    "03B remains disabled",
+    "no Worker deploy",
+    "no Firebase rules deploy",
+    "no direct B2 URL or bearer URL fallback",
+    "no Mode 1 or legacy Book behavior change"
+  ]
+}

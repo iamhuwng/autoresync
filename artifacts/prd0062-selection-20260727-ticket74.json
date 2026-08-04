@@ -1,0 +1,69 @@
+{
+  "selectedAt": "2026-07-27T21:12:00+07:00",
+  "governingPolicy": "Deterministic roadmap and mandatory dependency gate: direct and transitive prerequisites closed; current roadmap phase; executable acceptance; authority available; strongest closure and downstream-unblock value.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-goal-resume-live.json",
+    "issueHash": "0faa04795511cb6812d452783838d8b2ff71ca39603b8d64ad7246f863560bc5",
+    "issueCount": 112,
+    "openCount": 69,
+    "closedCount": 43,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 67, 68, 70, 73, 74, 81, 129, 130, 131, 132, 133]
+  },
+  "selectedTicket": {
+    "issue": 74,
+    "ticket": "28A",
+    "title": "Authorize trusted Book Runtime commands",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [31, 34, 59, 72],
+    "transitivePrerequisites": [25, 26, 27, 29, 30, 31, 33, 34, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 72],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 51,
+    "acceptanceReadiness": "Executable after live contract audit; #74 owns server command authorization/schema/repository/rules proof. Browser autosave/submission workflows remain #75/#76; deployed negative/canary identity proof must be destination-owned by #134 before closure.",
+    "requiredAuthority": [
+      "local repository implementation and tests",
+      "local Worker/repository/rules test execution",
+      "no trusted-action gate enablement",
+      "no #50A, #03B, or private-B2 state change"
+    ]
+  },
+  "candidateRejections": [
+    {
+      "issue": 49,
+      "reason": "Graph-clear but current authority/safety boundary forbids changing private-B2 state; acceptance requires deployed private-B2 provisioning and disposable object proof."
+    },
+    {
+      "issue": 50,
+      "reason": "Graph-clear but current authority/safety boundary forbids private-B2 lifecycle state changes; acceptance includes deployed disposable-object reconciliation proof."
+    },
+    {
+      "issue": 67,
+      "reason": "Graph-clear but teacher mapping-repair workflow follows runtime command/delivery enablers; downstream leverage 23 versus #74 leverage 51."
+    },
+    {
+      "issue": 68,
+      "reason": "Graph-clear but teacher Activity revision workflow follows runtime command/delivery enablers; downstream leverage 23 versus #74 leverage 51."
+    },
+    {
+      "issue": 70,
+      "reason": "Graph-clear but unpublished source-strategy migration follows runtime command/delivery enablers; downstream leverage 27 versus #74 leverage 51."
+    },
+    {
+      "issue": 73,
+      "reason": "Graph-clear and runtime phase, but assembled student shell/browser proof has lower downstream leverage 44 and depends on the command/persistence seam for later runtime closure."
+    },
+    {
+      "issue": 81,
+      "reason": "Graph-clear but homework manifest belongs to assignment/homework workflow after runtime command enabler; downstream leverage 44 versus #74 leverage 51."
+    },
+    {
+      "issues": [129, 130, 131, 132, 133],
+      "reason": "Graph-clear only in the narrow Blocked-by sense; final closure/regression phase is not current roadmap phase and still depends on preserved #50A/activation boundaries."
+    }
+  ],
+  "selectionDecision": "Select exactly one primary: #74 / Ticket 28A."
+}

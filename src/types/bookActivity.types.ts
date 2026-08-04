@@ -1,197 +1,356 @@
-export const BOOK_ACTIVITY_SCHEMA_VERSION = 1 as const;
-
-export const BOOK_ACTIVITY_INTERACTION_FAMILIES = [
+export const ACTIVITY_SCHEMA_VERSION = 1 as const;
+export const ACTIVITY_INTERACTION_FAMILIES = [
   'choice',
   'text-entry',
   'matching',
   'ordering',
   'long-response',
 ] as const;
+export const ACTIVITY_PRESENTATION_MODES = ['structured', 'source-assisted'] as const;
+export const ACTIVITY_CONTEXT_MODES = ['none', 'optional', 'required'] as const;
 
-export type BookActivityInteractionFamily =
-  (typeof BOOK_ACTIVITY_INTERACTION_FAMILIES)[number];
+export type ActivityInteractionFamily = (typeof ACTIVITY_INTERACTION_FAMILIES)[number];
+export type ActivityPresentationMode = (typeof ACTIVITY_PRESENTATION_MODES)[number];
+export type ActivityContextMode = (typeof ACTIVITY_CONTEXT_MODES)[number];
+export type ActivityNormalization = 'exact' | 'trim-case-and-spacing';
 
-export const BOOK_ACTIVITY_PRESENTATION_MODES = [
-  'structured',
-  'source-assisted',
-] as const;
-
-export type BookActivityPresentationMode =
-  (typeof BOOK_ACTIVITY_PRESENTATION_MODES)[number];
-
-export const BOOK_ACTIVITY_CONTEXT_REQUIREMENTS = [
-  'none',
-  'optional',
-  'required',
-] as const;
-
-export type BookActivityContextRequirement =
-  (typeof BOOK_ACTIVITY_CONTEXT_REQUIREMENTS)[number];
-
-export type BookActivityAnswerRuleType =
-  | 'single-choice'
-  | 'multiple-choice'
-  | 'text-exact'
-  | 'matching'
-  | 'ordering'
-  | 'rubric';
-
-export interface BookActivityTaskProfile {
-  readonly taxonomyId: string;
-  readonly typeId: string;
-  readonly taxonomyVersion: string;
+export interface ActivityTaskProfile {
+  taxonomyId: string;
+  typeId: string;
+  taxonomyVersion: number;
 }
 
-export interface BookActivitySourceAssistedMetadata {
-  readonly questionLabel: string;
-  readonly accessiblePrompt: string;
-  readonly responseShape: string;
-  readonly sourceExerciseLabel?: string;
-  readonly sourcePartLabel?: string;
+export interface ActivityTaskProfileRegistration extends ActivityTaskProfile {
+  interactionFamilies: readonly ActivityInteractionFamily[];
+  variants?: readonly string[];
+  presentationModes: readonly ActivityPresentationMode[];
+  contextModes: readonly ActivityContextMode[];
 }
 
-export interface BookActivityEditableInteraction {
-  readonly family: BookActivityInteractionFamily;
-  readonly prompt: string;
-  readonly choices?: readonly string[];
-  readonly pairs?: readonly {
-    readonly left: string;
-    readonly right: string;
-  }[];
-  readonly orderingItems?: readonly string[];
-  readonly responseShape?: string;
-  readonly source?: BookActivitySourceAssistedMetadata;
+export interface ActivityContextRequirement {
+  mode: ActivityContextMode;
+  acceptedKinds: string[];
 }
 
-export interface BookActivityEditableAnswerRule {
-  readonly type: BookActivityAnswerRuleType;
-  readonly correctChoiceIndexes?: readonly number[];
-  readonly acceptableAnswers?: readonly string[];
-  readonly matchingPairs?: readonly {
-    readonly left: string;
-    readonly right: string;
-  }[];
-  readonly ordering?: readonly string[];
-  readonly rubric?: string;
+export interface ActivitySourceAssistedMetadata {
+  questionLabel: string;
+  accessiblePrompt: string;
+  responseShape: string;
+  sourceExerciseLabel?: string;
+  sourcePartLabel?: string;
 }
 
-export interface BookActivityScoringConfig {
-  readonly points: number;
-  readonly rubric?: string;
+export interface ActivityPair {
+  left: string;
+  right: string;
 }
 
-export interface BookActivityEmbeddedStimulus {
-  readonly kind: 'text' | 'image-ref' | 'audio-ref';
-  readonly content: string;
-  readonly altText?: string;
+interface ActivityInteractionFieldSet {
+  prompt: string;
+  feedback?: string;
+  points?: number;
+  sourceAssisted?: ActivitySourceAssistedMetadata;
+  options?: string[];
+  acceptedOptionIndexes?: number[];
+  acceptedAnswers?: string[];
+  leftItems?: string[];
+  rightItems?: string[];
+  acceptedPairs?: ActivityPair[];
+  orderingItems?: string[];
+  acceptedOrder?: number[];
+  rubric?: { criteria: string[] };
 }
 
-export interface BookActivityEditableJson {
-  readonly schemaVersion: typeof BOOK_ACTIVITY_SCHEMA_VERSION;
-  readonly title: string;
-  readonly taskProfile?: BookActivityTaskProfile | null;
-  readonly presentationMode: BookActivityPresentationMode;
-  readonly contextRequirement: BookActivityContextRequirement;
-  readonly instructions?: string;
-  readonly stimulus?: BookActivityEmbeddedStimulus | null;
-  readonly assetRefs?: readonly string[];
-  readonly interactions: readonly BookActivityEditableInteraction[];
-  readonly answerRule: BookActivityEditableAnswerRule;
-  readonly scoring?: BookActivityScoringConfig;
-  readonly teacherNotes?: string;
+export type ActivityInteractionFor<
+  Family extends ActivityInteractionFamily,
+> = ActivityInteractionFieldSet & (
+  Family extends 'choice'
+    ? {
+      options: string[];
+      acceptedOptionIndexes: number[];
+      acceptedAnswers?: never;
+      leftItems?: never;
+      rightItems?: never;
+      acceptedPairs?: never;
+      orderingItems?: never;
+      acceptedOrder?: never;
+      rubric?: never;
+    }
+    : Family extends 'text-entry'
+      ? {
+        options?: never;
+        acceptedOptionIndexes?: never;
+        acceptedAnswers: string[];
+        leftItems?: never;
+        rightItems?: never;
+        acceptedPairs?: never;
+        orderingItems?: never;
+        acceptedOrder?: never;
+        rubric?: never;
+      }
+      : Family extends 'matching'
+        ? {
+          options?: never;
+          acceptedOptionIndexes?: never;
+          acceptedAnswers?: never;
+          leftItems: string[];
+          rightItems: string[];
+          acceptedPairs: ActivityPair[];
+          orderingItems?: never;
+          acceptedOrder?: never;
+          rubric?: never;
+        }
+        : Family extends 'ordering'
+          ? {
+            options?: never;
+            acceptedOptionIndexes?: never;
+            acceptedAnswers?: never;
+            leftItems?: never;
+            rightItems?: never;
+            acceptedPairs?: never;
+            orderingItems: string[];
+            acceptedOrder: number[];
+            rubric?: never;
+          }
+          : {
+            options?: never;
+            acceptedOptionIndexes?: never;
+            acceptedAnswers?: never;
+            leftItems?: never;
+            rightItems?: never;
+            acceptedPairs?: never;
+            orderingItems?: never;
+            acceptedOrder?: never;
+            rubric: { criteria: string[] };
+          }
+);
+
+export type ActivityInteraction = {
+  [Family in ActivityInteractionFamily]: ActivityInteractionFor<Family>;
+}[ActivityInteractionFamily];
+
+interface ActivityAnswerRuleBase {
+  defaultPoints: number;
+  normalization: ActivityNormalization;
 }
 
-export interface BookActivityInteractionRecord
-  extends BookActivityEditableInteraction {
-  readonly hiddenInteractionId: string;
+export type ActivityAnswerRuleFor<
+  Family extends ActivityInteractionFamily,
+> = ActivityAnswerRuleBase & (
+  Family extends 'choice'
+    ? { requiredSelectionCount?: number; allowOptionReuse?: never }
+    : Family extends 'matching'
+      ? { requiredSelectionCount?: never; allowOptionReuse?: boolean }
+      : { requiredSelectionCount?: never; allowOptionReuse?: never }
+);
+
+interface EditableActivityBase {
+  schemaVersion: typeof ACTIVITY_SCHEMA_VERSION;
+  title: string;
+  taskProfile?: ActivityTaskProfile | null;
+  presentationMode: ActivityPresentationMode;
+  contextRequirement: ActivityContextRequirement;
+  instructions: { text: string }[];
+  stimulus: { kind: string; text?: string } | null;
+  assetRefs: { kind: 'image' | 'audio'; assetId: string }[];
 }
 
-export interface BookActivityNormalizedContent
-  extends Omit<BookActivityEditableJson, 'interactions'> {
-  readonly interactions: readonly BookActivityInteractionRecord[];
-}
-
-export interface BookActivityMaterialRecord {
-  readonly activityId: string;
-  readonly materialId: string;
-  readonly materialKind: 'interactive-activity';
-  readonly ownerId: string;
-  readonly title: string;
-  readonly lifecycleState: 'draft' | 'published' | 'archived';
-  readonly currentDraftId?: string;
-  readonly currentVersionId?: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly provenance?: {
-    readonly createdBy: string;
-    readonly source: 'manual' | 'import';
+export type EditableActivityFor<
+  Family extends ActivityInteractionFamily,
+> = EditableActivityBase & {
+  interaction: { family: Family; variant: string };
+  answerRule: ActivityAnswerRuleFor<Family>;
+  interactions: ActivityInteractionFor<Family>[];
+  scoring: {
+    mode: Family extends 'long-response'
+      ? 'review-required'
+      : 'auto-where-possible' | 'review-required';
   };
+};
+
+export type EditableActivity = {
+  [Family in ActivityInteractionFamily]: EditableActivityFor<Family>;
+}[ActivityInteractionFamily];
+
+export type ActivityItemIdentities =
+  | { family: 'choice'; optionIds: string[] }
+  | { family: 'text-entry'; itemIds: [] }
+  | { family: 'matching'; leftItemIds: string[]; rightItemIds: string[] }
+  | { family: 'ordering'; itemIds: string[] }
+  | { family: 'long-response'; itemIds: [] };
+
+export type ActivityNormalizedAnswerKey =
+  | { family: 'choice'; acceptedOptionItemIds: string[] }
+  | { family: 'text-entry'; acceptedAnswers: string[] }
+  | {
+    family: 'matching';
+    acceptedPairs: Array<{ leftItemId: string; rightItemId: string }>;
+  }
+  | { family: 'ordering'; acceptedOrderItemIds: string[] }
+  | { family: 'long-response'; rubric: { criteria: string[] } };
+
+export type ActivityItemIdentitiesFor<
+  Family extends ActivityInteractionFamily,
+> = Extract<ActivityItemIdentities, { family: Family }>;
+
+export type ActivityNormalizedAnswerKeyFor<
+  Family extends ActivityInteractionFamily,
+> = Extract<ActivityNormalizedAnswerKey, { family: Family }>;
+
+export type NormalizedActivityInteractionFor<
+  Family extends ActivityInteractionFamily,
+> = Omit<
+  ActivityInteractionFor<Family>,
+  'acceptedOptionIndexes' | 'acceptedAnswers' | 'acceptedPairs' | 'acceptedOrder' | 'rubric'
+> & {
+  family: Family;
+  interactionId: string;
+  itemIdentities: ActivityItemIdentitiesFor<Family>;
+  answerKey: ActivityNormalizedAnswerKeyFor<Family>;
+};
+
+export type NormalizedActivityInteraction = {
+  [Family in ActivityInteractionFamily]: NormalizedActivityInteractionFor<Family>;
+}[ActivityInteractionFamily];
+
+export type NormalizedActivityFor<
+  Family extends ActivityInteractionFamily,
+> = Omit<EditableActivityFor<Family>, 'interactions'> & {
+  interactions: NormalizedActivityInteractionFor<Family>[];
+};
+
+export type NormalizedActivity = {
+  [Family in ActivityInteractionFamily]: NormalizedActivityFor<Family>;
+}[ActivityInteractionFamily];
+
+export interface ActivityValidationError {
+  code: string;
+  path: string;
+  message: string;
 }
 
-export interface BookActivityCandidateRecord {
-  readonly candidateId: string;
-  readonly targetActivityId: string;
-  readonly ownerId: string;
-  readonly replacementContent: unknown;
-  readonly status: 'valid' | 'invalid';
-  readonly errors: readonly string[];
-  readonly normalizedContent?: BookActivityEditableJson;
-  readonly createdAt: string;
+export type ActivityValidationResult =
+  | {
+      valid: true;
+      errors: ActivityValidationError[];
+      value: EditableActivity;
+    }
+  | {
+      valid: false;
+      errors: ActivityValidationError[];
+      value?: never;
+    };
+
+export interface ActivityValidationContext {
+  /**
+   * Trusted opaque references supplied by Book Assembly. They prove that a
+   * Placement/Page Group binding exists without copying Book page identity
+   * into editable or normalized Activity JSON.
+   */
+  mappedBookPageRefs?: readonly string[];
+  /** Trusted registry supplied by Activity Domain composition, never editable JSON. */
+  taskProfileRegistry?: readonly ActivityTaskProfileRegistration[];
 }
 
-export interface BookActivityDraftRecord {
-  readonly activityId: string;
-  readonly draftId: string;
-  readonly ownerId: string;
-  readonly editableContent: BookActivityEditableJson;
-  readonly normalizedContent: BookActivityNormalizedContent;
-  readonly baseVersionId?: string;
-  readonly draftRevision: number;
-  readonly validationState: 'valid';
-  readonly createdAt: string;
-  readonly updatedAt: string;
+export interface ActivityIdProvider {
+  createId(): string;
 }
 
-export interface BookActivityVersionRecord {
-  readonly activityId: string;
-  readonly versionId: string;
-  readonly ownerId: string;
-  readonly materialKind: 'interactive-activity';
-  readonly content: BookActivityNormalizedContent;
-  readonly publishedAt: string;
-  readonly publishedBy: string;
+export type ActivityDiffClass =
+  | 'unchanged'
+  | 'display-only'
+  | 'regrade'
+  | 'redo-required'
+  | 'added'
+  | 'removed'
+  | 'reordered'
+  | 'presentation-context'
+  | 'unsupported';
+
+export type ActivityDiff =
+  | {
+    classification: 'redo-required' | 'reordered' | 'unsupported';
+    reasons: string[];
+    requiresRedo: true;
+  }
+  | {
+    classification: Exclude<
+      ActivityDiffClass,
+      'redo-required' | 'reordered' | 'unsupported'
+    >;
+    reasons: string[];
+    requiresRedo: false;
+  };
+
+export type ActivityFeedbackVisibility = 'none' | 'after-submit' | 'after-review';
+
+interface StudentActivityInteractionBase {
+  interactionId: string;
+  prompt: string;
+  sourceAssisted?: ActivitySourceAssistedMetadata;
 }
 
-export interface BookActivityStudentSafeInteraction {
-  readonly clientInteractionKey: string;
-  readonly family: BookActivityInteractionFamily;
-  readonly prompt: string;
-  readonly choices?: readonly string[];
-  readonly pairs?: readonly {
-    readonly left: string;
-  }[];
-  readonly orderingItems?: readonly string[];
-  readonly responseShape?: string;
-  readonly source?: BookActivitySourceAssistedMetadata;
+export type StudentActivityInteraction =
+  | (StudentActivityInteractionBase & {
+    family: 'choice';
+    options: Array<{ itemId: string; label: string }>;
+  })
+  | (StudentActivityInteractionBase & { family: 'text-entry' })
+  | (StudentActivityInteractionBase & {
+    family: 'matching';
+    leftItems: Array<{ itemId: string; label: string }>;
+    rightItems: Array<{ itemId: string; label: string }>;
+  })
+  | (StudentActivityInteractionBase & {
+    family: 'ordering';
+    items: Array<{ itemId: string; label: string }>;
+  })
+  | (StudentActivityInteractionBase & { family: 'long-response' });
+
+interface StudentActivityProjectionBase {
+  schemaVersion: number;
+  title: string;
+  taskProfile: ActivityTaskProfile | null;
+  presentationMode: ActivityPresentationMode;
+  contextRequirement: ActivityContextRequirement;
+  instructions: { text: string }[];
+  stimulus: EditableActivity['stimulus'];
+  assetRefs: EditableActivity['assetRefs'];
 }
 
-export interface BookActivityStudentSafeProjection {
-  readonly projectionKind: 'student-safe';
-  readonly activityId: string;
-  readonly versionId: string;
-  readonly ownerId: string;
-  readonly title: string;
-  readonly presentationMode: BookActivityPresentationMode;
-  readonly contextRequirement: BookActivityContextRequirement;
-  readonly instructions?: string;
-  readonly stimulus?: BookActivityEmbeddedStimulus | null;
-  readonly interactions: readonly BookActivityStudentSafeInteraction[];
-  readonly generatedAt: string;
-}
+export type StudentActivityProjectionFor<
+  Family extends ActivityInteractionFamily,
+> = StudentActivityProjectionBase & {
+  interaction: { family: Family; variant: string };
+  answerRule: ActivityAnswerRuleFor<Family>;
+  interactions: Extract<StudentActivityInteraction, { family: Family }>[];
+  scoring: {
+    mode: EditableActivityFor<Family>['scoring']['mode'];
+    feedbackVisibility: ActivityFeedbackVisibility;
+  };
+};
 
-export type BookActivityChangeClassification =
-  | 'no-redo'
-  | 'recalculate-no-redo'
-  | 'regrade-no-redo'
-  | 'teacher-regrade-no-redo'
-  | 'redo-required';
+export type StudentActivityProjection = {
+  [Family in ActivityInteractionFamily]: StudentActivityProjectionFor<Family>;
+}[ActivityInteractionFamily];
+
+export type ActivitySubmissionAnswer =
+  | null
+  | string
+  | string[]
+  | Array<{ leftItemId: string; rightItemId: string }>;
+export interface ActivitySubmissionEntry {
+  interactionId: string;
+  answer: ActivitySubmissionAnswer;
+}
+export type ActivitySubmission = ActivitySubmissionEntry[];
+
+export type ActivityScoreResult =
+  | {
+    status: 'scored';
+    earnedScore: number;
+    maximumScore: number;
+    displayScore: string;
+  }
+  | { status: 'review_required' }
+  | { status: 'invalid'; errors: string[] };

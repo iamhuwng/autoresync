@@ -122,7 +122,7 @@ export const StudentNavigation: React.FC<StudentNavigationProps> = ({
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 {userId && (
                     <div style={{ marginRight: '0.25rem' }}>
-                        <NotificationBell userId={userId} />
+                        <NotificationBell userId={userId} role="student" />
                     </div>
                 )}
 

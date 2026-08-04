@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "38B5",
+  "owner": {
+    "ticketId": "38B5",
+    "issue": 99,
+    "generatedRuleLocations": [
+      "notifications/.read",
+      "notifications/.write",
+      "notifications/$recipientId/.read",
+      "notifications/$recipientId/.write",
+      "notifications/$recipientId/$notificationId/.write",
+      "notifications/$recipientId/$notificationId/read/.write"
+    ],
+    "serviceIdentity": "notification_command_service",
+    "leastPrivilegePaths": [
+      "notifications/$recipientId/$notificationId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "notifications",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": true,
+      "expression": "false"
+    },
+    {
+      "path": "notifications",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "notifications/$recipientId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.uid === $recipientId"
+    },
+    {
+      "path": "notifications/$recipientId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": true,
+      "expression": "false"
+    },
+    {
+      "path": "notifications/$recipientId/$notificationId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "notifications/$recipientId/$notificationId/read",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.uid === $recipientId && data.exists() && data.val() === false && newData.exists() && newData.val() === true"
+    }
+  ]
+}

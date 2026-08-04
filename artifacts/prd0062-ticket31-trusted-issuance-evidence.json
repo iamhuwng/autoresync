@@ -1,0 +1,95 @@
+{
+  "ticket": 31,
+  "ticketId": "08B",
+  "title": "Persist trusted Book Delivery bindings with CAS and rules",
+  "selection": {
+    "artifact": "artifacts/prd0062-selection-20260728-reopened-ticket31-trusted-issuance.json",
+    "graphArtifact": "artifacts/prd0062-graph-20260728-reopen-ticket31-trusted-issuance.json",
+    "graphHash": "e35bd240521e6bf44570026c149d67a8042e84504b326e3194b63a6352d63253",
+    "directPrerequisites": [30],
+    "completeTransitivePrerequisites": [25, 26, 27, 29, 30],
+    "completeTransitivePrerequisitesClosed": true
+  },
+  "repair": {
+    "closureGap": "POST create/supersede accepted a complete caller-authored binding and caller bindingId.",
+    "requestContract": "Opaque book/publication/recipient/context/scope selectors plus operationId only.",
+    "trustedPublication": [
+      "exact durable book_assembly_publications/books/{bookId} scope read",
+      "current pointer and immutable published Manifest Version match",
+      "Delivery publication-plan ownership and Source Set match",
+      "selected Placement ownership and publication lineage match",
+      "Activity Version identity matches the current publication or a fully validated immutable mapping-predecessor chain",
+      "Manifest Page Groups, current Placement and safe-projection pages, current Activity Version pages, and Source Version IDs match",
+      "selected outline, source authorization, placement order, context mode, and scope are derived server-side"
+    ],
+    "trustedContext": "Default issuer permits only owner self-preview and derives preview schedule policy server-side. Other adapters require an injected trusted context loader.",
+    "bindingIdentity": "Server derives a deterministic 160-bit SHA-256 binding identity from the validated operation identity; same-operation replay remains stable across advancing server timestamps, while changed-intent and cross-action replays conflict.",
+    "bindingConstruction": "createBookDeliveryBinding is the only binding construction boundary.",
+    "rules": "08B generatedRuleLocations now exactly enumerate all owned operations. No #72 scopes/indexes/bindings path moved into #31."
+  },
+  "verification": [
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-delivery-worker.test.ts test/book-delivery-repository.test.ts test/book-runtime-authorization.test.ts test/book-runtime-route-integration.test.ts --passWithNoTests=false",
+      "result": "PASS: 4 files, 16 tests"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/book-delivery src/__tests__/security/bookDeliveryRuleFragment.test.ts --passWithNoTests=false",
+      "result": "PASS: 12 files, 66 tests"
+    },
+    {
+      "command": "detached worktree from git write-tree staged snapshot; Cloudflare Worker/repository focused command",
+      "result": "PASS: 2 files, 11 tests against committed schema version 2 without unstaged #72 changes"
+    },
+    {
+      "command": "detached worktree from git write-tree staged snapshot; root lifecycle/rules focused command",
+      "result": "PASS: 2 files, 11 tests without unstaged #72 changes"
+    },
+    {
+      "command": "npm exec eslint -- cloudflare/src/upload-worker/book-delivery/repository.ts cloudflare/src/upload-worker/book-delivery/worker.ts cloudflare/test/book-delivery.fixture.ts cloudflare/test/book-delivery-worker.test.ts cloudflare/test/book-delivery-repository.test.ts src/services/book-delivery/bookDelivery.entitlementRepository.ts",
+      "result": "PASS"
+    },
+    {
+      "command": "node scripts/check-utf8.mjs <eight #31 text paths including this evidence record>",
+      "result": "PASS: 8 files"
+    },
+    {
+      "command": "npm --prefix cloudflare run check",
+      "result": "PASS: Wrangler 4.103.0 dry-run, 748.46 KiB / 140.22 KiB gzip, no remote write"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+      "result": "FAIL outside staged #31 paths only: existing dirty-worktree Book Assembly UI/runtime/adapters/import and component projection diagnostics; no #31-owned diagnostic"
+    },
+    {
+      "command": "staged-snapshot full TypeScript and Wrangler dry-run",
+      "result": "BASELINE BLOCKED outside #31: branch HEAD omits unrelated untracked rollout and Book Assembly helper files. Focused staged-snapshot #31 suites pass."
+    }
+  ],
+  "review": {
+    "initialResult": "FAIL",
+    "fixedFindings": [
+      "Activity Version source pages now exactly match Manifest Page Groups and Placement pages",
+      "schedule policy removed from caller intent and derived by trusted context loader",
+      "same-operation changed-intent conflict and forced allocator collision are tested",
+      "durable current/version/plan/placement/Activity/Source/Page Group corruption denials are tested",
+      "#72 schema/rules/tests are excluded from staged #31 diff",
+      "volatile server timestamps are excluded from idempotency identity while action and trusted binding semantics remain included",
+      "mapping revisions validate the complete immutable predecessor chain before reusing an Activity Version",
+      "mapping predecessor lifecycle, internal identity, source-set invariants, ownership, and cycle denial are tested"
+    ],
+    "finalResult": "PASS: independent Sol/medium review found no actionable findings"
+  },
+  "ownershipBoundaries": {
+    "topLevelRouteAndDeployedIdentity": "#59",
+    "serverProjectionAndScopedRules": "#72",
+    "assembledGeneratedRulesAndEmulator": "#118",
+    "deployedCanaryAndRollback": "#134"
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny unchanged",
+    "03B": "disabled",
+    "privateB2": "disabled",
+    "trustedActions": "disabled",
+    "full112TicketScope": "preserved"
+  }
+}

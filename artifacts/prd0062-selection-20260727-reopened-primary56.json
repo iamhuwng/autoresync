@@ -1,0 +1,94 @@
+{
+  "generatedAt": "2026-07-27T03:48:00.000Z",
+  "selectionStatus": "selected-correction",
+  "selectedPrimary": {
+    "issue": 56,
+    "ticket": "13B",
+    "title": "PRD0062 13B — Build hierarchy and source Assembly workspace",
+    "roadmapPhase": "teacher workflow foundation correction",
+    "selectionReason": "The prior closure is not reproducible because its committed tests and smoke route consume Assembly shell props whose owned shell/modal implementation remained unstaged. #56 is the earliest reopened root, every live prerequisite is CLOSED, its correction gates are executable, and it has the strongest downstream leverage."
+  },
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-reopened-56-57.json",
+    "issueHash": "1a08bf58908c2a21b2e4f1b85b20bad2c41feb4a9e2ff5eb540442adf7e938d7",
+    "issueCount": 112,
+    "openCount": 80,
+    "closedCount": 32,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 56, 65, 66, 129, 130, 131, 132, 133]
+  },
+  "closedPrerequisites": {
+    "direct": [32, 45, 55],
+    "transitiveOpen": []
+  },
+  "candidateDisposition": [
+    {
+      "issue": 49,
+      "downstreamLeverage": 2,
+      "eligible": true,
+      "rejection": "Independent runtime provisioning root with lower leverage; reopened #56 correction must be repaired before descendants."
+    },
+    {
+      "issue": 50,
+      "downstreamLeverage": 16,
+      "eligible": true,
+      "rejection": "Independent operations root with lower leverage and a different later roadmap phase."
+    },
+    {
+      "issue": 56,
+      "downstreamLeverage": 70,
+      "eligible": true,
+      "selected": true
+    },
+    {
+      "issue": 57,
+      "eligible": false,
+      "rejection": "Direct prerequisite #56 is OPEN and not acceptance-ready."
+    },
+    {
+      "issue": 58,
+      "eligible": false,
+      "rejection": "Transitive prerequisite #56 and direct prerequisite #57 are OPEN."
+    },
+    {
+      "issue": 65,
+      "downstreamLeverage": 60,
+      "eligible": true,
+      "rejection": "Later runtime publication adapter; #56 is the reopened earlier root and has greater downstream leverage."
+    },
+    {
+      "issue": 66,
+      "downstreamLeverage": 60,
+      "eligible": true,
+      "rejection": "Later runtime publication adapter; #56 is the reopened earlier root and has greater downstream leverage."
+    },
+    {
+      "issues": [129, 130, 131, 132, 133],
+      "downstreamLeverage": 2,
+      "eligible": false,
+      "rejection": "Final-closure suites are not roadmap-phase eligible and share unresolved downstream acceptance despite graph-clear status."
+    }
+  ],
+  "authorityAndReadiness": {
+    "requiredAuthority": [
+      "local reconciled worktree",
+      "GitHub issue state/comments",
+      "teacher quick-login browser at http://localhost:5173"
+    ],
+    "acceptanceReadiness": "Executable. Correction is limited to already-present #56-owned shell/modal integration plus retained #56 verification; no 50A, 03B, deployed route, or assembled-rules activation."
+  },
+  "selectionRuleChecks": {
+    "onePrimary": true,
+    "allDirectAndTransitivePrerequisitesClosed": true,
+    "currentRoadmapPhase": true,
+    "acceptanceGatesExecutable": true,
+    "ownershipAndAuthorityAvailable": true,
+    "highestClosureAndDownstreamValueAmongEligibleCurrentPhaseCandidates": true,
+    "preservesFull112TicketScope": true
+  }
+}

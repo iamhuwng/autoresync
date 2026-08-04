@@ -365,7 +365,10 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
                 {userId && (
                     <div style={{ marginRight: '0.25rem' }}>
-                        <NotificationBell userId={userId} />
+                        <NotificationBell
+                            userId={userId}
+                            role={userRole === 'super_admin' ? 'admin' : 'teacher'}
+                        />
                     </div>
                 )}
 

@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-07-24",
+  "event": "ticket-02-closed",
+  "roadmapPhase": "foundation",
+  "closedPrimary": 45,
+  "graph": {
+    "ticketCount": 112,
+    "open": 98,
+    "closed": 14,
+    "edgeCount": 309,
+    "missingReferences": 0,
+    "cycles": 0,
+    "topologicalTraversal": "112/112",
+    "transitiveChainsCalculatedForEveryOpenTicket": true,
+    "graphClearFrontier": [29, 35, 38, 39, 40, 41, 42, 69, 129, 130, 131, 132, 133]
+  },
+  "candidateRejections": [
+    {
+      "ticket": 29,
+      "reason": "Foundation enabler, but mandatory read-only B2/media reconciliation authority is unavailable."
+    },
+    {
+      "ticket": 35,
+      "reason": "Foundation/runtime enabler, but Worker deployment and scoped service-identity gates are not executable under current authority."
+    },
+    {
+      "tickets": [38, 39, 40, 41],
+      "reason": "Graph-clear only; required student runtime shell/coverage and related acceptance gates remain unavailable or unresolved. Do not begin descendants."
+    },
+    {
+      "ticket": 42,
+      "reason": "Operations roadmap phase; not eligible while Foundation phase candidates remain under audit."
+    },
+    {
+      "ticket": 69,
+      "reason": "Graph-clear Foundation mode-lineage enabler, but deployment proof requires a disposable trusted successor mutation not covered by current authority; acceptance is not executable."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "reason": "Final Closure phase; positive acceptance remains behind the preserved #50A/#126 boundary."
+    }
+  ],
+  "decision": "No independent acceptance-ready Foundation root/enabler with a different blocker family remains. Pause selection; do not bypass blockers by starting descendants."
+}

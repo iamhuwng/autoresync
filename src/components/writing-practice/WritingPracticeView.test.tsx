@@ -8,8 +8,7 @@ const {
     mockCreateSubmission,
     mockMaterializeSubmissionResult,
     mockSubmitHomework,
-    mockNotifyTeacherWritingSubmitted,
-    mockNotifyWritingSubmitted,
+    mockCreateTrustedNotification,
     mockPush,
     mockGetStudentClasses,
     mockGetClass,
@@ -24,8 +23,7 @@ const {
     mockCreateSubmission: vi.fn(),
     mockMaterializeSubmissionResult: vi.fn(),
     mockSubmitHomework: vi.fn(),
-    mockNotifyTeacherWritingSubmitted: vi.fn(() => Promise.resolve()),
-    mockNotifyWritingSubmitted: vi.fn(() => Promise.resolve()),
+    mockCreateTrustedNotification: vi.fn(() => Promise.resolve({ success: true })),
     mockPush: vi.fn(() => ({ key: 'result-1' })),
     mockGetStudentClasses: vi.fn(),
     mockGetClass: vi.fn(),
@@ -73,9 +71,8 @@ vi.mock('../../services/homeworkSubmissionService', () => ({
     submitHomework: (...args: unknown[]) => mockSubmitHomework(...args),
 }));
 
-vi.mock('../../services/notificationService', () => ({
-    notifyTeacherWritingSubmitted: (...args: unknown[]) => mockNotifyTeacherWritingSubmitted(...args),
-    notifyWritingSubmitted: (...args: unknown[]) => mockNotifyWritingSubmitted(...args),
+vi.mock('../../services/notificationProducerClient', () => ({
+    createTrustedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
 }));
 
 vi.mock('../../services/classManager', () => ({
@@ -214,20 +211,26 @@ describe('WritingPracticeView', () => {
         expect(mockCreateSubmission.mock.invocationCallOrder[0]).toBeLessThan(
             mockMaterializeSubmissionResult.mock.invocationCallOrder[0]!,
         );
-        expect(mockNotifyWritingSubmitted).toHaveBeenCalledWith(
-            'student-1',
-            'result-1',
-            'IELTS Writing',
-            'solo-practice',
-        );
-        expect(mockNotifyTeacherWritingSubmitted).toHaveBeenCalledWith(
-            'teacher-1',
-            'result-1',
-            'student-1',
-            'Student One',
-            'IELTS Writing',
-            'solo-practice',
-        );
+        expect(mockCreateTrustedNotification).toHaveBeenNthCalledWith(1, {
+            producerFamily: 'writing',
+            authorityRecordId: 'result-1',
+            recipientId: 'student-1',
+            operationKey: 'writing-submitted:student:result-1',
+            type: 'success',
+            title: '✍️ Writing Submitted',
+            message: 'Your solo practice essay for "IELTS Writing" has been submitted. A teacher will review it soon.',
+            link: '/student/academic-record',
+        });
+        expect(mockCreateTrustedNotification).toHaveBeenNthCalledWith(2, {
+            producerFamily: 'writing',
+            authorityRecordId: 'result-1',
+            recipientId: 'teacher-1',
+            operationKey: 'writing-submitted:teacher:result-1',
+            type: 'info',
+            title: 'New Writing Submission',
+            message: 'Student One submitted a solo practice essay for "IELTS Writing".',
+            link: '/teacher/grading/writing/result-1',
+        });
         expect(mockNavigate).toHaveBeenCalledWith('/student/dashboard', { replace: true });
     });
 
@@ -349,12 +352,14 @@ describe('WritingPracticeView', () => {
             ]),
         }));
         expect(mockMaterializeSubmissionResult).toHaveBeenCalledWith(submission);
-        expect(mockNotifyWritingSubmitted).toHaveBeenCalledWith(
-            'student-1',
-            'result-1',
-            'Homework IELTS Writing',
-            'homework',
-        );
+        expect(mockCreateTrustedNotification).toHaveBeenNthCalledWith(1, expect.objectContaining({
+            producerFamily: 'writing',
+            authorityRecordId: 'result-1',
+            recipientId: 'student-1',
+            operationKey: 'writing-submitted:student:result-1',
+            message: 'Your homework essay for "Homework IELTS Writing" has been submitted. A teacher will review it soon.',
+            link: '/student/academic-record',
+        }));
         expect(mockSubmitHomework).toHaveBeenCalledWith(
             'homework-submission-2',
             'result-1',
@@ -364,14 +369,14 @@ describe('WritingPracticeView', () => {
             undefined,
             expect.any(Number),
         );
-        expect(mockNotifyTeacherWritingSubmitted).toHaveBeenCalledWith(
-            'teacher-1',
-            'result-1',
-            'student-1',
-            'Student One',
-            'Homework IELTS Writing',
-            'homework',
-        );
+        expect(mockCreateTrustedNotification).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            producerFamily: 'writing',
+            authorityRecordId: 'result-1',
+            recipientId: 'teacher-1',
+            operationKey: 'writing-submitted:teacher:result-1',
+            message: 'Student One submitted a homework essay for "Homework IELTS Writing".',
+            link: '/teacher/grading/writing/result-1',
+        }));
         expect(mockNavigate).toHaveBeenCalledWith('/student/homework', { replace: true });
     });
 

@@ -1,0 +1,104 @@
+{
+  "generatedAt": "2026-07-30T16:03:00.000Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-post-ticket50-reclosed.json",
+  "graphHash": "6862957d994531bf7397e57cf43285e0f5e643547f461a96fba7fce66c5b88fc",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 51,
+    "closedCount": 61,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Foundation",
+  "graphClearFrontier": [
+    49,
+    59,
+    65,
+    66,
+    68,
+    129,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 49,
+    "title": "PRD0062 06C - Provision and prove private B2 direct upload",
+    "directPrerequisites": [
+      47,
+      48,
+      50
+    ],
+    "closedPrerequisites": [
+      47,
+      48,
+      50
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      44,
+      45,
+      46,
+      47,
+      48,
+      50
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 2,
+    "acceptanceReadiness": "Executable under the approved #49 disposable-preview authority. Exact least-privilege B2 identities, private bucket, Chrome teacher session, canonical Worker preview, #50 reconciliation, rollback, and cleanup authority are available. The current account_state_unavailable response is a #49-owned provider-snapshot consumer defect to diagnose, not a missing prerequisite.",
+    "requiredAuthority": [
+      "exact upload [writeFiles], metadata [readFiles,listFiles], and read [readFiles] runtime identities",
+      "separate closed #50 metadata, capacity [listFiles], and cleanup [deleteFiles] identities",
+      "private bookpdf bucket and exact disposable prefix",
+      "exact localhost:5173 teacher CORS",
+      "canonical Book Worker preview deployment and truthful readback",
+      "teacher Chrome session and disposable Book/PDF data",
+      "account-scope free-tier cap/alert readback",
+      "rollback and exact-version cleanup authority",
+      "explicit gate progression authority only after every acceptance class passes"
+    ],
+    "selectionReason": "#49 is the earliest unresolved Foundation activation boundary after #50 re-closure. Every direct and transitive prerequisite is formally CLOSED, its controlled preview gates are executable, and it owns the current canonical provider-snapshot consumption failure plus the remaining private-B2 acceptance sequence."
+  },
+  "candidateRejections": [
+    {
+      "number": 59,
+      "reason": "Graph-clear but rejected: generic Runtime route composition is later than the unresolved private-B2 Foundation activation boundary."
+    },
+    {
+      "numbers": [
+        65,
+        66,
+        68
+      ],
+      "reason": "Graph-clear but rejected: Teacher-workflow publication/revision tickets are outside the current Foundation phase."
+    },
+    {
+      "numbers": [
+        129,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear but rejected: final browser/security/recovery suites remain later-phase acceptance owners and cannot bypass #49."
+    }
+  ],
+  "knownPrimaryFailure": {
+    "code": "account_state_unavailable",
+    "classification": "#49-owned canonical consumption of the closed #50 provider-reconciliation snapshot. Diagnose historical commits and current deployed/configured state before changing code.",
+    "impact": "No upload authority is issued; private B2 remains fail-closed."
+  },
+  "governingSafety": {
+    "privateB2": "DISABLED",
+    "03B": "DISABLED",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny",
+    "masterKey": "offline provisioning-only; never a runtime binding"
+  }
+}

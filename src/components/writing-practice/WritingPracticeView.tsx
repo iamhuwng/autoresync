@@ -32,7 +32,7 @@ import { getHomeworkById } from '../../services/homeworkManager';
 import { getUserById } from '../../services/userService';
 import { createSubmission, materializeSubmissionResult } from '../../services/writingSubmissionService';
 import { submitHomework } from '../../services/homeworkSubmissionService';
-import { notifyTeacherWritingSubmitted, notifyWritingSubmitted } from '../../services/notificationService';
+import { createTrustedNotification } from '../../services/notificationProducerClient';
 import { studentResumeService } from '../../services/studentResume.service';
 import {
     readWritingProgress,
@@ -637,22 +637,29 @@ export default function WritingPracticeView({
             }
 
             // Fire notification (non-blocking)
-            notifyWritingSubmitted(
-                studentId,
-                resultId,
-                testData.metadata.title,
-                isHomework ? 'homework' : 'solo-practice'
-            ).catch(err => console.warn('[WritingPracticeView] Notification failed:', err));
+            const contextLabel = isHomework ? 'homework' : 'solo practice';
+            void createTrustedNotification({
+                producerFamily: 'writing',
+                authorityRecordId: resultId,
+                recipientId: studentId,
+                operationKey: `writing-submitted:student:${resultId}`,
+                type: 'success',
+                title: '✍️ Writing Submitted',
+                message: `Your ${contextLabel} essay for "${testData.metadata.title}" has been submitted. A teacher will review it soon.`,
+                link: buildRoute('STUDENT_ACADEMIC_RECORD'),
+            }).catch(err => console.warn('[WritingPracticeView] Notification failed:', err));
 
             if (assignedTeacherId && (isHomework || data.teacherId)) {
-                notifyTeacherWritingSubmitted(
-                    assignedTeacherId,
-                    resultId,
-                    studentId,
-                    studentName,
-                    testData.metadata.title,
-                    isHomework ? 'homework' : 'solo-practice',
-                ).catch(err => console.warn('[WritingPracticeView] Teacher notification failed:', err));
+                void createTrustedNotification({
+                    producerFamily: 'writing',
+                    authorityRecordId: resultId,
+                    recipientId: assignedTeacherId,
+                    operationKey: `writing-submitted:teacher:${resultId}`,
+                    type: 'info',
+                    title: 'New Writing Submission',
+                    message: `${studentName} submitted a ${contextLabel} essay for "${testData.metadata.title}".`,
+                    link: buildRoute('TEACHER_GRADING_DETAIL', { submissionId: resultId }),
+                }).catch(err => console.warn('[WritingPracticeView] Teacher notification failed:', err));
             }
 
             void removeWritingProgress({

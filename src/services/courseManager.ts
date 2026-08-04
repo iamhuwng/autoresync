@@ -7,7 +7,7 @@
 import { ref, push, set, get, update, query, orderByChild, equalTo, remove } from 'firebase/database';
 import { database } from './firebase';
 import type { Course, Module, CourseMaterial, StudentCourseProgress } from '../types/course.types';
-import { createBulkNotifications } from './notificationService';
+import { createTrustedBulkNotifications, createTrustedNotification } from './notificationProducerClient';
 import { logCreate, logUpdate, logDelete } from './auditService';
 
 const COURSES_REF = 'courses';
@@ -15,8 +15,6 @@ const MODULES_REF = 'course_modules';
 const COURSE_MATERIALS_REF = 'course_materials';
 const COURSE_TYPES_REF = 'course_types';
 const COURSE_TYPE_REQUESTS_REF = 'course_type_requests';
-
-import { createNotification } from './notificationService';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -304,11 +302,13 @@ export async function archiveCourse(courseId: string): Promise<{ success: boolea
                 const courseSnap = await get(ref(database, `${COURSES_REF}/${courseId}`));
                 const courseName = courseSnap.val()?.name || 'Untitled Course';
 
-                await createBulkNotifications(studentIds, {
+                await createTrustedBulkNotifications(studentIds, {
+                    producerFamily: 'course',
+                    authorityRecordId: courseId,
+                    operationKey: `course-archived:${courseId}`,
                     title: 'Course Archived',
                     message: `The course "${courseName}" has been archived by the teacher and is no longer accessible.`,
                     type: 'info',
-                    metadata: { courseId }
                 });
             }
         }
@@ -496,8 +496,11 @@ export async function approveCourseType(requestId: string, approvedBy: string): 
 
         // Send notification to teacher
         try {
-            await createNotification({
-                userId: request.teacherId,
+            await createTrustedNotification({
+                producerFamily: 'course',
+                authorityRecordId: requestId,
+                recipientId: request.teacherId,
+                operationKey: `course-type-approved:${requestId}`,
                 type: 'success',
                 title: 'Course Type Approved',
                 message: `Your request for course type "${request.typeName}" has been approved. You can now use it when creating courses.`,
@@ -528,8 +531,11 @@ export async function rejectCourseType(requestId: string, reason?: string): Prom
             const requestSnapshot = await get(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`));
             if (requestSnapshot.exists()) {
                 const request = requestSnapshot.val() as CourseTypeRequest;
-                await createNotification({
-                    userId: request.teacherId,
+                await createTrustedNotification({
+                    producerFamily: 'course',
+                    authorityRecordId: requestId,
+                    recipientId: request.teacherId,
+                    operationKey: `course-type-rejected:${requestId}`,
                     type: 'error',
                     title: 'Course Type Rejected',
                     message: `Your request for course type "${request.typeName}" was rejected${reason ? ': ' + reason : '.'}`,

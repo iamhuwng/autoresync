@@ -1,0 +1,144 @@
+{
+  "ticket": 49,
+  "generatedAt": "2026-07-31T05:33:06.732Z",
+  "evidenceClass": "configured-deployed-current-observed",
+  "deployment": {
+    "profile": "media",
+    "sentinelVerified": true,
+    "acceptanceRunVersion": "b92ecc94-44f8-4afe-bdeb-0f9ae359ead2",
+    "currentActiveVersion": "1cf234e2-db2b-4a9d-b581-239bac2e2d98",
+    "currentDeployment": "61f18ddd-3df2-4a93-a614-b1ee6c8f2e4a",
+    "activePercentage": 100,
+    "previewGateState": "disabled",
+    "previewGateDisabledAt": "2026-07-31T03:35:38.828Z",
+    "previewGateExpiresAt": "2026-07-31T03:43:38.828Z",
+    "ticket50aState": "all-six-deny"
+  },
+  "privateProvider": {
+    "anonymousReadDenied": true,
+    "cors": {
+      "allowedOrigins": [
+        "http://localhost:5173"
+      ],
+      "allowedOperations": [
+        "s3_put"
+      ],
+      "allowedHeaders": [
+        "content-type",
+        "x-amz-content-sha256",
+        "x-amz-meta-book-source-byte-size",
+        "x-amz-meta-book-source-sha256"
+      ],
+      "exposeHeaders": [
+        "x-amz-version-id"
+      ],
+      "maxAgeSeconds": 3600
+    },
+    "capabilities": {
+      "canonicalUpload": [
+        "writeFiles"
+      ],
+      "canonicalMetadata": [
+        "readFiles",
+        "listFiles"
+      ],
+      "canonicalRead": [
+        "readFiles"
+      ],
+      "separateCleanup": [
+        "deleteFiles"
+      ],
+      "separateCapacity": [
+        "listFiles"
+      ]
+    }
+  },
+  "canonicalPositive": {
+    "fixtureByteSize": 578,
+    "physicalPageCount": 2,
+    "firebaseStatus": "verified_completed",
+    "completedAt": "2026-07-31T03:35:21.497Z",
+    "readySourceVersionCount": 1,
+    "exactProviderIdentityVerified": true
+  },
+  "negativeAndRecovery": {
+    "alteredSignedHeaderDenied": true,
+    "wrongKeyDenied": true,
+    "crossObjectWriteDenied": true,
+    "exactReplayCountWhileValid": 2,
+    "expiredReplayDenied": true,
+    "schedulerReleaseAt": "2026-07-31T03:15:24.258Z",
+    "schedulerReleaseResult": "exact_version_deleted",
+    "interruptedRepresentativeOperationResult": "provider_absent",
+    "committedTinyVersionPreserved": true,
+    "postRollbackBeginStatus": 503,
+    "postRollbackReservationCreated": false,
+    "postRollbackSourceVersionCreated": false,
+    "postReviewDeploymentRollbackObservedAt": "2026-07-31T05:31:59Z",
+    "postReviewDeploymentExpectedConsoleErrors": 1,
+    "postReviewDeploymentUnexpectedConsoleErrors": 0
+  },
+  "representativeBrowserBoundary": {
+    "byteSize": 524288000,
+    "physicalPageCount": 2,
+    "inspectionCompleted": true,
+    "baselineBackingStoreBytes": 18626733,
+    "heldBackingStoreBytes": 543701779,
+    "releasedBackingStoreBytes": 19413779,
+    "heldDeltaBytes": 525075046,
+    "temporaryFixtureRemoved": true
+  },
+  "browser": {
+    "role": "teacher",
+    "origin": "http://localhost:5173",
+    "route": "/teacher/materials/books/book-prd0062-ticket49-1785372769166",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "postFlowConsoleWarningsOrErrors": 0
+  },
+  "quotaReadback": {
+    "storageCostTodayUsd": 0,
+    "storedBytesDisplay": "1 KB",
+    "downloadCostTodayUsd": 0,
+    "downloadBytes": 0,
+    "classBTransactions": 3,
+    "classBAllowance": 2500,
+    "classCTransactions": 166,
+    "classCAllowance": 2500,
+    "alertCheckboxesEnabled": 4
+  },
+  "localVerification": {
+    "rootFocused": {
+      "files": 7,
+      "testsPassed": 89
+    },
+    "cloudflareFocusedFinal": {
+      "files": 7,
+      "testsPassed": 67
+    },
+    "postReviewRepairFocused": {
+      "files": 4,
+      "testsPassed": 24
+    },
+    "eslint": "passed",
+    "utf8": "passed",
+    "diffCheck": "passed",
+    "productionBuild": {
+      "status": "passed",
+      "modules": 9448,
+      "bundleBudget": "passed"
+    }
+  },
+  "retainedSources": [
+    "artifacts/prd0062-ticket49-browser-20260730.json",
+    "artifacts/prd0062-ticket49-harness-20260730.json",
+    "artifacts/prd0062-ticket49-negative-20260730.json",
+    "artifacts/prd0062-ticket-06b/evidence.md",
+    "artifacts/prd0062-ticket-07/capacity-scheduler-repair-20260730.md",
+    "artifacts/prd0062-authority-audit-20260729-private-b2.json"
+  ],
+  "secretValuesRetained": false,
+  "personalIdentitiesRetained": false
+}

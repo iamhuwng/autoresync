@@ -6,6 +6,10 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import {
+  BOOK_ACTIVITY_ROLLOUT_GATES,
+  isBookActivityRolloutGateEnabled,
+} from '../config/bookActivityRolloutGates';
 import { buildRoute } from '../constants/routes';
 import {
   getTeacherMaterialsCapabilities,
@@ -34,6 +38,7 @@ import {
   listTeacherBooks,
   updateBookMetadata,
 } from '../services/materialCatalog/materialBooks.service';
+import { createBookSuccessorClient } from '../services/materialCatalog/bookSuccessor.service';
 import { database } from '../services/firebase';
 import {
   archiveReadingV2PassageMaterial,
@@ -84,6 +89,7 @@ import ClassSelectionModal from '../components/ClassSelectionModal';
 import UseAsIsModal from '../components/UseAsIsModal';
 import { HomeworkCreateModal } from '../components/homework/HomeworkCreateModal';
 import CreateBookModal from '../components/books/CreateBookModal';
+import CreateBookSuccessorModal from '../components/books/CreateBookSuccessorModal';
 import BookEditorModal from '../components/books/BookEditorModal';
 import './TeacherLobbyPage.css';
 
@@ -329,121 +335,6 @@ const toReadingV2MasterArchivePassage = (passageRef, master, index) => {
   };
 };
 
-const getReadingV2MasterMaterialId = (master) =>
-  master?.testMaterialId || master?.materialId || master?.id || '';
-
-const resolveReadingV2MasterRemovePreflight = async ({
-  actorRole,
-  master,
-  repository,
-  userId,
-}) => {
-  const materialId = getReadingV2MasterMaterialId(master);
-  const cardOwnerId = typeof master?.ownerId === 'string' ? master.ownerId : '';
-  const cardCompositionId = typeof master?.compositionId === 'string' ? master.compositionId : '';
-  let canonicalMetadata = null;
-  let canonicalLoadError = null;
-  let canonicalComposition = null;
-  let canonicalCompositionLoadError = null;
-
-  if (materialId && repository?.read) {
-    try {
-      const value = await repository.read(readingV2StoragePaths.materialMetadata(materialId));
-      canonicalMetadata = isRecord(value) ? value : null;
-    } catch (error) {
-      canonicalLoadError = error instanceof Error ? error.message : String(error);
-    }
-  }
-
-  const canonicalOwnerId = typeof canonicalMetadata?.ownerId === 'string'
-    ? canonicalMetadata.ownerId
-    : '';
-  const canonicalCompositionId = typeof canonicalMetadata?.compositionId === 'string'
-    ? canonicalMetadata.compositionId
-    : '';
-  const cardPublishedVersionId =
-    master?.publishedVersionId ||
-    master?.publishedSnapshotVersionId ||
-    master?.sourceSnapshotVersionId ||
-    master?.metadata?.publishedVersionId ||
-    master?.metadata?.publishedSnapshotVersionId ||
-    '';
-  const canonicalPublishedVersionId =
-    canonicalMetadata?.publishedVersionId ||
-    canonicalMetadata?.publishedSnapshotVersionId ||
-    canonicalMetadata?.sourceSnapshotVersionId ||
-    '';
-  const resolvedOwnerId = canonicalOwnerId || cardOwnerId;
-  const resolvedCompositionId = canonicalCompositionId || cardCompositionId;
-  const resolvedPublishedVersionId = canonicalPublishedVersionId || cardPublishedVersionId;
-  if (resolvedCompositionId && repository?.read) {
-    try {
-      const value = await repository.read(readingV2StoragePaths.fullTestCompositions(resolvedCompositionId));
-      canonicalComposition = isRecord(value) ? value : null;
-    } catch (error) {
-      canonicalCompositionLoadError = error instanceof Error ? error.message : String(error);
-    }
-  }
-
-  const canonicalCompositionLoaded = isRecord(canonicalComposition);
-  const masterHasResolvedRefs = Array.isArray(master?.passageRefs)
-    && (!master?.compositionId || master.compositionId === resolvedCompositionId);
-  const hasCompositionPayload = canonicalCompositionLoaded || masterHasResolvedRefs;
-  const ownerSource = canonicalOwnerId
-    ? 'canonical_metadata'
-    : cardOwnerId
-      ? 'card'
-      : 'missing';
-  const canRemoveByOwner = Boolean(resolvedOwnerId) && (
-    actorRole === 'super_admin' || resolvedOwnerId === userId
-  );
-  const ownerMismatch = Boolean(resolvedOwnerId) && !canRemoveByOwner;
-  const canRemove = Boolean(resolvedCompositionId)
-    && Boolean(resolvedPublishedVersionId)
-    && hasCompositionPayload
-    && canRemoveByOwner;
-  const blockReason = canRemove
-    ? null
-    : !resolvedCompositionId
-      ? 'missing_composition_identity'
-      : !resolvedPublishedVersionId
-        ? 'missing_published_version_identity'
-        : !resolvedOwnerId
-          ? 'missing_owner_identity'
-          : ownerMismatch
-            ? 'owner_mismatch'
-            : 'missing_composition_payload';
-
-  return {
-    materialId,
-    compositionId: resolvedCompositionId || null,
-    cardCompositionId: cardCompositionId || null,
-    canonicalCompositionId: canonicalCompositionId || null,
-    canonicalComposition,
-    canonicalCompositionLoaded,
-    canonicalCompositionPassageCount: Array.isArray(canonicalComposition?.passageRefs)
-      ? canonicalComposition.passageRefs.length
-      : 0,
-    canonicalCompositionLoadError,
-    publishedVersionId: resolvedPublishedVersionId || null,
-    cardPublishedVersionId: cardPublishedVersionId || null,
-    canonicalPublishedVersionId: canonicalPublishedVersionId || null,
-    cardOwnerId: cardOwnerId || null,
-    canonicalOwnerId: canonicalOwnerId || null,
-    resolvedOwnerId: resolvedOwnerId || null,
-    ownerSource,
-    canonicalLoadError,
-    canRemove,
-    blockReason,
-    title: canonicalMetadata?.title || getReadingV2MasterTitle(master),
-    visibility: canonicalMetadata?.visibility || master?.visibility || 'private',
-    testTypeIds: Array.isArray(canonicalMetadata?.testTypeIds)
-      ? canonicalMetadata.testTypeIds
-      : master?.testTypeIds || [],
-    updatedAt: canonicalMetadata?.updatedAt || master?.updatedAt || new Date().toISOString(),
-  };
-};
-
 const getConfigTokensForTestType = (activeTestTypeId, testTypeConfigs = DEFAULT_MATERIAL_TEST_TYPES) => {
   const activeId = normalizeTestTypeToken(activeTestTypeId);
   const tokens = new Set();
@@ -599,6 +490,7 @@ const TeacherLobbyPage = () => {
   const [bookError, setBookError] = useState(null);
   const [bookListVersion, setBookListVersion] = useState(0);
   const [createBookModalOpen, setCreateBookModalOpen] = useState(false);
+  const [bookSuccessorPredecessor, setBookSuccessorPredecessor] = useState(null);
   const [bookEditorOpen, setBookEditorOpen] = useState(false);
   const [bookEditorBookId, setBookEditorBookId] = useState(null);
   const [, setBookEditorDirty] = useState(false);
@@ -606,7 +498,6 @@ const TeacherLobbyPage = () => {
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
   const [editingWritingDraft, setEditingWritingDraft] = useState(null);
   const testTypeConfigsRef = useRef(DEFAULT_MATERIAL_TEST_TYPES);
-  const consumedRouteBookOpenRef = useRef(null);
   const bookEditorLauncherRef = useRef(null);
 
   // ---------- Hooks ----------
@@ -705,6 +596,17 @@ const TeacherLobbyPage = () => {
       await updateDb(ref(database), payload);
     },
   }), []);
+  const bookSuccessorClient = useMemo(() => createBookSuccessorClient({
+    baseUrl: import.meta.env.VITE_BOOK_SUCCESSOR_WORKER_URL
+      || import.meta.env.VITE_R2_UPLOAD_WORKER_URL
+      || '',
+    getIdToken: async () => {
+      if (typeof user?.getIdToken !== 'function') {
+        throw new Error('Book successor authorization is unavailable.');
+      }
+      return user.getIdToken();
+    },
+  }), [user]);
   const activeBookEditorBook = useMemo(
     () => bookRows.find((book) => (book.bookId || book.id) === bookEditorBookId) ?? null,
     [bookEditorBookId, bookRows],
@@ -1097,40 +999,6 @@ const TeacherLobbyPage = () => {
     user?.uid,
   ]);
 
-  useEffect(() => {
-    const routeBookId = location.state?.teacherMaterialsOpenBookId;
-
-    if (!routeBookId || consumedRouteBookOpenRef.current === routeBookId) {
-      return;
-    }
-
-    consumedRouteBookOpenRef.current = routeBookId;
-    setContentFilter('book');
-    setBookScope('private');
-    setBookEditorBookId(routeBookId);
-    bookEditorLauncherRef.current = null;
-    setBookEditorOpen(true);
-    trackAction('openBook', {
-      bookId: routeBookId,
-      source: location.state?.teacherMaterialsOpenBookSource || 'legacy-book-route',
-    });
-    trackAction('teacher_materials_book_editor_opened', {
-      bookId: routeBookId,
-      source: location.state?.teacherMaterialsOpenBookSource || 'legacy-book-route',
-    });
-    navigateTo('LOBBY', {}, {
-      reason: 'teacher_materials_book_route_state_consumed',
-      replace: true,
-      force: true,
-      state: {},
-    });
-  }, [
-    location.state?.teacherMaterialsOpenBookId,
-    location.state?.teacherMaterialsOpenBookSource,
-    navigateTo,
-    trackAction,
-  ]);
-
   const handleContentFilterChange = useCallback((nextTab) => {
     setContentFilter((currentTab) => {
       if (currentTab !== nextTab) {
@@ -1494,127 +1362,35 @@ const TeacherLobbyPage = () => {
       return;
     }
 
-    const actorRole = profile?.role === 'super_admin' ? 'super_admin' : 'teacher';
-    if (includeLinkedPassages && !readingV2MasterRemoveAcknowledged) {
+    const passageRefs = getReadingV2MasterPassageRefs(master);
+    const nonOwnedRefs = passageRefs.filter((passageRef) => {
+      const ownerId = passageRef?.ownerId || master.ownerId;
+      return ownerId && ownerId !== user.uid;
+    });
+    if (includeLinkedPassages && (nonOwnedRefs.length > 0 || !readingV2MasterRemoveAcknowledged)) {
       return;
     }
 
     setReadingV2MasterRemoveStatus('removing');
     setReadingV2MasterRemoveError(null);
 
-    let removePreflight = null;
     try {
-      removePreflight = await resolveReadingV2MasterRemovePreflight({
-        actorRole,
-        master,
-        repository: readingV2CompositionRepository,
-        userId: user.uid,
-      });
-      logTeacherMaterialsDiagnostic('reading_v2_master_remove_preflight', {
-        materialId: removePreflight.materialId,
-        compositionId: removePreflight.compositionId,
-        cardCompositionId: removePreflight.cardCompositionId,
-        canonicalCompositionId: removePreflight.canonicalCompositionId,
-        publishedVersionId: removePreflight.publishedVersionId,
-        cardPublishedVersionId: removePreflight.cardPublishedVersionId,
-        canonicalPublishedVersionId: removePreflight.canonicalPublishedVersionId,
-        actorUserId: user.uid,
-        actorRole,
-        cardOwnerId: removePreflight.cardOwnerId,
-        canonicalOwnerId: removePreflight.canonicalOwnerId,
-        resolvedOwnerId: removePreflight.resolvedOwnerId,
-        ownerSource: removePreflight.ownerSource,
-        canonicalLoadError: removePreflight.canonicalLoadError,
-        canonicalCompositionLoaded: removePreflight.canonicalCompositionLoaded,
-        canonicalCompositionPassageCount: removePreflight.canonicalCompositionPassageCount,
-        canonicalCompositionLoadError: removePreflight.canonicalCompositionLoadError,
-        linkedPassagesRequested: includeLinkedPassages,
-        passageCount: getReadingV2MasterPassageRefs(removePreflight.canonicalComposition || master).length,
-      });
-
-      if (!removePreflight.canRemove) {
-        const message = removePreflight.blockReason === 'owner_mismatch'
-          ? 'Only the owner can remove this Reading V2 master.'
-          : removePreflight.blockReason === 'missing_composition_identity'
-            ? 'Could not verify the canonical composition for this Reading V2 master. Refresh and try again.'
-            : removePreflight.blockReason === 'missing_published_version_identity'
-              ? 'Could not verify the published version for this Reading V2 master. Refresh and try again.'
-              : removePreflight.blockReason === 'missing_composition_payload'
-                ? 'Could not load the canonical composition for this Reading V2 master. Refresh and try again.'
-                : 'Could not verify ownership for this Reading V2 master. Refresh and try again.';
-        setReadingV2MasterRemoveError(message);
-        setReadingV2MasterRemoveStatus('failed');
-        logTeacherMaterialsDiagnostic('reading_v2_master_remove_blocked', {
-          materialId: removePreflight.materialId,
-          compositionId: removePreflight.compositionId,
-          cardCompositionId: removePreflight.cardCompositionId,
-          canonicalCompositionId: removePreflight.canonicalCompositionId,
-          publishedVersionId: removePreflight.publishedVersionId,
-          actorUserId: user.uid,
-          actorRole,
-          cardOwnerId: removePreflight.cardOwnerId,
-          canonicalOwnerId: removePreflight.canonicalOwnerId,
-          resolvedOwnerId: removePreflight.resolvedOwnerId,
-          ownerSource: removePreflight.ownerSource,
-          reason: removePreflight.blockReason,
-          canonicalCompositionLoaded: removePreflight.canonicalCompositionLoaded,
-          canonicalCompositionPassageCount: removePreflight.canonicalCompositionPassageCount,
-          canonicalCompositionLoadError: removePreflight.canonicalCompositionLoadError,
-        });
-        toast.error(message);
-        return;
-      }
-
-      const compositionForRemoval = removePreflight.canonicalComposition || master;
-      const passageRefs = getReadingV2MasterPassageRefs(compositionForRemoval);
-      const nonOwnedRefs = passageRefs.filter((passageRef) => {
-        const ownerId = passageRef?.ownerId || removePreflight.resolvedOwnerId;
-        return ownerId && ownerId !== user.uid;
-      });
-      if (includeLinkedPassages && nonOwnedRefs.length > 0) {
-        const message = 'Linked passage removal is blocked because some passages are not owned by you.';
-        setReadingV2MasterRemoveError(message);
-        setReadingV2MasterRemoveStatus('failed');
-        logTeacherMaterialsDiagnostic('reading_v2_master_remove_blocked', {
-          materialId: removePreflight.materialId,
-          compositionId: removePreflight.compositionId,
-          cardCompositionId: removePreflight.cardCompositionId,
-          canonicalCompositionId: removePreflight.canonicalCompositionId,
-          publishedVersionId: removePreflight.publishedVersionId,
-          actorUserId: user.uid,
-          actorRole,
-          cardOwnerId: removePreflight.cardOwnerId,
-          canonicalOwnerId: removePreflight.canonicalOwnerId,
-          resolvedOwnerId: removePreflight.resolvedOwnerId,
-          ownerSource: removePreflight.ownerSource,
-          reason: 'non_owned_linked_passages',
-          nonOwnedCount: nonOwnedRefs.length,
-          canonicalCompositionLoaded: removePreflight.canonicalCompositionLoaded,
-        });
-        toast.error(message);
-        return;
-      }
-
       if (includeLinkedPassages) {
         trackAction('master_linked_passages_remove_requested', {
           materialId: master.testMaterialId || master.materialId || master.id,
-          compositionId: removePreflight.compositionId,
+          compositionId: master.compositionId,
           passageCount: passageRefs.length,
           source: 'teacher_materials_master_delete_modal',
         });
 
         for (const [index, passageRef] of passageRefs.entries()) {
-          const archivePassage = toReadingV2MasterArchivePassage(
-            passageRef,
-            { ...master, ownerId: removePreflight.resolvedOwnerId },
-            index,
-          );
+          const archivePassage = toReadingV2MasterArchivePassage(passageRef, master, index);
           if (!archivePassage.materialId || !archivePassage.ownerId) {
             throw new Error('Linked Reading Passage is missing archive identity.');
           }
           await archiveReadingV2PassageMaterial({
             actorUserId: user.uid,
-            actorRole,
+            actorRole: profile?.role === 'super_admin' ? 'super_admin' : 'teacher',
             teacherId: user.uid,
             passage: archivePassage,
             repository: readingV2PassageArchiveRepository,
@@ -1622,7 +1398,7 @@ const TeacherLobbyPage = () => {
               usedElsewhere: true,
               usageCategories: ['master'],
             },
-            correlationId: `${user.uid}:${removePreflight.compositionId || removePreflight.materialId}:linked:${archivePassage.materialId}`,
+            correlationId: `${user.uid}:${master.compositionId || master.testMaterialId}:linked:${archivePassage.materialId}`,
             sourceFeatureId: 'teacher_materials_reading_master_and_linked_passages_removed',
             sourceRoute: '/lobby',
           });
@@ -1631,22 +1407,19 @@ const TeacherLobbyPage = () => {
 
       await removeReadingV2MasterComposition({
         actorUserId: user.uid,
-        actorRole,
+        actorRole: profile?.role === 'super_admin' ? 'super_admin' : 'teacher',
         composition: {
           ...master,
-          ...compositionForRemoval,
-          compositionId: removePreflight.compositionId,
-          ownerId: removePreflight.resolvedOwnerId,
-          testMaterialId: removePreflight.materialId,
-          publishedVersionId: removePreflight.publishedVersionId,
-          title: removePreflight.title,
-          visibility: removePreflight.visibility,
-          testTypeIds: removePreflight.testTypeIds,
-          updatedAt: removePreflight.updatedAt,
+          ownerId: master.ownerId || user.uid,
+          testMaterialId: master.testMaterialId || master.materialId || master.id,
+          title: getReadingV2MasterTitle(master),
+          visibility: master.visibility || 'private',
+          testTypeIds: master.testTypeIds || [],
+          updatedAt: master.updatedAt || new Date().toISOString(),
           passageRefs,
         },
         repository: readingV2CompositionRepository,
-        correlationId: `${user.uid}:${removePreflight.compositionId || removePreflight.materialId}:remove`,
+        correlationId: `${user.uid}:${master.compositionId || master.testMaterialId}:remove`,
         sourceFeatureId: includeLinkedPassages
           ? 'teacher_materials_reading_master_and_linked_passages_removed'
           : 'teacher_materials_reading_master_removed',
@@ -1659,21 +1432,16 @@ const TeacherLobbyPage = () => {
           : 'teacher_materials_reading_master_removed',
         {
           materialId: master.testMaterialId || master.materialId || master.id,
-          compositionId: removePreflight.compositionId,
+          compositionId: master.compositionId,
           passageCount: passageRefs.length,
           source: 'teacher_materials_master_delete_modal',
         },
       );
       logTeacherMaterialsDiagnostic('reading_v2_master_removed', {
         materialId: master.testMaterialId || master.materialId || master.id,
-        compositionId: removePreflight.compositionId,
-        cardCompositionId: removePreflight.cardCompositionId,
-        canonicalCompositionId: removePreflight.canonicalCompositionId,
-        canonicalCompositionLoaded: removePreflight.canonicalCompositionLoaded,
-        canonicalCompositionPassageCount: removePreflight.canonicalCompositionPassageCount,
+        compositionId: master.compositionId,
         linkedPassagesArchived: includeLinkedPassages,
         passageCount: passageRefs.length,
-        ownerSource: removePreflight.ownerSource,
       });
       toast.success(getReadingV2MasterRemovalNotice({
         master,
@@ -1691,20 +1459,8 @@ const TeacherLobbyPage = () => {
       setReadingV2MasterRemoveStatus('failed');
       logTeacherMaterialsDiagnostic('reading_v2_master_remove_failed', {
         materialId: master.testMaterialId || master.materialId || master.id,
-        compositionId: removePreflight?.compositionId || master.compositionId,
-        cardCompositionId: removePreflight?.cardCompositionId || null,
-        canonicalCompositionId: removePreflight?.canonicalCompositionId || null,
-        canonicalCompositionLoaded: removePreflight?.canonicalCompositionLoaded || false,
-        canonicalCompositionPassageCount: removePreflight?.canonicalCompositionPassageCount || 0,
-        canonicalCompositionLoadError: removePreflight?.canonicalCompositionLoadError || null,
+        compositionId: master.compositionId,
         linkedPassagesRequested: includeLinkedPassages,
-        actorUserId: user.uid,
-        actorRole,
-        cardOwnerId: removePreflight?.cardOwnerId || null,
-        canonicalOwnerId: removePreflight?.canonicalOwnerId || null,
-        resolvedOwnerId: removePreflight?.resolvedOwnerId || null,
-        ownerSource: removePreflight?.ownerSource || null,
-        canonicalLoadError: removePreflight?.canonicalLoadError || null,
         message,
       });
     }
@@ -2263,9 +2019,17 @@ const TeacherLobbyPage = () => {
       throw new Error('You must be signed in to create a Book.');
     }
 
+    if (
+      value.bookMode === 'pdf' &&
+      !isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.create)
+    ) {
+      throw new Error('PDF Book creation is safely unavailable right now.');
+    }
+
     const createdBook = await createBookDraft(
       {
         ...value,
+        bookMode: value.bookMode,
         ownerId: user.uid,
       },
       materialBooksRepository,
@@ -2273,20 +2037,31 @@ const TeacherLobbyPage = () => {
     );
     trackAction('createBook', {
       source: 'teacher_materials_book_modal',
+      bookMode: value.bookMode,
       testTypeIds: value.testTypeIds,
       visibility: value.visibility,
     });
     trackAction('teacher_materials_book_created', {
       bookId: createdBook.bookId,
       source: 'teacher_materials_book_modal',
+      bookMode: value.bookMode,
       testTypeCount: value.testTypeIds.length,
       visibility: value.visibility,
     });
+    toast.success(`Created "${createdBook.title}".`);
 
     setCreateBookModalOpen(false);
     setContentFilter('book');
     setBookScope(value.visibility === 'private' ? 'private' : 'public');
     setBookListVersion((version) => version + 1);
+    setBookEditorBookId(createdBook.bookId);
+    bookEditorLauncherRef.current = null;
+    setBookEditorOpen(true);
+    trackAction('teacher_materials_book_editor_opened', {
+      bookId: createdBook.bookId,
+      bookMode: createdBook.bookMode,
+      source: 'teacher_materials_book_created',
+    });
   }, [bookValidationContext, materialBooksRepository, trackAction, user?.uid]);
 
   const handleOpenBook = useCallback((book, launcher) => {
@@ -2311,6 +2086,71 @@ const TeacherLobbyPage = () => {
     setBookEditorDirty(false);
     setBookEditorOpen(false);
   }, []);
+
+  const handleOpenBookSuccessor = useCallback((book) => {
+    if (!book?.isOwner) {
+      return;
+    }
+    setBookSuccessorPredecessor(book);
+    trackAction('teacher_materials_book_successor_opened', {
+      bookId: book.bookId || book.id,
+      fromMode: book.bookMode || 'materials',
+      source: 'teacher_materials_book_card',
+    });
+  }, [trackAction]);
+
+  const handleCloseBookSuccessor = useCallback(() => {
+    if (bookSuccessorPredecessor) {
+      trackAction('teacher_materials_book_successor_canceled', {
+        bookId: bookSuccessorPredecessor.bookId || bookSuccessorPredecessor.id,
+        source: 'teacher_materials_book_successor_modal',
+      });
+    }
+    setBookSuccessorPredecessor(null);
+  }, [bookSuccessorPredecessor, trackAction]);
+
+  const handleCreateBookSuccessor = useCallback(async ({ reason, targetMode }) => {
+    const predecessor = bookSuccessorPredecessor;
+    const predecessorBookId = predecessor?.bookId || predecessor?.id;
+    if (!predecessorBookId || !predecessor?.updatedAt) {
+      throw new Error('The original Book must be reloaded before changing mode.');
+    }
+
+    try {
+      const result = await bookSuccessorClient.create({
+        predecessorBookId,
+        expectedUpdatedAt: predecessor.updatedAt,
+        targetMode,
+        reason,
+        operationId: crypto.randomUUID(),
+      });
+      trackAction('teacher_materials_book_successor_created', {
+        predecessorBookId,
+        successorBookId: result.successor.bookId,
+        fromMode: predecessor.bookMode || 'materials',
+        toMode: targetMode,
+        replayed: result.status === 'replayed',
+        source: 'teacher_materials_book_successor_modal',
+      });
+      toast.success(`Created "${result.successor.title}" as a ${targetMode === 'pdf' ? 'PDF source' : 'Materials'} successor.`);
+      setBookSuccessorPredecessor(null);
+      setContentFilter('book');
+      setBookScope('private');
+      setBookListVersion((version) => version + 1);
+      setBookEditorBookId(result.successor.bookId);
+      bookEditorLauncherRef.current = null;
+      setBookEditorOpen(true);
+    } catch (error) {
+      trackAction('teacher_materials_book_successor_failed', {
+        predecessorBookId,
+        fromMode: predecessor.bookMode || 'materials',
+        toMode: targetMode,
+        source: 'teacher_materials_book_successor_modal',
+      });
+      toast.error(error instanceof Error ? error.message : 'Could not create the successor Book.');
+      throw error;
+    }
+  }, [bookSuccessorClient, bookSuccessorPredecessor, trackAction]);
 
   const handleArchiveBook = useCallback(async (book) => {
     const bookId = book?.bookId || book?.id;
@@ -3372,6 +3212,7 @@ const TeacherLobbyPage = () => {
                         isBookSelectable={canBulkSelectBook}
                         onToggleBookSelection={handleToggleBookSelection}
                         onOpenBook={handleOpenBook}
+                        onCreateSuccessor={handleOpenBookSuccessor}
                         onArchiveBook={handleArchiveBook}
                       />
                     )
@@ -3749,7 +3590,18 @@ const TeacherLobbyPage = () => {
           title="Create Book"
           testTypes={testTypeConfigs}
           onClose={handleCloseCreateBookModal}
+          onModeSelect={(bookMode) => trackAction('teacher_materials_book_mode_selected', {
+            bookMode,
+            source: 'teacher_materials_book_modal',
+          })}
           onSave={handleSaveBook}
+        />
+
+        <CreateBookSuccessorModal
+          opened={Boolean(bookSuccessorPredecessor)}
+          predecessor={bookSuccessorPredecessor}
+          onClose={handleCloseBookSuccessor}
+          onCreate={handleCreateBookSuccessor}
         />
 
         <BookEditorModal

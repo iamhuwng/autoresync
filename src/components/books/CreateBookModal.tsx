@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
-import type { MaterialBookVisibility, MaterialTestTypeConfig } from '../../types/materialCatalog.types';
+import React, { useCallback, useMemo, useState } from 'react';
+import { toast } from '../modern/ToastNotification';
+import type { MaterialBookMode, MaterialBookVisibility, MaterialTestTypeConfig } from '../../types/materialCatalog.types';
 import './CreateBookModal.css';
 
 export interface CreateBookModalValue {
+  readonly bookMode: MaterialBookMode;
   readonly title: string;
   readonly subtitle?: string;
   readonly authors: readonly string[];
@@ -22,7 +24,9 @@ interface CreateBookModalProps {
   readonly testTypes: readonly MaterialTestTypeConfig[];
   readonly initialValue?: Partial<CreateBookModalValue>;
   readonly title?: string;
+  readonly pdfModeEnabled?: boolean;
   readonly onClose: () => void;
+  readonly onModeSelect?: (bookMode: MaterialBookMode) => void;
   readonly onSave: (value: CreateBookModalValue) => Promise<void> | void;
 }
 
@@ -45,7 +49,10 @@ const CreateBookModal = ({
   testTypes,
   initialValue,
   title = 'Create Book',
+  // Ticket 50B owns activation; default stays fail-closed.
+  pdfModeEnabled = false,
   onClose,
+  onModeSelect,
   onSave,
 }: CreateBookModalProps) => {
   const selectableTestTypes = useMemo(
@@ -66,8 +73,26 @@ const CreateBookModal = ({
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>(
     (initialValue?.testTypeIds ?? []).map(String),
   );
+  const [bookMode, setBookMode] = useState<MaterialBookMode | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+
+  const resetForm = useCallback(() => {
+    setTitleValue(initialValue?.title ?? '');
+    setSubtitle(initialValue?.subtitle ?? '');
+    setAuthors((initialValue?.authors ?? []).join(', '));
+    setPublisher(initialValue?.publisher ?? '');
+    setEdition(initialValue?.edition ?? '');
+    setSeries(initialValue?.series ?? '');
+    setIsbn(initialValue?.isbn ?? '');
+    setCoverUrl(initialValue?.coverUrl ?? '');
+    setTags((initialValue?.tags ?? []).join(', '));
+    setDescription(initialValue?.description ?? '');
+    setVisibility(fromVisibility(initialValue?.visibility));
+    setSelectedTestTypeIds((initialValue?.testTypeIds ?? []).map(String));
+    setBookMode(null);
+    setErrors({});
+  }, [initialValue]);
 
   if (!opened) {
     return null;
@@ -81,8 +106,24 @@ const CreateBookModal = ({
     ));
   };
 
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (bookMode === 'pdf' && !pdfModeEnabled) {
+      setBookMode(null);
+      setErrors({ bookMode: 'PDF source is no longer available. Choose another option.' });
+      return;
+    }
+
+    if (!bookMode) {
+      setErrors({ bookMode: 'Choose how to create this Book.' });
+      return;
+    }
 
     const nextErrors: Record<string, string> = {};
     const trimmedTitle = getString(titleValue);
@@ -92,7 +133,6 @@ const CreateBookModal = ({
     if (selectedTestTypeIds.length === 0) {
       nextErrors.testTypeIds = 'Choose at least one Test Type.';
     }
-
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       return;
@@ -101,6 +141,7 @@ const CreateBookModal = ({
     setSaving(true);
     try {
       await onSave({
+        bookMode,
         title: trimmedTitle,
         subtitle: getString(subtitle) || undefined,
         authors: splitList(authors),
@@ -114,6 +155,9 @@ const CreateBookModal = ({
         description: getString(description) || undefined,
         visibility: toPublicVisibility(visibility),
       });
+      resetForm();
+    } catch {
+      toast.error('Could not save Book. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -130,18 +174,57 @@ const CreateBookModal = ({
       >
         <div className="create-book-modal__header">
           <h2 className="create-book-modal__title">{title}</h2>
-          <button className="create-book-modal__button" type="button" onClick={onClose}>
+          <button className="create-book-modal__button" type="button" onClick={handleClose}>
             Close
           </button>
         </div>
 
         <div className="create-book-modal__body">
-          <div className="create-book-modal__grid">
-            <label className="create-book-modal__field create-book-modal__field--wide">
-              Title
-              <input value={titleValue} onChange={(event) => setTitleValue(event.target.value)} />
-              {errors.title && <p className="create-book-modal__error">{errors.title}</p>}
-            </label>
+          <fieldset className="create-book-modal__fieldset">
+            <legend className="create-book-modal__legend">How would you like to create this Book?</legend>
+            <div className="create-book-modal__radio-row">
+              <label className="create-book-modal__choice">
+                <input
+                  type="radio"
+                  name="book-mode"
+                  checked={bookMode === 'materials'}
+                  onChange={() => {
+                    setBookMode('materials');
+                    onModeSelect?.('materials');
+                    setErrors((current) => ({ ...current, bookMode: '' }));
+                  }}
+                />
+                Materials
+              </label>
+              <label className="create-book-modal__choice">
+                <input
+                  type="radio"
+                  name="book-mode"
+                  checked={bookMode === 'pdf'}
+                  disabled={!pdfModeEnabled}
+                  onChange={() => {
+                    setBookMode('pdf');
+                    onModeSelect?.('pdf');
+                    setErrors((current) => ({ ...current, bookMode: '' }));
+                  }}
+                />
+                PDF source
+              </label>
+            </div>
+            {!pdfModeEnabled && (
+              <p className="create-book-modal__error" role="status">PDF source creation is not available yet.</p>
+            )}
+            {errors.bookMode && <p className="create-book-modal__error">{errors.bookMode}</p>}
+          </fieldset>
+
+          {bookMode && (
+            <>
+              <div className="create-book-modal__grid">
+                <label className="create-book-modal__field create-book-modal__field--wide">
+                  Title
+                  <input value={titleValue} onChange={(event) => setTitleValue(event.target.value)} />
+                  {errors.title && <p className="create-book-modal__error">{errors.title}</p>}
+                </label>
 
             <label className="create-book-modal__field">
               Subtitle
@@ -177,7 +260,7 @@ const CreateBookModal = ({
               Cover URL
               <input value={coverUrl} onChange={(event) => setCoverUrl(event.target.value)} />
             </label>
-          </div>
+              </div>
 
           <fieldset className="create-book-modal__fieldset">
             <legend className="create-book-modal__legend">Test Types</legend>
@@ -232,15 +315,19 @@ const CreateBookModal = ({
             Description
             <textarea value={description} onChange={(event) => setDescription(event.target.value)} />
           </label>
+            </>
+          )}
         </div>
 
         <div className="create-book-modal__footer">
-          <button className="create-book-modal__button" type="button" onClick={onClose}>
+          <button className="create-book-modal__button" type="button" onClick={handleClose}>
             Cancel
           </button>
-          <button className="create-book-modal__button create-book-modal__button--primary" type="submit" disabled={saving}>
-            Save Book
-          </button>
+          {bookMode && (
+            <button className="create-book-modal__button create-book-modal__button--primary" type="submit" disabled={saving}>
+              Save Book
+            </button>
+          )}
         </div>
       </form>
     </div>

@@ -1,0 +1,86 @@
+{
+  "generatedAt": "2026-07-30T09:27:08.256Z",
+  "source": "live GitHub issue bodies via gh issue list --state all --limit 500",
+  "issueHash": "cce1f3372c2f910eb8ee3799d12fd7bf14677a932f96f5161d230500031b77f6",
+  "issueCount": 112,
+  "openCount": 48,
+  "closedCount": 64,
+  "rawEdgeCount": 310,
+  "uniqueEdgeCount": 310,
+  "missingReferences": [],
+  "duplicateEdges": [],
+  "cycles": [],
+  "topologicalCoverage": 112,
+  "graphClearFrontier": [
+    49,
+    74,
+    129,
+    131,
+    132,
+    133
+  ],
+  "contractChange": {
+    "ticket": 59,
+    "state": "CLOSED",
+    "destinationOwnerAdded": "canonical production Activity/Interaction target-resolver injection",
+    "topologyChanged": false,
+    "reopenRule": "Keep #59 closed while prerequisite #74 is open; re-audit and reopen #59 immediately after #74 closes if production resolver injection remains absent."
+  },
+  "selected": {
+    "number": 74,
+    "state": "OPEN",
+    "roadmapPhase": "Runtime",
+    "directPrerequisites": [
+      31,
+      34,
+      59,
+      72
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      44,
+      45,
+      46,
+      47,
+      48,
+      51,
+      52,
+      55,
+      56,
+      57,
+      58,
+      59,
+      64,
+      65,
+      66,
+      72
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 52,
+    "acceptanceReadiness": "Executable locally; trusted routes and production activation remain disabled.",
+    "requiredAuthority": "Local source/tests, live issue evidence, and dry-run only."
+  },
+  "blockedCandidate": {
+    "number": 87,
+    "state": "OPEN",
+    "directPrerequisites": [
+      76,
+      79,
+      83,
+      86
+    ],
+    "openTransitivePrerequisites": [
+      74
+    ],
+    "rejectionReason": "Dependency-ineligible until #74 is formally closed; #84/#85/#86 require later frozen-policy audits before #87 implementation."
+  }
+}

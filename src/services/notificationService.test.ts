@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     createNotification,
+    createBulkNotifications,
     getUserNotifications,
     getUnreadNotifications,
     markNotificationAsRead,
@@ -85,6 +86,79 @@ describe('notificationService', () => {
             expect(result.success).toBe(false);
             expect(result.error).toContain('Missing required fields');
         });
+
+        it('preserves legacy metadata for existing producers', async () => {
+            mockSet.mockResolvedValueOnce(undefined);
+
+            const result = await createNotification({
+                userId: 'user-123',
+                type: 'info',
+                title: 'Legacy',
+                message: 'Still supported',
+                metadata: { resultId: 'result-1', source: 'grading' },
+            });
+
+            expect(result.success).toBe(true);
+            expect(mockSet).toHaveBeenCalledWith(
+                'notifications/user-123/mock-notif-id',
+                expect.objectContaining({
+                    metadata: { resultId: 'result-1', source: 'grading' },
+                })
+            );
+        });
+
+        it('keeps structured Book writes disabled until the trusted producer is live', async () => {
+            const result = await createNotification({
+                userId: 'user-123',
+                type: 'info',
+                title: 'Book update',
+                message: 'Not active yet',
+                metadata: {
+                    schemaVersion: 1,
+                    kind: 'book',
+                    contextType: 'book',
+                    contextId: 'book-1',
+                    updateActionId: 'update-1',
+                    checkpointAvailable: true,
+                    deadlineClass: 'none',
+                    actionClass: 'open',
+                },
+            });
+
+            expect(result).toEqual({
+                success: false,
+                error: 'Structured Book notification writes are disabled',
+            });
+            expect(mockPush).not.toHaveBeenCalled();
+            expect(mockSet).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('createBulkNotifications', () => {
+        it('keeps structured Book fan-out writes disabled', async () => {
+            const result = await createBulkNotifications(['user-123'], {
+                type: 'info',
+                title: 'Book update',
+                message: 'Not active yet',
+                metadata: {
+                    schemaVersion: 1,
+                    kind: 'book',
+                    contextType: 'book',
+                    contextId: 'book-1',
+                    updateActionId: 'update-1',
+                    checkpointAvailable: true,
+                    deadlineClass: 'none',
+                    actionClass: 'open',
+                },
+            });
+
+            expect(result).toEqual({
+                success: false,
+                error: 'Structured Book notification writes are disabled',
+            });
+            expect(mockPush).not.toHaveBeenCalled();
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
     });
 
     describe('getUserNotifications', () => {
@@ -115,6 +189,31 @@ describe('notificationService', () => {
             const result = await getUserNotifications('user-123');
             expect(result).toEqual([]);
         });
+
+        it('adapts invalid stored metadata without trusting it', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    'n1': {
+                        title: 'Stored notification',
+                        message: 'Legacy fields remain',
+                        metadata: { schemaVersion: 99, token: 'secret' },
+                        createdAt: 100,
+                    },
+                }),
+            });
+
+            const result = await getUserNotifications('user-123');
+
+            expect(result[0]).toEqual({
+                id: 'n1',
+                type: 'info',
+                title: 'Stored notification',
+                message: 'Legacy fields remain',
+                read: false,
+                createdAt: 100,
+            });
+        });
     });
 
     describe('getUnreadNotifications', () => {
@@ -137,16 +236,90 @@ describe('notificationService', () => {
     });
 
     describe('markNotificationAsRead', () => {
-        it('should mark notification as read', async () => {
-            mockUpdate.mockResolvedValueOnce(undefined);
+        it('writes only the notification read leaf', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => false,
+            });
+            mockSet.mockResolvedValueOnce(undefined);
 
             const result = await markNotificationAsRead('user-123', 'n1');
 
             expect(result.success).toBe(true);
-            expect(mockUpdate).toHaveBeenCalledWith(
-                'notifications/user-123/n1',
-                { read: true }
+            expect(mockSet).toHaveBeenCalledWith(
+                'notifications/user-123/n1/read',
+                true
             );
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
+
+        it('does not rewrite an already-read notification', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => true,
+            });
+
+            const result = await markNotificationAsRead('user-123', 'n1');
+
+            expect(result.success).toBe(true);
+            expect(mockSet).not.toHaveBeenCalled();
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('markAllNotificationsAsRead', () => {
+        it('writes each unread notification read leaf without a root update', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    n1: {
+                        id: 'n1',
+                        userId: 'user-123',
+                        type: 'info',
+                        title: 'Legacy title',
+                        message: 'Legacy message',
+                        createdAt: 100,
+                        read: false,
+                        link: '/student/homework/legacy',
+                        metadata: { legacy: true },
+                    },
+                    n2: {
+                        id: 'n2',
+                        type: 'success',
+                        title: 'Current title',
+                        message: 'Current message',
+                        createdAt: 200,
+                        read: false,
+                        metadata: { schemaVersion: 1, kind: 'book' },
+                    },
+                    n3: { id: 'n3', createdAt: 300, read: true },
+                }),
+            });
+            mockSet.mockResolvedValue(undefined);
+
+            const result = await markAllNotificationsAsRead('user-123');
+
+            expect(result.success).toBe(true);
+            expect(mockSet).toHaveBeenCalledTimes(2);
+            expect(mockSet).toHaveBeenCalledWith('notifications/user-123/n1/read', true);
+            expect(mockSet).toHaveBeenCalledWith('notifications/user-123/n2/read', true);
+            expect(mockSet.mock.calls.every(([, value]) => value === true)).toBe(true);
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
+
+        it('does not write when every notification is already read', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    n1: { id: 'n1', createdAt: 100, read: true },
+                }),
+            });
+
+            const result = await markAllNotificationsAsRead('user-123');
+
+            expect(result.success).toBe(true);
+            expect(mockSet).not.toHaveBeenCalled();
+            expect(mockUpdate).not.toHaveBeenCalled();
         });
     });
 

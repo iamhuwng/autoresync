@@ -1,0 +1,61 @@
+{
+  "selectedAt": "2026-07-27T20:56:00+07:00",
+  "governingPolicy": "Deterministic roadmap and mandatory dependency gate: direct and transitive prerequisites closed; current roadmap phase; executable acceptance; authority available; strongest closure and downstream-unblock value.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket66-closed.json",
+    "issueHash": "0f522d45ae81456b44bb23856e938e8c8156ed77ff24b6efa442cfed7327e4ae",
+    "issueCount": 112,
+    "openCount": 70,
+    "closedCount": 42,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 67, 68, 70, 72, 129, 130, 131, 132, 133]
+  },
+  "selectedTicket": {
+    "issue": 72,
+    "ticket": "21",
+    "title": "Resolve server Book Delivery projection",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [31, 59, 65, 66],
+    "transitivePrerequisites": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 58,
+    "acceptanceReadiness": "Executable after live contract audit; #72 owns server projection/service/Worker/rules proof. Any activated deployed/canary/private-B2/rollback drill must remain #134-owned by destination-first transfer before #72 closure.",
+    "requiredAuthority": [
+      "local repository implementation and tests",
+      "local Worker/service/rules test execution",
+      "no trusted-action gate enablement",
+      "no #50A, #03B, or private-B2 state change"
+    ]
+  },
+  "candidateRejections": [
+    {
+      "issue": 49,
+      "reason": "Graph-clear but current authority/safety boundary forbids changing private-B2 state; acceptance requires deployed private-B2 provisioning and disposable object proof."
+    },
+    {
+      "issue": 50,
+      "reason": "Graph-clear but current authority/safety boundary forbids private-B2 lifecycle state changes; acceptance includes deployed disposable-object reconciliation proof."
+    },
+    {
+      "issue": 67,
+      "reason": "Graph-clear and executable later, but belongs to teacher workflow after runtime delivery enablers; downstream leverage 23 versus #72 leverage 58."
+    },
+    {
+      "issue": 68,
+      "reason": "Graph-clear and executable later, but belongs to teacher workflow after runtime delivery enablers; downstream leverage 23 versus #72 leverage 58."
+    },
+    {
+      "issue": 70,
+      "reason": "Graph-clear and executable later, but unpublished migration workflow follows runtime delivery enablers; downstream leverage 27 versus #72 leverage 58."
+    },
+    {
+      "issues": [129, 130, 131, 132, 133],
+      "reason": "Graph-clear only in the narrow Blocked-by sense; final closure/regression phase is not current roadmap phase and still depends on preserved #50A/activation boundaries."
+    }
+  ],
+  "selectionDecision": "Select exactly one primary: #72 / Ticket 21."
+}

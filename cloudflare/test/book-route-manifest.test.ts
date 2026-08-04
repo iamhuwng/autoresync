@@ -1,0 +1,292 @@
+import { describe, expect, it } from 'vitest';
+import wranglerSource from '../wrangler.jsonc?raw';
+import {
+  canonicalBookRouteManifest,
+  normalizeBookRouteTemplate,
+  validateBookRouteManifest,
+} from '../src/upload-worker/book-routes/manifest.ts';
+
+const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string, string> };
+
+describe('canonical Book route contract catalog', () => {
+  it('covers every contributor exactly once', () => {
+    const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
+    expect(contributorRoutes).toHaveLength(31);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#59')).toHaveLength(2);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#70')).toHaveLength(3);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#67')).toHaveLength(1);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#71')).toHaveLength(1);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(2);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#49')).toHaveLength(4);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#80')).toHaveLength(1);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(31);
+  });
+
+  it('registers all future boundaries as disabled seams', () => {
+    const future = canonicalBookRouteManifest.filter((route) => route.source === 'future-seam');
+    expect(future).toHaveLength(11);
+    expect(new Set(future.map((route) => route.domain))).toEqual(new Set([
+      'homework', 'evaluation-history', 'integrity', 'notifications',
+      'impact-snapshot', 'updates', 'replacement-cleanup',
+    ]));
+    expect(future.every((route) => route.gateDefault === 'disabled')).toBe(true);
+    expect(future.every((route) => route.gateEnv.endsWith('_ROUTES_ENABLED'))).toBe(true);
+  });
+
+  it('keeps canonical routes away from backup, public B2, bearer, and paid targets', () => {
+    const serialized = JSON.stringify(canonicalBookRouteManifest).toLowerCase();
+    expect(serialized).not.toContain('backup');
+    expect(serialized).not.toContain('public b2');
+    expect(serialized).not.toContain('bearer');
+    expect(serialized).not.toContain('paid pdf');
+  });
+
+  it('uses dedicated contributor identities and credentials', () => {
+    const forTicket = (ticket: string) => canonicalBookRouteManifest.filter(
+      (route) => route.contributorTicket === ticket,
+    );
+    expect(new Set(forTicket('#31').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_DELIVERY_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#31').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_DELIVERY_GOOGLE_SA_KEY']));
+    expect(new Set(forTicket('#35').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#35').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY']));
+    expect(new Set(forTicket('#55').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ASSEMBLY_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#55').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
+    expect(new Set(forTicket('#59').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ASSEMBLY_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#59').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
+    expect(new Set(forTicket('#70').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ASSEMBLY_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#70').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
+    expect(new Set(forTicket('#74').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_RUNTIME_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#74').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_RUNTIME_GOOGLE_SA_KEY']));
+    expect(canonicalBookRouteManifest.find((route) => route.id === 'book.homework.assignment-command')).toEqual(expect.objectContaining({
+      identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
+      gateEnv: 'BOOK_HOMEWORK_ROUTES_ENABLED',
+      source: 'future-seam',
+    }));
+    expect(canonicalBookRouteManifest.find((route) => route.id === 'book.homework.student-projection')).toEqual(expect.objectContaining({
+      identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
+      gateEnv: 'BOOK_HOMEWORK_READ_ROUTES_ENABLED',
+      source: 'future-seam',
+    }));
+  });
+
+  it('registers Full-PDF and component-PDF publication only through disabled #59 route seams', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly.fullPdfPublish',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/full-pdf-publications',
+        owner: '#59',
+        handler: 'bookAssembly.fullPdfPublish',
+        gateEnv: 'BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED',
+        contributorTicket: '#59',
+      }),
+      expect.objectContaining({
+        id: 'book.assembly.componentPdfPublish',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/component-pdf-publications',
+        owner: '#59',
+        handler: 'bookAssembly.componentPdfPublish',
+        gateEnv: 'BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED',
+        contributorTicket: '#59',
+      }),
+    ]));
+  });
+
+  it('registers #70 migration prepare/confirm/discard only through disabled routes', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly-migration.migrate',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/migrations',
+        owner: '#70',
+        handler: 'bookAssemblyMigration.migrate',
+        gateEnv: 'BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED',
+        contributorTicket: '#70',
+      }),
+      expect.objectContaining({
+        id: 'book.assembly-migration.confirm',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/migrations/:migrationCandidateId/confirm',
+        owner: '#70',
+        handler: 'bookAssemblyMigration.confirm',
+        gateEnv: 'BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED',
+        contributorTicket: '#70',
+      }),
+      expect.objectContaining({
+        id: 'book.assembly-migration.discard',
+        methods: ['DELETE'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/migrations/:migrationCandidateId',
+        owner: '#70',
+        handler: 'bookAssemblyMigration.discard',
+        gateEnv: 'BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED',
+        contributorTicket: '#70',
+      }),
+    ]));
+  });
+
+  it('registers #71 published source-strategy successor only through a disabled route', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly-successor.publish',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/source-strategy-successors',
+        owner: '#71',
+        handler: 'bookAssemblySuccessor.publish',
+        gateEnv: 'BOOK_SOURCE_STRATEGY_SUCCESSOR_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+        contributorTicket: '#71',
+      }),
+    ]));
+  });
+
+  it('registers #67 mapping revision only through a disabled route', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly-mapping-revision.publish',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/mapping-revisions',
+        owner: '#67',
+        handler: 'bookAssemblyMappingRevision.publish',
+        gateEnv: 'BOOK_MAPPING_REVISION_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+        contributorTicket: '#67',
+      }),
+    ]));
+  });
+
+  it('registers runtime command route as a disabled student contributor seam', () => {
+    expect(canonicalBookRouteManifest.find((route) => route.id === 'book.runtime.command')).toEqual(expect.objectContaining({
+      methods: ['POST'],
+      pathTemplate: '/book-runtime/commands',
+      owner: '#74',
+      domain: 'runtime',
+      handler: 'bookRuntime.command',
+      firebaseAuth: 'firebase-id-token-student',
+      gateEnv: 'BOOK_RUNTIME_ROUTES_ENABLED',
+      identityEnv: 'BOOK_RUNTIME_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_RUNTIME_GOOGLE_SA_KEY',
+      contributorTicket: '#74',
+    }));
+    expect(canonicalBookRouteManifest.find((route) => route.id === 'book.runtime.readDraft')).toEqual(expect.objectContaining({
+      methods: ['GET'],
+      pathTemplate: '/book-runtime/drafts/:bindingId/:bindingRevision/:contextId/:placementId/:activityId/:activityVersion/:interactionId',
+      owner: '#74',
+      domain: 'runtime',
+      handler: 'bookRuntime.readDraft',
+      firebaseAuth: 'firebase-id-token-student',
+      gateEnv: 'BOOK_RUNTIME_ROUTES_ENABLED',
+      identityEnv: 'BOOK_RUNTIME_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_RUNTIME_GOOGLE_SA_KEY',
+      contributorTicket: '#74',
+    }));
+  });
+
+  it('registers source upload control routes only through the disabled #49 seam', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.source-upload.begin',
+        methods: ['POST'],
+        pathTemplate: '/v1/book-source/books/:bookId/upload/begin',
+        owner: '#49',
+        domain: 'source-upload',
+        handler: 'bookSource.begin',
+        firebaseAuth: 'firebase-id-token-teacher',
+        gateEnv: 'BOOK_SOURCE_UPLOAD_ROUTES_ENABLED',
+        identityEnv: 'BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY',
+        contributorTicket: '#49',
+      }),
+    ]));
+  });
+
+  it('registers document routes with exact GET/HEAD methods and bounded document response limits', () => {
+    const studentDocument = canonicalBookRouteManifest.find(
+      (route) => route.id === 'book.document-delivery.serve-authorized-document',
+    );
+    const teacherDocument = canonicalBookRouteManifest.find(
+      (route) => route.id === 'book.document-delivery.serve-teacher-assembly-document',
+    );
+    const historicalDocument = canonicalBookRouteManifest.find(
+      (route) => route.id === 'book.document-delivery.serve-historical-attempt-document',
+    );
+
+    expect(studentDocument).toEqual(expect.objectContaining({
+      methods: ['GET', 'HEAD'],
+      pathTemplate: '/v1/book-delivery/document/:opaqueRouteKey',
+      owner: '#51/#52',
+      gateEnv: 'BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED',
+      identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
+      responseLimitBytes: 500 * 1024 * 1024,
+    }));
+    expect(teacherDocument).toEqual(expect.objectContaining({
+      methods: ['GET', 'HEAD'],
+      owner: '#58',
+      gateEnv: 'BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED',
+      identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+      responseLimitBytes: 500 * 1024 * 1024,
+    }));
+    expect(historicalDocument).toEqual(expect.objectContaining({
+      methods: ['GET', 'HEAD'],
+      pathTemplate: '/v1/book-delivery/historical-document/:bookId/:studentId/:resultId/:opaqueRouteKey',
+      owner: '#80',
+      gateEnv: 'BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED',
+      identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
+      responseLimitBytes: 500 * 1024 * 1024,
+    }));
+  });
+
+  it('keeps every manifest gate disabled in wrangler source configuration', () => {
+    const vars = wranglerConfig().vars;
+    for (const gate of new Set(canonicalBookRouteManifest.map((route) => route.gateEnv))) {
+      expect(vars[gate]).toBe('disabled');
+    }
+  });
+
+  it('normalizes parameter names for ambiguity checks', () => {
+    expect(normalizeBookRouteTemplate('/book/:bookId/units/:unitKey')).toBe('/book/:param/units/:param');
+  });
+
+  it.each([
+    ['duplicate id', (manifest: any[]) => [...manifest, { ...manifest[0] }]],
+    ['duplicate method and path', (manifest: any[]) => [...manifest, { ...manifest[0], id: 'new-id' }]],
+    ['ambiguous normalized template', (manifest: any[]) => [
+      ...manifest,
+      {
+        ...manifest.find((route) => route.pathTemplate.includes(':recipientId')),
+        id: 'new-id',
+        pathTemplate: manifest.find((route) => route.pathTemplate.includes(':recipientId')).pathTemplate.replace(':recipientId', ':differentId'),
+      },
+    ]],
+    ['ambiguous literal and parameter template', (manifest: any[]) => [
+      ...manifest,
+      {
+        ...manifest.find((route) => route.pathTemplate.includes(':recipientId')),
+        id: 'new-id',
+        pathTemplate: '/book-delivery/current/fixed-recipient/:contextId',
+      },
+    ]],
+    ['invalid methods', (manifest: any[]) => [{ ...manifest[0], methods: ['CONNECT'] }, ...manifest.slice(1)]],
+    ['invalid auth', (manifest: any[]) => [{ ...manifest[0], firebaseAuth: 'none' }, ...manifest.slice(1)]],
+    ['invalid rate', (manifest: any[]) => [{ ...manifest[0], rateClass: 'unlimited' }, ...manifest.slice(1)]],
+    ['invalid gate', (manifest: any[]) => [{ ...manifest[0], gateEnv: 'BOOK_ROUTES_ENABLED' }, ...manifest.slice(1)]],
+    ['invalid limits', (manifest: any[]) => [{ ...manifest[0], requestBodyBytes: -1 }, ...manifest.slice(1)]],
+    ['invalid domain', (manifest: any[]) => [{ ...manifest[0], domain: 'missing-domain' }, ...manifest.slice(1)]],
+    ['missing fixed domain', (manifest: any[]) => manifest.filter((route) => route.domain !== 'homework')],
+  ])('rejects %s', (_name, mutate) => {
+    expect(() => validateBookRouteManifest(mutate([...canonicalBookRouteManifest] as any))).toThrow();
+  });
+});

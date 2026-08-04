@@ -1,0 +1,14 @@
+{
+  "project": "desktop",
+  "route": "http://localhost:5173/__smoke/book-assembly?fixture=ticket61",
+  "proof": [
+    "teacher quick-login",
+    "paste import through Activity 12C staging and Assembly 13A save",
+    "file import through same trusted commands",
+    "drag/drop import through same trusted commands",
+    "stale CAS conflict rolls back staged Activity candidates and leaves explicit reload recovery",
+    "reload preserves last valid candidate revision",
+    "published state unchanged"
+  ],
+  "consoleErrors": []
+}

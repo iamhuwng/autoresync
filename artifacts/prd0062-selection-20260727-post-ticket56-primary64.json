@@ -1,0 +1,128 @@
+{
+  "selectedAt": "2026-07-27T02:18:00.000Z",
+  "basis": "Fresh live graph after #56 closure/push plus live issue body reads.",
+  "graphArtifact": "artifacts/prd0062-graph-20260727-after-56-push-selection.json",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 80,
+    "closedCount": 32,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "issueHash": "ed4c419bd3b903771ff856179d2720d94fc0e0807d890a0955c538531e791277"
+  },
+  "graphClearFrontier": [
+    49,
+    50,
+    57,
+    64,
+    129,
+    130,
+    131,
+    132,
+    133
+  ],
+  "candidateRejections": [
+    {
+      "issue": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "directPrerequisites": [47, 48],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "runtime",
+      "downstreamLeverage": 2,
+      "rejection": "Eligible by prerequisite graph, but lower current critical-path leverage than #64 and requires remote B2/provisioning/deployed disposable-object authority before closure."
+    },
+    {
+      "issue": 50,
+      "title": "PRD0062 07 — Reconcile failed and unfinished direct-B2 uploads",
+      "directPrerequisites": [29, 47, 48],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "runtime",
+      "downstreamLeverage": 16,
+      "rejection": "Eligible by prerequisite graph, but weaker runtime unblock value than #64 and its deployed reconciliation proof depends on remote B2/disposable-object lifecycle conditions not selected as the current root."
+    },
+    {
+      "issue": 57,
+      "title": "PRD0062 13C — Build Page Group and Activity mapping workspace",
+      "directPrerequisites": [56],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "teacher workflow",
+      "downstreamLeverage": 69,
+      "rejection": "High leverage and graph-clear, but later roadmap phase than #64. Runtime publication primitive must be worked before teacher-workflow descendants when executable."
+    },
+    {
+      "issue": 129,
+      "title": "PRD0062 51B2 — Run teacher updates, replacement, and results browser suite",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Graph-clear only because #127 is closed. Final/regression acceptance is not executable while unresolved upstream runtime/teacher/student/operations scope and preserved #50A boundary remain."
+    },
+    {
+      "issue": 130,
+      "title": "PRD0062 51C1 — Run student runtime and persistence browser suite",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Graph-clear only because #127 is closed. Student runtime/persistence matrix depends on unresolved launch/runtime/persistence scope and is not acceptance-ready."
+    },
+    {
+      "issue": 131,
+      "title": "PRD0062 51C2 — Run student accessibility and device browser suite",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Graph-clear only because #127 is closed. Accessibility/device matrix depends on unresolved assembled student runtime scope and is not acceptance-ready."
+    },
+    {
+      "issue": 132,
+      "title": "PRD0062 51D1 — Run contract and security regressions",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Graph-clear only because #127 is closed. Full contract/security regression is final-closure evidence and cannot precede unresolved runtime/teacher/student/operations work."
+    },
+    {
+      "issue": 133,
+      "title": "PRD0062 51D2 — Run legacy, backup, and recovery regressions",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Graph-clear only because #127 is closed. Legacy/backup/recovery regression is final-closure evidence and cannot be selected while unresolved source/replacement/recovery scope remains."
+    }
+  ],
+  "selected": {
+    "issue": 64,
+    "title": "PRD0062 16A — Provide the trusted common publication primitive",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [31],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 64,
+    "acceptanceReadiness": "Executable under current authority as narrowed: strategy-neutral schemas, service/Worker contract, CAS/replay/crash/rollback, audit, fragment-level rules/emulator proof, and adapter-neutral common-boundary tests. Teacher/student assembled browser proof remains destination-owned by #65/#66/#73.",
+    "requiredAuthority": "Local repository edits, focused tests, RTDB fragment/static emulator proof, Cloudflare Worker local contract proof, GitHub issue closure after gates pass. No #50A activation, #03B enablement, Mode 1 change, live publication-route claim, or assembled student-shell claim."
+  },
+  "selectionRuleChecks": {
+    "onePrimaryTicket": true,
+    "allDirectAndTransitivePrerequisitesClosed": true,
+    "currentRoadmapPhase": "runtime",
+    "rootOrEnablerBeforeDescendants": true,
+    "acceptanceGatesExecutable": true,
+    "ownershipAndAuthorityAvailable": true,
+    "strongestEligibleCurrentPhaseLeverage": true,
+    "doNotSelect128To133MerelyBecause127Closed": true,
+    "preserve50AAllDenyAnd03BDisabled": true,
+    "preserveFull112TicketScope": true
+  },
+  "latest40RepairObservation": {
+    "issue37": "Live body already accepts canonical generic profile:null registrations without IELTS matrix rows while requiring exact matrix matching for namespaced IELTS registrations.",
+    "issue40": "Live body already keeps long-response implementation/proof and replaces false IELTS-matrix gate with generic profile:null registration proof under #36.",
+    "issue73": "Live body already includes #40 as a formal prerequisite and owns assembled long-response browser proof."
+  }
+}

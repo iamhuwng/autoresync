@@ -13,6 +13,16 @@ const ALLOWED_HEADERS = [
   'X-Upload-Size',
 ];
 
+const DOCUMENT_METHODS = new Set(['OPTIONS', 'GET', 'HEAD']);
+const DOCUMENT_HEADERS = ['Authorization', 'Range'];
+const DOCUMENT_EXPOSED_HEADERS = [
+  'Accept-Ranges',
+  'Content-Length',
+  'Content-Range',
+  'Content-Type',
+  'ETag',
+];
+
 const headerList = (value) =>
   value
     .split(',')
@@ -70,4 +80,43 @@ export const handleCorsPreflight = (request) => {
     status: 204,
     headers: corsResponseHeaders(request),
   });
+};
+
+const documentVaryHeaders = {
+  Vary: 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+};
+
+export const documentCorsHeaders = (request) => {
+  const origin = request.headers.get('Origin');
+  if (!origin || !APPROVED_ORIGINS.has(origin)) return new Headers(documentVaryHeaders);
+  return new Headers({
+    ...documentVaryHeaders,
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': Array.from(DOCUMENT_METHODS).join(', '),
+    'Access-Control-Allow-Headers': DOCUMENT_HEADERS.join(', '),
+    'Access-Control-Expose-Headers': DOCUMENT_EXPOSED_HEADERS.join(', '),
+  });
+};
+
+export const rejectDocumentCorsOrigin = (request) => {
+  const origin = request.headers.get('Origin');
+  if (!origin || APPROVED_ORIGINS.has(origin)) return null;
+  return new Response(null, { status: 403, headers: documentCorsHeaders(request) });
+};
+
+export const documentCorsPreflight = (request) => {
+  const origin = request.headers.get('Origin');
+  if (!origin || !APPROVED_ORIGINS.has(origin)) {
+    return new Response(null, { status: 403, headers: documentCorsHeaders(request) });
+  }
+  const requestedMethod = request.headers.get('Access-Control-Request-Method')?.toUpperCase();
+  if (!requestedMethod || !DOCUMENT_METHODS.has(requestedMethod)) {
+    return new Response(null, { status: 405, headers: documentCorsHeaders(request) });
+  }
+  const allowed = new Set(DOCUMENT_HEADERS.map((header) => header.toLowerCase()));
+  const requestedHeaders = headerList(request.headers.get('Access-Control-Request-Headers') ?? '');
+  if (requestedHeaders.some((header) => !allowed.has(header))) {
+    return new Response(null, { status: 403, headers: documentCorsHeaders(request) });
+  }
+  return new Response(null, { status: 204, headers: documentCorsHeaders(request) });
 };

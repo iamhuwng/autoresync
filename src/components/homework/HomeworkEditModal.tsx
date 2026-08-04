@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { HomeworkTagChips } from './HomeworkTagChips';
 import { useHomeworkTags } from '../../hooks/useHomeworkTags';
 import { updateHomework, clearSubsumedOverrides } from '../../services/homeworkManager';
+import { toast } from '../modern/ToastNotification';
 import type {
     HomeworkAssignment,
     HomeworkConfig,
@@ -93,6 +94,12 @@ export function HomeworkEditModal({
     // ---------- Handlers ----------
     const handleSave = async () => {
         if (!homework) return;
+        if ('assignmentKind' in homework && homework.assignmentKind === 'book_activity_bundle') {
+            const message = 'Book schedule updates require the trusted 33D command. No Homework field was changed.';
+            setError(message);
+            toast.warning(message);
+            return;
+        }
 
         // Validate due date
         const dueDateTs = dateInputToTs(dueDate);
@@ -201,6 +208,11 @@ export function HomeworkEditModal({
                     {/* Error / Success banners */}
                     {error && <div className="hw-edit-error">{error}</div>}
                     {successMsg && <div className="hw-edit-success">{successMsg}</div>}
+                    {'assignmentKind' in homework && homework.assignmentKind === 'book_activity_bundle' && (
+                        <div className="hw-edit-error" role="status">
+                            Book schedule controls are intent-only in the Book preview. Protected updates remain disabled until 33D handles the command.
+                        </div>
+                    )}
 
                     {/* Material info (read-only) */}
                     <div className="hw-edit-material-info">

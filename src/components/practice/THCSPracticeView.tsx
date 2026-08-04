@@ -36,7 +36,7 @@ import THCSSubmitConfirmation from '../thcs-student/THCSSubmitConfirmation';
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service';
 import { saveTestResult } from '../../services/testResults.service';
-import { sendThcsFullyGradedNotification } from '../../services/notificationService';
+import { createTrustedNotification } from '../../services/notificationProducerClient';
 import { getThcsTestFromFirebase } from '../../services/thcsTestStorage';
 import { shuffleTest } from '../../utils/thcsShuffle';
 import { Button } from '../modern';
@@ -57,6 +57,7 @@ import {
 } from '../../services/antiCheatReporting';
 import { buildThcsPracticePersistenceContext } from './thcsPracticeResultContext';
 import { studentResumeService } from '../../services/studentResume.service';
+import { buildRoute } from '../../constants/routes';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import type { PracticeContext } from './IELTSPracticeView';
@@ -669,17 +670,21 @@ const THCSPracticeInner: React.FC<{
                     }).catch(err => console.warn('Academic record update failed:', err));
                 }).catch(err => console.warn('Failed to load academicRecordService:', err));
 
-                sendThcsFullyGradedNotification(
-                    user.uid,
-                    testData.metadata.title,
-                    gradingResult.scaledScore,
-                    isHomework ? practiceContext.homeworkId || `practice_${user.uid}` : `practice_${user.uid}`
-                ).catch(err => console.warn('[THCSPractice] Fully graded notification failed:', err));
+                void createTrustedNotification({
+                    producerFamily: 'thcs-practice',
+                    authorityRecordId: resultId,
+                    recipientId: user.uid,
+                    operationKey: `thcs-fully-graded:${resultId}`,
+                    type: 'success',
+                    title: '✅ Test Fully Graded',
+                    message: `All answers in "${testData.metadata.title}" have been graded. Your score: ${gradingResult.scaledScore}/10.`,
+                    link: buildRoute('RESULT_DETAIL', { resultId }),
+                }).catch(err => console.warn('[THCSPractice] Fully graded notification failed:', err));
             }
 
             // Fire-and-forget: writing grading
             if (gradingResult.gradingStatus === 'auto-graded') {
-                gradeWritingQuestions(gradingResult, testData.sections, `practice_${materialId}`, user.uid)
+                gradeWritingQuestions(gradingResult, testData.sections, `practice_${materialId}`, user.uid, resultId)
                     .catch(err => console.warn('Background writing grading failed:', err));
             }
 

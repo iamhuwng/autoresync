@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-07-29T06:43:00Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260729-post-ticket93-closed.json",
+  "graphHash": "8c8f769b6a4fb6af8ade145c5971cfe3f9834807162b11247a0403f61f178258",
+  "issueCount": 112,
+  "openCount": 52,
+  "closedCount": 60,
+  "roadmapPhase": "operations",
+  "selectedPrimary": {
+    "number": 94,
+    "ticket": "38B1",
+    "title": "Inventory notification producers and build trusted command/repository seam",
+    "directPrerequisites": [
+      59,
+      93
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      44,
+      45,
+      46,
+      47,
+      48,
+      51,
+      52,
+      55,
+      56,
+      57,
+      58,
+      59,
+      64,
+      65,
+      66,
+      72,
+      74,
+      93
+    ],
+    "allTransitivePrerequisitesClosed": true,
+    "downstreamLeverage": 33,
+    "acceptanceReadiness": "executable",
+    "authority": [
+      "local notification and Worker command/repository implementation",
+      "existing authenticated teacher and student role-port sessions",
+      "production-equivalent staging evidence without top-level route activation",
+      "no secret values or restrictive rules activation"
+    ],
+    "reason": "Earliest eligible Operations root with complete closed prerequisite chain, executable retained gates, and strongest available downstream unblock value."
+  },
+  "candidateRejections": [
+    {
+      "number": 49,
+      "reason": "Ineligible: private-B2 provisioning conflicts with current private-B2-disabled/no-values safety boundary."
+    },
+    {
+      "number": 50,
+      "reason": "Ineligible: direct-B2 recovery acceptance depends on private-B2 authority unavailable under current safety boundary."
+    },
+    {
+      "number": 76,
+      "reason": "Ineligible: terminal student-attempt acceptance requires disposable deployed-context submit/rollback authority not currently available."
+    },
+    {
+      "number": 106,
+      "reason": "Ineligible: teacher reference/fork acceptance requires two-teacher preview deployment and ownership/rules proof not currently authorized."
+    },
+    {
+      "number": 129,
+      "reason": "Ineligible: final-closure positive acceptance still shares unresolved #50A all-deny boundary and final-closure phase is not active."
+    },
+    {
+      "number": 130,
+      "reason": "Ineligible: final-closure student acceptance still shares unresolved #50A all-deny boundary and final-closure phase is not active."
+    },
+    {
+      "number": 131,
+      "reason": "Ineligible: final-closure accessibility acceptance still shares unresolved #50A all-deny boundary and final-closure phase is not active."
+    },
+    {
+      "number": 132,
+      "reason": "Ineligible: final-closure security phase cannot start while implementation tickets remain open."
+    },
+    {
+      "number": 133,
+      "reason": "Ineligible: final-closure recovery phase cannot start while implementation tickets remain open."
+    }
+  ],
+  "constraints": {
+    "onePrimaryTicket": true,
+    "ticket50A": "all-six-deny/default-deny",
+    "ticket03B": "disabled",
+    "privateB2": "disabled/no values",
+    "trustedProductionGates": "disabled"
+  }
+}

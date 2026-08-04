@@ -1,0 +1,52 @@
+{
+  "project": "desktop",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "requests": [
+    {
+      "method": "HEAD"
+    },
+    {
+      "method": "GET",
+      "range": "bytes=0-3440"
+    },
+    {
+      "method": "HEAD"
+    },
+    {
+      "method": "GET",
+      "range": "bytes=0-3440"
+    },
+    {
+      "method": "HEAD"
+    },
+    {
+      "method": "GET",
+      "range": "bytes=0-3440"
+    },
+    {
+      "method": "HEAD"
+    },
+    {
+      "method": "GET",
+      "range": "bytes=0-3440"
+    }
+  ],
+  "overflow": {
+    "clientWidth": 1440,
+    "scrollWidth": 1440
+  },
+  "proof": [
+    "teacher quick-login",
+    "full/component source-qualified mapping viewer",
+    "viewer page selection updates mapping draft without save",
+    "mapped page buttons request current authorized local page",
+    "stale/copied/discarded/no-preview routes fail closed without document request",
+    "metadata-only mapping controls remain available when viewer host has no documents",
+    "authenticated HEAD/range PDF transport",
+    "no browser provider authority",
+    "200% zoom horizontal-overflow safety"
+  ]
+}

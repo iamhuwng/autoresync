@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-07-28",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket71-contract-repair.json",
+  "issueHash": "3a2715a244312858c370d2a065c939daca07c2e632eb0686269592c4adaa3f73",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 67,
+    "closedCount": 45,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 67, 68, 71, 73, 81, 93, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "teacher-workflow",
+  "selection": {
+    "primaryTicket": 71,
+    "title": "PRD0062 20C — Publish successor for a published source-strategy change",
+    "status": "selected-implementation-ready",
+    "directClosedPrerequisites": [65, 66, 70],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 55, 56, 57, 64, 65, 66, 70],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 26,
+    "acceptanceReadiness": "ready-for-local-implementation; not closure-ready",
+    "requiredAuthority": [
+      "existing scoped Assembly/publication identities and Firebase token verification for local trusted seam",
+      "#70 explicit remap planner and #65/#66 immutable adapters",
+      "#59 canonical route composition, #118 assembled rules, #73 student binding, and #134 deployed proof remain destination-owned",
+      "no trusted-action, #50A, #03B, private-B2, or remote deployment authority required for implementation/local proof"
+    ],
+    "currentImplementationGap": "Existing successor implementation is generic #69/20A materials↔pdf Book-mode successor only; #71 needs published full_pdf↔component_pdfs successor lineage, adapter integration, local trusted Worker/security/CAS/rules-fragment/impact proof, and teacher browser proof."
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Foundation B2 provisioning; requires private-B2 deployment, upload proof, billing/capacity evidence, and unavailable remote authority."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Foundation B2 reconciliation; requires deployed exact-version cleanup/reconciliation and unavailable remote B2 authority."
+    },
+    {
+      "ticket": 67,
+      "decision": "rejected",
+      "reason": "Teacher mapping publication has lower critical-path leverage than #71 and its complete positive publication/preview acceptance is not executable while trusted publication authority remains disabled; no bypass through a descendant."
+    },
+    {
+      "ticket": 68,
+      "decision": "rejected",
+      "reason": "Teacher Activity revision publication has lower critical-path leverage than #71 and its complete positive publication/preview acceptance is not executable while trusted publication authority remains disabled; no bypass through a descendant."
+    },
+    {
+      "ticket": 71,
+      "decision": "selected",
+      "reason": "Earliest unresolved teacher-workflow successor/enabler after #70 closure; all direct/transitive prerequisites CLOSED, destination-owned deployed gate repaired, local gates executable, and leverage 26."
+    },
+    {
+      "ticket": 73,
+      "decision": "rejected",
+      "reason": "Student workflow descendant; later roadmap phase and assembled student-runtime proof."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected",
+      "reason": "Student workflow homework descendant; later roadmap phase."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected",
+      "reason": "Operations phase descendant; later roadmap phase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final-closure suite; graph-clear does not make teacher update/replacement/results acceptance-ready while product scope remains open."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final-closure suite; student runtime/persistence scope remains open."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final-closure suite; student accessibility/device scope remains open."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final-closure suite; security matrix must follow implemented authority boundaries."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final-closure suite; legacy/backup/recovery scope remains downstream of unresolved product work."
+    }
+  ],
+  "nonFrontierRule": "Every other unresolved ticket is ineligible because its live graph record has one or more open direct/transitive prerequisites; exact chains and open prerequisites are in the source graph artifact."
+}

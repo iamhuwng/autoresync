@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "18",
+  "owner": {
+    "ticketId": "18",
+    "issue": 67,
+    "generatedRuleLocations": [
+      "book_assembly_mapping_revisions/.read",
+      "book_assembly_mapping_revisions/.write"
+    ],
+    "serviceIdentity": "book_assembly_publication_service",
+    "leastPrivilegePaths": [
+      "book_assembly_publications/books/$bookId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_assembly_mapping_revisions",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly_mapping_revisions",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    }
+  ]
+}

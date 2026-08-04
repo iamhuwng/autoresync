@@ -3,10 +3,68 @@ import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeworkCreateModal } from './HomeworkCreateModal';
 import { createHomework } from '../../services/homeworkManager';
+import type { BookHomeworkPreviewSource } from '../../services/book-homework/bookHomeworkPreview.service';
 
 const mockGetAllTests = vi.fn();
 const mockGetClasses = vi.fn();
 const mockGetClass = vi.fn();
+
+const bookPreviewSource: BookHomeworkPreviewSource = {
+    delivery: {
+        schemaVersion: 1,
+        projectionKind: 'book-runtime-delivery',
+        bindingId: 'binding-book-preview',
+        bindingRevision: 1,
+        recipientId: 'student-1',
+        context: { contextId: 'homework-book-1', kind: 'homework', entitlementBasis: 'assignment' },
+        book: {
+            bookId: 'book-1',
+            bookMode: 'pdf',
+            bookRevision: 1,
+            publicationId: 'publication-1',
+            publicationRevision: 1,
+            publicationStatus: 'published',
+        },
+        scope: { kind: 'subtree', nodeKeys: ['unit-1'], placementIds: ['placement-1'] },
+        outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1, titleSnapshot: 'Unit 1' }],
+        sourceSet: {
+            strategy: 'full_pdf',
+            sources: [{
+                sourceKey: 'full-pdf',
+                sourceVersionId: 'source-1',
+                lifecycle: 'verified-usable',
+                localPageScope: { kind: 'all', pages: [] },
+            }],
+        },
+        documentRequests: [],
+        activities: [{
+            placementId: 'placement-1',
+            activityId: 'activity-1',
+            activityVersion: 1,
+            activityVersionId: 'activity-1-v1',
+            nodeKey: 'unit-1',
+            order: 1,
+            titleSnapshot: 'Activity 1',
+            contextMode: 'none',
+            sourceContext: { available: false, description: 'No source required.', pageGroupKeys: [], sourcePageScopes: [] },
+        }],
+        actionFlags: { canAutosave: false, canSubmit: true, canReview: false },
+        provenance: {
+            publicationId: 'publication-1',
+            publicationRevision: 1,
+            bindingId: 'binding-book-preview',
+            bindingRevision: 1,
+        },
+    },
+    identity: {
+        manifestVersionId: 'manifest-1',
+        ownerId: 'teacher-1',
+        createdByCommandId: 'command-1',
+        createdAt: '2026-07-28T00:00:00.000Z',
+        bindingRevision: 1,
+    },
+    bookTitle: 'Book Preview Fixture',
+};
 
 vi.mock('../../contexts/AuthContext', () => ({
     useAuth: () => ({
@@ -21,6 +79,10 @@ vi.mock('../../hooks/useHomeworkTags', () => ({
     useHomeworkTags: () => ({
         tags: [],
     }),
+}));
+
+vi.mock('../../hooks/useFeatureTracking', () => ({
+    useFeatureTracking: () => ({ trackAction: vi.fn() }),
 }));
 
 vi.mock('../../services/homeworkManager', () => ({
@@ -69,6 +131,12 @@ vi.mock('../thcs-editor/THCSHomeworkAssignDialog', () => ({
 
 vi.mock('../modern/ToastNotification', () => ({
     default: () => null,
+    toast: {
+        info: vi.fn(),
+        success: vi.fn(),
+        warning: vi.fn(),
+        error: vi.fn(),
+    },
 }));
 
 describe('HomeworkCreateModal', () => {
@@ -312,6 +380,39 @@ describe('HomeworkCreateModal', () => {
         expect(await screen.findByText(/Reading Passage passage-unpublished requires a published snapshot before assignment\./))
             .toBeInTheDocument();
         expect(createHomework).not.toHaveBeenCalled();
+    });
+
+    it('opens Book Homework preview without generic scans or Homework writes', async () => {
+        const onClose = vi.fn();
+        const onSuccess = vi.fn();
+        const onBookHomeworkConfirm = vi.fn();
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={onClose}
+                onSuccess={onSuccess}
+                preselectedBookHomework={bookPreviewSource}
+                onBookHomeworkConfirm={onBookHomeworkConfirm}
+            />
+        );
+
+        expect(screen.getByText('Book Preview Fixture')).toBeInTheDocument();
+        expect(mockGetAllTests).not.toHaveBeenCalled();
+        expect(mockGetClasses).not.toHaveBeenCalled();
+
+        fireEvent.change(screen.getByLabelText('Due Date'), {
+            target: { value: '2026-08-01T12:00' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /confirm preview/i }));
+
+        await waitFor(() => {
+            expect(onBookHomeworkConfirm).toHaveBeenCalledWith(expect.objectContaining({
+                manifest: expect.objectContaining({ assignmentKind: 'book_activity_bundle' }),
+            }));
+        });
+        expect(createHomework).not.toHaveBeenCalled();
+        expect(onSuccess).toHaveBeenCalled();
     });
 
     it('creates a Reading Passage set from selected passage summaries', async () => {

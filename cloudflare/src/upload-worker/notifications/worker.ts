@@ -5,27 +5,39 @@ import {
 } from './command-schema.ts';
 import type { NotificationCommandRepository } from './repository.ts';
 
+export interface NotificationCommandWorkerEnv {
+  readonly [key: string]: unknown;
+}
+
 export interface NotificationRecipientAuthorityResolver {
   (input: {
     readonly actorUid: string;
     readonly producerFamily: NotificationCommand['producerFamily'];
     readonly authority: NotificationCommand['authority'];
     readonly requestedRecipientId: string;
-    readonly env: Record<string, unknown>;
+    readonly env: NotificationCommandWorkerEnv;
   }): Promise<string | null>;
 }
 
-export const createNotificationCommandWorkerHandlers = (options: {
+export interface NotificationCommandWorkerOptions {
   readonly repository?: NotificationCommandRepository;
   readonly resolveRecipientAuthority?: NotificationRecipientAuthorityResolver;
   readonly now?: () => number;
-} = {}) => ({
+}
+
+const json = (body: Record<string, unknown>, status: number) => ({
+  body,
+  init: { status } satisfies ResponseInit,
+});
+
+export const createNotificationCommandWorkerHandlers = (
+  options: NotificationCommandWorkerOptions = {},
+) => ({
   command: async (input: {
     readonly request: Request;
-    readonly env: Record<string, unknown>;
+    readonly env: NotificationCommandWorkerEnv;
     readonly uid: string;
   }) => {
-    const json = (body: Record<string, unknown>, status: number) => ({ body, init: { status } });
     try {
       if (!input.uid) return json({ code: 'notification_command_unauthenticated' }, 401);
       if (!options.repository || !options.resolveRecipientAuthority) {
@@ -54,7 +66,9 @@ export const createNotificationCommandWorkerHandlers = (options: {
         notificationId: result.notificationId,
       }, result.status === 'idempotency-conflict' ? 409 : 200);
     } catch (error) {
-      if (error instanceof NotificationCommandSchemaError) return json({ code: error.code }, error.status);
+      if (error instanceof NotificationCommandSchemaError) {
+        return json({ code: error.code }, error.status);
+      }
       return json({ code: 'notification_command_failed' }, 500);
     }
   },

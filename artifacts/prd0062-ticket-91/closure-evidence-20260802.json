@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "issue": 91,
+  "ticket": "PRD0062 37A",
+  "capturedAt": "2026-08-02T11:35:57.6342963+07:00",
+  "localVerification": {
+    "focusedTests": {
+      "status": "passed",
+      "files": 11,
+      "tests": 96,
+      "application": {
+        "files": 5,
+        "tests": 34
+      },
+      "cloudflare": {
+        "files": 6,
+        "tests": 62,
+        "dependencyIsolation": "root-local Node test configuration inside the required worktree"
+      }
+    },
+    "eslint": {
+      "status": "passed",
+      "scope": "ticket-owned TypeScript, TSX, browser proof, and preview configuration files"
+    },
+    "productionBuild": {
+      "status": "passed",
+      "command": "NODE_OPTIONS=--max-old-space-size=2048 npm run build",
+      "modulesTransformed": 9477,
+      "duration": "3m40s",
+      "bundleBudget": "passed",
+      "rootEntry": "241 KB"
+    },
+    "wranglerDryRuns": {
+      "positivePreview": "passed",
+      "rollbackPreview": "passed",
+      "bindings": 0
+    }
+  },
+  "browserProof": {
+    "baseUrl": "http://localhost:5174",
+    "status": "passed",
+    "tests": 2,
+    "duration": "2.9m",
+    "assertions": [
+      "all eight configured integrity signals are disclosed",
+      "paste records an event and immediately announces an accessible warning",
+      "a real protected text selection plus Ctrl+C is prevented and records an event",
+      "focus loss records an event and immediately warns",
+      "the student can continue and submit normally",
+      "reload recovery records the bounded route/reload/close signal",
+      "the warning and normal completion path remain usable at 375px"
+    ],
+    "screenshots": [
+      {
+        "path": "artifacts/prd0062-ticket-91/browser/configured-signals-warning-submitted-desktop.png",
+        "bytes": 241937,
+        "sha256": "1fcdef6533b3c21f9090131186e19e0edaad2c67ce235b5a7e8b9b2cde71db71"
+      },
+      {
+        "path": "artifacts/prd0062-ticket-91/browser/configured-signals-warning-submitted-375.png",
+        "bytes": 103775,
+        "sha256": "b6687a4af1d0cbfb062b9d2c439cf35948b35bfd8ec4a6cd10d5e460809417a7"
+      }
+    ]
+  },
+  "productionEquivalentPreview": {
+    "workerName": "r2-upload-signer-prd0062-ticket91-preview",
+    "positiveVersions": [
+      "afb4901c-9ea2-40a2-810e-65362a2c940d"
+    ],
+    "rollbackVersion": "f36f5de9-00df-4733-b7a3-95f5867c40b5",
+    "positiveProof": {
+      "status": 200,
+      "pass": true,
+      "firstWrite": "recorded",
+      "deterministicReplay": "deduplicated with the same event id",
+      "immutableEventCount": 8,
+      "ninthEventWithinMinute": "rate_limited",
+      "retryAfterMs": 60000,
+      "maxEventsPerAttempt": 64,
+      "maxEventsPerMinute": 8,
+      "timestampAuthority": "trusted service clock",
+      "policyOff": "ignored before repository append",
+      "inactiveAttempt": "ignored before repository append",
+      "wrongStudent": "ignored before repository append",
+      "mismatchedTarget": "ignored before repository append",
+      "canonicalBrowserRead": "denied",
+      "canonicalBrowserWrite": "denied",
+      "crossStudentRead": "denied",
+      "privacySafe": true,
+      "noPunitiveBehavior": true,
+      "completionAvailable": true,
+      "submissionAvailable": true,
+      "repository": {
+        "kind": "firebase-rtdb-rest-cas-ledger-with-immutable-event-put",
+        "ledgerWrites": 8,
+        "immutableEventWrites": 8,
+        "immutableEventConflicts": 1,
+        "parentReplacementDenied": true,
+        "rulesEquivalentTransport": true,
+        "deniedBrowserReads": 1,
+        "deniedBrowserWrites": 1
+      }
+    },
+    "rollbackProof": {
+      "status": 503,
+      "capture": "disabled",
+      "completionAvailable": true,
+      "submissionAvailable": true,
+      "recordedSignals": "preserved",
+      "canonicalLogsWritable": false,
+      "bindings": 0
+    },
+    "cleanup": {
+      "namedWorkerDeleted": true,
+      "primaryEndpointAfterDeletion": {
+        "status": 404,
+        "cloudflareErrorCode": 1042
+      },
+      "immutableVersionPreviewsRemainAvailableByPlatformDesign": true
+    }
+  },
+  "independentReview": {
+    "status": "approved",
+    "priorBlockersResolved": 4,
+    "newBlockers": 0,
+    "editsByReviewer": false
+  },
+  "contractBoundaries": {
+    "dedicatedBookIntegrityHook": true,
+    "generalAutosaveHookModified": false,
+    "scheduleRuntimeHookModified": false,
+    "answersCaptured": false,
+    "promptsCaptured": false,
+    "pdfsCaptured": false,
+    "clipboardContentsCaptured": false,
+    "secretsCaptured": false,
+    "autoLock": false,
+    "autoSubmit": false,
+    "zeroAssignment": false,
+    "attemptConsumption": false,
+    "completionBlocked": false,
+    "submissionBlocked": false,
+    "canonicalRepository": "firebase-rtdb-rest-cas-ledger-with-immutable-event-put",
+    "protectedRoot": "book_activity_integrity"
+  }
+}

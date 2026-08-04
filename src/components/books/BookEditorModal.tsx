@@ -7,11 +7,14 @@ import type {
   BookMaterialSummary,
 } from '../../services/materialCatalog/bookEditor.service';
 import type { MaterialBooksRepository } from '../../services/materialCatalog/materialBooks.service';
+import { useAuth } from '../../hooks/useAuth';
 import BookEditorWorkspace, {
   BOOK_EDITOR_TABS,
   type BookEditorTab,
   type BookEditorWorkspaceHandle,
 } from './BookEditorWorkspace';
+import BookMode2EditorShell from './BookMode2EditorShell';
+import { useBookEditorModeResolution } from './useBookEditorModeResolution';
 import './BookEditorModal.css';
 
 interface BookEditorModalProps {
@@ -80,7 +83,6 @@ const CloseIcon = ({ size = 18 }: IconProps) => (
 const BookEditorModal = ({
   opened,
   bookId,
-  initialBook,
   initialNodes,
   materialCandidates,
   repository,
@@ -89,12 +91,19 @@ const BookEditorModal = ({
   onDirtyChange,
   returnFocusTo,
 }: BookEditorModalProps) => {
+  const { user, profile } = useAuth();
   const titleId = useId();
   const frameRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<BookEditorWorkspaceHandle | null>(null);
   const [dirty, setDirty] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [activeTab, setActiveTab] = useState<BookEditorTab>('content');
+  const resolution = useBookEditorModeResolution({
+    actorId: user?.uid,
+    actorRole: profile?.role,
+    bookId: opened ? bookId : null,
+    repository,
+  });
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -210,7 +219,9 @@ const BookEditorModal = ({
     requestClose();
   };
 
-  const title = initialBook?.title || 'Book Editor';
+  const resolvedBook = resolution.status === 'resolved' ? resolution.book : null;
+  const isMaterialsEditor = resolvedBook?.bookMode === 'materials';
+  const title = resolvedBook?.title || 'Book Editor';
 
   return (
     <div
@@ -234,27 +245,31 @@ const BookEditorModal = ({
           <div className="book-editor-modal__title-group">
             <h2 id={titleId}>{title}</h2>
             <div className="book-editor-modal__chips" aria-label="Book editor status">
-              <span>{formatStatus(initialBook?.status)}</span>
-              <span>{formatVisibility(initialBook?.visibility)}</span>
-              <span>{initialBook?.testTypeIds?.join(', ') || 'No Test Type'}</span>
+              <span>{formatStatus(resolvedBook?.status)}</span>
+              <span>{formatVisibility(resolvedBook?.visibility)}</span>
+              <span>{resolvedBook?.testTypeIds?.join(', ') || 'No Test Type'}</span>
             </div>
           </div>
           <div className="book-editor-modal__header-actions">
-            <button
-              type="button"
-              className="book-editor-modal__primary-action"
-              onClick={() => workspaceRef.current?.saveActive()}
-            >
-              <SaveIcon />
-              Save
-            </button>
-            <button
-              type="button"
-              className="book-editor-modal__secondary-action"
-              onClick={() => workspaceRef.current?.requestPublicReview()}
-            >
-              Request review
-            </button>
+            {isMaterialsEditor && (
+              <>
+                <button
+                  type="button"
+                  className="book-editor-modal__primary-action"
+                  onClick={() => workspaceRef.current?.saveActive()}
+                >
+                  <SaveIcon />
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="book-editor-modal__secondary-action"
+                  onClick={() => workspaceRef.current?.requestPublicReview()}
+                >
+                  Request review
+                </button>
+              </>
+            )}
             <button
               type="button"
               className="book-editor-modal__close"
@@ -266,39 +281,60 @@ const BookEditorModal = ({
           </div>
         </header>
 
-        <nav className="book-editor-modal__tabs" aria-label="Book editor tabs" role="tablist">
-          {BOOK_EDITOR_TABS.map((tab) => {
-            const TabIcon = TAB_ICONS[tab.id];
+        {isMaterialsEditor && (
+          <nav className="book-editor-modal__tabs" aria-label="Book editor tabs" role="tablist">
+            {BOOK_EDITOR_TABS.map((tab) => {
+              const TabIcon = TAB_ICONS[tab.id];
 
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                className={activeTab === tab.id ? 'is-active' : undefined}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <TabIcon size={18} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  className={activeTab === tab.id ? 'is-active' : undefined}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  <TabIcon size={18} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
         <div className="book-editor-modal__body">
-          <BookEditorWorkspace
-            ref={workspaceRef}
-            bookId={bookId}
-            initialBook={initialBook ?? undefined}
-            initialNodes={initialNodes}
-            materialCandidates={materialCandidates}
-            repository={repository}
-            presentation="modal"
-            activeTab={activeTab}
-            onActiveTabChange={setActiveTab}
-            onSaved={onSaved}
-            onDirtyChange={setDirty}
-          />
+          {(resolution.status === 'idle' || resolution.status === 'loading') && (
+            <p className="book-editor-modal__load-state" aria-busy="true">Loading Book...</p>
+          )}
+          {resolution.status === 'error' && (
+            <section className="book-editor-modal__load-state is-error" role="alert">
+              <strong>{resolution.title}</strong>
+              <p>{resolution.message}</p>
+            </section>
+          )}
+          {resolution.status === 'resolved' && resolution.book.bookMode === 'pdf' && (
+            <BookMode2EditorShell
+              access={resolution.access}
+              book={resolution.book}
+              presentation="modal"
+              onDirtyChange={setDirty}
+            />
+          )}
+          {resolution.status === 'resolved' && resolution.book.bookMode === 'materials' && (
+            <BookEditorWorkspace
+              ref={workspaceRef}
+              bookId={bookId}
+              initialBook={resolution.usePublicProjection ? undefined : resolution.book}
+              initialNodes={resolution.usePublicProjection ? undefined : initialNodes}
+              materialCandidates={materialCandidates}
+              repository={repository}
+              presentation="modal"
+              activeTab={activeTab}
+              onActiveTabChange={setActiveTab}
+              onSaved={onSaved}
+              onDirtyChange={setDirty}
+            />
+          )}
         </div>
 
         {confirmClose && (

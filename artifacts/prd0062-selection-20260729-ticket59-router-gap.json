@@ -1,0 +1,135 @@
+{
+  "generatedAt": "2026-07-29T03:12:03+07:00",
+  "sourceGraph": "artifacts/prd0062-graph-20260729-post-ticket59-reopened-router-gap.json",
+  "issueHash": "f41a20e818dbd38c10798e9380c8991cdb7bf9a50ebb65e43933f522c7921e7b",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 56,
+    "closedCount": 56,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 59, 129, 131, 132, 133]
+  },
+  "mandatoryTransitiveGate": {
+    "unresolvedTicketsAudited": 56,
+    "allUnresolvedTickets": [49, 50, 59, 76, 77, 80, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 129, 130, 131, 132, 133, 134, 135, 136],
+    "completeChainSource": "The live graph records every unresolved ticket's directPrerequisites, transitivePrerequisites, and openTransitivePrerequisites.",
+    "ineligibilityRule": "Any direct or transitive open prerequisite, ownership blocker, roadmap-phase mismatch, unavailable authority, or non-executable acceptance gate makes a ticket ineligible.",
+    "openTransitivePrerequisiteRejections": [76, 77, 80, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 130, 134, 135, 136],
+    "rejectionReason": "Each listed ticket has an open transitive prerequisite, including #59 for downstream tickets; do not inspect, implement, or begin acceptance work on it."
+  },
+  "roadmap": {
+    "activePhase": "runtime",
+    "phaseOrder": ["foundation", "runtime", "teacher-workflow", "student-workflow", "operations", "final-closure"],
+    "selectionStatus": "selected_one_primary",
+    "primaryTicket": 59
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "roadmapPhase": "foundation",
+      "graphClear": true,
+      "directClosedPrerequisites": [47, 48],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Private-B2 provisioning and disposable upload/cleanup proof are not acceptance-ready; authority remains disabled or unauthorized.",
+      "owner": "#49 private-B2 provisioning/deployment authority",
+      "impact": "Selecting #49 would violate the preserved private-B2 safety boundary."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "roadmapPhase": "foundation",
+      "graphClear": true,
+      "directClosedPrerequisites": [29, 47, 48],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 16,
+      "reason": "#50A remains all-six-deny/default-deny; activation authority is unavailable.",
+      "owner": "#50A canonical approval and rollout authority",
+      "impact": "Selecting #50 would require prohibited capability activation."
+    },
+    {
+      "ticket": 59,
+      "decision": "selected",
+      "title": "PRD0062 09D - Integrate Book Worker route dispatch",
+      "roadmapPhase": "runtime",
+      "graphClear": true,
+      "directClosedPrerequisites": [44, 51, 52, 58],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 60,
+      "reason": "Earliest current runtime root/enabler and highest verified critical-path leverage among acceptance-ready candidates. Concrete closure gap is limited to the owned streamed-response negative proof: the exact configured suite executes 15/15 tests but exits 1 with two unhandled book_response_too_large errors.",
+      "acceptanceReadiness": "Executable locally through the isolated x64 harness. Existing route manifest/dispatcher, auth/CORS/rate/gate, compatibility, dry-run, and transferred publication-route proof remain in #59 scope; positive deployed identity/browser drills remain destination-owned by #134 and downstream runtime owners.",
+      "requiredAuthority": [
+        "Configured x64 harness and local Worker fixtures",
+        "Wrangler dry-run only; no remote deployment claim",
+        "Book route gates disabled",
+        "#50A all-six-deny/default-deny",
+        "#03B disabled",
+        "Private-B2 disabled"
+      ],
+      "ownedWork": "Repair the bounded streamed-response test/implementation seam so the limit proof is clean without weakening the fail-closed response boundary; rerun the complete adjacent #59 router suite. Do not edit #86 or downstream paths."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [127],
+      "completeTransitivePrerequisiteChain": [44, 127],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Final-closure teacher browser suite; later roadmap phase."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [127],
+      "completeTransitivePrerequisiteChain": [44, 127],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Final-closure student accessibility/device suite; later roadmap phase."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [127],
+      "completeTransitivePrerequisiteChain": [44, 127],
+      "downstreamLeverage": 2,
+      "reason": "Final-closure contract/security suite; later roadmap phase."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [127],
+      "completeTransitivePrerequisiteChain": [44, 127],
+      "downstreamLeverage": 2,
+      "reason": "Final-closure legacy/backup/recovery suite; later roadmap phase."
+    }
+  ],
+  "ownership": {
+    "ticket59": "Canonical Book route manifest, top-level dispatcher, generic auth/rate/CORS/gate enforcement, fixed domain seams, route compatibility, and route-boundary proof.",
+    "ticket86": "Book Homework route/domain integration after #59 is closed; not touched by this primary.",
+    "ticket134": "Positive deployed/canary identity, configuration, browser, publication, cleanup, and rollback drills."
+  },
+  "safety": {
+    "trustedActionGates": "disabled",
+    "mode03B": "disabled",
+    "mode50A": "all-six-deny/default-deny",
+    "privateB2": "disabled",
+    "scope": "Preserve all 112 tickets; no early completion."
+  }
+}

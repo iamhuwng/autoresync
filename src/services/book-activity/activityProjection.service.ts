@@ -1,97 +1,169 @@
 import type {
-  BookActivityStudentSafeInteraction,
-  BookActivityStudentSafeProjection,
-  BookActivityVersionRecord,
+  ActivityFeedbackVisibility,
+  NormalizedActivity,
+  NormalizedActivityInteraction,
+  StudentActivityInteraction,
+  StudentActivityProjection,
 } from '../../types/bookActivity.types';
 
-export class BookActivityProjectionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'BookActivityProjectionError';
+const projectInteraction = (
+  interaction: NormalizedActivityInteraction,
+  family: NormalizedActivity['interaction']['family'],
+): StudentActivityInteraction => {
+  const identities = interaction.itemIdentities;
+  const answerKey = interaction.answerKey;
+  if (
+    interaction.family !== family ||
+    identities.family !== family ||
+    answerKey.family !== family
+  ) {
+    throw new Error('Normalized Activity interaction identity family mismatch.');
   }
-}
-
-const FORBIDDEN_PROJECTION_KEYS = [
-  'answerKey',
-  'answerKeys',
-  'correctAnswers',
-  'answerRule',
-  'teacherNotes',
-  'authoringData',
-  'candidates',
-  'provenance',
-  'origin',
-  'hiddenInteractionId',
-  'publishedBy',
-];
-
-const containsForbiddenKey = (value: unknown): string | null => {
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      const result = containsForbiddenKey(entry);
-      if (result) {
-        return result;
-      }
-    }
-    return null;
-  }
-
-  if (value === null || typeof value !== 'object') {
-    return null;
-  }
-
-  for (const [key, child] of Object.entries(value)) {
-    if (FORBIDDEN_PROJECTION_KEYS.includes(key)) {
-      return key;
-    }
-    const result = containsForbiddenKey(child);
-    if (result) {
-      return result;
-    }
-  }
-
-  return null;
-};
-
-export const assertStudentSafeActivityProjection = (
-  projection: BookActivityStudentSafeProjection,
-): void => {
-  const forbiddenKey = containsForbiddenKey(projection);
-  if (forbiddenKey) {
-    throw new BookActivityProjectionError(`Student-safe projection contains forbidden field: ${forbiddenKey}.`);
-  }
-};
-
-export const createStudentSafeActivityProjection = (
-  version: BookActivityVersionRecord,
-  now: string,
-): BookActivityStudentSafeProjection => {
-  const interactions: BookActivityStudentSafeInteraction[] =
-    version.content.interactions.map((interaction, index) => ({
-      clientInteractionKey: `i${index + 1}`,
-      family: interaction.family,
-      prompt: interaction.prompt,
-      choices: interaction.choices,
-      pairs: interaction.pairs?.map((pair) => ({ left: pair.left })),
-      orderingItems: interaction.orderingItems,
-      responseShape: interaction.responseShape,
-      source: interaction.source,
-    }));
-
-  const projection: BookActivityStudentSafeProjection = {
-    projectionKind: 'student-safe',
-    activityId: version.activityId,
-    versionId: version.versionId,
-    ownerId: version.ownerId,
-    title: version.content.title,
-    presentationMode: version.content.presentationMode,
-    contextRequirement: version.content.contextRequirement,
-    instructions: version.content.instructions,
-    stimulus: version.content.stimulus,
-    interactions,
-    generatedAt: now,
+  const shared = {
+    interactionId: interaction.interactionId,
+    prompt: interaction.prompt,
+    ...(interaction.sourceAssisted
+      ? {
+          sourceAssisted: {
+            questionLabel: interaction.sourceAssisted.questionLabel,
+            accessiblePrompt: interaction.sourceAssisted.accessiblePrompt,
+            responseShape: interaction.sourceAssisted.responseShape,
+            ...(interaction.sourceAssisted.sourceExerciseLabel === undefined
+              ? {}
+              : { sourceExerciseLabel: interaction.sourceAssisted.sourceExerciseLabel }),
+            ...(interaction.sourceAssisted.sourcePartLabel === undefined
+              ? {}
+              : { sourcePartLabel: interaction.sourceAssisted.sourcePartLabel }),
+          },
+        }
+      : {}),
   };
 
-  assertStudentSafeActivityProjection(projection);
-  return projection;
+  if (family === 'choice' && identities.family === 'choice') {
+    if (
+      identities.optionIds.length !==
+      (interaction.options?.length ?? -1)
+    ) {
+      throw new Error('Normalized choice option identity cardinality mismatch.');
+    }
+    return {
+      ...shared,
+      family,
+      options: (interaction.options ?? []).map((label, index) => ({
+        itemId: identities.optionIds[index]!,
+        label,
+      })),
+    };
+  }
+
+  if (family === 'text-entry') {
+    return { ...shared, family };
+  }
+
+  if (family === 'matching' && identities.family === 'matching') {
+    if (
+      identities.leftItemIds.length !==
+        (interaction.leftItems?.length ?? -1) ||
+      identities.rightItemIds.length !==
+        (interaction.rightItems?.length ?? -1)
+    ) {
+      throw new Error('Normalized matching item identity cardinality mismatch.');
+    }
+    return {
+      ...shared,
+      family,
+      leftItems: (interaction.leftItems ?? []).map((label, index) => ({
+        itemId: identities.leftItemIds[index]!,
+        label,
+      })),
+      rightItems: (interaction.rightItems ?? []).map((label, index) => ({
+        itemId: identities.rightItemIds[index]!,
+        label,
+      })),
+    };
+  }
+
+  if (family === 'ordering' && identities.family === 'ordering') {
+    if (
+      identities.itemIds.length !==
+      (interaction.orderingItems?.length ?? -1)
+    ) {
+      throw new Error('Normalized ordering item identity cardinality mismatch.');
+    }
+    return {
+      ...shared,
+      family,
+      items: (interaction.orderingItems ?? []).map((label, index) => ({
+        itemId: identities.itemIds[index]!,
+        label,
+      })),
+    };
+  }
+
+  if (family === 'long-response') {
+    return { ...shared, family };
+  }
+
+  throw new Error('Unsupported normalized Activity interaction projection.');
+};
+
+/** Rebuilds a narrow runtime allowlist. Unknown future canonical fields never cross it. */
+export const projectStudentActivity = (
+  activity: NormalizedActivity,
+  feedbackVisibility: ActivityFeedbackVisibility = 'none',
+): StudentActivityProjection => {
+  if (!['none', 'after-submit', 'after-review'].includes(feedbackVisibility)) {
+    throw new Error('Unsupported Activity feedback visibility.');
+  }
+  return {
+  schemaVersion: activity.schemaVersion,
+  title: activity.title,
+  taskProfile: activity.taskProfile
+    ? {
+        taxonomyId: activity.taskProfile.taxonomyId,
+        typeId: activity.taskProfile.typeId,
+        taxonomyVersion: activity.taskProfile.taxonomyVersion,
+      }
+    : null,
+  presentationMode: activity.presentationMode,
+  contextRequirement: {
+    mode: activity.contextRequirement.mode,
+    acceptedKinds: [...activity.contextRequirement.acceptedKinds],
+  },
+  instructions: activity.instructions.map((instruction) => ({
+    text: instruction.text,
+  })),
+  interaction: {
+    family: activity.interaction.family,
+    variant: activity.interaction.variant,
+  },
+  answerRule: {
+    defaultPoints: activity.answerRule.defaultPoints,
+    normalization: activity.answerRule.normalization,
+    ...(activity.answerRule.requiredSelectionCount === undefined
+      ? {}
+      : {
+        requiredSelectionCount: activity.answerRule.requiredSelectionCount,
+      }),
+    ...(activity.answerRule.allowOptionReuse === undefined
+      ? {}
+      : { allowOptionReuse: activity.answerRule.allowOptionReuse }),
+  },
+  stimulus: activity.stimulus
+    ? {
+        kind: activity.stimulus.kind,
+        ...(activity.stimulus.text === undefined
+          ? {}
+          : { text: activity.stimulus.text }),
+      }
+    : null,
+  assetRefs: activity.assetRefs.map((asset) => ({
+    kind: asset.kind,
+    assetId: asset.assetId,
+  })),
+  interactions: activity.interactions.map((interaction) =>
+    projectInteraction(interaction, activity.interaction.family),
+  ),
+  scoring: { mode: activity.scoring.mode, feedbackVisibility },
+  } as StudentActivityProjection;
 };

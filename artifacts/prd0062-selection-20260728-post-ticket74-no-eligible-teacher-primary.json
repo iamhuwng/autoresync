@@ -1,0 +1,90 @@
+{
+  "auditedAt": "2026-07-28T04:20:00.000Z",
+  "governingPolicy": "Deterministic roadmap plus mandatory complete-transitive-prerequisite and acceptance-readiness gates.",
+  "selectionStatus": "PAUSED_NO_ELIGIBLE_PRIMARY",
+  "roadmapPhase": "teacher-workflow",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260728-post-ticket74-closed.json",
+    "issueHash": "073479ddb48c8f39f983e721cc1fa273a5ca4103552cffc22146bd66b40b929c",
+    "issueCount": 112,
+    "openCount": 59,
+    "closedCount": 53,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 82, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "primary": null,
+  "candidateAudits": [
+    {
+      "issue": 82,
+      "title": "33B — Preview Book Homework policy and source exposure",
+      "graphClear": true,
+      "transitivePrerequisitesClosed": true,
+      "status": "INELIGIBLE",
+      "rule": "acceptance-readiness-and-authority",
+      "owner": "#82 Book Homework preview plus Book Delivery/source authority",
+      "requiredAction": "Provide approved production-equivalent Delivery/source proof or revise live destination ownership so #82 can prove student-safe preview data, security, deployment, and rollback without enabling private-B2 or trusted capabilities.",
+      "evidence": [
+        "#82 current live acceptance contract",
+        "Existing HomeworkCreateModal/HomeworkConfigPanel have no Book preview surface or typed per-Activity policy seam.",
+        "Book Delivery/source proof is unavailable while private-B2 remains disabled; rollout gates remain non-authoritative/default-deny.",
+        "No #82 browser/deployment/rollback evidence exists."
+      ],
+      "impact": "Do not inspect, implement, or begin acceptance work on #82; its descendants remain gated."
+    },
+    {
+      "issue": 105,
+      "title": "43 — Browse public Books through ContentCatalog",
+      "graphClear": true,
+      "transitivePrerequisitesClosed": true,
+      "status": "INELIGIBLE",
+      "rule": "acceptance-readiness-and-authority",
+      "owner": "#105 ContentCatalog plus public-projection/rules and entitlement owners",
+      "requiredAction": "Add typed browseChildren/resolveSelection contract, public student-safe read boundary, entitlement/capability adapter, full negative security matrix, deployed readback, and hide-catalog rollback proof.",
+      "evidence": [
+        "#105 current live acceptance contract",
+        "Existing materialBooks.service.ts is authoring/review/projection only; no ContentCatalog contract or browser surface exists.",
+        "Current generated rules deny public projection reads to students; no catalog-to-entitlement boundary exists.",
+        "No #105 deployment or rollback evidence exists."
+      ],
+      "impact": "Do not inspect, implement, or begin acceptance work on #105; public catalog remains out of scope until authority and destination contracts are repaired."
+    }
+  ],
+  "candidateRejections": [
+    {
+      "issues": [49, 50],
+      "rule": "authority-and-safety",
+      "reason": "Graph-clear, but private-B2 provisioning/lifecycle and deployed disposable-object proof are not executable while private-B2, trusted actions, #50A, and #03B constraints remain unchanged."
+    },
+    {
+      "issues": [76, 130],
+      "rule": "roadmap-phase",
+      "reason": "Graph-clear or nearly clear Student-workflow/runtime candidates; roadmap requires Teacher workflow before Student workflow."
+    },
+    {
+      "issues": [93],
+      "rule": "roadmap-phase-and-single-primary",
+      "reason": "Graph-clear notification boundary, but Operations phase is later than current Teacher workflow. Peer lane remains read-only; do not release it as a parallel primary."
+    },
+    {
+      "issues": [129, 131, 132, 133],
+      "rule": "roadmap-phase",
+      "reason": "Graph-clear final integration/regression candidates; final closure waits for preceding workflow and activation contracts."
+    },
+    {
+      "issues": [77, 80, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136],
+      "rule": "mandatory-complete-transitive-prerequisite",
+      "reason": "Ineligible because at least one direct or transitive prerequisite remains OPEN. Exact chains and open prerequisite sets remain in the referenced complete graph artifact."
+    }
+  ],
+  "peerLaneDecision": {
+    "issues": [93, 94, 97],
+    "status": "READ_ONLY",
+    "reason": "#93 is graph-clear but later Operations phase; #82 and #105 are current-phase candidates but both fail acceptance-readiness. No parallel notification work is authorized by the governing one-primary contract."
+  },
+  "pauseCondition": "Resume only after an external authority/contract repair makes a current-phase root/enabler acceptance-ready, then refetch all live issue bodies and rebuild the full 112-ticket graph before selecting exactly one primary. Do not enable private-B2, #50A, #03B, trusted actions, or route gates to manufacture eligibility.",
+  "scope": "Preserve all 112 tickets; goal remains open and no early completion is declared."
+}

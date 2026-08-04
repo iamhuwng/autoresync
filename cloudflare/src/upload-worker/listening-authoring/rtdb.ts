@@ -5,7 +5,13 @@ export interface RepositoryEnv {
   GOOGLE_SA_KEY?: string;
   LISTENING_AUTHORING_IDEMPOTENCY_SECRET?: string;
   LISTENING_AUTHORING_DEV_WRITES_ENABLED?: string;
-  readDatabaseValue?: (path: string) => Promise<unknown>;
+  readDatabaseValue?: (path: string, query?: FirebaseRtdbQuery) => Promise<unknown>;
+}
+
+export interface FirebaseRtdbQuery {
+  readonly orderBy: '$key' | string;
+  readonly limitToFirst?: number;
+  readonly limitToLast?: number;
 }
 
 interface ServiceAccountKey {
@@ -62,7 +68,7 @@ class TokenCache {
       .setProtectedHeader({ alg: 'RS256' })
       .sign(privateKey);
 
-    const response = await this.fetchImpl(OAUTH2_TOKEN_URL, {
+    const response = await this.fetchImpl.call(globalThis, OAUTH2_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
@@ -115,20 +121,44 @@ const rtdbUrl = (env: RepositoryEnv, path: string): string => {
   return encodedPath ? `${baseUrl}/${encodedPath}.json` : `${baseUrl}/.json`;
 };
 
+const withQuery = (
+  url: string,
+  query?: FirebaseRtdbQuery,
+  authToken?: string,
+): string => {
+  const parameters = new URLSearchParams();
+  if (query) {
+    parameters.set('orderBy', JSON.stringify(query.orderBy));
+    if (query.limitToFirst !== undefined) {
+      parameters.set('limitToFirst', String(query.limitToFirst));
+    }
+    if (query.limitToLast !== undefined) {
+      parameters.set('limitToLast', String(query.limitToLast));
+    }
+  }
+  if (authToken !== undefined) parameters.set('auth', authToken);
+  const encoded = parameters.toString();
+  return encoded ? `${url}?${encoded}` : url;
+};
+
 export class FirebaseRtdbRestClient {
   constructor(
     private readonly options: {
       env: RepositoryEnv;
       fetchImpl: typeof fetch;
       getAccessToken?: () => Promise<string>;
+      firebaseAuthToken?: boolean;
     },
   ) {}
 
-  async readValue(path: string): Promise<unknown> {
-    if (this.options.env.readDatabaseValue) return this.options.env.readDatabaseValue(path);
-    const response = await this.options.fetchImpl(rtdbUrl(this.options.env, path), {
+  async readValue(path: string, query?: FirebaseRtdbQuery): Promise<unknown> {
+    if (this.options.env.readDatabaseValue) {
+      return this.options.env.readDatabaseValue(path, query);
+    }
+    const auth = await this.requestAuth(path, query);
+    const response = await this.options.fetchImpl.call(globalThis, auth.url, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${await this.accessToken()}` },
+      headers: auth.headers,
     });
     const body = parseJsonBody(await response.text());
     if (!response.ok) throw new Error(`firebase_rtdb_get_failed:${response.status}`);
@@ -136,10 +166,11 @@ export class FirebaseRtdbRestClient {
   }
 
   async readWithEtag<T>(path: string): Promise<{ data: T; etag: string }> {
-    const response = await this.options.fetchImpl(rtdbUrl(this.options.env, path), {
+    const auth = await this.requestAuth(path);
+    const response = await this.options.fetchImpl.call(globalThis, auth.url, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${await this.accessToken()}`,
+        ...auth.headers,
         'X-Firebase-ETag': 'true',
       },
     });
@@ -151,10 +182,11 @@ export class FirebaseRtdbRestClient {
   }
 
   async writeIfMatch(path: string, value: unknown, etag: string): Promise<boolean> {
-    const response = await this.options.fetchImpl(rtdbUrl(this.options.env, path), {
+    const auth = await this.requestAuth(path);
+    const response = await this.options.fetchImpl.call(globalThis, auth.url, {
       method: 'PUT',
       headers: {
-        Authorization: `Bearer ${await this.accessToken()}`,
+        ...auth.headers,
         'Content-Type': 'application/json',
         'if-match': etag,
       },
@@ -173,5 +205,16 @@ export class FirebaseRtdbRestClient {
     const saKey = this.options.env.GOOGLE_SA_KEY?.trim();
     if (!saKey) throw new Error('missing_google_sa_key');
     return getTokenCache(saKey, this.options.fetchImpl).getToken();
+  }
+
+  private async requestAuth(path: string, query?: FirebaseRtdbQuery): Promise<{
+    url: string;
+    headers: Record<string, string>;
+  }> {
+    const token = await this.accessToken();
+    const url = rtdbUrl(this.options.env, path);
+    return this.options.firebaseAuthToken
+      ? { url: withQuery(url, query, token), headers: {} }
+      : { url: withQuery(url, query), headers: { Authorization: `Bearer ${token}` } };
   }
 }

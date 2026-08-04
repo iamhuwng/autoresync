@@ -7,8 +7,12 @@
 import React, { useState, useCallback } from 'react';
 import { ref, update } from 'firebase/database';
 import { database } from '../../services/firebase';
-import { sendGradeUpdatedNotification } from '../../services/notificationService';
+import { createTrustedNotification } from '../../services/notificationProducerClient';
 import { Card, Button } from '../modern';
+
+const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
+const isTrustedNotificationIdentifier = (value: unknown): value is string =>
+    typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
 
 interface WritingAnswer {
     studentId: string;
@@ -98,8 +102,29 @@ export const InlineWritingGrader: React.FC<InlineWritingGraderProps> = ({
                 'writingResult/gradingTier': 'teacher-graded',
             });
 
-            // Notify student (fire-and-forget)
-            sendGradeUpdatedNotification(studentId, testName, current.questionNumber, finalScore).catch(() => { });
+            // Notify the student (fire-and-forget) using the canonical answer
+            // recipient. The monitor's studentId prop remains only the RTDB
+            // write target and is never trusted as a notification recipient.
+            const recipientId = current.studentId;
+            if (
+                isTrustedNotificationIdentifier(recipientId)
+                && isTrustedNotificationIdentifier(sessionCode)
+                && Number.isSafeInteger(current.questionNumber)
+                && typeof testName === 'string'
+                && testName.trim()
+            ) {
+                void createTrustedNotification({
+                    producerFamily: 'result',
+                    authorityRecordId: sessionCode,
+                    recipientId,
+                    operationKey: `grade-updated:${sessionCode}:${recipientId}:${current.questionNumber}`,
+                    type: 'success',
+                    title: 'Grade Updated',
+                    message: `Your answer for Q${current.questionNumber} in "${testName}" has been graded: ${finalScore} points.`,
+                }).catch((error) => {
+                    console.warn('[InlineWritingGrader] Grade notification failed:', error);
+                });
+            }
 
             // Move to next question
             setCurrentIndex(prev => prev + 1);

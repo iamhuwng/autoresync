@@ -1,0 +1,18 @@
+{
+  "project": "desktop-1440",
+  "route": "http://localhost:5173/__smoke/book-assembly-successor?fixture=ticket71-component&state=cancelled",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "proof": [
+    "cancel performs no publication request",
+    "predecessor remains active and unchanged",
+    "reload preserves canceled state"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

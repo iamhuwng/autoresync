@@ -5,8 +5,10 @@ export default defineConfig({
     environment: 'node',
     include: [
       'cloudflare/test/book-notification-emitter.test.ts',
-      'cloudflare/test/book-notification-destination.test.ts',
-      'cloudflare/test/book-notification-worker.test.ts',
+      'cloudflare/test/book-notification-post-commit.test.ts',
+      'cloudflare/test/book-homework-notification.test.ts',
+      'cloudflare/test/book-homework-composition.test.ts',
+      'cloudflare/test/book-homework-saga.test.ts',
       'cloudflare/test/notification-command-worker.test.ts',
     ],
   },

@@ -10,7 +10,7 @@ const {
     mockThcsResultToTestMarkingResult,
     mockSaveTestResult,
     mockGradeWritingQuestions,
-    mockSendThcsFullyGradedNotification,
+    mockCreateTrustedNotification,
     mockGetSubmissionById,
     mockSubmitHomework,
     mockGetHomeworkById,
@@ -29,7 +29,7 @@ const {
     mockThcsResultToTestMarkingResult: vi.fn(),
     mockSaveTestResult: vi.fn(),
     mockGradeWritingQuestions: vi.fn(),
-    mockSendThcsFullyGradedNotification: vi.fn(),
+    mockCreateTrustedNotification: vi.fn(),
     mockGetSubmissionById: vi.fn(),
     mockSubmitHomework: vi.fn(),
     mockGetHomeworkById: vi.fn(),
@@ -124,8 +124,8 @@ vi.mock('../../services/testResults.service', () => ({
     saveTestResult: (...args: unknown[]) => mockSaveTestResult(...args),
 }));
 
-vi.mock('../../services/notificationService', () => ({
-    sendThcsFullyGradedNotification: (...args: unknown[]) => mockSendThcsFullyGradedNotification(...args),
+vi.mock('../../services/notificationProducerClient', () => ({
+    createTrustedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
 }));
 
 vi.mock('../../services/homeworkSubmissionService', () => ({
@@ -245,7 +245,7 @@ describe('THCSPracticeView', () => {
         });
         mockSaveTestResult.mockResolvedValue('result-1');
         mockGradeWritingQuestions.mockResolvedValue(undefined);
-        mockSendThcsFullyGradedNotification.mockResolvedValue(undefined);
+        mockCreateTrustedNotification.mockResolvedValue({ success: true });
         mockTriggerFormativeFeedbackForSavedResult.mockResolvedValue(undefined);
         mockUpdateThcsProgress.mockResolvedValue(undefined);
         mockGetSubmissionById.mockResolvedValue(null);
@@ -304,6 +304,16 @@ describe('THCSPracticeView', () => {
                 }),
             }),
         );
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            producerFamily: 'thcs-practice',
+            authorityRecordId: 'result-1',
+            recipientId: 'student-1',
+            operationKey: 'thcs-fully-graded:result-1',
+            type: 'success',
+            title: '✅ Test Fully Graded',
+            message: 'All answers in "THCS Practice Test" have been graded. Your score: 9/10.',
+            link: '/result/result-1',
+        });
     }, 15000);
 
     it('submits via saveTestResult with canonical homework context', async () => {

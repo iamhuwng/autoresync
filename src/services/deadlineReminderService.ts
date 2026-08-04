@@ -19,7 +19,8 @@ import {
 // @ts-ignore - firebase.js doesn't have type declarations
 import { firestore as db } from './firebase';
 import type { HomeworkAssignment } from '../types/homework.types';
-import { createNotification, sendThcsHomeworkDueSoonNotification } from './notificationService';
+import { buildRoute } from '../constants/routes';
+import { createTrustedNotification } from './notificationProducerClient';
 
 // ============================================================================
 // TYPES
@@ -231,28 +232,30 @@ export async function sendDeadlineReminder(
 
         const hoursRemaining = homework.scheduling?.dueDate ? getHoursUntilDeadline(homework.scheduling.dueDate) : 0;
 
-        // Phase 3 Task 3.4: Route THCS homework through THCS-specific notification
+        // Phase 3 Task 3.4: Preserve the THCS due-soon meaning under the deadline seam.
         if ((homework as any).materialType === 'thcs-test') {
-            await sendThcsHomeworkDueSoonNotification(
-                studentId,
-                homework.id,
-                homework.title || homework.materialTitle || 'THCS Homework',
-                Math.round(hoursRemaining)
-            );
+            const testTitle = homework.title || homework.materialTitle || 'THCS Homework';
+            await createTrustedNotification({
+                producerFamily: 'deadline',
+                authorityRecordId: homework.id,
+                recipientId: studentId,
+                operationKey: `thcs-homework-due-soon:${homework.id}:${reminderType}`,
+                type: 'warning',
+                title: '⏰ THCS Homework Due Soon',
+                message: `"${testTitle}" is due in ${Math.round(hoursRemaining)} hours.`,
+                link: buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId: homework.id }),
+            });
         } else {
             const message = formatReminderMessage(config.messageTemplate, homework);
 
-            // Send notification using existing service
-            await createNotification({
+            await createTrustedNotification({
+                producerFamily: 'deadline',
+                authorityRecordId: homework.id,
+                recipientId: studentId,
+                operationKey: `homework-due-soon:${homework.id}:${reminderType}`,
                 type: 'warning',
-                userId: studentId,
                 title: 'Homework Due Soon',
                 message,
-                metadata: {
-                    homeworkId: homework.id,
-                    deadline: homework.scheduling?.dueDate,
-                    reminderType
-                }
             });
         }
 

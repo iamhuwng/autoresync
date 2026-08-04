@@ -1,30 +1,50 @@
-import { readFileSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const ownedFiles = [
-  'src/types/bookActivity.types.ts',
-  'src/services/book-activity/activitySchema.service.ts',
-  'src/services/book-activity/activityCandidate.service.ts',
-  'src/services/book-activity/activityPublish.service.ts',
-  'src/services/book-activity/activityProjection.service.ts',
-  'src/services/book-activity/activityDiff.service.ts',
-  'src/services/book-activity/activityScoring.service.ts',
-  'src/services/materialCatalog/bookActivityBookIntegration.service.ts',
-];
-
-describe('Book Activity dependency boundary', () => {
-  it('keeps Book Activity independent from legacy PDF parser paths', () => {
-    const offenders = ownedFiles.filter((file) => {
-      const source = readFileSync(resolve(repoRoot, file), 'utf8');
-      return source.includes('src/services/file-extractor/file.extractor.ts') ||
-        source.includes('file.extractor') ||
-        source.includes('src/parsers/pdfParser.js') ||
-        source.includes('pdfParser');
+const sourceFilesUnder = (relativeRoot: string): string[] => {
+  const absoluteRoot = resolve(relativeRoot);
+  const visit = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) return visit(path);
+      return /\.(?:ts|tsx)$/u.test(entry.name) ? [path] : [];
     });
+  return visit(absoluteRoot);
+};
 
-    expect(offenders.map((file) => relative(repoRoot, resolve(repoRoot, file)))).toEqual([]);
+const adapterFiles = sourceFilesUnder('src/services/book-activity/adapters')
+  .filter((path) => !path.endsWith('.test.ts') && !path.endsWith('.test.tsx'));
+
+describe('Book Activity native-domain dependency boundary', () => {
+  it('imports Reading and Listening only through their explicit public barrels', () => {
+    for (const path of adapterFiles) {
+      const source = readFileSync(resolve(path), 'utf8');
+      const nativeImports = [...source.matchAll(
+        /from ['"]([^'"]*(?:reading-v2|assessment\/listening)[^'"]*)['"]/gu,
+      )].map((match) => match[1]);
+      expect(nativeImports.every((specifier) =>
+        specifier.endsWith('/reading-v2/public') ||
+        specifier.endsWith('/assessment/listening/public'))).toBe(true);
+    }
+  });
+
+  it('contains no persistence, scoring, delivery, auth, URL, or native reverse authority', () => {
+    for (const path of adapterFiles) {
+      const source = readFileSync(resolve(path), 'utf8');
+      expect(source).not.toMatch(
+        /firebase|cloudflare|autosave|submission|answerKey|acceptedAnswer|signedUrl|fetch\(|database/iu,
+      );
+    }
+
+    const nativeDomainFiles = [
+      ...sourceFilesUnder('src/services/reading-v2'),
+      ...sourceFilesUnder('src/features/assessment/listening'),
+    ];
+    for (const path of nativeDomainFiles) {
+      expect(readFileSync(path, 'utf8')).not.toMatch(
+        /from ['"][^'"]*(?:services\/book-activity|bookActivityAdapter)[^'"]*['"]/u,
+      );
+    }
   });
 });

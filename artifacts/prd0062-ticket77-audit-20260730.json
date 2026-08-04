@@ -1,0 +1,50 @@
+{
+  "ticket": 77,
+  "generatedAt": "2026-07-30",
+  "selectionGraph": "artifacts/prd0062-graph-20260730-post-ticket76-closed.json",
+  "selectionGraphIssueHash": "20743ec96cbaf45ede1acd93585c37c6b85088e156827bdf078dd873a80b7c57",
+  "result": "CONTRACT_REPAIR_REQUIRED_BEFORE_IMPLEMENTATION",
+  "evidence": [
+    {
+      "area": "runtime repository",
+      "evidence": "cloudflare/src/upload-worker/book-runtime/repository.ts exposes listAttempts(recipientId, contextId, placementId?, limit) and returns only attempt records. It has no bounded result projection, grouped attempt query, summary/detail split, or teacher-authorized cross-recipient read model."
+    },
+    {
+      "area": "runtime Worker",
+      "evidence": "cloudflare/src/upload-worker/book-runtime/worker.ts currently exposes command and readDraft only. No result-summary, result-detail, grouped-attempt, student-history, or teacher-homework read handler exists."
+    },
+    {
+      "area": "route ownership",
+      "evidence": "cloudflare/src/upload-worker/book-routes/manifest.ts maps the existing bookRuntimeRouteDescriptors to #74, while #59 owns the top-level manifest/dispatcher. Adding #77 result routes without an explicit contributor boundary would either misattribute ownership to #74 or mutate the closed #59 composition contract implicitly."
+    },
+    {
+      "area": "existing UI",
+      "evidence": "src/components/results/AttemptHistory.tsx and src/pages/ResultDetailPage.tsx are legacy TestResultRecord surfaces. They do not accept BookRuntimeResultRecord projections, context-scoped visibility, pending-review/released-feedback states, source provenance, or deleted-source display metadata."
+    },
+    {
+      "area": "existing visibility",
+      "evidence": "src/services/resultVisibility.service.ts classifies EnhancedTestResultRecord legacy visibility snapshots. It has no Book Delivery binding/context resolver and cannot authorize an owning teacher's Homework result projection."
+    },
+    {
+      "area": "rules/index ownership",
+      "evidence": "The #74-owned 28A.json fragment denies root and scopes reads and permits only recipient-scoped runtime-service reads. Its per-recipient scope cannot satisfy #77's bounded teacher Homework grouping without a separate read-model/index boundary."
+    },
+    {
+      "area": "schema seam",
+      "evidence": "src/services/book-activity/activityRuntimeAttempt.types.ts carries recipient/context/placement/binding/source provenance and result score/review state, but no read-model visibility snapshot or feedback-release projection. The safe source provenance fields are sufficient for a result adapter; private response/source identities must remain behind the trusted result reader."
+    }
+  ],
+  "requiredDestinationFirstRepair": [
+    "#77 owns the trusted Book result read model, bounded summary/detail projections, Book-specific visibility/ownership adapter, result routes/handlers, and a separate result-read rules fragment/index; #118 owns assembled generated-rules proof.",
+    "#59 retains top-level manifest/dispatcher/auth/rate/CORS/identity composition. #77 contributes descriptors and handler factories through the fixed contributor seam; it must not claim top-level Worker ownership.",
+    "#74 retains the canonical 28A mutation/runtime fragment, command, draft, and student runtime authority. #77 must not edit 28A.json or duplicate terminal creation.",
+    "The #77 contract must explicitly preserve legacy result adapters/routes unchanged and keep all result reads service-mediated and bounded; no direct browser read of book_runtime scopes or new production/trusted gate is implied."
+  ],
+  "safety": {
+    "03B": "DISABLED_BY_DEFAULT",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "trustedActions": "DISABLED",
+    "privateB2": "DISABLED",
+    "scope": "No product code, issue, graph, deployment, or gate state changed by this audit."
+  }
+}

@@ -1,6 +1,7 @@
 import { useRoutes } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 import { withTrackedRoute } from './routeHelpers';
+import { ROUTES } from '../constants/routes';
 
 const LoginPage = lazyWithRetry(() => import('../pages/LoginPage.jsx'));
 const GuestJoinPage = lazyWithRetry(() => import('../pages/GuestJoinPage.jsx'));
@@ -10,8 +11,17 @@ const BlockedUserPage = lazyWithRetry(() => import('../pages/BlockedUserPage'));
 const TeacherInvitePage = lazyWithRetry(() => import('../pages/TeacherInvitePage.jsx'));
 const AuthenticatedRoutes = lazyWithRetry(() => import('./AuthenticatedRoutes'));
 const BookEditorSmokePage = lazyWithRetry(() => import('../pages/BookEditorSmokePage'));
+const BookAssemblyWorkspaceSmokePage = lazyWithRetry(() => import('../pages/BookAssemblyWorkspaceSmokePage'));
+const BookAssemblySourceStrategySuccessorSmokePage = lazyWithRetry(() => import('../pages/BookAssemblySourceStrategySuccessorSmokePage'));
+const BookAssemblyMappingRevisionSmokePage = lazyWithRetry(() => import('../pages/BookAssemblyMappingRevisionSmokePage'));
+const BookAssemblyActivityRevisionSmokePage = lazyWithRetry(() => import('../pages/BookAssemblyActivityRevisionSmokePage'));
+const BookPdfViewerSmokePage = lazyWithRetry(() => import('../pages/BookPdfViewerSmokePage'));
+const BookRuntimeShellSmokePage = lazyWithRetry(() => import('../pages/BookRuntimeShellSmokePage'));
 const ReadingV2StudioSmokePage = lazyWithRetry(() => import('../pages/ReadingV2StudioSmokePage'));
 const ReadingV2VerticalLoopSmokePage = lazyWithRetry(() => import('../pages/ReadingV2VerticalLoopSmokePage'));
+const BookHomeworkPreviewSmokePage = lazyWithRetry(() => import('../pages/BookHomeworkPreviewSmokePage'));
+const BookHomeworkCompletionSmokePage = lazyWithRetry(() => import('../pages/BookHomeworkCompletionSmokePage'));
+const BookActivityEvaluationSmokePage = lazyWithRetry(() => import('../pages/BookActivityEvaluationSmokePage'));
 
 export default function PublicRoutes() {
   const routes = [
@@ -50,11 +60,38 @@ export default function PublicRoutes() {
       path: '/__smoke/book-editor',
       element: withTrackedRoute(<BookEditorSmokePage />, 'testCreation'),
     }, {
+      path: '/__smoke/book-assembly',
+      element: withTrackedRoute(<BookAssemblyWorkspaceSmokePage />, 'readingV2Studio'),
+    }, {
+      path: '/__smoke/book-assembly-successor',
+      element: withTrackedRoute(<BookAssemblySourceStrategySuccessorSmokePage />, 'readingV2Studio'),
+    }, {
+      path: '/__smoke/book-assembly-mapping-revision',
+      element: withTrackedRoute(<BookAssemblyMappingRevisionSmokePage />, 'readingV2Studio'),
+    }, {
+      path: '/__smoke/book-assembly-activity-revision',
+      element: withTrackedRoute(<BookAssemblyActivityRevisionSmokePage />, 'readingV2Studio'),
+    }, {
+      path: '/__smoke/book-viewer',
+      element: withTrackedRoute(<BookPdfViewerSmokePage />, 'testCreation'),
+    }, {
+      path: ROUTES.BOOK_RUNTIME_SMOKE,
+      element: withTrackedRoute(<BookRuntimeShellSmokePage />, 'testTaking'),
+    }, {
       path: '/__smoke/reading-v2-studio',
       element: withTrackedRoute(<ReadingV2StudioSmokePage />, 'readingV2Studio'),
     }, {
       path: '/__smoke/reading-v2-vertical-loop',
       element: withTrackedRoute(<ReadingV2VerticalLoopSmokePage />, 'testTaking'),
+    }, {
+      path: '/__smoke/book-homework-preview',
+      element: withTrackedRoute(<BookHomeworkPreviewSmokePage />, 'homework'),
+    }, {
+      path: ROUTES.BOOK_HOMEWORK_COMPLETION_SMOKE,
+      element: withTrackedRoute(<BookHomeworkCompletionSmokePage />, 'homework'),
+    }, {
+      path: ROUTES.BOOK_ACTIVITY_EVALUATION_SMOKE,
+      element: withTrackedRoute(<BookActivityEvaluationSmokePage />, 'homework'),
     });
   }
 

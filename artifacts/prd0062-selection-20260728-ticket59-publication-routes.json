@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-07-28T04:30:39.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-reopen59.json",
+  "issueHash": "babb32c250a7bea27ba7a93034728bd90b71294a9aa82f2243f64c4611a15b69",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 65,
+    "closedCount": 47,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 59, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "runtime",
+  "selection": {
+    "primaryTicket": 59,
+    "title": "PRD0062 09D - Integrate Book Worker route dispatch",
+    "status": "selected-reopened-publication-route-repair",
+    "directClosedPrerequisites": [44, 51, 52, 58],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 59,
+    "acceptanceReadiness": "Canonical Full-PDF/component-PDF descriptors, handler namespace composition, disabled route gates, auth/CORS/rate/body ordering, and durable repository injection are executable under the current x64 Worker harness. Positive activated/deployed identity and readback remain #134-owned; generated rules remain #118-owned.",
+    "requiredAuthority": [
+      "closed #44 gate boundary and #51/#52/#58 route prerequisites",
+      "local x64 Worker harness with route/manifest conformance fixtures",
+      "no trusted-action activation, #50A, #03B, private-B2, or positive deployment authority"
+    ]
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected-blocked",
+      "reason": "Foundation private-B2 provisioning requires unavailable remote capability/deployment authority. Keep private-B2 disabled."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-blocked",
+      "reason": "Foundation private-B2 reconciliation requires unavailable remote private-B2 state and exact-version cleanup proof."
+    },
+    {
+      "ticket": 59,
+      "decision": "selected",
+      "reason": "Earliest independent runtime route enabler with all direct/transitive prerequisites CLOSED, repaired #64 durable repository available, executable route/manifest gates, and highest verified downstream leverage."
+    },
+    {
+      "ticket": 73,
+      "decision": "rejected-ineligible",
+      "reason": "Complete transitive chain contains open #59; student shell cannot bypass canonical route composition."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected-ineligible",
+      "reason": "Complete transitive chain contains open #59; Homework work cannot bypass canonical route composition."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-ineligible",
+      "reason": "Complete transitive chain contains open #59; Operations work cannot bypass canonical route composition."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-ineligible",
+      "reason": "Complete transitive chain contains open #59; later public-access work cannot bypass canonical route composition."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser suite; graph-clear is not acceptance-ready while runtime route repair remains open."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected-phase",
+      "reason": "Final-closure student runtime suite; later roadmap phase."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device suite; later roadmap phase."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security suite; later roadmap phase."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/backup/recovery suite; later roadmap phase."
+    }
+  ],
+  "nonFrontierRule": "Every other unresolved ticket is INELIGIBLE because its complete transitive prerequisite chain contains one or more open tickets in the source graph."
+}

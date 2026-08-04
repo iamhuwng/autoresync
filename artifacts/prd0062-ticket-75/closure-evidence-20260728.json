@@ -1,0 +1,81 @@
+{
+  "ticket": 75,
+  "issue": 75,
+  "title": "PRD0062 28B — Persist browser autosave and resume through Worker",
+  "stateBeforeClose": "OPEN",
+  "primarySelection": {
+    "roadmapPhase": "student-workflow",
+    "directPrerequisitesClosed": [38, 39, 40, 41, 73, 74],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65, 66, 72, 73, 74],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 44,
+    "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket41-closed.json",
+    "selectionArtifact": "artifacts/prd0062-selection-20260728-ticket75-reselected-after41.json"
+  },
+  "implementation": {
+    "browserClient": "Typed authenticated Book Runtime save/read client with bounded schema, CAS/conflict classification, token refresh, safe response filtering, and no direct Firebase/RTDB writes.",
+    "hook": "Activity-scoped debounce, one-in-flight/coalescing, monotonic CAS revisions, bounded retry, offline/local recovery, expiry, deterministic tab ownership, conflict choices, lifecycle/unmount flush, bounded deadline, and privacy-safe metrics.",
+    "shell": "Save status, shared failure/conflict announcements, retry/reload/discard controls, and navigation flush integration.",
+    "workerReadSeam": "Authorized GET draft read route for exact binding/context/placement/activity/version/interaction resume; mutation gate remains unchanged and disabled by default.",
+    "fixture": "Student quick-login smoke fixture persists disposable runtime-shaped drafts through the platform storage-backed Worker transport; failure/conflict controls are test-only fixture behavior."
+  },
+  "verification": {
+    "focusedRoot": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/services/book-activity/activityRuntime.browser.test.ts src/hooks/book-runtime/useBookActivityRuntime.test.tsx src/components/book-runtime/BookRuntimeShell.test.tsx src/hooks/book-runtime/useBookRuntimeNavigation.test.tsx src/config/featureRegistry.test.ts src/services/book-activity/runtime/registrations/bookActivityAdapterRegistrations.test.ts --reporter=dot --maxWorkers=1",
+      "result": "6 files passed; 38 tests passed"
+    },
+    "focusedWorker": {
+      "command": "rtk node ../scripts/harness/run-tool.mjs vitest . run test/book-runtime-command-schema.test.ts test/book-runtime-authorization.test.ts test/book-runtime-repository.test.ts test/book-runtime-worker.test.ts test/book-runtime-route-integration.test.ts test/book-route-manifest.test.ts --reporter=dot",
+      "result": "6 files passed; 36 tests passed"
+    },
+    "responseShapeAndRegistration": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run <renderer/codec/registration suites> --reporter=dot --maxWorkers=1",
+      "result": "10 files passed; 31 tests passed; choice, text-entry, matching, ordering, long-response, and profiled Book adapter boundaries covered; generic profile:null long-response excluded from native adapter ownership"
+    },
+    "browser": {
+      "command": "rtk npm exec -- playwright test --config=playwright.prd0062-student-runtime-persistence.config.mjs",
+      "result": "3 tests passed: deterministic 51C1 plan, Student quick-login/default-deny preflight, and focused 28B choice/text-entry/long-response save/reload/navigation/forced retry/conflict/discard flow with no test failure",
+      "url": "http://localhost:5174/__smoke/book-runtime?bookId=book-runtime-fixture&unitKey=unit-fixture",
+      "artifact": "artifacts/prd0062-ticket-75/browser/student-runtime-persistence.png"
+    },
+    "lint": {
+      "command": "node_modules/.bin/eslint <#75/#41-owned files>",
+      "result": "passed"
+    },
+    "utf8": {
+      "command": "rtk node scripts/check-utf8.mjs <#75/#41-owned text files>",
+      "result": "passed for 21 files"
+    },
+    "productionBuild": {
+      "command": "rtk node scripts/harness/run-tool.mjs vite . build",
+      "result": "Vite production build passed; 9429 modules transformed"
+    }
+  },
+  "transferLedger": {
+    "to130": [
+      "Integrated all-family assembled Student browser proof for matching/ordering, long-response, and Book-owned Reading/Listening adapters; exact save/flush/reload/review evidence remains in #130."
+    ],
+    "to134": [
+      "Deployed/canary authenticated Worker CAS against disposable runtime rows",
+      "Production-shaped write frequency, acknowledgement latency, payload bytes, retry/failure behavior, and cost assumptions",
+      "Active Worker/Firebase/configuration/generated-rules readback",
+      "Deployed runtime rollback disabling new launches/autosave while safe read/resume and local recovery remain available"
+    ],
+    "retainedBy75": [
+      "Browser client/hook state machine and codec-only serialization",
+      "Local platform-storage recovery, expiry, tab ownership, conflict, cleanup, retry, deadline, and lifecycle proof",
+      "Focused localhost:5174 Student quick-login fixture proof",
+      "Local Worker command/read route contract and local rollback behavior"
+    ]
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "deployment": "not claimed; destination-owned by #134",
+    "integratedAllFamilyBrowser": "not claimed; destination-owned by #130",
+    "directFirebaseWrites": "none",
+    "reopenedTickets": [41]
+  }
+}

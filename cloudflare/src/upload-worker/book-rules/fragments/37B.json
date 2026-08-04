@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "37B",
+  "owner": {
+    "ticketId": "37B",
+    "issue": 92,
+    "generatedRuleLocations": [
+      "book_activity_integrity/reports/.read",
+      "book_activity_integrity/reports/.write",
+      "book_activity_integrity/reports/$attemptId/.read",
+      "book_activity_integrity/reports/$attemptId/.write",
+      "book_activity_integrity/reports/$attemptId/.validate",
+      "book_activity_integrity/reports_by_teacher/.read",
+      "book_activity_integrity/reports_by_teacher/.write",
+      "book_activity_integrity/reports_by_teacher/$ownerId/$terminalId/.read",
+      "book_activity_integrity/reports_by_teacher/$ownerId/$terminalId/.write",
+      "book_activity_integrity/reports_by_teacher/$ownerId/$terminalId/.validate"
+    ],
+    "serviceIdentity": "book_integrity_service",
+    "leastPrivilegePaths": [
+      "book_activity_integrity/reports/$attemptId",
+      "book_activity_integrity/reports_by_teacher/$ownerId/$terminalId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_activity_integrity/reports",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity/reports",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity/reports/$attemptId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_integrity_service == true && auth.token.book_integrity_attemptId == $attemptId"
+    },
+    {
+      "path": "book_activity_integrity/reports/$attemptId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_integrity_service == true && auth.token.book_integrity_attemptId == $attemptId && !data.exists() && newData.exists()"
+    },
+    {
+      "path": "book_activity_integrity/reports/$attemptId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.numChildren() == 11 && newData.hasChildren(['schemaVersion', 'reportId', 'status', 'visibility', 'sealedAt', 'terminal', 'policy', 'risk', 'totalEventCount', 'counts', 'eventRefs']) && newData.child('schemaVersion').val() == 1 && newData.child('reportId').isString() && newData.child('reportId').val().beginsWith('book-integrity-report-v1-') && newData.child('status').val() == 'sealed' && newData.child('visibility').val() == 'teacher-only' && newData.child('sealedAt').isString() && newData.child('risk').isString() && newData.child('totalEventCount').isNumber() && newData.child('totalEventCount').val() >= 0 && newData.child('totalEventCount').val() <= 64 && newData.child('terminal').numChildren() == 20 && newData.child('terminal').hasChildren(['attemptId', 'terminalId', 'resultId', 'completionId', 'attemptNumber', 'submittedAt', 'recipientId', 'ownerId', 'bookId', 'bindingId', 'bindingRevision', 'contextKind', 'contextId', 'placementId', 'activityId', 'activityVersion', 'activityVersionId', 'submissionScope', 'resultStatus', 'completionStatus']) && newData.child('terminal').child('contextKind').val() == 'homework' && newData.child('terminal').child('submissionScope').val() == 'activity' && (newData.child('terminal').child('resultStatus').val() == 'pending_review' || newData.child('terminal').child('resultStatus').val() == 'submitted') && newData.child('terminal').child('completionStatus').val() == 'completed' && newData.child('terminal').child('resultId').val() == newData.child('terminal').child('attemptId').val() + ':result' && newData.child('terminal').child('completionId').val() == newData.child('terminal').child('attemptId').val() + ':completion' && newData.child('terminal').child('terminalId').val() == newData.child('terminal').child('completionId').val() && newData.child('policy').numChildren() == 6 && newData.child('policy').hasChildren(['schemaVersion', 'policyId', 'policyRevision', 'flaggedEventCount', 'highRiskEventCount', 'highRiskSignals']) && newData.child('policy').child('schemaVersion').val() == 1 && newData.child('policy').child('policyId').isString() && newData.child('policy').child('policyRevision').isNumber() && newData.child('policy').child('flaggedEventCount').isNumber() && newData.child('policy').child('highRiskEventCount').isNumber() && newData.child('policy').child('highRiskSignals').numChildren() <= 8 && newData.child('counts').numChildren() == 8 && newData.child('counts').hasChildren(['visibility_loss', 'focus_loss', 'route_reload_close', 'paste', 'protected_copy', 'focus_mode_exit', 'concurrent_attempt', 'inactivity']) && newData.child('counts').child('visibility_loss').isNumber() && newData.child('counts').child('focus_loss').isNumber() && newData.child('counts').child('route_reload_close').isNumber() && newData.child('counts').child('paste').isNumber() && newData.child('counts').child('protected_copy').isNumber() && newData.child('counts').child('focus_mode_exit').isNumber() && newData.child('counts').child('concurrent_attempt').isNumber() && newData.child('counts').child('inactivity').isNumber() && newData.child('eventRefs').numChildren() == newData.child('totalEventCount').val() && newData.child('eventRefs').numChildren() <= 64 && !newData.child('answer').exists() && !newData.child('response').exists() && !newData.child('prompt').exists() && !newData.child('score').exists() && !newData.child('feedback').exists() && !newData.child('consequence').exists()"
+    },
+    {
+      "path": "book_activity_integrity/reports_by_teacher",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity/reports_by_teacher",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity/reports_by_teacher/$ownerId/$terminalId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_integrity_service == true && auth.token.book_integrity_ownerId == $ownerId && auth.token.book_integrity_terminalId == $terminalId"
+    },
+    {
+      "path": "book_activity_integrity/reports_by_teacher/$ownerId/$terminalId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_integrity_service == true && auth.token.book_integrity_ownerId == $ownerId && auth.token.book_integrity_terminalId == $terminalId && !data.exists() && newData.exists()"
+    },
+    {
+      "path": "book_activity_integrity/reports_by_teacher/$ownerId/$terminalId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.numChildren() == 5 && newData.hasChildren(['schemaVersion', 'ownerId', 'terminalId', 'attemptId', 'reportId']) && newData.child('schemaVersion').val() == 1 && newData.child('ownerId').val() == $ownerId && newData.child('terminalId').val() == $terminalId && newData.child('attemptId').isString() && newData.child('reportId').isString() && newData.child('reportId').val() == 'book-integrity-report-v1-' + newData.child('attemptId').val()"
+    }
+  ]
+}

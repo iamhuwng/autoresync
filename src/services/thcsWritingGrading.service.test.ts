@@ -7,6 +7,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const mockCreateTrustedNotification = vi.hoisted(() => vi.fn());
+
 // ═══════════════════════════════════════════════════════════════
 // We need to mock Firebase and AI service BEFORE importing the service
 // ═══════════════════════════════════════════════════════════════
@@ -18,6 +20,9 @@ vi.mock('firebase/database', () => ({
 }));
 vi.mock('./firebase', () => ({
     database: {},
+}));
+vi.mock('./notificationProducerClient', () => ({
+    createTrustedNotification: mockCreateTrustedNotification,
 }));
 
 // Mock AI service — we control when AI "works" vs "fails"
@@ -127,7 +132,14 @@ function makeGradingResult(
 
 describe('gradeWritingQuestions', () => {
     beforeEach(() => {
+        vi.useFakeTimers();
         vi.clearAllMocks();
+        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
+    });
+
+    afterEach(async () => {
+        await vi.runOnlyPendingTimersAsync();
+        vi.useRealTimers();
     });
 
     it('should skip questions where autoGradeWriting is disabled', async () => {
@@ -146,6 +158,7 @@ describe('gradeWritingQuestions', () => {
 
         // Should NOT call AI service since autoGradeWriting is false
         expect(mockGradeWritingAnswer).not.toHaveBeenCalled();
+        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
     });
 
     it('should skip when there are no pending writing questions', async () => {
@@ -182,7 +195,7 @@ describe('gradeWritingQuestions', () => {
         // Student answer is identical to model answer → 100% similarity
         const result = makeGradingResult({ 1: 'She is very pretty.' });
 
-        await gradeWritingQuestions(result, sections, 'session-1', 'student-1');
+        await gradeWritingQuestions(result, sections, 'session-1', 'student-1', '-Oresult-1');
 
         // Tier 1 exact match should NOT escalate to AI
         expect(mockGradeWritingAnswer).not.toHaveBeenCalled();
@@ -193,6 +206,17 @@ describe('gradeWritingQuestions', () => {
         expect(updateCall[1].writingResult.gradingTier).toBe('auto-correct');
         expect(updateCall[1].pointsEarned).toBeGreaterThan(0);
         expect(updateCall[1].isCorrect).toBe(true);
+        await vi.runOnlyPendingTimersAsync();
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            producerFamily: 'thcs-grading',
+            authorityRecordId: '-Oresult-1',
+            recipientId: 'student-1',
+            operationKey: 'thcs-grade-updated:-Oresult-1:questions:1',
+            type: 'success',
+            title: '\uD83D\uDCDD Grade Updated',
+            message: 'Your answer for Q1 in "THCS Test" has been graded: 1 points.',
+            link: '/result/-Oresult-1',
+        });
     });
 
     it('should auto-grade low-confidence mismatches via Tier 1 (<30% similarity)', async () => {
@@ -220,6 +244,62 @@ describe('gradeWritingQuestions', () => {
         expect(updateCall[1].writingResult.gradingTier).toBe('auto-incorrect');
         expect(updateCall[1].pointsEarned).toBe(0);
         expect(updateCall[1].isCorrect).toBe(false);
+    });
+
+    it('uses the same trusted operation key when the same grade retries', async () => {
+        const sections = [makeWritingSection([{
+            questionNumber: 1,
+            type: 'sentence-rewrite',
+            originalSentence: 'She is beautiful.',
+            modelAnswers: ['She is very pretty.'],
+            autoGradeWriting: true,
+        }])];
+        const result = makeGradingResult({ 1: 'She is very pretty.' });
+
+        await gradeWritingQuestions(result, sections, 'session-1', 'student-1');
+        await gradeWritingQuestions(result, sections, 'session-1', 'student-1');
+        await vi.runOnlyPendingTimersAsync();
+
+        expect(mockCreateTrustedNotification).toHaveBeenCalledTimes(1);
+        expect(mockCreateTrustedNotification.mock.calls[0]?.[0].operationKey)
+            .toBe('thcs-grade-updated:session-1:questions:1');
+    });
+
+    it('fails closed for a cross-user grading request', async () => {
+        const { update } = await import('firebase/database');
+        const sections = [makeWritingSection([{
+            questionNumber: 1,
+            type: 'sentence-rewrite',
+            originalSentence: 'She is beautiful.',
+            modelAnswers: ['She is very pretty.'],
+            autoGradeWriting: true,
+        }])];
+        const result = makeGradingResult({ 1: 'She is very pretty.' });
+
+        await gradeWritingQuestions(result, sections, 'session-1', 'student-2');
+
+        expect(update).not.toHaveBeenCalled();
+        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+    });
+
+    it('keeps grading successful when trusted notification route is disabled', async () => {
+        const { update } = await import('firebase/database');
+        mockCreateTrustedNotification.mockResolvedValue({
+            success: false,
+            error: 'notification_command_unavailable',
+        });
+        const sections = [makeWritingSection([{
+            questionNumber: 1,
+            type: 'sentence-rewrite',
+            originalSentence: 'She is beautiful.',
+            modelAnswers: ['She is very pretty.'],
+            autoGradeWriting: true,
+        }])];
+
+        await expect(
+            gradeWritingQuestions(makeGradingResult({ 1: 'She is very pretty.' }), sections, 'session-1', 'student-1')
+        ).resolves.toBeUndefined();
+        expect(update).toHaveBeenCalled();
     });
 
     it('should escalate to AI when Tier 1 confidence is 30-79%', async () => {

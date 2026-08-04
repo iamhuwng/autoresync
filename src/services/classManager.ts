@@ -24,6 +24,7 @@ import type {
   ClassStatus,
   TestAssignmentStatus,
 } from '../types/class.types';
+import { createTrustedNotification } from './notificationProducerClient';
 
 // ============================================================================
 // CONSTANTS
@@ -968,14 +969,15 @@ export async function enrollStudent(
     if (approvalMode === 'pending') {
       // PRD-0002: Dashboard feed notification for student
       try {
-        const { createNotification } = await import('./notificationService');
-        await createNotification({
-          userId: studentUid,
+        await createTrustedNotification({
+          producerFamily: 'class',
+          authorityRecordId: classCode,
+          recipientId: studentUid,
+          operationKey: `class-join-pending:student:${classCode}:${studentUid}`,
           type: 'info',
           title: '🏫 Joined Class — Pending Approval',
           message: `You've requested to join ${classData.name || classCode}. Waiting for teacher approval.`,
           link: '/student/dashboard',
-          metadata: { className: classData.name || classCode, classCode }
         });
       } catch (notifError) {
         console.warn('⚠️ [ClassManager] Failed to send join-class notification (non-blocking):', notifError);
@@ -983,16 +985,17 @@ export async function enrollStudent(
 
       // Notify the class owner (teacher) about the pending student
       try {
-        const { createNotification } = await import('./notificationService');
         const teacherId = classData.createdBy;
         if (teacherId && teacherId !== 'unknown') {
-          await createNotification({
-            userId: teacherId,
+          await createTrustedNotification({
+            producerFamily: 'class',
+            authorityRecordId: classCode,
+            recipientId: teacherId,
+            operationKey: `class-join-pending:teacher:${classCode}:${studentUid}`,
             type: 'info',
             title: '👋 New Student Request',
             message: `${studentName} wants to join your class "${classData.name || classCode}". Review in class management.`,
             link: `/teacher/classes/${classCode}`,
-            metadata: { studentName, studentUid, classCode, className: classData.name || classCode }
           });
         }
       } catch (notifError) {
@@ -1000,14 +1003,15 @@ export async function enrollStudent(
       }
     } else {
       try {
-        const { createNotification } = await import('./notificationService');
-        await createNotification({
-          userId: studentUid,
+        await createTrustedNotification({
+          producerFamily: 'class',
+          authorityRecordId: classCode,
+          recipientId: studentUid,
+          operationKey: `class-join-active:${classCode}:${studentUid}`,
           type: 'success',
           title: '✅ Added to Class',
           message: `You've been added to ${classData.name || classCode}.`,
           link: '/student/dashboard',
-          metadata: { className: classData.name || classCode, classCode }
         });
       } catch (notifError) {
         console.warn('⚠️ [ClassManager] Failed to send active enrollment notification (non-blocking):', notifError);
@@ -1072,14 +1076,15 @@ export async function approveClassStudent(
 
     // Notify the student
     try {
-      const { createNotification } = await import('./notificationService');
-      await createNotification({
-        userId: studentId,
+      await createTrustedNotification({
+        producerFamily: 'class',
+        authorityRecordId: classCode,
+        recipientId: studentId,
+        operationKey: `class-join-approved:${classCode}:${studentId}`,
         type: 'success',
         title: '✅ Approved!',
         message: `You've been approved to join ${classData.name || classCode}.`,
         link: '/student/dashboard',
-        metadata: { className: classData.name || classCode, classCode }
       });
     } catch (notifError) {
       console.warn('⚠️ [ClassManager] Failed to send approval notification:', notifError);
@@ -1126,14 +1131,15 @@ export async function rejectClassStudent(
 
     // Notify the student
     try {
-      const { createNotification } = await import('./notificationService');
-      await createNotification({
-        userId: studentId,
+      await createTrustedNotification({
+        producerFamily: 'class',
+        authorityRecordId: classCode,
+        recipientId: studentId,
+        operationKey: `class-join-rejected:${classCode}:${studentId}`,
         type: 'info',
         title: '❌ Request Declined',
         message: `Your request to join ${classData.name || classCode} was not approved.`,
         link: '/student/dashboard',
-        metadata: { className: classData.name || classCode, classCode }
       });
     } catch (notifError) {
       console.warn('⚠️ [ClassManager] Failed to send rejection notification:', notifError);

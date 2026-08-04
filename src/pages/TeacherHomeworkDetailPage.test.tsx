@@ -12,6 +12,8 @@ const {
   updateStudentOverrideMock,
   updateHomeworkMock,
   sendHomeworkReminderNotificationMock,
+  getTeacherBookHomeworkProgressMock,
+  isBookHomeworkAssignmentMock,
   refreshReadingV2MasterAssignmentFromLatestMock,
   trackActionMock,
 } = vi.hoisted(() => ({
@@ -23,6 +25,8 @@ const {
   updateStudentOverrideMock: vi.fn(),
   updateHomeworkMock: vi.fn(),
   sendHomeworkReminderNotificationMock: vi.fn(),
+  getTeacherBookHomeworkProgressMock: vi.fn(),
+  isBookHomeworkAssignmentMock: vi.fn(),
   refreshReadingV2MasterAssignmentFromLatestMock: vi.fn(),
   trackActionMock: vi.fn(),
 }));
@@ -94,6 +98,22 @@ vi.mock('../components/results/ResultDetailModal', () => ({
   ResultDetailModal: () => null,
 }));
 
+vi.mock('../components/results/BookActivityGradingPanel', () => ({
+  BookActivityGradingPanel: ({
+    locator,
+    studentName,
+    activityLabel,
+  }: {
+    locator: unknown;
+    studentName: string;
+    activityLabel: string;
+  }) => (
+    <div data-testid="book-activity-grading-panel">
+      {JSON.stringify({ locator, studentName, activityLabel })}
+    </div>
+  ),
+}));
+
 vi.mock('../components/homework/ExtendStudentDeadlineModal', () => ({
   __esModule: true,
   default: () => null,
@@ -111,6 +131,11 @@ vi.mock('../components/homework/StudentActionMenu', () => ({
 
 vi.mock('../services/homeworkSubmissionService', () => ({
   resetStudentHomework: resetStudentHomeworkMock,
+  getTeacherBookHomeworkProgress: (...args: unknown[]) => getTeacherBookHomeworkProgressMock(...args),
+}));
+
+vi.mock('../services/book-homework/bookHomeworkManifest.service', () => ({
+  isBookHomeworkAssignment: (...args: unknown[]) => isBookHomeworkAssignmentMock(...args),
 }));
 
 vi.mock('../services/homeworkManager', () => ({
@@ -140,6 +165,7 @@ vi.mock('../services/notificationService', () => ({
 vi.mock('../services/reportingService', () => ({
   reportingService: {
     trackAction: trackActionMock,
+    trackPageView: vi.fn(),
   },
 }));
 
@@ -233,6 +259,7 @@ function renderPage() {
 describe('TeacherHomeworkDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION', 'disabled');
 
     useHomeworkDetailMock.mockReturnValue({
       homework: homeworkAssignment,
@@ -270,6 +297,8 @@ describe('TeacherHomeworkDetailPage', () => {
       passageCount: 2,
     });
     sendHomeworkReminderNotificationMock.mockResolvedValue(undefined);
+    getTeacherBookHomeworkProgressMock.mockResolvedValue(null);
+    isBookHomeworkAssignmentMock.mockReturnValue(false);
   });
 
   it('normalizes legacy session-style integrity reports into homework summary details', async () => {
@@ -403,5 +432,202 @@ describe('TeacherHomeworkDetailPage', () => {
     expect(await screen.findByText(/submission submission-1 already started/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /refresh to latest passage versions/i })).toBeDisabled();
     expect(refreshReadingV2MasterAssignmentFromLatestMock).not.toHaveBeenCalled();
+  });
+
+  it('renders one bounded Book progress batch with exact student rows and no aggregate grade', async () => {
+    isBookHomeworkAssignmentMock.mockReturnValue(true);
+    const progress = (studentId: string, submittedCount: number, status: 'in_progress' | 'completed', pendingReviewCount: number) => ({
+      schemaVersion: 1 as const,
+      manifestVersionId: 'manifest-1',
+      recipientId: studentId,
+      contextId: 'hw-1',
+      deliveryBindingId: 'delivery-1',
+      bindingRevision: 1,
+      completion: {
+        submittedCount,
+        requiredCount: 2,
+        status,
+        isComplete: status === 'completed',
+      },
+      grading: {
+        scoredCount: submittedCount - pendingReviewCount,
+        pendingReviewCount,
+        ungradedSubmittedCount: 0,
+      },
+      activities: [{
+        bindingId: `binding-${studentId}`,
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        activityVersionId: 'activity-1-v1',
+        order: 1,
+        contextMode: 'required' as const,
+        submitted: submittedCount > 0,
+        gradingState: pendingReviewCount > 0 ? 'review_required' as const : 'scored' as const,
+        score: pendingReviewCount > 0 ? undefined : { earnedScore: 1, maximumScore: 1 },
+      }],
+      excludedHistoricalRows: studentId === 'student-2' ? [{
+        reason: 'excluded-binding' as const,
+        source: 'manifest-binding' as const,
+        placementId: 'historical-placement',
+        activityId: 'activity-old',
+      }] : [],
+    });
+    getTeacherBookHomeworkProgressMock.mockResolvedValue([
+      { studentId: 'student-1', completion: progress('student-1', 1, 'in_progress', 0) },
+      { studentId: 'student-2', completion: progress('student-2', 2, 'completed', 1) },
+    ]);
+    useHomeworkDetailMock.mockReturnValue({
+      homework: {
+        ...homeworkAssignment,
+        assignmentKind: 'book_activity_bundle',
+        bookManifest: {},
+      },
+      submissions: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    const panel = await screen.findByTestId('teacher-book-homework-progress');
+    expect(await screen.findByTestId('teacher-book-student-student-1')).toBeInTheDocument();
+    expect(await screen.findByTestId('teacher-book-student-student-2')).toBeInTheDocument();
+    expect(panel).toHaveTextContent('1 of 2');
+    expect(panel).toHaveTextContent('2 of 2');
+    expect(panel).toHaveTextContent('Pending review');
+    expect(panel).toHaveTextContent('Historical / excluded Activities');
+    expect(panel).toHaveTextContent('Activity score: 1 / 1');
+    expect(panel).not.toHaveTextContent(/Average Score|Completion Rate|Book (score|percentage|band)/i);
+    expect(getTeacherBookHomeworkProgressMock).toHaveBeenCalledTimes(1);
+    expect(getTeacherBookHomeworkProgressMock).toHaveBeenCalledWith('hw-1');
+  });
+
+  it('composes grading for the exact trusted terminal without changing Book completion', async () => {
+    vi.stubEnv('VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION', 'enabled');
+    isBookHomeworkAssignmentMock.mockReturnValue(true);
+    getTeacherBookHomeworkProgressMock.mockResolvedValue([{
+      studentId: 'student-1',
+      completion: {
+        schemaVersion: 1,
+        manifestVersionId: 'manifest-1',
+        recipientId: 'student-1',
+        contextId: 'hw-1',
+        deliveryBindingId: 'delivery-1',
+        bindingRevision: 1,
+        completion: {
+          submittedCount: 1,
+          requiredCount: 2,
+          status: 'in_progress',
+          isComplete: false,
+        },
+        grading: {
+          scoredCount: 0,
+          pendingReviewCount: 1,
+          ungradedSubmittedCount: 0,
+        },
+        activities: [{
+          bindingId: 'binding-1',
+          placementId: 'placement-1',
+          activityId: 'activity-1',
+          activityVersion: 3,
+          activityVersionId: 'activity-version-3',
+          order: 1,
+          contextMode: 'required',
+          submitted: true,
+          gradingState: 'review_required',
+          terminalId: 'result-terminal-1',
+        }],
+        excludedHistoricalRows: [],
+      },
+    }]);
+    useHomeworkDetailMock.mockReturnValue({
+      homework: {
+        ...homeworkAssignment,
+        assignmentKind: 'book_activity_bundle',
+        bookManifest: { book: { bookId: 'book-1' } },
+      },
+      submissions: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+    const progress = await screen.findByTestId('teacher-book-homework-progress');
+    expect(progress).toHaveTextContent('1 of 2');
+    expect(progress).toHaveTextContent('Pending review');
+    fireEvent.click(screen.getByRole('button', { name: 'Grade Activity' }));
+
+    expect(screen.getByTestId('book-activity-grading-panel')).toHaveTextContent(
+      '"terminalId":"result-terminal-1"',
+    );
+    expect(screen.getByTestId('book-activity-grading-panel')).toHaveTextContent(
+      '"contextId":"hw-1"',
+    );
+    expect(screen.getByTestId('book-activity-grading-panel')).not.toHaveTextContent(
+      '"attemptId"',
+    );
+    expect(progress).toHaveTextContent('1 of 2');
+    expect(getTeacherBookHomeworkProgressMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('rollback hides grading composition while preserving submitted progress', async () => {
+    isBookHomeworkAssignmentMock.mockReturnValue(true);
+    getTeacherBookHomeworkProgressMock.mockResolvedValue([{
+      studentId: 'student-1',
+      completion: {
+        schemaVersion: 1,
+        manifestVersionId: 'manifest-1',
+        recipientId: 'student-1',
+        contextId: 'hw-1',
+        deliveryBindingId: 'delivery-1',
+        bindingRevision: 1,
+        completion: {
+          submittedCount: 1,
+          requiredCount: 1,
+          status: 'completed',
+          isComplete: true,
+        },
+        grading: {
+          scoredCount: 1,
+          pendingReviewCount: 0,
+          ungradedSubmittedCount: 0,
+        },
+        activities: [{
+          bindingId: 'binding-1',
+          placementId: 'placement-1',
+          activityId: 'activity-1',
+          activityVersion: 3,
+          activityVersionId: 'activity-version-3',
+          order: 1,
+          contextMode: 'required',
+          submitted: true,
+          gradingState: 'scored',
+          terminalId: 'attempt-1',
+          score: { earnedScore: 2, maximumScore: 2 },
+        }],
+        excludedHistoricalRows: [],
+      },
+    }]);
+    useHomeworkDetailMock.mockReturnValue({
+      homework: {
+        ...homeworkAssignment,
+        assignmentKind: 'book_activity_bundle',
+        bookManifest: { book: { bookId: 'book-1' } },
+      },
+      submissions: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+    const progress = await screen.findByTestId('teacher-book-homework-progress');
+    expect(progress).toHaveTextContent('1 of 1');
+    expect(progress).toHaveTextContent('Activity score: 2 / 2');
+    expect(screen.queryByRole('button', { name: 'Review / regrade' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('book-activity-grading-panel')).not.toBeInTheDocument();
   });
 });

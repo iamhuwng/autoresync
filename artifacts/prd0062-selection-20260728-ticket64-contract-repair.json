@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-07-28T00:00:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket64-reopen-contract.json",
+  "issueHash": "04850cfecc8d94ef37576fa425f6d515850c7b5937b969fdb5016f40328339d0",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 66,
+    "closedCount": 46,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 64, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "foundation",
+  "selection": {
+    "primaryTicket": 64,
+    "title": "PRD0062 16A — Provide the trusted common publication primitive",
+    "status": "selected-contract-repair-ready",
+    "directClosedPrerequisites": [31],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 64,
+    "acceptanceReadiness": "Durable repository implementation and conformance tests are present locally; the live contract was reopened to make production aggregate ownership and canonical repository injection explicit. Deployed readback, cleanup, identity, hash, and rollback remain destination-owned by #134; assembled rules remain #118-owned.",
+    "requiredAuthority": [
+      "closed #31 trusted Book Delivery boundary",
+      "existing scoped Assembly publication identity and Firebase REST/ETag test authority for local conformance",
+      "#134 destination contract for deployed/canary publication/readback/cleanup/rollback",
+      "no trusted-action, #50A, #03B, private-B2, or production activation authority"
+    ],
+    "currentImplementationGap": "Live #64 acceptance omitted the durable Firebase BookAssemblyPublicationRepository and explicit no-in-memory production injection contract; current code contains FirebaseRestBookAssemblyPublicationRepository and canonical route-factory injection, requiring conformance evidence and re-closure."
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Foundation private-B2 provisioning; graph chain is closed but positive upload/deployment/billing gates require unavailable remote private-B2 authority."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Foundation private-B2 reconciliation; exact-version cleanup/reconciliation requires unavailable remote private-B2 authority."
+    },
+    {
+      "ticket": 64,
+      "decision": "selected",
+      "reason": "Earliest unresolved foundation storage/security enabler with concrete live acceptance gap, all direct/transitive prerequisites CLOSED, executable local conformance gates, and highest verified downstream leverage."
+    },
+    {
+      "ticket": 68,
+      "decision": "rejected",
+      "reason": "Ineligible: direct prerequisite #64 is OPEN for contract repair; do not start Activity revision downstream of the unresolved common publication boundary."
+    },
+    {
+      "ticket": 73,
+      "decision": "rejected",
+      "reason": "Ineligible: #64 is an open transitive prerequisite; student assembled proof cannot bypass the unresolved common publication boundary."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected",
+      "reason": "Ineligible: #64 is an open transitive prerequisite; homework descendant cannot bypass the unresolved common publication boundary."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected",
+      "reason": "Ineligible: #64 is an open transitive prerequisite; operations descendant cannot bypass the unresolved common publication boundary."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected",
+      "reason": "Ineligible: #64 is an open transitive prerequisite; public/student access descendant cannot bypass the unresolved common publication boundary."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final-closure teacher suite; graph-clear does not make update/replacement/results acceptance-ready while foundation repair and full product scope remain open."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final-closure student runtime suite; later roadmap phase and unresolved foundation/product scope."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final-closure accessibility/device suite; later roadmap phase and unresolved foundation/product scope."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final-closure security suite; must follow repaired authority boundaries and full product scope."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final-closure legacy/backup/recovery suite; downstream of unresolved foundation/product implementation."
+    }
+  ],
+  "nonFrontierRule": "Every other unresolved ticket is ineligible because its live graph record has one or more open direct/transitive prerequisites; complete chains and open prerequisites are in the source graph artifact."
+}

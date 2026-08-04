@@ -1,159 +1,258 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createNotificationCommandWorkerHandlers } from '../src/upload-worker/notifications/worker.ts';
+import {
+  createNotificationCommandWorkerHandlers,
+} from '../src/upload-worker/notifications/worker.ts';
 import {
   FirebaseRestNotificationCommandRepository,
   InMemoryNotificationCommandRepository,
 } from '../src/upload-worker/notifications/repository.ts';
+import {
+  notificationCommandRouteDescriptor,
+} from '../src/upload-worker/notifications/route.ts';
+import { canonicalBookRouteManifest } from '../src/upload-worker/book-routes/manifest.ts';
 
-const operationId = '00000000-0000-5000-8000-000000000100';
-const command = (override: Record<string, unknown> = {}) => ({
+const operationId = '00000000-0000-4000-8000-000000000094';
+const body = (override: Record<string, unknown> = {}) => ({
   schemaVersion: 1,
   commandType: 'create-notification',
   operationId,
-  producerFamily: 'book',
+  producerFamily: 'assignment',
   recipientId: 'student-1',
-  authority: { kind: 'book', recordId: 'book-1' },
+  authority: { kind: 'assignment', recordId: 'assignment-1' },
   notification: {
     type: 'info',
-    title: 'Book updated',
-    message: 'A new Book activity is ready.',
-    link: '/student/practice/book-1',
+    title: 'Homework assigned',
+    message: 'A new assignment is ready.',
+    link: '/student/homework/homework-1',
     metadata: {
       schemaVersion: 1,
       kind: 'book',
-      contextType: 'book-activity',
-      contextId: 'book-1',
-      updateActionId: 'publish-001',
-      checkpointAvailable: true,
-      deadlineClass: 'none',
-      actionClass: 'open',
+      contextType: 'book-homework',
+      contextId: 'homework-1',
+      updateActionId: 'assignment-1',
+      checkpointAvailable: false,
+      deadlineClass: 'upcoming',
+      actionClass: 'due',
     },
   },
   ...override,
 });
-
-const request = (value: unknown, idempotencyKey = operationId) => new Request(
+const request = (value: unknown, key = operationId) => new Request(
   'https://worker.test/book-notifications/commands',
   {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+    headers: {
+      'content-type': 'application/json',
+      'Idempotency-Key': key,
+    },
     body: JSON.stringify(value),
   },
 );
+const parse = async (result: {
+  body: Record<string, unknown>;
+  init: ResponseInit;
+}) => ({ status: result.init.status, body: result.body });
 
-describe('shared notification command repository seam', () => {
-  it('derives trusted recipient authority and persists one Book row', async () => {
+describe('Ticket 38B1 trusted notification command seam', () => {
+  it('matches the canonical disabled #59 route reservation without composing a handler', () => {
+    const canonical = canonicalBookRouteManifest.find((route) => route.id === 'book.notifications.command');
+    expect(canonical).toMatchObject({
+      pathTemplate: notificationCommandRouteDescriptor.path,
+      methods: [notificationCommandRouteDescriptor.method],
+      handler: `futureSeam.${notificationCommandRouteDescriptor.handler}`,
+      gateEnv: 'BOOK_NOTIFICATIONS_ROUTES_ENABLED',
+      gateDefault: 'disabled',
+    });
+  });
+
+  it('derives recipient authority and creates one notification', async () => {
     const repository = new InMemoryNotificationCommandRepository();
     const resolveRecipientAuthority = vi.fn(async () => 'student-1');
     const handlers = createNotificationCommandWorkerHandlers({
       repository,
       resolveRecipientAuthority,
-      now: () => 1,
+      now: () => 1_722_220_000_000,
     });
-    const result = await handlers.command({ request: request(command()), env: {}, uid: 'teacher-1' });
-    expect(result).toMatchObject({
-      init: { status: 200 },
-      body: { status: 'created', operationId, notificationId: operationId },
+
+    await expect(parse(await handlers.command({
+      request: request(body()),
+      env: {},
+      uid: 'teacher-1',
+    }))).resolves.toEqual({
+      status: 200,
+      body: {
+        status: 'created',
+        operationId,
+        notificationId: operationId,
+      },
     });
-    expect(resolveRecipientAuthority).toHaveBeenCalledWith(expect.objectContaining({
-      producerFamily: 'book',
+    expect(resolveRecipientAuthority).toHaveBeenCalledWith({
+      actorUid: 'teacher-1',
+      producerFamily: 'assignment',
+      authority: { kind: 'assignment', recordId: 'assignment-1' },
       requestedRecipientId: 'student-1',
-    }));
-    expect(Object.keys(repository.snapshot())).toEqual([`notifications/student-1/${operationId}`]);
+      env: {},
+    });
+    expect(repository.snapshot()).toEqual({
+      [`notifications/student-1/${operationId}`]: expect.objectContaining({
+        id: operationId,
+        read: false,
+        createdAt: 1_722_220_000_000,
+        metadata: expect.objectContaining({ kind: 'book', contextId: 'homework-1' }),
+      }),
+    });
   });
 
-  it('replays identical commands and rejects conflicting operation reuse', async () => {
+  it('replays identical commands and rejects operation reuse with changed content', async () => {
     const repository = new InMemoryNotificationCommandRepository();
     const handlers = createNotificationCommandWorkerHandlers({
       repository,
       resolveRecipientAuthority: async () => 'student-1',
-      now: () => 1,
+      now: () => 1_722_220_000_000,
     });
-    await handlers.command({ request: request(command()), env: {}, uid: 'teacher-1' });
-    await expect(handlers.command({ request: request(command()), env: {}, uid: 'teacher-1' })).resolves.toMatchObject({
-      body: { status: 'replayed' },
+    const input = { env: {}, uid: 'teacher-1' };
+    await handlers.command({ ...input, request: request(body()) });
+    await expect(parse(await handlers.command({
+      ...input,
+      request: request(body()),
+    }))).resolves.toMatchObject({ status: 200, body: { status: 'replayed' } });
+    await expect(parse(await handlers.command({
+      ...input,
+      request: request(body({
+        notification: {
+          type: 'info',
+          title: 'Changed',
+          message: 'A new assignment is ready.',
+        },
+      })),
+    }))).resolves.toMatchObject({
+      status: 409,
+      body: { status: 'idempotency-conflict' },
     });
-    await expect(handlers.command({
-      request: request(command({ notification: { ...command().notification, message: 'changed' } })),
-      env: {}, uid: 'teacher-1',
-    })).resolves.toMatchObject({ init: { status: 409 }, body: { status: 'idempotency-conflict' } });
     expect(Object.keys(repository.snapshot())).toHaveLength(1);
   });
 
-  it('fails closed for malformed commands, unauthorized recipients, and unsafe destinations', async () => {
+  it('accepts Firebase push IDs with a leading hyphen', async () => {
+    const repository = new InMemoryNotificationCommandRepository();
+    const handlers = createNotificationCommandWorkerHandlers({
+      repository,
+      resolveRecipientAuthority: async () => '-Ostudent-1',
+      now: () => 1_722_220_000_000,
+    });
+    const result = await parse(await handlers.command({
+      request: request(body({
+        recipientId: '-Ostudent-1',
+        authority: { kind: 'assignment', recordId: '-Oassignment-1' },
+      })),
+      env: {},
+      uid: 'teacher-1',
+    }));
+
+    expect(result).toMatchObject({ status: 200, body: { status: 'created' } });
+  });
+
+  it('fails before persistence for malformed, unauthorized, and unavailable commands', async () => {
     const repository = new InMemoryNotificationCommandRepository();
     const denied = createNotificationCommandWorkerHandlers({
       repository,
       resolveRecipientAuthority: async () => null,
     });
-    await expect(denied.command({ request: request(command({ extra: true })), env: {}, uid: 'teacher-1' }))
-      .resolves.toMatchObject({ init: { status: 400 } });
-    await expect(denied.command({ request: request(command()), env: {}, uid: 'teacher-1' }))
-      .resolves.toMatchObject({ init: { status: 403 }, body: { code: 'notification_command_recipient_forbidden' } });
-    await expect(denied.command({
-      request: request(command({ notification: { ...command().notification, link: 'https://evil.example' } })),
-      env: {}, uid: 'teacher-1',
-    })).resolves.toMatchObject({ init: { status: 400 }, body: { code: 'notification_command_invalid_link' } });
-    expect(repository.snapshot()).toEqual({});
-  });
-
-  it('keeps the trusted repository boundary from being bypassed by direct callers', async () => {
-    const repository = new InMemoryNotificationCommandRepository();
-    const base = {
-      operationId,
-      recipientId: 'student-1',
-      notification: command().notification,
-      now: 1,
-    };
-    await expect(repository.create({
-      ...base,
-      notification: { ...base.notification, title: '' },
-    })).rejects.toThrow('invalid_notification_title');
-    await expect(repository.create({
-      ...base,
-      notification: { ...base.notification, link: 'https://evil.example' },
-    })).rejects.toThrow('invalid_notification_link');
-    await expect(repository.create({
-      ...base,
-      notification: {
-        ...base.notification,
-        metadata: { ...base.notification.metadata, answerKey: 'private' },
-      } as never,
-    })).rejects.toThrow('invalid_notification_metadata');
-    expect(repository.snapshot()).toEqual({});
-  });
-
-  it('uses the existing Firebase REST CAS path without overwriting a stored row', async () => {
-    let stored: Record<string, unknown> | null = null;
-    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      if ((init?.method ?? 'GET') === 'GET') {
-        return new Response(stored === null ? 'null' : JSON.stringify(stored), {
-          status: 200,
-          headers: { ETag: '"notification-etag"' },
-        });
-      }
-      stored = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      return new Response('', { status: 200 });
+    await expect(parse(await denied.command({
+      request: request(body({ extra: true })),
+      env: {},
+      uid: 'teacher-1',
+    }))).resolves.toMatchObject({
+      status: 400,
+      body: { code: 'notification_command_unknown_field' },
     });
+    await expect(parse(await denied.command({
+      request: request(body()),
+      env: {},
+      uid: 'teacher-1',
+    }))).resolves.toMatchObject({
+      status: 403,
+      body: { code: 'notification_command_recipient_forbidden' },
+    });
+    await expect(parse(await createNotificationCommandWorkerHandlers().command({
+      request: request(body()),
+      env: {},
+      uid: 'teacher-1',
+    }))).resolves.toMatchObject({
+      status: 503,
+      body: { code: 'notification_command_unavailable' },
+    });
+    await expect(parse(await denied.command({
+      request: request(body()),
+      env: {},
+      uid: '',
+    }))).resolves.toMatchObject({
+      status: 401,
+      body: { code: 'notification_command_unauthenticated' },
+    });
+    expect(repository.snapshot()).toEqual({});
+  });
+
+  it('rejects legacy metadata, arbitrary URLs, and mismatched idempotency headers', async () => {
+    const handlers = createNotificationCommandWorkerHandlers({
+      repository: new InMemoryNotificationCommandRepository(),
+      resolveRecipientAuthority: async () => 'student-1',
+    });
+    for (const [value, key, code] of [
+      [body({ notification: { type: 'info', title: 'Title', message: 'Message', metadata: { answer: 'secret' } } }), operationId, 'notification_command_invalid_metadata'],
+      [body({ notification: { type: 'info', title: 'Title', message: 'Message', link: 'https://evil.example' } }), operationId, 'notification_command_invalid_link'],
+      [body(), '00000000-0000-4000-8000-000000000095', 'notification_command_idempotency_mismatch'],
+    ] as const) {
+      await expect(parse(await handlers.command({
+        request: request(value, key),
+        env: {},
+        uid: 'teacher-1',
+      }))).resolves.toMatchObject({ status: 400, body: { code } });
+    }
+  });
+
+  it('uses conditional Firebase persistence and replays without a second write', async () => {
+    const stored = {
+      id: operationId,
+      type: 'info',
+      title: 'Homework assigned',
+      message: 'A new assignment is ready.',
+      link: '/student/homework/homework-1',
+      metadata: Object.fromEntries(
+        Object.entries(body().notification.metadata).reverse(),
+      ),
+      read: true,
+      createdAt: 1_722_220_000_000,
+    };
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response('null', {
+        status: 200,
+        headers: { etag: '"null"' },
+      }))
+      .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(stored), {
+        status: 200,
+        headers: { etag: '"existing"' },
+      }));
     const repository = new FirebaseRestNotificationCommandRepository({
       env: {
         FIREBASE_DB_URL: 'https://example.firebaseio.com',
-        NOTIFICATION_COMMAND_SERVICE_IDENTITY: 'notify@example.iam.gserviceaccount.com',
+        NOTIFICATION_COMMAND_SERVICE_IDENTITY: 'notification@example.iam.gserviceaccount.com',
       },
-      getAccessToken: async () => 'test-token',
       fetchImpl,
+      getAccessToken: async () => 'token',
     });
-    const write = {
+    const input = {
       operationId,
       recipientId: 'student-1',
-      notification: command().notification,
-      now: 1,
+      notification: body().notification,
+      now: 1_722_220_000_000,
     };
-    await expect(repository.create(write)).resolves.toMatchObject({ status: 'created' });
-    await expect(repository.create(write)).resolves.toMatchObject({ status: 'replayed' });
+    await expect(repository.create(input)).resolves.toMatchObject({ status: 'created' });
+    await expect(repository.create(input)).resolves.toMatchObject({ status: 'replayed' });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(`/notifications/student-1/${operationId}.json`);
-    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({ method: 'PUT' });
-    expect(stored).toMatchObject({ id: operationId, read: false });
+    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({
+      method: 'PUT',
+      headers: expect.objectContaining({ 'if-match': '"null"' }),
+    });
   });
 });

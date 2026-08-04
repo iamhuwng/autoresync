@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "ticket": {
+    "issue": 77,
+    "title": "PRD0062 29 — Review grouped Activity attempts",
+    "branch": "codex/prd0062-reconciled-baseline",
+    "baselineCommit": "674154b786e18c42af29ea5e9e5c91cd75493dbf",
+    "recordedAt": "2026-07-31T15:33:38.4661999Z"
+  },
+  "authoritativePreImplementationState": {
+    "artifact": "artifacts/prd0062-graph-20260731-ticket77-preimplementation-live.json",
+    "issueHash": "172f89360a9af817c7ae07c5775a6c79998900bc32d0f1284c91b513fa152076",
+    "issueCount": 112,
+    "openCount": 46,
+    "closedCount": 66,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": [],
+    "duplicateEdges": [],
+    "cycles": [],
+    "topologicalCoverage": 112,
+    "selectedPrimary": 77
+  },
+  "implementationEvidence": {
+    "groupIdentity": "studentId plus activityId; attempt, completion, context, placement, binding revision, Activity Version, provenance, submission, evaluation, and attempt-limit identities remain per-attempt",
+    "readModel": "separate book-scoped group_summaries, group_attempts, and exact detail projections; Firebase REST queries enforce server-side order and limits",
+    "queryBudgets": {
+      "groupSummaries": "orderBy latestSubmittedAt, limitToLast <= 25",
+      "groupAttempts": "orderBy $key, limitToFirst <= 51 with >50 rejected",
+      "detail": "one exact resultId node on demand",
+      "nPlusOne": false
+    },
+    "visibility": "student-own, current Homework-teacher, private-Solo denial, unresolved/wrong-owner denial, student feedback-release gating, and teacher owned-evaluation visibility",
+    "sourceSafety": "deleted, replaced, missing, and unavailable source states remain display-only provenance; no PDF capability, private provider/storage identity, answer key, or direct runtime-scope browser read is returned",
+    "cache": "viewer-scoped stale-while-revalidate after first success with authority-loss eviction",
+    "rollback": "BOOK_RESULT_READ_ROUTES_ENABLED defaults disabled and hides the Book adapter without mutating immutable attempts/results"
+  },
+  "verification": [
+    {
+      "gate": "owned application suites",
+      "command": "node scripts/harness/run-tool.mjs vitest . run <9 #77-owned files>",
+      "result": "9 files passed; 78 tests passed"
+    },
+    {
+      "gate": "Worker, preview, indexed query, visibility, and repository suites",
+      "command": "node ../scripts/harness/run-tool.mjs vitest . run test/book-results-worker.test.ts test/book-results-preview-worker.test.ts",
+      "result": "2 files passed; 14 tests passed"
+    },
+    {
+      "gate": "fragment-level default-deny and indexed-query contract",
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/__tests__/security/bookResultRuleFragment.test.ts",
+      "result": "1 file passed; 5 tests passed"
+    },
+    {
+      "gate": "local browser proof",
+      "command": "node node_modules/@playwright/test/cli.js test --config=playwright.prd0062-ticket77.config.mjs",
+      "result": "student localhost:5174 and teacher localhost:5173 passed; rollback-only case skipped in enabled mode"
+    },
+    {
+      "gate": "production build and bundle budget",
+      "command": "npm run build",
+      "result": "9459 modules built; bundle budget OK; root entry 241KB"
+    },
+    {
+      "gate": "targeted lint",
+      "command": "node node_modules/eslint/bin/eslint.js <#77-owned TypeScript, TSX, and QA files>",
+      "result": "passed with no findings"
+    }
+  ],
+  "previewReadback": {
+    "accountProfile": "media",
+    "accountSentinel": "kahoot-media",
+    "workerName": "r2-upload-signer-prd0062-ticket77-preview",
+    "workerUrl": "https://r2-upload-signer-prd0062-ticket77-preview.iamhuwng.workers.dev",
+    "scriptEtag": "3dd3c8584c319ca76b42a3147a3fa61a4ab7939806abd3e1f4e6d1ba62308b97",
+    "baseline": {
+      "versionId": "8411dcf6-aedf-4a35-9622-5008485bcdc1",
+      "gate": "disabled",
+      "initialDeploymentId": "e5b3f880-9f69-4fd2-88f0-1e19e930a9a9"
+    },
+    "positive": {
+      "versionId": "b89d693f-a105-4a63-97f9-b19594e4ab4d",
+      "gate": "enabled",
+      "deploymentId": "a620c29f-1e9c-4459-8bec-fe69199a7491",
+      "traffic": "100%",
+      "browserResult": "student and teacher remote journeys passed; teacher saw only current owned Homework, private Solo denied, withheld student fields excluded"
+    },
+    "rollback": {
+      "versionId": "8411dcf6-aedf-4a35-9622-5008485bcdc1",
+      "gate": "disabled",
+      "deploymentId": "e1c5c4a2-2f4a-40ed-ad1b-f3ec1f7d4c04",
+      "traffic": "100%",
+      "browserResult": "rollback-only remote journey passed"
+    },
+    "propagationDiagnostic": "The first positive browser attempt reached the prior disabled edge version and returned book_route_disabled; version readback already showed the positive enabled binding. The unchanged suite passed after edge propagation and only that successful rerun is acceptance evidence.",
+    "cleanup": {
+      "workerDeleted": true,
+      "absenceReadbackCode": 10007,
+      "temporarySecretFileDeleted": true,
+      "profileDeactivated": true
+    }
+  },
+  "independentReview": {
+    "reviewer": "ticket77_final_review",
+    "result": "PASS",
+    "verified": "bounded server queries, query-enforced fragment/index contributor, role-specific feedback visibility, book-scoped grouping, summary-first direct detail, cache/ownership boundaries, and focused tests",
+    "deploymentGateReviewedSeparately": true
+  },
+  "closureRepair": {
+    "recordedAt": "2026-07-31T16:25:00.000Z",
+    "classification": "original omission exposed by post-closure audit",
+    "gap": "The pure projection emitted a legacy studentId:activityId group key while the indexed repository, Worker decoder, and browser route required the opaque g_<base64url> identity.",
+    "repair": "One shared opaque group-key encoder now supplies projection and Worker contracts. Projection, repository, Worker, and browser validators enforce the same canonical identity and total 640-character bound; malformed and legacy keys fail closed.",
+    "tests": {
+      "applicationAndFragment": "9 files; 78 tests passed",
+      "workerAndPreview": "2 files; 15 tests passed",
+      "projectionRepositoryIntegration": "Projection-produced key equals persisted index identity and successfully addresses the bounded attempt query.",
+      "boundary": "Maximum-length valid student/activity identities produce a repository-addressable key longer than the generic ID limit; legacy keys are rejected.",
+      "browser": "Student localhost:5174 and teacher localhost:5173 passed; enabled-mode rollback case skipped by design.",
+      "build": "Vite production build passed; 9,459 modules transformed.",
+      "lintAndDiff": "Targeted ESLint and git diff --check passed."
+    },
+    "previewEvidence": "The existing disposable production-equivalent preview/rollback remains applicable: the trusted Worker/read-model path already used the opaque key and this repair aligns the pure producer and validators without changing role visibility, query shape, deployment bindings, rules, or gate behavior.",
+    "review": "Independent Luna review found the mismatch and length-bound drift; both were repaired and re-reviewed."
+  },
+  "retainedBoundaries": {
+    "issue59": "No canonical top-level manifest, dispatcher, auth, rate, CORS, or route-composition claim or mutation; #77 supplies contributor descriptors only.",
+    "issue74": "No 28A.json or terminal runtime mutation/authority change.",
+    "issue76": "Terminal attempts/results remain immutable inputs; #77 creates read projections only.",
+    "issue118": "Fragment-level rule contribution and denial/query tests only; no assembled generated-rules claim.",
+    "productionMutations": {
+      "worker": false,
+      "firebaseDataOrRules": false,
+      "r2ObjectsOrBindings": false
+    }
+  }
+}

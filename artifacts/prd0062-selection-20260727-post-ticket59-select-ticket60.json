@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-07-27T06:49:00Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260727-post-ticket59-closed.json",
+  "issueHash": "de27c998ac505a2208e48b0381c5bd7bd98126492bc27bce20afcb99e22ed4f1",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 76,
+    "closedCount": 36,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": "112/112",
+    "graphClearFrontier": [49, 50, 60, 61, 65, 66, 70, 129, 130, 131, 132, 133]
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "reason": "Foundation/root but acceptance is not executable in current shell: no B2/BACKBLAZE authority is present for private bucket policy, application-key, disposable upload/delete, browser direct-upload, billing/capacity proof."
+    },
+    {
+      "ticket": 50,
+      "title": "PRD0062 07 — Reconcile failed and unfinished direct-B2 uploads",
+      "reason": "Foundation/root but shares private B2 lifecycle-cleanup/disposable exact-version proof authority with #49; not independently executable."
+    },
+    {
+      "ticket": 61,
+      "title": "PRD0062 14 — Copy Unit prompt and import Unit JSON directly",
+      "reason": "Graph-clear but later teacher workflow. #60 is earlier in roadmap/order and unblocks mapping/viewer authoring before import staging."
+    },
+    {
+      "tickets": [65, 66],
+      "reason": "Runtime publication tickets; require scoped publication/private-B2/rules/deployment authority and are later than #60 teacher mapping/viewer host."
+    },
+    {
+      "ticket": 70,
+      "reason": "Operations workflow; later than teacher mapping/viewer host and depends on stable Assembly workspace behavior."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "reason": "Final closure phase ineligible while foundation/runtime/teacher/student/operations work remains open."
+    }
+  ],
+  "selection": {
+    "ticket": 60,
+    "title": "PRD0062 13D — Connect authenticated PDF viewer to mapping workspace",
+    "roadmapPhase": "teacher workflow",
+    "closedPrerequisites": [54, 57, 58],
+    "acceptanceReadiness": "provisionally executable pending source inspection; no 50A/03B enablement assumed",
+    "selectionReason": "#60 is the earliest graph-clear teacher-workflow enabler after #59 route foundation closure. It is independent from the private-B2 provisioning blocker family when scoped to host adapter, local route contracts, and fixture-backed browser proof."
+  }
+}

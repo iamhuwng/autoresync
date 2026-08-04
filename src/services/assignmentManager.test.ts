@@ -45,12 +45,13 @@ vi.mock('./userService', () => ({
     getUserById: vi.fn(),
 }));
 
-vi.mock('./notificationService', () => ({
-    createNotification: vi.fn(),
+vi.mock('./notificationProducerClient', () => ({
+    createTrustedNotification: vi.fn(),
 }));
 
+import { createTrustedNotification } from './notificationProducerClient';
+
 import { getUserByEmail, getUserById } from './userService';
-import { createNotification } from './notificationService';
 
 describe('assignmentManager', () => {
     beforeEach(() => {
@@ -760,7 +761,7 @@ describe('assignmentManager', () => {
                 mockUpdate.mockResolvedValueOnce(undefined);
 
                 // 5. Create notifications (mock)
-                (createNotification as any).mockResolvedValue({ success: true });
+                (createTrustedNotification as any).mockResolvedValue({ success: true });
 
                 const result = await approveStudentRequest('request-123', 'admin-1');
 
@@ -770,7 +771,7 @@ describe('assignmentManager', () => {
                 expect(updateArgs[1]).toMatchObject({ status: 'approved' });
 
                 // Check notifications
-                expect(createNotification).toHaveBeenCalledTimes(2);
+                expect(createTrustedNotification).toHaveBeenCalledTimes(2);
             });
 
             it('should handle student not found', async () => {

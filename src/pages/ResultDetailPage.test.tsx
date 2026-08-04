@@ -14,6 +14,7 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { ResultDetailPage } from './ResultDetailPage';
+import { createBookResultRouteHandle } from '../services/bookResult.browser';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,22 @@ vi.mock('../components/results/LegacyResultDetailView', () => ({
                 <span data-testid="result-id">{resultId}</span>
             )}
             {onReturn && <button data-testid="return-btn" onClick={onReturn}>Return</button>}
+        </div>
+    ),
+}));
+
+vi.mock('../components/results/BookResultAdapter', () => ({
+    BookResultAdapter: ({
+        routeHandle,
+        viewerRole,
+        viewerId,
+    }: {
+        routeHandle: string;
+        viewerRole: string;
+        viewerId?: string;
+    }) => (
+        <div data-testid="book-result-adapter">
+            {`${viewerRole}:${viewerId}:${routeHandle}`}
         </div>
     ),
 }));
@@ -203,6 +220,41 @@ describe('ResultDetailPage', () => {
             expect(screen.getByTestId('result-detail-teacher-shell')).toBeInTheDocument();
             expect(screen.getByTestId('teacher-header')).toHaveTextContent('Result Detail:teacher');
             expect(screen.getByTestId('legacy-access-lost')).toHaveTextContent('Access to this result has been revoked.');
+        });
+    });
+
+    describe('Book Activity result contributor', () => {
+        const bookHandle = createBookResultRouteHandle({
+            bookId: 'book-1',
+            studentId: 'user-1',
+            groupKey: 'g_WyJ1c2VyLTEiLCJhY3Rpdml0eS0xIl0',
+        });
+
+        it('renders the Book adapter in the student shell route without the legacy redirect', () => {
+            mockProfile = { role: 'student' };
+            renderPage(bookHandle);
+
+            expect(screen.getByTestId('book-result-adapter')).toHaveTextContent(`student:user-1:${bookHandle}`);
+            expect(screen.queryByTestId('academic-record-redirect')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('legacy-result-detail-view')).not.toBeInTheDocument();
+        });
+
+        it('renders the Book adapter inside the existing teacher header shell', () => {
+            mockProfile = { role: 'teacher' };
+            renderPage(bookHandle);
+
+            expect(screen.getByTestId('result-detail-teacher-shell')).toBeInTheDocument();
+            expect(screen.getByTestId('teacher-header')).toHaveTextContent('Result Detail:teacher');
+            expect(screen.getByTestId('book-result-adapter')).toHaveTextContent(`teacher:user-1:${bookHandle}`);
+            expect(screen.queryByTestId('legacy-result-detail-view')).not.toBeInTheDocument();
+        });
+
+        it('does not grant super-admin access to the teacher-only Book adapter', () => {
+            mockProfile = { role: 'super_admin' };
+            renderPage(bookHandle);
+
+            expect(screen.getByRole('alert')).toHaveTextContent('current Homework teacher');
+            expect(screen.queryByTestId('book-result-adapter')).not.toBeInTheDocument();
         });
     });
 

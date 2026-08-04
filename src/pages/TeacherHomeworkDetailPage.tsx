@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { get, ref, remove, set as setRealtimeValue } from 'firebase/database';
 import { Button, Card, CardBody, CardHeader, VanillaLoader } from '../components/modern';
@@ -10,16 +10,24 @@ import HomeworkScoreDistribution from '../components/homework/HomeworkScoreDistr
 import HomeworkSubmissionTable, { HomeworkSubmissionTableRow } from '../components/homework/HomeworkSubmissionTable';
 import { HomeworkStatusBadge } from '../components/homework/HomeworkStatusBadge';
 import { ResultDetailModal } from '../components/results/ResultDetailModal';
+import { BookActivityGradingPanel } from '../components/results/BookActivityGradingPanel';
+import { BookActivityIntegrityPanel } from '../components/results/BookActivityIntegrityPanel';
 import ExtendStudentDeadlineModal from '../components/homework/ExtendStudentDeadlineModal';
 import ExemptStudentModal from '../components/homework/ExemptStudentModal';
 import { useHomeworkDetail } from '../hooks/useHomeworkDetail';
 import { useClassRoster } from '../hooks/useClassRoster';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { TeacherHeader } from '../components/navigation';
-import { resetStudentHomework } from '../services/homeworkSubmissionService';
+import {
+    getTeacherBookHomeworkProgress,
+    resetStudentHomework,
+} from '../services/homeworkSubmissionService';
+import { isBookHomeworkAssignment } from '../services/book-homework/bookHomeworkManifest.service';
 import { updateHomework, updateStudentOverride } from '../services/homeworkManager';
-import { sendHomeworkReminderNotification } from '../services/notificationService';
+import { sendTrustedHomeworkReminderNotification } from '../services/notificationProducerClient';
 import { reportingService } from '../services/reportingService';
 import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 import { database } from '../services/firebase';
@@ -29,12 +37,229 @@ import './TeacherHomeworkDetailPage.css';
 import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel'; // PRD-0036
 import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
 import type { HomeworkSubmissionStatus } from '../types/homework.types';
+import type {
+    BookHomeworkProgressActivity,
+    BookHomeworkProgressProjection,
+} from '../services/book-homework/bookHomeworkProgress.types';
+import {
+    isBookActivityEvaluationPresentationEnabled,
+    type BookActivityEvaluationLocator,
+} from '../services/book-activity/activityEvaluation.browser';
 import { normalizeHomeworkIntegrity } from '../utils/integrityUtils';
 
 interface AssignedStudent {
     studentId: string;
     studentName: string;
     studentEmail?: string;
+}
+
+const getBookCompletionLabel = (status: BookHomeworkProgressProjection['completion']['status']): string => {
+    if (status === 'completed') return 'Complete';
+    if (status === 'in_progress') return 'In progress';
+    return 'Not started';
+};
+
+const getBookActivityStateLabel = (activity: BookHomeworkProgressActivity): string => {
+    if (!activity.submitted) return 'Not submitted';
+    if (activity.gradingState === 'review_required') return 'Pending review';
+    if (activity.gradingState === 'scored') return 'Scored';
+    return 'Submitted';
+};
+
+const getHistoricalReasonLabel = (reason: string): string => reason
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+export function TeacherBookHomeworkProgressPanel({
+    rows,
+    error,
+    studentNames,
+    onBack,
+    onRetry,
+    onGradeActivity,
+    onViewIntegrity,
+}: {
+    rows: readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null;
+    error: string | null;
+    studentNames: ReadonlyMap<string, string>;
+    onBack: () => void;
+    onRetry?: () => void;
+    onGradeActivity?: (
+        studentId: string,
+        activity: BookHomeworkProgressActivity,
+    ) => void;
+    onViewIntegrity?: (
+        studentId: string,
+        activity: BookHomeworkProgressActivity,
+    ) => void;
+}) {
+    return (
+        <section
+            aria-labelledby="teacher-book-homework-progress-title"
+            data-testid="teacher-book-homework-progress"
+            style={{
+                background: '#ffffff',
+                border: '1px solid #d9e0e5',
+                borderRadius: 14,
+                padding: '1.5rem',
+                display: 'grid',
+                gap: '1rem',
+            }}
+        >
+            <div>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Book Homework progress
+                </p>
+                <h1 id="teacher-book-homework-progress-title" style={{ margin: '0.35rem 0 0', color: '#0f172a', fontSize: '1.65rem' }}>
+                    Activity completion
+                </h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569', lineHeight: 1.5 }}>
+                    Completion is based on required Activities. Activity scores and pending review remain separate from Book completion.
+                </p>
+            </div>
+
+            {rows === null ? (
+                <div>
+                    <div role={error ? 'alert' : 'status'} style={{ color: '#475569' }}>
+                        {error || 'Book progress is not available yet.'}
+                    </div>
+                    {error && onRetry ? (
+                        <button type="button" onClick={onRetry} style={{ marginTop: '0.75rem', minHeight: 44 }}>
+                            Retry Book progress
+                        </button>
+                    ) : null}
+                </div>
+            ) : rows.length === 0 ? (
+                <p style={{ margin: 0, color: '#475569' }}>No student progress is available for this Homework context.</p>
+            ) : (
+                <div style={{ display: 'grid', gap: '0.85rem' }}>
+                    {rows.map(({ studentId, completion }) => {
+                        const completionLabel = getBookCompletionLabel(completion.completion.status);
+                        return (
+                            <article
+                                key={studentId}
+                                data-testid={`teacher-book-student-${studentId}`}
+                                aria-label={`Book progress for ${studentNames.get(studentId) || studentId}`}
+                                style={{
+                                    border: '1px solid #d9e0e5',
+                                    borderRadius: 12,
+                                    padding: '1rem',
+                                    display: 'grid',
+                                    gap: '0.75rem',
+                                }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1rem', overflowWrap: 'anywhere' }}>
+                                            {studentNames.get(studentId) || studentId}
+                                        </h2>
+                                        <div style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>
+                                            Student ID: {studentId}
+                                        </div>
+                                    </div>
+                                    <span style={{ border: '1px solid #cbd5e1', borderRadius: 999, color: '#334155', fontSize: '0.75rem', fontWeight: 700, padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}>
+                                        {completionLabel}
+                                    </span>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '0.65rem' }}>
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '0.7rem' }}>
+                                        <div style={{ color: '#64748b', fontSize: '0.78rem' }}>Activities submitted</div>
+                                        <strong style={{ color: '#0f172a' }}>{completion.completion.submittedCount} of {completion.completion.requiredCount}</strong>
+                                    </div>
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '0.7rem' }}>
+                                        <div style={{ color: '#64748b', fontSize: '0.78rem' }}>Pending review</div>
+                                        <strong style={{ color: '#0f172a' }}>{completion.grading.pendingReviewCount}</strong>
+                                    </div>
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '0.7rem' }}>
+                                        <div style={{ color: '#64748b', fontSize: '0.78rem' }}>Submitted without score</div>
+                                        <strong style={{ color: '#0f172a' }}>{completion.grading.ungradedSubmittedCount}</strong>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 style={{ margin: '0 0 0.5rem', color: '#0f172a', fontSize: '0.95rem' }}>Activities</h3>
+                                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                        {completion.activities.map((activity, index) => (
+                                            <div key={activity.bindingId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', padding: '0.65rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9 }}>
+                                                <span style={{ color: '#334155', overflowWrap: 'anywhere' }}>
+                                                    Activity {activity.order > 0 ? activity.order : index + 1}: {activity.activityId} — {getBookActivityStateLabel(activity)}
+                                                </span>
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                    {activity.score ? (
+                                                        <span style={{ color: '#475569', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                                                            Activity score: {activity.score.displayScore ?? `${activity.score.earnedScore} / ${activity.score.maximumScore}`}
+                                                        </span>
+                                                    ) : null}
+                                                    {activity.submitted && onGradeActivity ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onGradeActivity(studentId, activity)}
+                                                            style={{ minWidth: 44, minHeight: 44 }}
+                                                        >
+                                                            {activity.gradingState === 'scored' ? 'Review / regrade' : 'Grade Activity'}
+                                                        </button>
+                                                    ) : null}
+                                                    {activity.submitted && activity.terminalId && onViewIntegrity ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onViewIntegrity(studentId, activity)}
+                                                            style={{ minWidth: 44, minHeight: 44 }}
+                                                        >
+                                                            View integrity signals
+                                                        </button>
+                                                    ) : null}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {completion.excludedHistoricalRows.length > 0 && (
+                                    <div>
+                                        <h3 style={{ margin: '0 0 0.35rem', color: '#0f172a', fontSize: '0.95rem' }}>Historical / excluded Activities</h3>
+                                        <p style={{ margin: '0 0 0.5rem', color: '#475569', lineHeight: 1.45 }}>
+                                            Retained for audit and result review; excluded from this student&apos;s current completion.
+                                        </p>
+                                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                            {completion.excludedHistoricalRows.map((row, index) => (
+                                                <div key={`${row.terminalId ?? row.activityBindingId ?? 'historical'}-${index}`} style={{ padding: '0.65rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9 }}>
+                                                    <strong style={{ color: '#334155', overflowWrap: 'anywhere' }}>{row.activityId ?? row.activityBindingId ?? 'Historical Activity'}</strong>
+                                                    <div style={{ color: '#475569', marginTop: '0.2rem' }}>Excluded from current completion: {getHistoricalReasonLabel(row.reason)}</div>
+                                                    {row.score ? (
+                                                        <div style={{ color: '#475569', marginTop: '0.2rem' }}>
+                                                            Historical Activity score: {row.score.displayScore ?? `${row.score.earnedScore} / ${row.score.maximumScore}`}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </article>
+                        );
+                    })}
+                </div>
+            )}
+
+            <button
+                type="button"
+                onClick={onBack}
+                style={{
+                    minHeight: 44,
+                    justifySelf: 'start',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 8,
+                    background: '#ffffff',
+                    color: '#334155',
+                    cursor: 'pointer',
+                    padding: '0.6rem 1rem',
+                }}
+            >
+                Back to homework list
+            </button>
+        </section>
+    );
 }
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -110,6 +335,7 @@ function TeacherHomeworkDetailPage() {
     const { homeworkId } = useParams<{ homeworkId: string }>();
     const { user, profile, logout } = useAuth();
     const { navigateTo } = useNavigation('teacher');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
     const { homework, submissions, loading, error, refetch } = useHomeworkDetail(homeworkId);
     const classId = homework?.target.type === 'class' ? homework.target.classId : undefined;
     const { students, loading: rosterLoading, error: rosterError } = useClassRoster(classId);
@@ -126,6 +352,92 @@ function TeacherHomeworkDetailPage() {
     const [noteTarget, setNoteTarget] = useState<HomeworkSubmissionTableRow | null>(null);
     // PRD-0036: Integrity detail panel state
     const [selectedIntegrity, setSelectedIntegrity] = useState<{ report: HomeworkIntegrity; studentName: string } | null>(null);
+    const [bookProgressRows, setBookProgressRows] = useState<readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null>(null);
+    const [bookProgressLoading, setBookProgressLoading] = useState(false);
+    const [bookProgressError, setBookProgressError] = useState<string | null>(null);
+    const [bookProgressAttempted, setBookProgressAttempted] = useState(false);
+    const [bookProgressRetry, setBookProgressRetry] = useState(0);
+    const [selectedBookEvaluation, setSelectedBookEvaluation] = useState<{
+        locator: BookActivityEvaluationLocator;
+        studentName: string;
+        activityLabel: string;
+    } | null>(null);
+    const [selectedBookIntegrity, setSelectedBookIntegrity] = useState<{
+        locator: { bookId: string; terminalId: string };
+        studentName: string;
+        activityLabel: string;
+    } | null>(null);
+    const bookProgressRequestRef = useRef<{
+        key: string;
+        promise: Promise<readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null>;
+    } | null>(null);
+
+    const isBookHomework = Boolean(
+        homework
+        && isBookHomeworkAssignment(
+            homework as unknown as Parameters<typeof isBookHomeworkAssignment>[0],
+        ),
+    );
+    const bookEvaluationPresentationEnabled = isBookActivityEvaluationPresentationEnabled();
+
+    // Book Homework progress is a single trusted batch projection. It is
+    // intentionally separate from legacy submission rows and never fans out
+    // one request per student.
+    useEffect(() => {
+        const shouldLoadBookProgress = Boolean(
+            homeworkId
+            && (isBookHomework || error === 'Homework not found')
+        );
+
+        if (!shouldLoadBookProgress) {
+            bookProgressRequestRef.current = null;
+            setBookProgressRows(null);
+            setBookProgressError(null);
+            setBookProgressLoading(false);
+            setBookProgressAttempted(false);
+            return;
+        }
+
+        let cancelled = false;
+        setBookProgressAttempted(true);
+        setBookProgressLoading(true);
+        setBookProgressError(null);
+
+        const requestKey = homeworkId!;
+        const cachedRequest = bookProgressRequestRef.current?.key === requestKey
+            ? bookProgressRequestRef.current.promise
+            : null;
+        const progressRequest = cachedRequest ?? getTeacherBookHomeworkProgress(homeworkId!);
+        if (!cachedRequest) {
+            bookProgressRequestRef.current = { key: requestKey, promise: progressRequest };
+        }
+
+        progressRequest
+            .then((projectionRows) => {
+                if (!cancelled) {
+                    setBookProgressRows(projectionRows);
+                    if (!projectionRows) {
+                        setBookProgressError('Book progress is not available for this assignment.');
+                    }
+                }
+            })
+            .catch((progressError: unknown) => {
+                if (!cancelled) {
+                    bookProgressRequestRef.current = null;
+                    setBookProgressRows(null);
+                    setBookProgressError(progressError instanceof Error
+                        ? progressError.message
+                        : 'Book progress could not be loaded.');
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setBookProgressLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [bookProgressRetry, error, homeworkId, isBookHomework]);
 
     const latestSubmissionByStudent = useMemo(() => {
         const submissionMap = new Map<string, typeof submissions[number]>();
@@ -526,16 +838,18 @@ function TeacherHomeworkDetailPage() {
         if (row.lastRemindedAt && Date.now() - row.lastRemindedAt < 24 * 60 * 60 * 1000) return;
 
         try {
+            const reminderAt = Date.now();
             await updateStudentOverride(homeworkId, row.studentId, {
                 reminderCount: (row.reminderCount ?? 0) + 1,
-                lastRemindedAt: Date.now(),
+                lastRemindedAt: reminderAt,
             });
             // PRD-0034 Task 16.0: Send actual notification to student
-            await sendHomeworkReminderNotification(
+            await sendTrustedHomeworkReminderNotification(
                 row.studentId,
                 homeworkId,
                 homework.title || homework.materialTitle,
                 profile?.displayName ?? undefined,
+                String(reminderAt),
             );
             toast.success(`Reminder sent to ${row.studentName}`);
             await refetch();
@@ -572,16 +886,18 @@ function TeacherHomeworkDetailPage() {
         try {
             const promises = eligible.map(async (row) => {
                 try {
+                    const reminderAt = Date.now();
                     await updateStudentOverride(homeworkId, row.studentId, {
                         reminderCount: (row.reminderCount ?? 0) + 1,
-                        lastRemindedAt: Date.now(),
+                        lastRemindedAt: reminderAt,
                     });
                     // Non-blocking notification
-                    sendHomeworkReminderNotification(
+                    sendTrustedHomeworkReminderNotification(
                         row.studentId,
                         homeworkId,
                         homework.title || homework.materialTitle,
                         profile?.displayName ?? undefined,
+                        String(reminderAt),
                     ).catch((err) => console.warn('[RemindAll] Notification failed for', row.studentId, err));
                     sentCount++;
                 } catch (err) {
@@ -620,6 +936,121 @@ function TeacherHomeworkDetailPage() {
             console.error('Logout error:', logoutError);
         }
     }, [logout, navigateTo]);
+
+    const bookProgressSurface = isBookHomework
+        || (bookProgressAttempted && error === 'Homework not found');
+
+    if (bookProgressSurface) {
+        const studentNames = new Map(assignedStudents.map((student) => [student.studentId, student.studentName]));
+        const bookHomeworkCandidate = homework as unknown as {
+            assignmentKind?: string;
+            bookManifest?: unknown;
+        } | null;
+        const bookManifest = bookHomeworkCandidate
+            && isBookHomeworkAssignment(bookHomeworkCandidate)
+            ? bookHomeworkCandidate.bookManifest
+            : null;
+        return (
+            <div className="teacher-homework-detail-page" style={{ background: '#f8fafc' }}>
+                <TeacherHeader
+                    pageTitle="Homework Detail"
+                    userId={user?.uid}
+                    userRole={profile?.role}
+                    userDisplayName={profile?.displayName || user?.displayName || user?.email}
+                    userEmail={profile?.email || user?.email}
+                    userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
+                    onLogout={handleLogout}
+                />
+                <div className="teacher-homework-detail-content">
+                    {bookProgressLoading || (!bookProgressRows && !bookProgressAttempted) ? (
+                        <Card hover={false}>
+                            <CardBody>
+                                <div className="teacher-homework-detail-loader">
+                                    <VanillaLoader size="xl" />
+                                    <span>Loading Book progress...</span>
+                                </div>
+                            </CardBody>
+                        </Card>
+                    ) : (
+                        <TeacherBookHomeworkProgressPanel
+                            rows={bookProgressRows}
+                            error={bookProgressError}
+                            studentNames={studentNames}
+                            onBack={() => {
+                                trackAction('bookHomeworkProgressBack', { role: 'teacher' });
+                                navigateTo('TEACHER_HOMEWORK', {}, { reason: 'teacher_homework_detail_book_progress_back' });
+                            }}
+                            onRetry={() => {
+                                trackAction('bookHomeworkProgressRetry', { role: 'teacher' });
+                                setBookProgressRetry((value) => value + 1);
+                            }}
+                            onGradeActivity={bookEvaluationPresentationEnabled && bookManifest
+                                ? (studentId, activity) => {
+                                    trackAction('bookActivityGradingOpened', {
+                                        activityId: activity.activityId,
+                                    });
+                                    setSelectedBookEvaluation({
+                                        locator: {
+                                            bookId: bookManifest.book.bookId,
+                                            studentId,
+                                            contextKind: 'homework',
+                                            contextId: homeworkId!,
+                                            placementId: activity.placementId,
+                                            activityId: activity.activityId,
+                                            activityVersionId: activity.activityVersionId,
+                                            ...(activity.terminalId === undefined
+                                                ? {}
+                                                : { terminalId: activity.terminalId }),
+                                        },
+                                        studentName: studentNames.get(studentId) || studentId,
+                                        activityLabel: `Activity ${activity.order || activity.activityId}: ${activity.activityId}`,
+                                    });
+                                }
+                                : undefined}
+                            onViewIntegrity={bookManifest
+                                ? (studentId, activity) => {
+                                    if (!activity.terminalId) return;
+                                    trackAction('bookActivityIntegrityOpened', {
+                                        activityId: activity.activityId,
+                                    });
+                                    setSelectedBookIntegrity({
+                                        locator: {
+                                            bookId: bookManifest.book.bookId,
+                                            terminalId: activity.terminalId,
+                                        },
+                                        studentName: studentNames.get(studentId) || studentId,
+                                        activityLabel: `Activity ${activity.order || activity.activityId}: ${activity.activityId}`,
+                                    });
+                                }
+                                : undefined}
+                        />
+                    )}
+                    {selectedBookEvaluation && (
+                        <BookActivityGradingPanel
+                            locator={selectedBookEvaluation.locator}
+                            studentName={selectedBookEvaluation.studentName}
+                            activityLabel={selectedBookEvaluation.activityLabel}
+                            onAction={(action, metadata) => trackAction(action, metadata)}
+                        />
+                    )}
+                    {selectedBookIntegrity && (
+                        <BookActivityIntegrityPanel
+                            locator={selectedBookIntegrity.locator}
+                            studentName={selectedBookIntegrity.studentName}
+                            activityLabel={selectedBookIntegrity.activityLabel}
+                            onClose={() => {
+                                trackAction('bookActivityIntegrityClosed', {
+                                    terminalId: selectedBookIntegrity.locator.terminalId,
+                                });
+                                setSelectedBookIntegrity(null);
+                            }}
+                            onAction={(action, metadata) => trackAction(action, metadata)}
+                        />
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     const pageLoading = loading || (homework?.target.type === 'class' && rosterLoading);
 

@@ -1,0 +1,91 @@
+{
+  "selectedAt": "2026-07-28T04:15:46.011Z",
+  "governingPolicy": "Deterministic roadmap plus mandatory complete-transitive-prerequisite and acceptance-readiness gates.",
+  "selectionStatus": "REJECTED_INELIGIBLE",
+  "supersededBy": "artifacts/prd0062-selection-20260728-post-ticket74-no-eligible-teacher-primary.json",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260728-post-ticket74-closed.json",
+    "issueHash": "073479ddb48c8f39f983e721cc1fa273a5ca4103552cffc22146bd66b40b929c",
+    "issueCount": 112,
+    "openCount": 59,
+    "closedCount": 53,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 82, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "rejectedCandidate": {
+    "issue": 82,
+    "ticket": "33B",
+    "title": "Preview Book Homework policy and source exposure",
+    "roadmapPhase": "teacher-workflow",
+    "directPrerequisites": [72, 81],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 81],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 43,
+    "acceptanceReadiness": {
+      "status": "blocked",
+      "executableGates": [
+        "typed Book Delivery preview and policy adapters under the existing teacher Homework surface",
+        "component, accessibility, cancellation, reload, and policy tests",
+        "teacher browser proof at http://localhost:5173 using the repository quick-login path",
+        "local preview/production-shaped data proof without private object identity or answer data",
+        "shared announcement behavior and existing navigation contracts",
+        "local rollback by hiding the Book option without writing a manifest or mutating Delivery"
+      ],
+      "authority": "Local repository authority plus the available authenticated teacher browser session; no remote activation, private-B2, trusted-action, #50A, or #03B capability is required.",
+      "ownership": "#81 owns the frozen manifest consumed by #82; #72 owns the Delivery projection; #82 owns the read-only preview/policy host and does not duplicate manifest or Delivery authority.",
+      "blockers": [
+        "Production-equivalent Book Delivery/source proof cannot run while private-B2 authority remains disabled.",
+        "Existing Book rollout presentation gates are non-authoritative and trusted services remain default-deny.",
+        "#82 has no existing Book preview UI; implementation would begin on an acceptance-ineligible ticket."
+      ]
+    },
+    "selectionReason": "Rejected. Graph-clear and phase-appropriate, but not acceptance-ready under current authority and safety policy. Do not inspect, implement, or begin acceptance work until production-equivalent Delivery/source authority is available."
+  },
+  "candidateRejections": [
+    {
+      "issues": [49, 50],
+      "rule": "authority-and-safety",
+      "reason": "Graph-clear, but private-B2 provisioning/lifecycle and deployed disposable-object proof remain ineligible while private-B2 and trusted actions must stay disabled."
+    },
+    {
+      "issues": [76, 130],
+      "rule": "roadmap-phase",
+      "reason": "Graph-clear or nearly clear, but these are Student-workflow/runtime browser suites. The roadmap requires Teacher workflow before Student workflow."
+    },
+    {
+      "issues": [93],
+      "rule": "roadmap-phase-and-single-primary",
+      "reason": "Graph-clear after #74 closure, but notification migration is Operations work later than the current Teacher-workflow phase. The requested peer lane remains read-only; exactly one primary is selected."
+    },
+    {
+      "issues": [105],
+      "rule": "acceptance-readiness-and-authority",
+      "reason": "Graph-clear and Teacher-workflow phase-appropriate, but ineligible because ContentCatalog, public student-safe read, entitlement/capability, deployed security, and rollback gates are not executable under current authority."
+    },
+    {
+      "issues": [82],
+      "rule": "acceptance-readiness-and-authority",
+      "reason": "Graph-clear and phase-appropriate, but ineligible because required production-equivalent Delivery/source proof is unavailable while private-B2 and trusted Book capabilities remain disabled. Record owner: #82/Book Delivery authority; required action: obtain approved production-equivalent source/Delivery proof or revise live destination ownership; evidence: current #82 contract plus route/rollout gate audit; impact: #82 cannot close and its descendants remain gated."
+    },
+    {
+      "issues": [129, 131, 132, 133],
+      "rule": "roadmap-phase",
+      "reason": "Graph-clear final integration/regression suites; final closure work waits for all preceding workflow and activation contracts."
+    },
+    {
+      "issues": [77, 80, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136],
+      "rule": "mandatory-complete-transitive-prerequisite",
+      "reason": "Ineligible: the live graph reports at least one open direct or transitive prerequisite. Exact chains and open prerequisite sets remain in the referenced 112-ticket graph artifact; no implementation or acceptance work starts on these tickets."
+    }
+  ],
+  "peerLaneDecision": {
+    "issues": [93, 94, 97],
+    "status": "read-only",
+    "reason": "#93 is graph-clear but phase-ineligible while #82 is the single Teacher-workflow primary. No notification edits or acceptance work begin in parallel."
+  },
+  "selectionDecision": "No primary selected from this snapshot. #82 is rejected as acceptance-ineligible. Audit another independent Teacher-workflow root/enabler only if its complete transitive chain and all acceptance gates are executable; otherwise pause. Preserve full 112-ticket scope and all disabled capability boundaries."
+}

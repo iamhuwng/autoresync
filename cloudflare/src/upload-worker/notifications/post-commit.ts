@@ -1,6 +1,8 @@
-import type {
-  BookCommittedNotificationAction,
-  BookNotificationEmissionContext,
+import {
+  isBookNotificationEmissionEnabled,
+  type BookNotificationActionIdentity,
+  type BookNotificationEmissionContext,
+  type BookNotificationEmissionEnvironment,
 } from './book-emitter.ts';
 
 export interface BookMutationResponse {
@@ -8,58 +10,72 @@ export interface BookMutationResponse {
   readonly init?: { readonly status?: number };
 }
 
-export interface BookPostCommitEmissionEnvironment {
-  readonly BOOK_NOTIFICATIONS_EMISSION_ENABLED?: unknown;
+export interface BookPostCommitEmissionEnvironment
+  extends BookNotificationEmissionEnvironment {
   readonly [key: string]: unknown;
 }
 
-export interface BookPostCommitEmissionOptions {
-  readonly route: string;
-  readonly actorUid: string;
-  readonly request: Request;
+export interface BookPostCommitEmissionOptions<
+  Result extends BookMutationResponse = BookMutationResponse,
+> {
   readonly env: BookPostCommitEmissionEnvironment;
-  readonly commit: () => Promise<BookMutationResponse>;
+  readonly commit: () => Promise<Result>;
   readonly emitter?: {
     emit(
-      action: BookCommittedNotificationAction,
+      identity: BookNotificationActionIdentity,
       context: BookNotificationEmissionContext,
     ): Promise<unknown>;
   };
-  readonly resolveAction?: (input: {
-    readonly route: string;
-    readonly result: unknown;
-    readonly request: Request;
+  readonly resolveActionIdentity?: (input: {
+    readonly result: Result;
     readonly env: BookPostCommitEmissionEnvironment;
-    readonly uid: string;
-  }) => Promise<BookCommittedNotificationAction | null>;
+  }) => BookNotificationActionIdentity | null
+    | Promise<BookNotificationActionIdentity | null>;
 }
 
+const isCommittedResult = (result: BookMutationResponse): boolean => {
+  if (!result.body || typeof result.body !== 'object'
+    || Array.isArray(result.body)) {
+    return false;
+  }
+  return (result.body as Record<string, unknown>).state === 'committed';
+};
+
 /**
- * Shared post-commit seam for the existing Book Worker. Route composition owns
- * calling this helper; it deliberately owns no route, queue, or persistence.
+ * Shared post-commit seam for the existing Book Worker. It deliberately owns
+ * no route, queue, persistence, or recipient authority.
  */
-export const runBookMutationWithPostCommitNotification = async (
-  options: BookPostCommitEmissionOptions,
-): Promise<BookMutationResponse> => {
-  const emissionEnabled = options.env.BOOK_NOTIFICATIONS_EMISSION_ENABLED === true
-    || options.env.BOOK_NOTIFICATIONS_EMISSION_ENABLED === 'true';
-  if (emissionEnabled && (!options.emitter || !options.resolveAction)) {
+export const runBookMutationWithPostCommitNotification = async <
+  Result extends BookMutationResponse,
+>(
+  options: BookPostCommitEmissionOptions<Result>,
+): Promise<Result> => {
+  const emissionEnabled = isBookNotificationEmissionEnabled(
+    undefined,
+    options.env,
+  );
+  if (emissionEnabled
+    && (!options.emitter || !options.resolveActionIdentity)) {
     throw new Error('book_notification_emission_misconfigured');
   }
-  const resolverRequest = emissionEnabled && options.emitter && options.resolveAction
-    ? options.request.clone()
-    : null;
+
   const result = await options.commit();
   const status = Number(result.init?.status ?? 200);
-  if (emissionEnabled && options.emitter && options.resolveAction && status >= 200 && status < 300) {
-    const action = await options.resolveAction({
-      route: options.route,
-      result: result.body,
-      request: resolverRequest ?? options.request,
-      env: options.env,
-      uid: options.actorUid,
-    });
-    if (action) await options.emitter.emit(action, { env: options.env });
+  if (!emissionEnabled
+    || !options.emitter
+    || !options.resolveActionIdentity
+    || status < 200
+    || status >= 300
+    || !isCommittedResult(result)) {
+    return result;
+  }
+
+  const identity = await options.resolveActionIdentity({
+    result,
+    env: options.env,
+  });
+  if (identity) {
+    await options.emitter.emit(identity, { env: options.env });
   }
   return result;
 };

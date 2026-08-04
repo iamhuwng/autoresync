@@ -1,0 +1,62 @@
+{
+  "recordedAt": "2026-07-27T11:08:00Z",
+  "reasonForReselection": "#59 was reopened after direct source inspection proved its fixed handler resolver cannot compose a future #63 candidate-preview handler. The live route owner must repair this Runtime enabler before more Teacher-workflow selection.",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket63-route-ownership-repair.json",
+    "hash": "0d74c11c2f3ed72069aec1062bc3173fc4a8d8b84f1ea41183cd3edda92bb6cd",
+    "issues": 112,
+    "open": 74,
+    "closed": 38,
+    "edges": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 59, 63, 65, 66, 67, 70, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "Runtime - canonical Worker assembly and delivery seams",
+  "candidates": [
+    {
+      "ticket": 49,
+      "state": "ineligible",
+      "reason": "Private-B2 provisioning authority remains unavailable. Owner: Cloudflare/B2 provisioning. Required action: scoped private bucket/key/CORS/lifecycle configuration plus disposable/cost evidence."
+    },
+    {
+      "ticket": 50,
+      "state": "ineligible",
+      "reason": "Shares #49 private-B2 provisioning and lifecycle authority blocker; do not bypass through direct-upload reconciliation work."
+    },
+    {
+      "ticket": 59,
+      "state": "selected",
+      "directPrerequisites": [44, 51, 52, 58],
+      "transitivePrerequisitesClosed": true,
+      "downstreamLeverage": 59,
+      "acceptanceReadiness": "Local canonical manifest/dispatcher/handler tests and fail-closed rollback proof are executable without enabling 50A, 50B, or 03B.",
+      "authority": "Existing canonical Worker route modules and test harness; no deployment or capability activation required for producer-owned local proof.",
+      "selectionReason": "Earliest unresolved Runtime enabler after concrete ownership repair. It repairs generic route composition and prevents #63 from duplicating or bypassing the canonical dispatcher."
+    },
+    {
+      "ticket": 63,
+      "state": "deferred-eligible",
+      "reason": "All chains closed, but current runtime phase now has reopened #59 root. #63 local source work is preserved; canonical-route/browser/deployed proof is destination-owned by #59/#128/#134."
+    },
+    {
+      "ticket": "65-67",
+      "state": "ineligible",
+      "reason": "Teacher publication/mapping positive gates remain not acceptance-ready while #63 preview contribution is unfinished; no duplicate preview host or bypass is allowed."
+    },
+    {
+      "ticket": 70,
+      "state": "deferred-eligible",
+      "reason": "Independent Teacher workflow ticket, but lower current-phase priority than reopened Runtime route enabler #59."
+    },
+    {
+      "ticket": "128-134",
+      "state": "ineligible",
+      "reason": "Activation/final/deployed phase. #128 requires #50B and inherited open chain; #134 requires all final suites. Preserve 50A all-six-deny/default-deny."
+    }
+  ],
+  "primary": 59,
+  "nextRequiredEvent": "Implement only #59 generic composition repair, verify local canonical dispatcher proof, then re-evaluate #63 from fresh live graph."
+}

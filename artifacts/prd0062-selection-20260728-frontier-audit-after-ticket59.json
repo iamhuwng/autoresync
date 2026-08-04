@@ -1,0 +1,114 @@
+{
+  "generatedAt": "2026-07-28T00:00:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket59-reclosed.json",
+  "issueHash": "226210de81be76ed3650820a2fffe8896089ebc5acfc1f2cd6ac12434d809c90",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 65,
+    "closedCount": 47,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 68, 73, 81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "foundation",
+  "selection": {
+    "primaryTicket": null,
+    "status": "paused-no-eligible-primary",
+    "reason": "No unresolved foundation/enabler ticket satisfies all authority and acceptance gates. Do not enter later roadmap phases or bypass the blocked foundation frontier."
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "decision": "rejected-blocked",
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "owner": "authorized private-B2 provisioning/deployment owner",
+      "requiredAction": "Provision and prove the scoped private-B2 direct-upload capability under approved remote authority.",
+      "evidence": "Required remote private-B2 authority and positive deployment/billing proof are unavailable; #50A remains all-six-deny/default-deny and private-B2 remains disabled.",
+      "impact": "Blocks the foundation private-B2 capability and #50 reconciliation chain; do not activate or simulate it locally."
+    },
+    {
+      "ticket": 50,
+      "title": "PRD0062 07 — Reconcile failed and unfinished direct-B2 uploads",
+      "decision": "rejected-blocked",
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "owner": "authorized private-B2 reconciliation owner",
+      "requiredAction": "Run exact-version failed/unfinished private-B2 cleanup and reconciliation after authorized #49 capability exists.",
+      "evidence": "The required private-B2 remote state, identity, and cleanup authority are unavailable; no substitute local proof can satisfy this gate.",
+      "impact": "Leaves the foundation direct-B2 reconciliation unresolved; do not select descendants to work around it."
+    },
+    {
+      "ticket": 68,
+      "title": "PRD0062 19 — Revise one Activity safely",
+      "decision": "rejected-ineligible",
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64],
+      "openTransitivePrerequisites": [],
+      "reason": "Graph-clear is insufficient. Activity revision implementation and owned acceptance proof are absent: no activityRevisionPublish.service.ts, no revision Worker handler, no #68 browser fixture/E2E, no deployment probe, and no revision-specific security/rollback proof.",
+      "owner": "#68 Activity revision implementation/proof owner",
+      "requiredAction": "Implement the owned Activity revision service/Worker seam and destination-preserved acceptance, browser, security, deployment, and rollback gates before selection.",
+      "evidence": "ActivityAuthoringService exposes stage/validate/saveDraft/discard/loadCandidate only; existing mapping publication records activityVersions as an empty list. Baseline focused tests do not prove #68.",
+      "impact": "Activity-dependent downstream workflow proof remains acceptance-ineligible; do not begin #68 implementation or acceptance work from this snapshot."
+    },
+    {
+      "ticket": 73,
+      "title": "PRD0062 22B — Run structural Book Runtime shell",
+      "decision": "rejected-phase",
+      "reason": "Later student-workflow phase. Foundation/enabler frontier is unresolved; do not bypass it with assembled runtime work."
+    },
+    {
+      "ticket": 81,
+      "title": "PRD0062 33A — Model frozen Book Homework manifest",
+      "decision": "rejected-phase",
+      "reason": "Later teacher/student workflow phase. Foundation frontier is unresolved; do not bypass it with Homework descendant work."
+    },
+    {
+      "ticket": 93,
+      "title": "PRD0062 38A — Expand compatible structured notification boundary",
+      "decision": "rejected-phase",
+      "reason": "Operations phase. Foundation/enabler frontier is unresolved; graph-clear does not make this phase eligible."
+    },
+    {
+      "ticket": 105,
+      "title": "PRD0062 43 — Browse public Books through ContentCatalog",
+      "decision": "rejected-phase",
+      "reason": "Later student/public-access phase. Foundation/enabler frontier is unresolved; do not bypass it with catalog descendants."
+    },
+    {
+      "ticket": 129,
+      "title": "PRD0062 51B2 — Run teacher updates, replacement, and results browser suite",
+      "decision": "rejected-phase",
+      "reason": "Final-closure phase and browser suite; graph-clear is not acceptance-ready while foundation scope and product work remain open."
+    },
+    {
+      "ticket": 130,
+      "title": "PRD0062 51C1 — Run student runtime and persistence browser suite",
+      "decision": "rejected-phase",
+      "reason": "Final-closure phase; do not run final student acceptance before foundation, runtime, teacher, and student workflow scope is complete."
+    },
+    {
+      "ticket": 131,
+      "title": "PRD0062 51C2 — Run student accessibility and device browser suite",
+      "decision": "rejected-phase",
+      "reason": "Final-closure phase; do not run final accessibility/device acceptance before earlier roadmap phases are complete."
+    },
+    {
+      "ticket": 132,
+      "title": "PRD0062 51D1 — Run contract and security regressions",
+      "decision": "rejected-phase",
+      "reason": "Final-closure phase; contract/security reconciliation must follow completed foundation and workflow scope."
+    },
+    {
+      "ticket": 133,
+      "title": "PRD0062 51D2 — Run legacy, backup, and recovery regressions",
+      "decision": "rejected-phase",
+      "reason": "Final-closure phase; legacy/backup/recovery reconciliation cannot bypass unresolved foundation authority and acceptance gaps."
+    }
+  ],
+  "nonFrontierRule": "Every other unresolved ticket is ineligible because its complete direct/transitive prerequisite chain contains one or more open tickets in the source graph. No ticket is selected until a foundation/enabler candidate is both acceptance-ready and authorized."
+}

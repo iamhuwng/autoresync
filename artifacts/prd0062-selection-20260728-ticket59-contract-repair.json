@@ -1,0 +1,84 @@
+{
+  "generatedAt": "2026-07-28T00:00:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket59-reopen-contract.json",
+  "issueHash": "1be01c2c3273fdf6eecfd2bf4e6abf6139a94959ce0f7e012b8eaabba1dba0c0",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 66,
+    "closedCount": 46,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 59, 68, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "runtime",
+  "selection": {
+    "primaryTicket": 59,
+    "title": "PRD0062 09D — Integrate Book Worker route dispatch",
+    "status": "selected-contract-repair-ready",
+    "directClosedPrerequisites": [44, 51, 52, 58],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 59,
+    "acceptanceReadiness": "Canonical full/component publication descriptors, handler composition, and durable repository injection are present locally; the live #59 contract was reopened to make those ownership and production-composition gates explicit. Focused route, manifest, repository, auth/CORS/rate/gate, and missing-dependency conformance gates are executable locally. Deployed identity/configuration/readback, canary publication, cleanup, rollback, and generated-rules proof remain destination-owned by #134 and #118.",
+    "requiredAuthority": [
+      "closed #44/#51/#52/#58 route and document prerequisites",
+      "existing local canonical Worker route harness and Firebase REST repository test authority",
+      "#134 destination contract for deployed/canary publication/readback/cleanup/rollback",
+      "#118 destination contract for assembled generated-rules proof",
+      "no trusted-action, #50A, #03B, private-B2, or production activation authority"
+    ],
+    "currentImplementationGap": "The repository and canonical full/component publication handlers already exist, but the live #59 acceptance contract omitted their explicit route descriptors, handler composition, and durable production repository-injection ownership. Repair the live contract and prove the existing seam without changing gates or activating deployment."
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Foundation private-B2 provisioning; graph chain is closed but positive upload/deployment/billing gates require unavailable remote private-B2 authority."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Foundation private-B2 reconciliation; exact-version cleanup/reconciliation requires unavailable remote private-B2 authority."
+    },
+    {
+      "ticket": 59,
+      "decision": "selected",
+      "reason": "Runtime route/enabler with all direct/transitive prerequisites CLOSED, executable local contract-conformance gates, explicit user-directed ownership repair, and highest verified downstream leverage among authority-ready candidates."
+    },
+    {
+      "ticket": 68,
+      "decision": "rejected",
+      "reason": "Teacher-workflow descendant; although graph-clear after #64 re-closure, runtime canonical publication composition remains the earlier roadmap enabler and must be reclosed before downstream workflow selection."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final-closure teacher suite; graph-clear does not make final browser acceptance eligible during the runtime phase while full product scope remains open."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final-closure student runtime suite; later roadmap phase and unresolved runtime/product scope."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final-closure accessibility/device suite; later roadmap phase and unresolved runtime/product scope."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final-closure security suite; later roadmap phase and unresolved runtime/product scope."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final-closure legacy/backup/recovery suite; later roadmap phase and unresolved runtime/product scope."
+    }
+  ],
+  "nonFrontierRule": "Every other unresolved ticket is ineligible because its live graph record has one or more open direct/transitive prerequisites; complete chains and open prerequisites are in the source graph artifact."
+}

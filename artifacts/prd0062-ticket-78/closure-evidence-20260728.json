@@ -1,0 +1,52 @@
+{
+  "ticket": 78,
+  "title": "PRD0062 30 — Add UI-only personal timer",
+  "status": "verified-ready-for-closure",
+  "implemented": {
+    "hook": "src/hooks/book-runtime/usePersonalTimer.ts",
+    "component": "src/components/book-runtime/PersonalTimer.tsx",
+    "styles": "src/components/book-runtime/PersonalTimer.css",
+    "shellComposition": "src/components/book-runtime/BookRuntimeShell.tsx",
+    "fixture": "src/pages/BookRuntimeShellSmokePage.tsx"
+  },
+  "acceptance": {
+    "offByDefault": "Hook starts paused at 00:00; component labels timer personal and optional.",
+    "controls": "Start/resume, pause, reset, hide, and show controls verified by component and browser tests.",
+    "monotonicState": "Elapsed delta uses performance.now() when available; wall-clock drift test passes; interval repaint does not define elapsed time.",
+    "lifecycle": "visibilitychange pauses safely; reload restores paused elapsed state through sessionStore; unmount persists paused snapshot.",
+    "multipleTabs": "BroadcastChannel owner election test passes; one tab remains running and competing tab adopts paused owner state.",
+    "accessibility": "Named SVG, text-equivalent elapsed value, status state, keyboard controls, visible focus, reduced-motion CSS, and 44px controls verified.",
+    "isolation": "Timer component/hook has no Worker, fetch, database, secret, runtime command, response, result, integrity, telemetry, or analytics path; browser observed zero /book-runtime/commands requests during timer-only actions.",
+    "rollback": "Hide and reset remove/disable timer UI state without touching runtime records; no trusted action is enabled."
+  },
+  "checks": [
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/hooks/book-runtime/usePersonalTimer.test.ts --pool=forks --poolOptions.forks.singleFork --passWithNoTests=false",
+      "result": "4 tests passed"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/components/book-runtime/PersonalTimer.test.tsx src/components/book-runtime/BookRuntimeShell.test.tsx --pool=forks --poolOptions.forks.singleFork --passWithNoTests=false",
+      "result": "6 tests passed"
+    },
+    {
+      "command": "node node_modules/eslint/bin/eslint.js src/hooks/book-runtime/usePersonalTimer.ts src/hooks/book-runtime/usePersonalTimer.test.ts src/components/book-runtime/PersonalTimer.tsx src/components/book-runtime/PersonalTimer.test.tsx src/components/book-runtime/BookRuntimeShell.tsx src/components/book-runtime/BookRuntimeShell.test.tsx src/pages/BookRuntimeShellSmokePage.tsx e2e/prd0062-student-runtime-persistence.spec.ts",
+      "result": "passed"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs vite . build",
+      "result": "passed; 9432 modules transformed"
+    },
+    {
+      "command": "node node_modules/@playwright/test/cli.js test --config=playwright.prd0062-student-runtime-persistence.config.mjs",
+      "result": "4 tests passed; includes desktop, 375px, 320px, collapse/tab/reload, focus, overflow, touch-target, and request-isolation proof"
+    }
+  ],
+  "browserEvidence": "artifacts/prd0062-ticket-78/browser/personal-timer.png",
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled",
+    "privateB2": "disabled",
+    "deployedClaims": "none"
+  }
+}

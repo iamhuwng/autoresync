@@ -1,38 +1,32 @@
-import { parseNotificationMetadata } from '../../../../src/services/notificationMetadata.ts';
 import type {
   NotificationType,
   StructuredNotificationMetadata,
 } from '../../../../src/types/notification.types.ts';
+import { parseNotificationMetadata } from '../../../../src/services/notificationMetadata.ts';
+import {
+  NOTIFICATION_COMMAND_PRODUCER_FAMILIES,
+  type NotificationCommandProducerFamily,
+} from '../../../../src/services/notificationCommandClient.ts';
 
-export const NOTIFICATION_COMMAND_PRODUCER_FAMILIES = [
-  'book',
-  'course',
-  'class',
-  'assignment',
-  'enrollment',
-  'deadline',
-  'course-announcement',
-  'homework',
-  'result',
-  'feedback',
-  'writing',
-  'thcs-practice',
-  'thcs-grading',
-  'session',
-  'monitor',
-] as const;
+const MAX_BODY_BYTES = 16 * 1024;
+const ID = /^[A-Za-z0-9_-]{1,128}$/u;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const INTERNAL_PATH = /^\/(?!\/)[A-Za-z0-9._~!$&'()*+,;=:@%/-]{1,511}$/u;
+const TYPES = new Set<NotificationType>([
+  'info', 'success', 'warning', 'error', 'feedback', 'homework_reminder',
+]);
 
-export type NotificationCommandProducerFamily =
-  typeof NOTIFICATION_COMMAND_PRODUCER_FAMILIES[number];
+export type NotificationProducerFamily = NotificationCommandProducerFamily;
+export type NotificationAuthorityKind = NotificationProducerFamily;
 
 export interface NotificationCommand {
   readonly schemaVersion: 1;
   readonly commandType: 'create-notification';
   readonly operationId: string;
-  readonly producerFamily: NotificationCommandProducerFamily;
+  readonly producerFamily: NotificationProducerFamily;
   readonly recipientId: string;
   readonly authority: {
-    readonly kind: NotificationCommandProducerFamily;
+    readonly kind: NotificationAuthorityKind;
     readonly recordId: string;
   };
   readonly notification: {
@@ -51,20 +45,13 @@ export class NotificationCommandSchemaError extends Error {
   }
 }
 
-const MAX_BODY_BYTES = 16 * 1024;
-const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/u;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const INTERNAL_PATH = /^\/(?!\/)[A-Za-z0-9._~!$&'()*+,;=:@%/-]{1,511}$/u;
-const TYPES = new Set<NotificationType>([
-  'info', 'success', 'warning', 'error', 'feedback', 'homework_reminder',
-]);
-
-const record = (value: unknown): Record<string, unknown> | null =>
+const record = (value: unknown): Record<string, unknown> | null => (
   value !== null && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
-    : null;
+    : null
+);
 
-const exactKeys = (
+const keys = (
   value: Record<string, unknown>,
   required: readonly string[],
   allowed: readonly string[] = required,
@@ -77,9 +64,15 @@ const exactKeys = (
   }
 };
 
+const id = (value: unknown, code: string): string => {
+  if (typeof value !== 'string' || !ID.test(value)) {
+    throw new NotificationCommandSchemaError(code);
+  }
+  return value;
+};
+
 const boundedText = (value: unknown, max: number, code: string): string => {
-  if (typeof value !== 'string' || value.length < 1 || value.length > max
-    || value.trim() !== value || /[\u0000-\u001f\u007f]/u.test(value)) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > max || value.trim() !== value) {
     throw new NotificationCommandSchemaError(code);
   }
   return value;
@@ -89,9 +82,9 @@ export const readNotificationCommand = async (request: Request): Promise<Notific
   if (!request.headers.get('content-type')?.toLowerCase().includes('application/json')) {
     throw new NotificationCommandSchemaError('content_type_required');
   }
-  const declaredLength = request.headers.get('content-length');
-  if (declaredLength !== null
-    && (!/^\d+$/u.test(declaredLength) || Number(declaredLength) > MAX_BODY_BYTES)) {
+  const claimedLength = request.headers.get('content-length');
+  if (claimedLength !== null
+    && (!/^\d+$/u.test(claimedLength) || Number(claimedLength) > MAX_BODY_BYTES)) {
     throw new NotificationCommandSchemaError('notification_command_body_too_large', 413);
   }
   const text = await request.text();
@@ -99,14 +92,21 @@ export const readNotificationCommand = async (request: Request): Promise<Notific
     throw new NotificationCommandSchemaError('notification_command_body_too_large', 413);
   }
   let raw: unknown;
-  try { raw = JSON.parse(text); } catch {
+  try {
+    raw = JSON.parse(text);
+  } catch {
     throw new NotificationCommandSchemaError('notification_command_invalid_json');
   }
   const command = record(raw);
   if (!command) throw new NotificationCommandSchemaError('notification_command_invalid');
-  exactKeys(command, [
-    'schemaVersion', 'commandType', 'operationId', 'producerFamily', 'recipientId',
-    'authority', 'notification',
+  keys(command, [
+    'schemaVersion',
+    'commandType',
+    'operationId',
+    'producerFamily',
+    'recipientId',
+    'authority',
+    'notification',
   ]);
   if (command.schemaVersion !== 1 || command.commandType !== 'create-notification') {
     throw new NotificationCommandSchemaError('notification_command_unsupported');
@@ -123,17 +123,13 @@ export const readNotificationCommand = async (request: Request): Promise<Notific
   }
   const authority = record(command.authority);
   if (!authority) throw new NotificationCommandSchemaError('notification_command_invalid_authority');
-  exactKeys(authority, ['kind', 'recordId']);
-  if (authority.kind !== command.producerFamily || typeof authority.recordId !== 'string'
-    || !SAFE_ID.test(authority.recordId)) {
+  keys(authority, ['kind', 'recordId']);
+  if (authority.kind !== command.producerFamily) {
     throw new NotificationCommandSchemaError('notification_command_authority_mismatch');
-  }
-  if (typeof command.recipientId !== 'string' || !SAFE_ID.test(command.recipientId)) {
-    throw new NotificationCommandSchemaError('notification_command_invalid_recipient');
   }
   const notification = record(command.notification);
   if (!notification) throw new NotificationCommandSchemaError('notification_command_invalid_content');
-  exactKeys(notification, ['type', 'title', 'message'], ['type', 'title', 'message', 'link', 'metadata']);
+  keys(notification, ['type', 'title', 'message'], ['type', 'title', 'message', 'link', 'metadata']);
   if (typeof notification.type !== 'string' || !TYPES.has(notification.type as NotificationType)) {
     throw new NotificationCommandSchemaError('notification_command_invalid_type');
   }
@@ -145,18 +141,20 @@ export const readNotificationCommand = async (request: Request): Promise<Notific
   let metadata: StructuredNotificationMetadata | undefined;
   if (notification.metadata !== undefined) {
     const parsed = parseNotificationMetadata(notification.metadata);
-    if (parsed.kind !== 'book') throw new NotificationCommandSchemaError('notification_command_invalid_metadata');
+    if (parsed.kind !== 'book') {
+      throw new NotificationCommandSchemaError('notification_command_invalid_metadata');
+    }
     metadata = parsed.metadata;
   }
   return {
     schemaVersion: 1,
     commandType: 'create-notification',
     operationId: command.operationId,
-    producerFamily: command.producerFamily as NotificationCommandProducerFamily,
-    recipientId: command.recipientId,
+    producerFamily: command.producerFamily as NotificationProducerFamily,
+    recipientId: id(command.recipientId, 'notification_command_invalid_recipient'),
     authority: {
-      kind: command.producerFamily as NotificationCommandProducerFamily,
-      recordId: authority.recordId,
+      kind: command.producerFamily as NotificationAuthorityKind,
+      recordId: id(authority.recordId, 'notification_command_invalid_authority'),
     },
     notification: {
       type: notification.type as NotificationType,

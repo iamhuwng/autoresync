@@ -1,0 +1,51 @@
+{
+  "recordedAt": "2026-07-29",
+  "roadmapPhase": "Runtime",
+  "graphArtifact": "artifacts/prd0062-graph-20260729-ticket86-preview-authorized.json",
+  "graphHash": "ec27748b8cdec05a1787de1f0a0dd61182512c441e923c8444a929cb665317fa",
+  "graphSummary": {
+    "issues": 112,
+    "open": 55,
+    "closed": 57,
+    "uniqueEdges": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "graphClearFrontier": [
+    49,
+    50,
+    76,
+    86,
+    93,
+    105,
+    129,
+    130,
+    131,
+    132,
+    133
+  ],
+  "selected": {
+    "ticket": 86,
+    "title": "PRD0062 33E — Route Book Homework through canonical Worker",
+    "directPrerequisites": [59, 84, 85],
+    "transitivePrerequisitesClosed": 32,
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 39,
+    "acceptanceReadiness": "Executable: user authorized a non-production preview Worker, disposable data, least-privilege identities, deployed readback, teacher/student browser proof, rollback, and cleanup.",
+    "requiredAuthority": "Granted for controlled non-production preview only. Production, #50A, #03B, private-B2, and trusted gates remain disabled afterward."
+  },
+  "rejections": [
+    {"ticket": 49, "reason": "Foundation private-B2 activation remains prohibited by the current all-deny authority."},
+    {"ticket": 50, "reason": "Operations/recovery phase; #86 is the unresolved Runtime route enabler."},
+    {"ticket": 76, "reason": "Student workflow descendant; current Runtime phase requires #86 first despite one additional downstream descendant."},
+    {"ticket": 93, "reason": "Operations notification boundary; later roadmap phase than #86."},
+    {"ticket": 105, "reason": "Teacher/catalog workflow; user ordered #86 first. Re-evaluate after #86 closure and graph rebuild."},
+    {"ticket": 129, "reason": "Final-closure evidence ticket; acceptance shares unresolved #50A activation boundary."},
+    {"ticket": 130, "reason": "Final-closure evidence ticket; acceptance shares unresolved #50A activation boundary."},
+    {"ticket": 131, "reason": "Final-closure evidence ticket; acceptance shares unresolved #50A activation boundary."},
+    {"ticket": 132, "reason": "Final-closure evidence ticket; acceptance shares unresolved #50A activation boundary."},
+    {"ticket": 133, "reason": "Final-closure evidence ticket; acceptance shares unresolved #50A activation boundary."}
+  ]
+}

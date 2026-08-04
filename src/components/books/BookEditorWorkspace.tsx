@@ -1,5 +1,5 @@
 import { type ChangeEvent, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { get, ref, remove, set, update as updateDb } from 'firebase/database';
+import { get, ref } from 'firebase/database';
 import { FEATURE_IDS } from '../../config/featureRegistry';
 import { useAuth } from '../../hooks/useAuth';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
@@ -7,7 +7,6 @@ import { database } from '../../services/firebase';
 import r2StorageService from '../../services/r2Storage';
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../../services/materialCatalog/testTypeConfig.service';
 import {
-  createMaterialBooksRepository,
   updateBookMetadata,
   updateBookTree,
   type MaterialBooksRepository,
@@ -29,6 +28,7 @@ import {
 } from '../../services/materialCatalog/bookEditor.service';
 import {
   materialCatalogIds,
+  resolveMaterialBookMode,
   type MaterialBookMaterialRef,
   type MaterialBookMetadata,
   type MaterialBookNode,
@@ -41,6 +41,7 @@ import { writeReadingV2AuditEvent } from '../../services/reading-v2/readingV2Aud
 import { HomeworkCreateModal } from '../homework/HomeworkCreateModal';
 import BookMaterialPicker from './BookMaterialPicker';
 import BookNodeTree from './BookNodeTree';
+import { createFirebaseMaterialBooksRepository } from './useBookEditorModeResolution';
 import './BookEditorWorkspace.css';
 
 interface BookEditorWorkspaceProps {
@@ -413,6 +414,7 @@ const nodeLabel = (type: MaterialBookNodeType): string =>
 
 const bookFromPublicProjection = (projection: MaterialBookPublicProjection): MaterialBookMetadata => ({
   bookId: projection.bookId,
+  bookMode: resolveMaterialBookMode(projection.bookMode),
   ownerId: 'public-library',
   title: projection.title,
   subtitle: projection.subtitle,
@@ -429,23 +431,6 @@ const bookFromPublicProjection = (projection: MaterialBookPublicProjection): Mat
   createdBy: projection.approvedBy,
   updatedBy: projection.approvedBy,
 });
-
-const createFirebaseRepository = (): MaterialBooksRepository =>
-  createMaterialBooksRepository({
-    read: async (path) => {
-      const snapshot = await get(ref(database, path));
-      return snapshot.val();
-    },
-    write: async (path, value) => {
-      await set(ref(database, path), value);
-    },
-    remove: async (path) => {
-      await remove(ref(database, path));
-    },
-    update: async (payload) => {
-      await updateDb(ref(database), payload);
-    },
-  });
 
 const serializeForDirtyCheck = (value: unknown): string => JSON.stringify(value);
 
@@ -465,7 +450,10 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
   const mainRef = useRef<HTMLElement | null>(null);
   const initialNodeList = initialNodes ?? EMPTY_BOOK_NODES;
-  const resolvedRepository = useMemo(() => repository ?? createFirebaseRepository(), [repository]);
+  const resolvedRepository = useMemo(
+    () => repository ?? createFirebaseMaterialBooksRepository(),
+    [repository],
+  );
   const [book, setBook] = useState<MaterialBookMetadata | null>(initialBook ?? null);
   const [nodes, setNodes] = useState<readonly MaterialBookNode[]>(initialNodeList);
   // Last persisted/loaded node state; the dirty baseline for structure changes.

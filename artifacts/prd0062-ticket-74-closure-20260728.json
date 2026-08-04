@@ -1,0 +1,84 @@
+{
+  "ticket": "28A",
+  "issue": 74,
+  "recordedAt": "2026-07-28T04:01:21.288Z",
+  "stateBeforeClosure": "OPEN",
+  "selectionArtifact": "artifacts/prd0062-selection-20260728-post-ticket72-primary74.json",
+  "graphBeforeClosure": {
+    "artifact": "artifacts/prd0062-graph-20260728-post-ticket72-closed.json",
+    "issueHash": "a5a92d63d1459365b855576c083504c0e77c9df2cd2efed14d0dfc3a391d3af4",
+    "issueCount": 112,
+    "openCount": 60,
+    "closedCount": 52,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "selectedPrimary": 74,
+    "completeTransitivePrerequisitesClosed": true
+  },
+  "contractRepair": {
+    "owner": "#74 Book Runtime authorization",
+    "requiredAction": "Accept the current #72 schema-v3 binding at both runtime authorization paths, preserve supported schema-v2 draft reads, and keep schema-v2 mutations fail closed.",
+    "implemented": [
+      "Draft reads accept schema v2 legacy bindings and the current BOOK_DELIVERY_SCHEMA_VERSION.",
+      "Runtime mutations require the current BOOK_DELIVERY_SCHEMA_VERSION, which is v3.",
+      "Runtime authorization fixtures now carry the v3 outline, immutable Activity Version ID, Page Group pins, and current schema constant.",
+      "Both draft-read and command authorization paths have direct schema-v3 proof.",
+      "Schema-v2 draft-read compatibility and schema-v2 mutation denial are explicit tests."
+    ],
+    "preserved": [
+      "strict actor, binding, publication, source, placement, context, schedule, and response authorization",
+      "route gate disabled",
+      "#50A all-six-deny/default-deny",
+      "#03B disabled",
+      "private-B2 disabled",
+      "trusted actions disabled"
+    ]
+  },
+  "verification": [
+    {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest cloudflare run test/book-runtime-command-schema.test.ts test/book-runtime-authorization.test.ts test/book-runtime-repository.test.ts test/book-runtime-worker.test.ts test/book-runtime-route-integration.test.ts test/book-route-manifest.test.ts --typecheck --reporter=dot --passWithNoTests=false",
+      "result": "PASS: 6 files, 38 tests, no type errors"
+    },
+    {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/__tests__/security/bookRuntimeRuleFragment.test.ts --typecheck --reporter=dot --passWithNoTests=false",
+      "result": "PASS: 1 file, 2 tests, no type errors"
+    },
+    {
+      "command": "rtk node node_modules/eslint/bin/eslint.js cloudflare/src/upload-worker/book-runtime/authorization.ts cloudflare/test/book-runtime-authorization.test.ts cloudflare/test/book-runtime-worker.test.ts cloudflare/test/book-runtime-route-integration.test.ts",
+      "result": "PASS"
+    },
+    {
+      "command": "rtk npm run lint -- --quiet",
+      "result": "PASS: ESLint and Mantine boundary"
+    },
+    {
+      "command": "rtk npm run check:utf8",
+      "result": "PASS"
+    },
+    {
+      "command": "rtk git diff --check",
+      "result": "PASS"
+    },
+    {
+      "command": "rtk node scripts/harness/run-tool.mjs wrangler cloudflare deploy --config wrangler.jsonc --dry-run",
+      "result": "PASS: Wrangler 4.103.0; BOOK_RUNTIME_ROUTES_ENABLED and all Book activation gates read back disabled"
+    }
+  ],
+  "ownedPaths": [
+    "cloudflare/src/upload-worker/book-runtime/authorization.ts",
+    "cloudflare/test/book-runtime-authorization.test.ts",
+    "cloudflare/test/book-runtime-worker.test.ts",
+    "cloudflare/test/book-runtime-route-integration.test.ts"
+  ],
+  "proofBoundaries": {
+    "local": "#74-owned authorization, Worker, route-integration, command-schema, repository, service-identity, and fragment proof",
+    "assembled": "#118-owned generated database.rules.json and complete emulator proof; not claimed here",
+    "deployed": "#134-owned canary/deployment/readback/cleanup/rollback proof; not claimed here",
+    "browser": "#73/#75/#76-owned assembled student/browser proof; not claimed here"
+  },
+  "postClosureGraph": "artifacts/prd0062-graph-20260728-post-ticket74-closed.json",
+  "completionDecision": "Close #74 only after the live issue is formally closed, then rebuild the complete 112-ticket graph before selecting any descendant or releasing the #93/#94/#97 lane."
+}

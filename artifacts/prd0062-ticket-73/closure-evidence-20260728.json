@@ -1,0 +1,72 @@
+{
+  "ticket": 73,
+  "issue": 73,
+  "title": "PRD0062 22B - Run structural Book Runtime shell",
+  "stateBeforeClose": "OPEN",
+  "primarySelection": {
+    "roadmapPhase": "student-workflow",
+    "directPrerequisitesClosed": [36, 40, 54, 72],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 40, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65, 66, 72],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 44,
+    "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket59-closed.json",
+    "selectionArtifact": "artifacts/prd0062-selection-20260728-ticket73-student-shell.json"
+  },
+  "verification": {
+    "focusedApp": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/components/book-runtime/BookRuntimeShell.test.tsx src/hooks/book-runtime/useBookRuntimeNavigation.test.tsx src/config/featureRegistry.test.ts --typecheck --reporter=dot",
+      "result": "23 tests passed; no type errors"
+    },
+    "adjacentRuntimeAndDelivery": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/components/book-runtime/BookRuntimeFrame.test.tsx src/components/book-runtime/BookPdfViewer.test.tsx src/components/book-runtime/BookPdfViewerHost.test.tsx src/components/book-runtime/interactions/ActivityRendererHost.test.tsx src/services/book-delivery/bookDelivery.schema.test.ts src/services/book-delivery/bookDelivery.service.test.ts src/services/book-delivery/bookDelivery.entitlementLifecycle.test.ts src/services/book-delivery/bookDeliveryDependencyBoundary.test.ts src/services/book-activity/runtime/activityRendererRegistry.test.tsx src/services/book-activity/runtime/activityRendererManifest.test.ts src/services/book-activity/runtime/registrations/activityRendererRegistrations.test.ts src/services/book-activity/runtime/registrations/bookActivityAdapterRegistrations.test.ts src/services/book-activity/runtime/registrations/choiceTextEntryHostIntegration.test.tsx src/services/book-activity/runtime/registrations/matchingOrderingRendererRegistrations.test.ts src/routes/studentRoutes.test.tsx src/config/featureRegistry.test.ts --typecheck --reporter=dot",
+      "result": "65 tests passed; one unrelated pre-existing #39 adapter-registration suite fails because generic profile:null long-response is not accepted by the legacy native adapter mapper; no #73-owned diagnostic"
+    },
+    "lint": {
+      "command": "rtk node_modules/.bin/eslint <#73-owned TypeScript/TSX files>",
+      "result": "ok"
+    },
+    "utf8": {
+      "command": "rtk node scripts/check-utf8.mjs <#73-owned text files>",
+      "result": "passed"
+    },
+    "browser": {
+      "command": "rtk npm exec -- playwright test --config=playwright.prd0062-ticket73.config.mjs",
+      "result": "2 tests passed; Student quick-login, registered renderers, desktop/mobile navigation, PDF focus/restore, long-response pending review, URL back/forward, reload, invalid identity fail-closed, 200% layout zoom, and no console/page errors",
+      "url": "http://localhost:5174/__smoke/book-runtime",
+      "artifact": "artifacts/prd0062-ticket-73/browser/student-runtime-shell-20260728.json"
+    },
+    "productionBuild": {
+      "command": "rtk node scripts/harness/run-tool.mjs vite . build",
+      "result": "Vite production build passed; bundle budget passed"
+    }
+  },
+  "ownedProof": [
+    "student-safe Delivery projection binding into the structural Book Runtime shell",
+    "registry-only Activity rendering with unsupported registrations fail-closed",
+    "desktop split layout, Page Groups, collapse/restore, Activity navigation, and PDF focus/restore",
+    "mobile Book Page/Activity tabs and no horizontal overflow at 375px and 200% layout zoom",
+    "source-assisted missing-context fail-closed boundary",
+    "long-response pending-review presentation without objective scoring or canonical submit/save",
+    "stable Book, Unit, Page Group, and Activity URL identifiers with history/reload resynchronization",
+    "shared ActivityRendererHost and StudentLayout integration without live shell data reads"
+  ],
+  "destinationProof": {
+    "118": [
+      "assembled generated-rules enforcement, active rules hash/readback, and generated-rules rollback"
+    ],
+    "134": [
+      "deployed/canary runtime, identity/config readback, cleanup, and emergency rollback"
+    ],
+    "42C": [
+      "production launch dispatch into the structural shell"
+    ]
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "remoteDeployment": "not claimed",
+    "reopenedTickets": []
+  }
+}

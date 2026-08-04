@@ -17,7 +17,6 @@ export type MaterialSummaryLifecycleState = 'active' | 'archived' | 'removed';
 export type MaterialSummarySurfaceFamily =
   | 'assessment'
   | 'passage'
-  | 'activity'
   | 'book'
   | 'draft'
   | 'resource';
@@ -44,10 +43,6 @@ export interface MaterialSummary {
   readonly sourceFullTestId?: string;
   readonly hasBrokenRefs?: boolean;
   readonly brokenRefCount?: number;
-  readonly hasStudentSafeProjection?: boolean;
-  readonly deliveryProjectionReady?: boolean;
-  readonly studentSafeProjectionReady?: boolean;
-  readonly passageRefCount?: number;
   readonly updatedAt: string;
 }
 
@@ -101,10 +96,6 @@ const MATERIAL_SUMMARY_FIELDS = new Set([
   'sourceFullTestId',
   'hasBrokenRefs',
   'brokenRefCount',
-  'hasStudentSafeProjection',
-  'deliveryProjectionReady',
-  'studentSafeProjectionReady',
-  'passageRefCount',
   'updatedAt',
 ]);
 
@@ -143,7 +134,6 @@ const isOptionalNonNegativeNumber = (value: unknown): boolean =>
 const MATERIAL_SUMMARY_SURFACE_FAMILIES = new Set<MaterialSummarySurfaceFamily>([
   'assessment',
   'passage',
-  'activity',
   'book',
   'draft',
   'resource',
@@ -242,19 +232,6 @@ const isMaterialSummary = (value: unknown): value is MaterialSummary => {
     ) &&
     (value.hasBrokenRefs === undefined || typeof value.hasBrokenRefs === 'boolean') &&
     isOptionalNonNegativeNumber(value.brokenRefCount) &&
-    (
-      value.hasStudentSafeProjection === undefined ||
-      typeof value.hasStudentSafeProjection === 'boolean'
-    ) &&
-    (
-      value.deliveryProjectionReady === undefined ||
-      typeof value.deliveryProjectionReady === 'boolean'
-    ) &&
-    (
-      value.studentSafeProjectionReady === undefined ||
-      typeof value.studentSafeProjectionReady === 'boolean'
-    ) &&
-    isOptionalNonNegativeNumber(value.passageRefCount) &&
     isNonEmptyString(value.updatedAt)
   );
 };
@@ -284,6 +261,54 @@ export class MaterialSummaryContractError extends Error {
     this.name = 'MaterialSummaryContractError';
   }
 }
+
+const READING_V2_DELIVERY_METADATA_FIELDS = new Set([
+  'hasStudentSafeProjection',
+  'studentSafeProjectionReady',
+  'deliveryProjectionReady',
+  'passageRefCount',
+]);
+
+const normalizeReadingV2DeliveryMetadataForRead = (
+  value: unknown,
+): unknown => {
+  if (
+    !isRecord(value) ||
+    value.producerId !== 'reading-v2-full-test' ||
+    value.materialKind !== 'full-test'
+  ) {
+    return value;
+  }
+
+  const booleanFields = [
+    'hasStudentSafeProjection',
+    'studentSafeProjectionReady',
+    'deliveryProjectionReady',
+  ];
+  const hasInvalidBoolean = booleanFields.some((field) =>
+    Object.hasOwn(value, field) && typeof value[field] !== 'boolean',
+  );
+  const passageRefCount = value.passageRefCount;
+  const hasInvalidPassageRefCount =
+    Object.hasOwn(value, 'passageRefCount') &&
+    (
+      typeof passageRefCount !== 'number' ||
+      !Number.isFinite(passageRefCount) ||
+      passageRefCount < 0
+    );
+
+  if (hasInvalidBoolean || hasInvalidPassageRefCount) {
+    throw new MaterialSummaryContractError(
+      'Reading V2 delivery metadata violates the compatibility contract.',
+    );
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([field]) => !READING_V2_DELIVERY_METADATA_FIELDS.has(field),
+    ),
+  );
+};
 
 const isMaterialSummaryInput = (value: unknown): value is MaterialSummaryInput => {
   if (isMaterialSummary(value)) {
@@ -469,8 +494,9 @@ export const listActiveMaterialSummaries = async (
   }
 
   const summaries = Object.values(value).map((candidate) => {
-    assertMaterialSummary(candidate);
-    return normalizeMaterialSummary(candidate);
+    const compatibleCandidate = normalizeReadingV2DeliveryMetadataForRead(candidate);
+    assertMaterialSummary(compatibleCandidate);
+    return normalizeMaterialSummary(compatibleCandidate);
   });
 
   const invalidScopeRow = summaries.find((summary) =>

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "43",
+  "owner": {
+    "ticketId": "43",
+    "issue": 105,
+    "generatedRuleLocations": [
+      "material_catalog/public_book_projections/.read",
+      "material_catalog/public_book_projections/$bookId/.read",
+      "material_catalog/public_book_projections/$bookId/.write",
+      "material_catalog/public_book_projections/$bookId/.validate"
+    ],
+    "leastPrivilegePaths": [
+      "material_catalog/material_summary_indexes/v1/by_visibility/public",
+      "material_catalog/public_book_projections/$bookId",
+      "book_delivery/scopes/$recipientId/$contextId/current"
+    ]
+  },
+  "operations": [
+    {
+      "path": "material_catalog/public_book_projections",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "material_catalog/public_book_projections/$bookId",
+      "rule": ".read",
+      "merge": "replace-exact-authorization",
+      "requiresExistingRule": false,
+      "expression": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin')"
+    },
+    {
+      "path": "material_catalog/public_book_projections/$bookId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization",
+      "requiresExistingRule": true,
+      "expression": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+    },
+    {
+      "path": "material_catalog/public_book_projections/$bookId",
+      "rule": ".validate",
+      "merge": "conjoin-existing-validation-preserving-delete",
+      "requiresExistingRule": true,
+      "expression": "!newData.exists() || (newData.child('bookId').val() === $bookId && newData.child('visibility').val() === 'public-library-published' && newData.child('status').val() === 'ready' && !newData.child('provider').exists() && !newData.child('providerAuthority').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('credentials').exists() && !newData.child('answerKey').exists() && !newData.child('teacherNotes').exists() && !newData.child('candidates').exists() && !newData.child('homework').exists() && !newData.child('updates').exists() && !newData.child('sourceVersionId').exists())"
+    }
+  ]
+}

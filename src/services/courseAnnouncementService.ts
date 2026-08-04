@@ -6,7 +6,7 @@
 
 import { ref, push, set, get, query, orderByChild, equalTo } from 'firebase/database';
 import { database } from './firebase';
-import { createBulkNotifications } from './notificationService';
+import { createTrustedBulkNotifications } from './notificationProducerClient';
 import { getEnrollmentsByCourse } from './enrollmentManager';
 
 const ANNOUNCEMENTS_REF = 'course_announcements';
@@ -84,9 +84,12 @@ export async function createCourseAnnouncement(
         await set(announcementRef, announcementData);
 
         // Create notifications for all target students
-        const notificationResult = await createBulkNotifications(
+        const notificationResult = await createTrustedBulkNotifications(
             targetStudentIds,
             {
+                producerFamily: 'course-announcement',
+                authorityRecordId: announcementId,
+                operationKey: `course-announcement:${announcementId}`,
                 type: 'info',
                 title: `📢 ${announcement.courseName}: ${announcement.title}`,
                 message: stripHtml(announcement.content).substring(0, 200) + '...', // Preview

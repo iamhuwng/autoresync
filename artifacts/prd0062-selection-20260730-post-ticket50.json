@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-07-30T00:00:00.000Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-post-ticket50-closed.json",
+  "graphHash": "fb939afe5b62f66d00b1a0506cb3b69fa457ae00149086173d68bdcba6554868",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 48,
+    "closedCount": 64,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Runtime",
+  "graphClearFrontier": [
+    49,
+    76,
+    106,
+    129,
+    130,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 49,
+    "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+    "directPrerequisites": [
+      47,
+      48,
+      50
+    ],
+    "closedPrerequisites": [
+      47,
+      48,
+      50
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      44,
+      45,
+      46,
+      47,
+      48,
+      50
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 2,
+    "acceptanceReadiness": "Executable under the approved controlled disposable preview authority. Ticket-owned proof remains outstanding and must be run at the canonical runtime boundary.",
+    "requiredAuthority": [
+      "exact upload [writeFiles] identity",
+      "exact metadata [readFiles,listFiles] identity",
+      "exact document-read [readFiles] identity",
+      "separate #50 cleanup [deleteFiles] identity",
+      "separate #50 capacity [listFiles] identity",
+      "private B2 bucket, exact preview prefix, and exact CORS authority",
+      "canonical Book Worker deployment and truthful active-version/config readback",
+      "approved disposable preview data and cleanup authority",
+      "teacher browser on http://localhost:5173",
+      "account-scope free-tier/capacity evidence",
+      "explicit rollback authority; private B2/#03B/#50A/trusted actions remain disabled"
+    ],
+    "selectionReason": "Earliest unresolved Runtime root/enabler after #50 closure. All direct and transitive prerequisites are formally CLOSED, the approved architecture and preview authority are available, and this ticket owns the canonical provider/control seam that downstream activation and integration proof must consume."
+  },
+  "candidateRejections": [
+    {
+      "number": 76,
+      "title": "PRD0062 28C — Submit terminal Activity attempts and immutable results",
+      "reason": "Ineligible for the current Runtime phase: it is a later Student-workflow ticket, despite having a graph-clear transitive chain."
+    },
+    {
+      "number": 106,
+      "title": "PRD0062 44 — Reference or fork public Book content",
+      "reason": "Ineligible for the current Runtime phase: it is a later Teacher-workflow ticket, despite having a graph-clear transitive chain."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "reason": "Ineligible for the current Runtime phase: these are final-suite/integration tickets. Graph-clear status does not make their later browser, deployment, security, accessibility, observability, and rollback acceptance executable at this phase."
+    }
+  ],
+  "governingSafety": {
+    "privateB2": "DISABLED",
+    "03B": "DISABLED",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny",
+    "masterKey": "offline provisioning-only; never a runtime binding"
+  }
+}

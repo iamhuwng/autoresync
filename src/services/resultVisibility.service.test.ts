@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ResultVisibilitySnapshot } from '../types/results.types';
 import {
     buildDeletedSourceDisplayMetadata,
+    classifyBookResultVisibility,
     classifyTeacherResultVisibility,
 } from './resultVisibility.service';
 
@@ -283,6 +284,82 @@ describe('resultVisibility.service', () => {
         expect(verdict).toMatchObject({
             isVisibleToTeacher: false,
             exclusionReason: 'teacher_not_owner',
+        });
+    });
+});
+
+describe('Book result field visibility', () => {
+    it('withholds score and feedback from a student until release', () => {
+        const decision = classifyBookResultVisibility({
+            ownership: {
+                attemptId: 'attempt-1',
+                visible: true,
+                viewerRole: 'student',
+                reason: 'visible',
+            },
+            evaluationState: 'submitted',
+            feedbackRelease: 'withheld',
+        });
+
+        expect(decision).toMatchObject({
+            canViewResponse: true,
+            canViewScore: false,
+            canViewFeedback: false,
+            canViewSafeProvenance: true,
+        });
+    });
+
+    it('releases completed score and feedback only after the trusted gate opens', () => {
+        const decision = classifyBookResultVisibility({
+            ownership: {
+                attemptId: 'attempt-1',
+                visible: true,
+                viewerRole: 'student',
+                reason: 'visible',
+            },
+            evaluationState: 'graded',
+            feedbackRelease: 'released',
+        });
+
+        expect(decision).toMatchObject({
+            canViewResponse: true,
+            canViewScore: true,
+            canViewFeedback: true,
+        });
+    });
+
+    it('allows an owning teacher to inspect a pending Homework response but never overrides denial', () => {
+        const visible = classifyBookResultVisibility({
+            ownership: {
+                attemptId: 'attempt-1',
+                visible: true,
+                viewerRole: 'teacher',
+                reason: 'visible',
+            },
+            evaluationState: 'pending_review',
+            feedbackRelease: 'withheld',
+        });
+        const denied = classifyBookResultVisibility({
+            ownership: {
+                attemptId: 'attempt-solo',
+                visible: false,
+                viewerRole: 'teacher',
+                reason: 'private_solo',
+            },
+            evaluationState: 'submitted',
+            feedbackRelease: 'released',
+        });
+
+        expect(visible).toMatchObject({
+            canViewResponse: true,
+            canViewScore: false,
+            canViewFeedback: true,
+        });
+        expect(denied).toMatchObject({
+            canViewResponse: false,
+            canViewScore: false,
+            canViewFeedback: false,
+            canViewSafeProvenance: false,
         });
     });
 });

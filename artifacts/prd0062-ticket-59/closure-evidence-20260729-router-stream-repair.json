@@ -1,0 +1,53 @@
+{
+  "ticket": 59,
+  "title": "PRD0062 09D - Integrate Book Worker route dispatch",
+  "stateBeforeRepair": "CLOSED",
+  "stateAfterRepair": "OPEN_PENDING_CLOSURE",
+  "selectionArtifact": "artifacts/prd0062-selection-20260729-ticket59-router-gap.json",
+  "graphArtifactBeforeRepair": "artifacts/prd0062-graph-20260729-post-ticket59-reopened-router-gap.json",
+  "diagnosis": {
+    "reproductionCommand": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-router.test.ts --reporter=dot",
+    "reproductionResult": "FAIL: 15/15 assertions passed, exit code 1, two unhandled book_response_too_large errors at book-router.ts:374 under the configured isolated x64 Node v24.18.0 harness.",
+    "classification": "Product-test closure gap, not harness startup/discovery failure. The intended test file executed and the stream limit path produced the reported symptom.",
+    "rootCause": "Response.arrayBuffer() consumption caused Vitest/Node 24 to report the bounded stream controller error as duplicate unhandled errors even though the rejection assertion passed.",
+    "repair": "Consume the returned response body through its ReadableStream reader and assert the first bounded chunk plus the expected second-read rejection. This reaches the real limitResponseStream seam and attaches the rejection at the stream boundary."
+  },
+  "changedPaths": [
+    "cloudflare/test/book-router.test.ts"
+  ],
+  "proof": {
+    "focused": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-router.test.ts --reporter=dot",
+      "result": "PASS: 1 file, 15 tests, no unhandled errors"
+    },
+    "adjacentWithTypecheck": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-router.test.ts test/book-route-manifest.test.ts test/book-publication-route-handlers.test.ts --typecheck --reporter=dot",
+      "result": "PASS: 3 files, 46 tests, no type errors"
+    },
+    "wranglerDryRun": {
+      "command": "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run",
+      "result": "PASS: configured x64 Wrangler 4.103.0; all Book route/publication gates disabled; no deployment performed"
+    },
+    "utf8": {
+      "command": "node scripts/check-utf8.mjs cloudflare/test/book-router.test.ts",
+      "result": "PASS: 1 text file"
+    },
+    "diffCheck": {
+      "command": "git diff --check -- cloudflare/test/book-router.test.ts",
+      "result": "PASS"
+    }
+  },
+  "ownership": {
+    "ticket59": "Canonical route manifest/dispatcher and route-boundary proof; this repair changes only its router regression test.",
+    "ticket86": "Book Homework route/domain integration remains open and untouched.",
+    "ticket118": "Generated rules/assembled emulator/deployment readback remains unchanged.",
+    "ticket134": "Positive deployed/canary identity, browser, cleanup, and rollback proof remains destination-owned."
+  },
+  "safety": {
+    "trustedActionGates": "disabled",
+    "mode03B": "disabled",
+    "mode50A": "all-six-deny/default-deny",
+    "privateB2": "disabled",
+    "remoteDeployment": "not claimed"
+  }
+}

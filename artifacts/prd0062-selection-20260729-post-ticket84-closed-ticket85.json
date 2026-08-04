@@ -1,0 +1,116 @@
+{
+  "generatedAt": "2026-07-29T00:48:00+07:00",
+  "sourceGraph": "artifacts/prd0062-graph-20260729-post-ticket84-closed.json",
+  "issueHash": "1b35506db0614a0ad9ab64a31f0b676e4d5a890d3fbaf903d62b0eaad772434b",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 56,
+    "closedCount": 56,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 85, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "mandatoryTransitiveGate": {
+    "unresolvedTicketsAudited": 56,
+    "allUnresolvedTickets": [49, 50, 76, 77, 80, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 129, 130, 131, 132, 133, 134, 135, 136],
+    "completeChainSource": "Every unresolved ticket's directPrerequisites, transitivePrerequisites, and openTransitivePrerequisites are recorded in the source graph.",
+    "ineligibilityRule": "Any direct or transitive open prerequisite, ownership blocker, roadmap-phase mismatch, unavailable authority, or non-executable acceptance gate makes a ticket ineligible. Graph-clear alone is insufficient."
+  },
+  "rejectionGroups": {
+    "openTransitivePrerequisite": [77, 80, 86, 87, 88, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136],
+    "roadmapPhase": [76, 93, 129, 130, 131, 132, 133],
+    "authoritySafety": [49, 50],
+    "lowerCriticalPathLeverage": [105]
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Foundation candidate is not acceptance-ready: private-B2 provisioning and disposable-upload proof remain disabled and unauthorized."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Foundation candidate is not acceptance-ready: 50A remains all-six-deny/default-deny and activation authority is unavailable."
+    },
+    {
+      "ticket": 76,
+      "decision": "rejected",
+      "reason": "Graph-clear but belongs to the later student-workflow phase, not the active teacher-workflow phase."
+    },
+    {
+      "ticket": 85,
+      "decision": "selected",
+      "reason": "Earliest eligible teacher-workflow root after #84; all 30 transitive prerequisites are CLOSED. Local saga/ledger/CAS/replay/crash/compensation/committed-visibility gates are executable against the #84 authority and Book Delivery seams. Route/browser/deployment proof is destination-owned by #86; assembled generated-rules proof is owned by #118; activated/canary proof is owned by #134.",
+      "downstreamLeverage": 40
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected",
+      "reason": "Graph-clear but belongs to the later operations phase; it is not the active teacher-workflow root."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected",
+      "reason": "Graph-clear but has lower verified downstream leverage than #85 and is not the earliest unresolved root/enabler in the active phase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final-closure browser suite; roadmap phase is later and #127 remains an open prerequisite."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final-closure browser suite; roadmap phase is later and #127 remains an open prerequisite."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final-closure browser suite; roadmap phase is later and #127 remains an open prerequisite."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final-closure security suite; roadmap phase is later and #127 remains an open prerequisite."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final-closure recovery suite; roadmap phase is later and #127 remains an open prerequisite."
+    }
+  ],
+  "selection": {
+    "primaryTicket": 85,
+    "title": "PRD0062 33C — Run durable Book Homework assignment saga",
+    "roadmapPhase": "teacher-workflow",
+    "directClosedPrerequisites": [74, 84],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 74, 81, 82, 83, 84],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 40,
+    "acceptanceReadiness": "Executable local saga/ledger state-machine, deterministic IDs, recipient-scoped prepared records, CAS/replay, crash resume, compensation, committed-visibility, local rollback, and legacy-preservation gates. Canonical route/browser/preview deployment proof is destination-owned by #86; assembled generated-rules proof is owned by #118; activated/canary operational proof is owned by #134. No trusted production action is enabled.",
+    "requiredAuthority": [
+      "Closed #84 Firestore Book Homework authority interface",
+      "Closed Book Delivery recipient-binding interface",
+      "Local Firebase/Firestore emulator and deterministic RTDB fragment tests",
+      "Local test fixtures only; no production trusted-action activation, 50A change, 03B change, or private-B2 change"
+    ]
+  },
+  "ownership": {
+    "ticket85": "Assignment command validation, durable saga state machine, deterministic IDs, CAS/replay/crash recovery, recipient fan-out, compensation, committed visibility, scoped local rules/ledger proof, and local rollback.",
+    "ticket86": "Canonical route, teacher/student browser journeys, preview deployment, deployed identity/readback, and route rollback.",
+    "ticket118": "Assembled generated RTDB rules enforcement and deployment readback.",
+    "ticket134": "Activated/canary operational drills and rollback."
+  },
+  "safety": {
+    "trustedActionGates": "disabled",
+    "mode03B": "disabled",
+    "mode50A": "all-six-deny/default-deny",
+    "privateB2": "disabled",
+    "scope": "Preserve all 112 tickets; no early completion."
+  }
+}

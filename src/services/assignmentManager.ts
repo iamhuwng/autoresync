@@ -16,7 +16,7 @@ import type {
     AssignmentHistory
 } from '../types/assignment.types';
 import { getUserByEmail, getUserById } from './userService';
-import { createNotification } from './notificationService';
+import { createTrustedNotification } from './notificationProducerClient';
 import { logCreate, logDelete } from './auditService';
 
 // ============================================================================
@@ -656,8 +656,11 @@ export async function approveStudentRequest(
         // Notify Teacher
         try {
             const studentName = student.displayName || student.email;
-            await createNotification({
-                userId: request.teacherId,
+            await createTrustedNotification({
+                producerFamily: 'assignment',
+                authorityRecordId: requestId,
+                recipientId: request.teacherId,
+                operationKey: `assignment-request-approved:teacher:${requestId}`,
                 type: 'success',
                 title: 'Student Request Approved',
                 message: `Your request for student ${studentName} has been approved.`,
@@ -668,8 +671,11 @@ export async function approveStudentRequest(
             const teacher = await getUserById(request.teacherId);
             const teacherName = teacher?.displayName || teacher?.email || 'Unknown Teacher';
 
-            await createNotification({
-                userId: student.uid,
+            await createTrustedNotification({
+                producerFamily: 'assignment',
+                authorityRecordId: requestId,
+                recipientId: student.uid,
+                operationKey: `assignment-request-approved:student:${requestId}`,
                 type: 'info',
                 title: 'New Teacher Assigned',
                 message: `You have been assigned to ${teacherName}.`,

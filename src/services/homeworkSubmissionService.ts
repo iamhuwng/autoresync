@@ -22,7 +22,7 @@ import {
     orderBy
 } from 'firebase/firestore';
 // @ts-ignore - JS service file
-import { firestore as db } from './firebase';
+import { auth, firestore as db } from './firebase';
 import {
     getEffectiveHomeworkDueDate,
     getHomeworkById,
@@ -36,8 +36,212 @@ import type {
     HomeworkAssignment
 } from '../types/homework.types';
 import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
+import type { BookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.types';
+import { validateBookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.service';
+import { resolveBookHomeworkWorkerOrigin } from './homeworkAssignmentClient';
+import { buildRoute } from '../constants/routes';
+import { createTrustedNotification } from './notificationProducerClient';
 
 const SUBMISSION_COLLECTION = 'homework_submissions';
+
+export interface BookHomeworkProgressRequestOptions {
+    readonly workerOrigin?: string;
+    readonly studentId?: string;
+    readonly fetchImpl?: typeof fetch;
+    readonly getIdToken?: (forceRefresh?: boolean) => Promise<string>;
+    readonly signal?: AbortSignal;
+}
+
+export interface TeacherBookHomeworkProgressRow {
+    readonly studentId: string;
+    readonly completion: BookHomeworkProgressProjection;
+}
+
+export class BookHomeworkProgressReadError extends Error {
+    constructor(
+        message: string,
+        readonly status: number,
+        readonly code: string
+    ) {
+        super(message);
+        this.name = 'BookHomeworkProgressReadError';
+    }
+}
+
+const BOOK_HOMEWORK_READ_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
+
+const isTrustedNotificationIdentifier = (value: unknown): value is string =>
+    typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const isBookHomeworkProgressProjection = (
+    value: unknown
+): value is BookHomeworkProgressProjection =>
+    validateBookHomeworkProgressProjection(value).valid;
+
+/**
+ * Reads the trusted Book aggregate. It never falls back to legacy Homework
+ * score fields because completion progress and academic grading are different
+ * domains.
+ */
+export async function getBookHomeworkProgress(
+    homeworkId: string,
+    options: BookHomeworkProgressRequestOptions = {}
+): Promise<BookHomeworkProgressProjection | null> {
+    if (!BOOK_HOMEWORK_READ_ID.test(homeworkId)
+        || (options.studentId !== undefined && !BOOK_HOMEWORK_READ_ID.test(options.studentId))) {
+        throw new BookHomeworkProgressReadError(
+            'Book Homework progress identity is invalid.',
+            400,
+            'INVALID_BOOK_HOMEWORK_PROGRESS_REQUEST'
+        );
+    }
+    const getIdToken = options.getIdToken ?? (async (forceRefresh = false) => {
+        const user = auth.currentUser;
+        if (!user) {
+            throw new BookHomeworkProgressReadError(
+                'You must be signed in to view Book Homework progress.',
+                401,
+                'BOOK_HOMEWORK_AUTH_REQUIRED'
+            );
+        }
+        return user.getIdToken(forceRefresh);
+    });
+    const origin = options.workerOrigin ?? resolveBookHomeworkWorkerOrigin();
+    const endpoint = new URL(options.studentId
+        ? `/book-homework/assignments/${encodeURIComponent(homeworkId)}/students/${encodeURIComponent(options.studentId)}/projection`
+        : `/book-homework/assignments/${encodeURIComponent(homeworkId)}/student-projection`,
+    origin);
+    const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    let token = await getIdToken(false);
+    let response: Response | undefined;
+    let body: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        response = await fetchImpl(endpoint, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` },
+            signal: options.signal,
+        });
+        body = await response.json().catch(() => ({}));
+        if (response.status !== 401 || attempt === 1) break;
+        token = await getIdToken(true);
+    }
+    if (!response) {
+        throw new BookHomeworkProgressReadError(
+            'Book Homework progress service did not respond.',
+            503,
+            'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE'
+        );
+    }
+    if (response.status === 404) return null;
+    if (!response.ok || !isRecord(body) || !isBookHomeworkProgressProjection(body.completion)) {
+        const responseBody = isRecord(body) ? body : {};
+        throw new BookHomeworkProgressReadError(
+            String(responseBody.message ?? responseBody.code ?? 'Book Homework progress is unavailable.'),
+            response.ok ? 502 : response.status,
+            typeof responseBody.code === 'string'
+                ? responseBody.code
+                : 'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE'
+        );
+    }
+    const completion = body.completion;
+    if (completion.contextId !== homeworkId
+        || (options.studentId !== undefined && completion.recipientId !== options.studentId)) {
+        throw new BookHomeworkProgressReadError(
+            'Book Homework progress response is inconsistent.',
+            502,
+            'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE'
+        );
+    }
+    return completion;
+}
+
+/** One bounded teacher read; avoids browser-side per-student fan-out. */
+export async function getTeacherBookHomeworkProgress(
+    homeworkId: string,
+    options: Omit<BookHomeworkProgressRequestOptions, 'studentId'> = {}
+): Promise<readonly TeacherBookHomeworkProgressRow[] | null> {
+    if (!BOOK_HOMEWORK_READ_ID.test(homeworkId)) {
+        throw new BookHomeworkProgressReadError(
+            'Book Homework progress identity is invalid.',
+            400,
+            'INVALID_BOOK_HOMEWORK_PROGRESS_REQUEST'
+        );
+    }
+    const getIdToken = options.getIdToken ?? (async (forceRefresh = false) => {
+        const user = auth.currentUser;
+        if (!user) {
+            throw new BookHomeworkProgressReadError(
+                'You must be signed in to view Book Homework progress.',
+                401,
+                'BOOK_HOMEWORK_AUTH_REQUIRED'
+            );
+        }
+        return user.getIdToken(forceRefresh);
+    });
+    const origin = options.workerOrigin ?? resolveBookHomeworkWorkerOrigin();
+    const endpoint = new URL(
+        `/book-homework/assignments/${encodeURIComponent(homeworkId)}/teacher-projection`,
+        origin
+    );
+    const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    let token = await getIdToken(false);
+    let response: Response | undefined;
+    let body: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        response = await fetchImpl(endpoint, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` },
+            signal: options.signal,
+        });
+        body = await response.json().catch(() => ({}));
+        if (response.status !== 401 || attempt === 1) break;
+        token = await getIdToken(true);
+    }
+    if (!response) {
+        throw new BookHomeworkProgressReadError(
+            'Book Homework progress service did not respond.',
+            503,
+            'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE'
+        );
+    }
+    if (response.status === 404) return null;
+    const responseBody = isRecord(body) ? body : {};
+    const rows = responseBody.students;
+    if (!response.ok
+        || !Array.isArray(rows)
+        || rows.length > 30
+        || rows.some((row) => !isRecord(row)
+            || typeof row.studentId !== 'string'
+            || !BOOK_HOMEWORK_READ_ID.test(row.studentId)
+            || !isBookHomeworkProgressProjection(row.completion))) {
+        throw new BookHomeworkProgressReadError(
+            String(responseBody.message ?? responseBody.code ?? 'Book Homework progress is unavailable.'),
+            response.ok ? 502 : response.status,
+            typeof responseBody.code === 'string'
+                ? responseBody.code
+                : 'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE'
+        );
+    }
+    const seen = new Set<string>();
+    return rows.map((row) => {
+        const typed = row as { studentId: string; completion: BookHomeworkProgressProjection };
+        if (seen.has(typed.studentId)
+            || typed.completion.recipientId !== typed.studentId
+            || typed.completion.contextId !== homeworkId) {
+            throw new BookHomeworkProgressReadError(
+                'Book Homework progress response is inconsistent.',
+                502,
+                'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE'
+            );
+        }
+        seen.add(typed.studentId);
+        return typed;
+    });
+}
 
 // ============================================================================
 // ERROR TYPES
@@ -830,17 +1034,35 @@ export async function resetStudentHomework(
         // Non-critical — submissions are already deleted
     }
 
-    // 8. Send notification to the student
-    try {
-        const { sendHomeworkResetNotification } = await import('./notificationService');
-        await sendHomeworkResetNotification(
-            studentId,
-            homeworkId,
-            homeworkTitle || 'Homework'
-        );
-    } catch (err) {
-        console.warn('Failed to send homework reset notification:', err);
-        // Non-critical
+    // 8. Emit a trusted command for the student notification. The recipient
+    // comes from the canonical submission row, never from the reset request.
+    const submissionRecipientId = submissions[0]?.studentId;
+    const hasConsistentSubmissionRecipient = Boolean(
+        submissionRecipientId
+        && submissions.every((submission) => submission.studentId === submissionRecipientId)
+    );
+    const authorityHomeworkId = homework?.id === homeworkId ? homework.id : undefined;
+    if (
+        hasConsistentSubmissionRecipient
+        && authorityHomeworkId
+        && isTrustedNotificationIdentifier(submissionRecipientId)
+        && isTrustedNotificationIdentifier(authorityHomeworkId)
+    ) {
+        await createTrustedNotification({
+            producerFamily: 'homework',
+            authorityRecordId: authorityHomeworkId,
+            recipientId: submissionRecipientId,
+            operationKey: `homework-reset:${authorityHomeworkId}`,
+            type: 'warning',
+            title: '\uD83D\uDD04 Homework Reset',
+            message: `Your homework "${homeworkTitle || 'Homework'}" has been reset by your teacher. You can now retake it.`,
+            link: buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId: authorityHomeworkId }),
+        }).catch((err) => {
+            console.warn('Failed to send homework reset notification:', err);
+            // Non-critical
+        });
+    } else {
+        console.warn('Skipped homework reset notification: trusted recipient or authority was unavailable.');
     }
 
     console.log(

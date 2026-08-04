@@ -1,0 +1,61 @@
+{
+  "ticket": 76,
+  "generatedAt": "2026-07-30",
+  "roadmapPhase": "runtime",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket76-contract-repair.json",
+  "graphIssueHash": "8486fc7f5989cae9e4addaf8451f842687ec68dc4c8ec0baa449fd313f28ec01",
+  "closedPrerequisites": [74, 75],
+  "acceptance": {
+    "terminalCommand": "Implemented authenticated submit after draft acknowledgement, immutable attempt/result/completion/index records, duplicate-completion conflict handling, and replay-safe terminal acknowledgement.",
+    "scoringBoundary": "Worker submission requires a trusted Activity resolver and scores only the resolved normalized Activity; missing resolver, missing interaction, and invalid response fail closed. Student-safe Delivery projections do not contain answer keys or normalized Activity content.",
+    "resultSemantics": "Objective responses persist scored/submitted results; long-response or otherwise non-objective responses persist review_required/pending_review results.",
+    "browserSurface": "Existing authenticated Student Book Runtime smoke fixture at http://localhost:5174; no new route or production activation.",
+    "browserEvidence": [
+      "Authenticated Student Test session opened the existing Book Runtime fixture.",
+      "Choice Activity: selected the accessible Statement A radio control, submitted successfully, and observed Activity submitted with the submit control disabled.",
+      "Text-entry Activity: entered a response, submitted successfully, and observed Activity submitted with the submit control disabled.",
+      "Long-response Activity: entered a response, submitted successfully, and observed Submitted for review with the submit control disabled.",
+      "Hook-level double-submit test proves the terminal acknowledgement is reused and the submit client call occurs once."
+    ],
+    "deployedProof": "Not claimed. Deployed/canary identity, generated-rules readback, cleanup, telemetry, and rollback drill remain owned by #134.",
+    "rollback": "Submission is fail-closed when the trusted Activity resolver is unavailable; drafts remain readable and local recovery remains available. No trusted or production gate was enabled."
+  },
+  "verification": {
+    "rootFocused": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/hooks/book-runtime/useBookActivityRuntime.test.tsx src/services/book-activity/activityRuntime.browser.test.ts src/services/book-activity/activityDomain.service.test.ts src/services/book-activity/activityDomain.property.test.ts src/config/featureRegistry.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "testFiles": 5,
+      "testsPassed": 48,
+      "typeErrors": 0
+    },
+    "cloudflareFocused": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-runtime-terminal-submit.test.ts test/book-runtime-worker.test.ts test/book-runtime-repository.test.ts test/book-runtime-authorization.test.ts test/book-runtime-command-schema.test.ts test/book-runtime-canonical-composition.test.ts test/book-runtime-route-integration.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "testFiles": 7,
+      "testsPassed": 23,
+      "typeErrors": 0
+    },
+    "lint": "Scoped ESLint passed for all #76 implementation/test paths.",
+    "mantineBoundary": "Passed; 53 changed source files checked.",
+    "utf8": "Passed for all 11 #76 implementation/test text files.",
+    "diffCheck": "git diff --check passed.",
+    "productionBuild": {
+      "command": "node scripts/harness/run-tool.mjs vite . build",
+      "modulesTransformed": 9448,
+      "result": "passed",
+      "duration": "4m35s"
+    },
+    "bundleBudget": "Passed.",
+    "workerDryRun": {
+      "command": "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run --config wrangler.jsonc",
+      "result": "passed",
+      "safetyReadback": "BOOK_RUNTIME_ROUTES_ENABLED=disabled; all trusted, publication, Delivery, source, and rollout gates remained disabled."
+    }
+  },
+  "safetyState": {
+    "03B": "DISABLED_BY_DEFAULT",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "trustedActions": "DISABLED",
+    "privateB2": "DISABLED",
+    "scope": "Full 112-ticket scope preserved; no early completion."
+  },
+  "result": "READY_FOR_CLOSURE_AUDIT"
+}

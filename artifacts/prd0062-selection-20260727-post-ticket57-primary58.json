@@ -1,0 +1,153 @@
+{
+  "generatedAt": "2026-07-27T03:36:00.000Z",
+  "selectionStatus": "selected",
+  "selectedPrimary": {
+    "issue": 58,
+    "ticket": "09C",
+    "title": "PRD0062 09C — Authorize teacher Assembly document preview",
+    "roadmapPhase": "runtime trusted seam / teacher preview enabler",
+    "selectionReason": "All direct and transitive prerequisites are formally CLOSED; acceptance gates are executable with available Firebase, preview-deployment, browser, and existing 09A/09B authority; #58 has the strongest verified downstream leverage among eligible non-final candidates after #57 closure."
+  },
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket57-closed.json",
+    "issueHash": "0788c7db003e95d571bbdbe38afeb080ea666141e450dfc515d9909b248a40ac",
+    "issueCount": 112,
+    "openCount": 78,
+    "closedCount": 34,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [
+      49,
+      50,
+      58,
+      61,
+      65,
+      66,
+      70,
+      129,
+      130,
+      131,
+      132,
+      133
+    ]
+  },
+  "closedPrerequisites": {
+    "direct": [
+      31,
+      35,
+      51,
+      57
+    ],
+    "transitiveOpen": []
+  },
+  "candidateDisposition": [
+    {
+      "issue": 49,
+      "downstreamLeverage": 2,
+      "phase": "runtime / B2 provisioning",
+      "eligible": true,
+      "rejection": "Independent graph-clear B2 provisioning ticket, but lower downstream unblock value and separate remote provisioning/billing proof family than the current Assembly preview critical path."
+    },
+    {
+      "issue": 50,
+      "downstreamLeverage": 16,
+      "phase": "operations / upload reconciliation",
+      "eligible": true,
+      "rejection": "Independent graph-clear upload reconciliation ticket, but lower current critical-path leverage and separate lifecycle-cleanup proof family; not selected while #58 can unblock Assembly preview/route/publishing descendants."
+    },
+    {
+      "issue": 58,
+      "downstreamLeverage": 63,
+      "phase": "runtime trusted seam / teacher preview enabler",
+      "eligible": true,
+      "selected": true
+    },
+    {
+      "issue": 61,
+      "downstreamLeverage": 27,
+      "phase": "teacher workflow",
+      "eligible": true,
+      "rejection": "Graph-clear after #57, but later teacher-import workflow with lower leverage than #58 and depends operationally on the preview/document-access seam being clarified first."
+    },
+    {
+      "issue": 65,
+      "downstreamLeverage": 60,
+      "phase": "runtime publication adapter",
+      "eligible": true,
+      "rejection": "Graph-clear after #64, but publication adapter work follows the #58 teacher Assembly document-preview authority seam; lower leverage than #58."
+    },
+    {
+      "issue": 66,
+      "downstreamLeverage": 60,
+      "phase": "runtime publication adapter",
+      "eligible": true,
+      "rejection": "Graph-clear after #64, but component publication adapter work follows the #58 teacher Assembly document-preview authority seam; lower leverage than #58."
+    },
+    {
+      "issue": 70,
+      "downstreamLeverage": 27,
+      "phase": "operations / teacher workflow migration",
+      "eligible": true,
+      "rejection": "Graph-clear after #57, but unpublished source-strategy migration is later operations/repair workflow and lower leverage than #58."
+    },
+    {
+      "issue": 129,
+      "downstreamLeverage": 2,
+      "phase": "final closure",
+      "eligible": false,
+      "rejection": "Final/regression evidence only; graph-clear status does not make it acceptance-ready while runtime, teacher, student, operations, deployment/security/rollback scope remains unresolved."
+    },
+    {
+      "issue": 130,
+      "downstreamLeverage": 2,
+      "phase": "final closure",
+      "eligible": false,
+      "rejection": "Final/regression evidence only; not phase-eligible and still shares unresolved downstream runtime/student acceptance."
+    },
+    {
+      "issue": 131,
+      "downstreamLeverage": 2,
+      "phase": "final closure",
+      "eligible": false,
+      "rejection": "Final/regression evidence only; not phase-eligible and unresolved student/device acceptance remains."
+    },
+    {
+      "issue": 132,
+      "downstreamLeverage": 2,
+      "phase": "final closure",
+      "eligible": false,
+      "rejection": "Final/regression evidence only; not phase-eligible while contract/security closure inputs remain incomplete."
+    },
+    {
+      "issue": 133,
+      "downstreamLeverage": 2,
+      "phase": "final closure",
+      "eligible": false,
+      "rejection": "Final/regression evidence only; not phase-eligible while legacy, backup, and recovery closure inputs remain incomplete."
+    }
+  ],
+  "authorityAndReadiness": {
+    "requiredAuthority": [
+      "GitHub issue read/write for live contract closure/selection",
+      "local repository implementation authority in the reconciled worktree",
+      "Firebase CLI/gcloud readback and preview deploy authority",
+      "Chrome/browser acceptance through teacher quick-login",
+      "existing 09A/09B private-read seam and safe denial proof"
+    ],
+    "acceptanceReadiness": "Executable under current authority. #58 does not require enabling #50A, #03B, Mode 1, generated database.rules.json ownership, or top-level 09D dispatcher ownership."
+  },
+  "selectionRuleChecks": {
+    "onePrimary": true,
+    "allDirectAndTransitivePrerequisitesClosed": true,
+    "currentRoadmapPhase": true,
+    "acceptanceGatesExecutable": true,
+    "ownershipAndAuthorityAvailable": true,
+    "highestClosureAndDownstreamValueAmongEligibleCurrentPhaseCandidates": true,
+    "finalTicketsRejectedDespiteGraphClear": true,
+    "preservesFull112TicketScope": true
+  }
+}

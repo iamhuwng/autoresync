@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "12C",
+  "owner": {
+    "ticketId": "12C",
+    "issue": 35,
+    "generatedRuleLocations": [
+      "book_activity_authoring/.read",
+      "book_activity_authoring/.write",
+      "book_activity_authoring/owners/$ownerId/.read",
+      "book_activity_authoring/owners/$ownerId/.write"
+    ],
+    "serviceIdentity": "book_activity_authoring_service",
+    "leastPrivilegePaths": [
+      "users/$ownerId",
+      "book_activity_authoring/owners/$ownerId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_activity_authoring",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_authoring",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_authoring/owners/$ownerId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_authoring_service == true && auth.token.book_activity_authoring_ownerId == $ownerId"
+    },
+    {
+      "path": "book_activity_authoring/owners/$ownerId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_authoring_service == true && auth.token.book_activity_authoring_ownerId == $ownerId"
+    }
+  ]
+}

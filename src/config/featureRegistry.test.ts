@@ -14,6 +14,7 @@ describe('featureRegistry', () => {
   describe('resolveFeatureFromRoute', () => {
     it('maps known student test routes to testTaking', () => {
       expect(resolveFeatureFromRoute('/student-test/ABC123')).toBe('testTaking');
+      expect(resolveFeatureFromRoute('/__smoke/book-runtime')).toBe('testTaking');
     });
 
     it('maps known homework routes to homework', () => {
@@ -121,6 +122,12 @@ describe('featureRegistry', () => {
         'reading_v2_assignment_refresh_opened',
         'reading_v2_assignment_refresh_submitted',
         'reading_v2_assignment_refresh_blocked_started',
+        'bookActivityGradingOpened',
+        'bookActivityEvaluationLoaded',
+        'bookActivityGradeSubmitted',
+        'bookActivityRegradeSubmitted',
+        'bookActivityEvaluationConflict',
+        'bookActivityEvaluationRetried',
       ]));
       expect(liveSessions?.actions).toContain('viewIntegrityDetails');
       expect(results?.actions).toContain('viewIntegrityDetails');
@@ -137,6 +144,11 @@ describe('featureRegistry', () => {
           'openCreateBookModal',
           'createBook',
           'openBook',
+          'book_source_pdf_inspection_started',
+          'book_source_pdf_inspection_completed',
+          'book_source_pdf_inspection_failed',
+          'book_source_pdf_inspection_canceled',
+          'book_source_pdf_inspection_retried',
           'editBookMetadata',
           'archiveBook',
           'changeBookScope',
@@ -192,6 +204,14 @@ describe('featureRegistry', () => {
           'teacher_materials_reading_passage_homework_submitted',
           'reading_v2_assignment_payload_missing',
           'reading_v2_frozen_runtime_launched',
+          'bookRuntimePageGroupSelected',
+          'bookRuntimeActivitySelected',
+          'bookRuntimeActivityNavigated',
+          'bookRuntimePdfFocused',
+          'bookRuntimeSplitRestored',
+          'bookRuntimeNavigatorToggled',
+          'bookRuntimeTabSwitched',
+          'bookRuntimeResponseChanged',
         ]),
       );
       expect(results?.actions).toEqual(
@@ -202,6 +222,7 @@ describe('featureRegistry', () => {
           'submitReadingV2Feedback',
           'createReadingV2Regrade',
           'readingV2OperationalError',
+          'bookActivityResultRetried',
         ]),
       );
       expect(antiCheat?.actions).toEqual(

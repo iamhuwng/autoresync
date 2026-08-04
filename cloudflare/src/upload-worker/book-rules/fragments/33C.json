@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "33C",
+  "owner": {
+    "ticketId": "33C",
+    "issue": 85,
+    "generatedRuleLocations": [
+      "book_homework/.read",
+      "book_homework/.write",
+      "book_homework/operations/$assignmentId/.read",
+      "book_homework/operations/$assignmentId/.write",
+      "book_homework/operations/$assignmentId/recipients/$recipientId/.validate"
+    ],
+    "serviceIdentity": "book_homework_service",
+    "leastPrivilegePaths": [
+      "book_homework/operations/$assignmentId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_homework",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_homework",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_homework/operations/$assignmentId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_homework_service == true && (!data.exists() || (auth.token.book_homework_ownerId == data.child('ownerId').val() && data.child('assignmentId').val() == $assignmentId))"
+    },
+    {
+      "path": "book_homework/operations/$assignmentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_homework_service == true && auth.token.book_homework_ownerId == newData.child('ownerId').val() && newData.child('schemaVersion').val() == 1 && newData.child('assignmentId').val() == $assignmentId && newData.child('operationId').isString() && newData.child('idempotencyKey').isString() && newData.child('ownerId').isString() && newData.child('manifestVersionId').isString() && newData.child('publicationId').isString() && newData.child('publicationRevision').isNumber() && newData.child('contextId').val() == $assignmentId && newData.child('fingerprint').isString() && newData.child('requestFingerprint').isString() && (newData.child('state').val() == 'prepared' || newData.child('state').val() == 'fanout_pending' || newData.child('state').val() == 'committed' || newData.child('state').val() == 'compensating' || newData.child('state').val() == 'compensated' || newData.child('state').val() == 'failed_retryable' || newData.child('state').val() == 'failed_terminal') && ((newData.child('state').val() == 'committed' && newData.child('visibility').val() == 'committed' && newData.child('committedRecipientCount').val() == newData.child('recipientCount').val()) || (newData.child('state').val() != 'committed' && newData.child('visibility').val() == 'hidden')) && newData.child('recipients').hasChildren() && newData.child('recipientCount').isNumber() && newData.child('committedRecipientCount').isNumber() && newData.child('committedRecipientCount').val() <= newData.child('recipientCount').val() && newData.child('revision').isNumber() && ((!data.exists() && newData.child('state').val() == 'prepared' && newData.child('visibility').val() == 'hidden' && newData.child('revision').val() == 1) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('assignmentId').val() == data.child('assignmentId').val() && newData.child('ownerId').val() == data.child('ownerId').val() && newData.child('operationId').val() == data.child('operationId').val() && newData.child('idempotencyKey').val() == data.child('idempotencyKey').val() && newData.child('requestFingerprint').val() == data.child('requestFingerprint').val() && ((data.child('state').val() == 'prepared' && (newData.child('state').val() == 'fanout_pending' || newData.child('state').val() == 'compensating' || newData.child('state').val() == 'failed_retryable')) || (data.child('state').val() == 'fanout_pending' && (newData.child('state').val() == 'committed' || newData.child('state').val() == 'compensating' || newData.child('state').val() == 'failed_retryable' || newData.child('state').val() == 'failed_terminal')) || (data.child('state').val() == 'compensating' && (newData.child('state').val() == 'compensated' || newData.child('state').val() == 'failed_terminal')) || (data.child('state').val() == 'failed_retryable' && (newData.child('state').val() == 'fanout_pending' || newData.child('state').val() == 'compensating' || newData.child('state').val() == 'failed_terminal')) || data.child('state').val() == newData.child('state').val()))) && newData.child('createdAt').isString() && newData.child('updatedAt').isString() && (!data.exists() || (data.child('state').val() != 'committed' && data.child('state').val() != 'compensated' && data.child('state').val() != 'failed_terminal')) && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+    },
+    {
+      "path": "book_homework/operations/$assignmentId/recipients/$recipientId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_homework_service == true && newData.hasChildren(['recipientId', 'authorityId', 'bindingId', 'state']) && newData.child('recipientId').val() == $recipientId && newData.child('authorityId').val() == ($assignmentId + '--' + $recipientId + '--authority') && newData.child('bindingId').val() == ($assignmentId + '--' + $recipientId + '--delivery') && (newData.child('state').val() == 'pending' || newData.child('state').val() == 'prepared' || newData.child('state').val() == 'active' || newData.child('state').val() == 'committed' || newData.child('state').val() == 'compensating' || newData.child('state').val() == 'compensated' || newData.child('state').val() == 'retained') && (newData.parent().parent().child('state').val() != 'committed' || newData.child('state').val() == 'committed') && (!data.exists() || (newData.child('recipientId').val() == data.child('recipientId').val() && newData.child('authorityId').val() == data.child('authorityId').val() && newData.child('bindingId').val() == data.child('bindingId').val()))"
+    }
+  ]
+}
