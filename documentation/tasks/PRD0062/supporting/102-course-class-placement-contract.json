@@ -17,7 +17,7 @@
     "deliveryBinding": "one immutable bindingId per student, context, placement and pin set"
   },
   "authorityModel": {
-    "owner": "Course owner controls placement; Class consumption is constrained by linked course authority and active enrolment.",
+    "owner": "#102 private-owner Course path: actor, Course owner, context owner, issuer.ownerId, and accepted Book publication owner match. Public/external reference or fork authority belongs to #106.",
     "enrolment": "Student must pass existing Course/Class enrolment and module access before a Book entitlement is issued.",
     "teacherVisibility": "Only teacher-owned Course/Class attempts/results are visible to their authorized teacher context."
   },

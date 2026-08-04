@@ -1,0 +1,9 @@
+{
+  "ticket": "#102/42A",
+  "classification": "LOCAL_DOMAIN_PROOF_ONLY",
+  "status": "PASS",
+  "authority": "private-owner: actor, Course owner, context owner, issuer owner and Book publication owner match",
+  "projectionBoundary": "course-book-delivery-v1 consumed by #104; no shared dispatch or browser proof claimed",
+  "covered": ["idempotent placement", "pin conflict", "owner denial", "enrolment/module/bare denial", "revocation", "student-isolated progress/result keys"],
+  "notClaimed": ["Worker composition", "active rules", "browser proof", "deployed proof"]
+}
