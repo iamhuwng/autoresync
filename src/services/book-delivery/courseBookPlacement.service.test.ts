@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createCourseBookPlacementService,
+  deriveCourseBookCompletion,
   InMemoryCourseBookPlacementRepository,
   type CourseBookPins,
 } from './courseBookPlacement.service';
@@ -53,8 +54,41 @@ describe('Course Book placement', () => {
     const resolved = service.resolve(common);
     expect(resolved.context.contextId).toBe('course-material-001');
     expect(resolved.activityKeys).toHaveLength(2);
-    expect(resolved.activityKeys[0]?.progressKey).toContain('binding_student_001:student-001:course-material-001:activity-version-001');
+    expect(resolved.activityKeys[0]?.progressKey).toContain('binding_student_001:student-001:course-material-001:placement-001:activity-version-001');
     expect(() => service.resolve({ ...common, actorId: 'student-002' })).toThrow('denied');
+  });
+
+  it('keeps duplicate same-Activity placements isolated and completes only when every placement is submitted', () => {
+    const duplicatePins: CourseBookPins = {
+      ...pins,
+      selectedActivities: [
+        pins.selectedActivities[0]!,
+        { ...pins.selectedActivities[0]!, placementId: 'placement-duplicate', nodeKey: 'unit-duplicate' },
+      ],
+    };
+    const repository = new InMemoryCourseBookPlacementRepository();
+    const service = createCourseBookPlacementService(repository);
+    const created = service.place({
+      ...placementInput,
+      pins: duplicatePins,
+      selection: { kind: 'placements', nodeKeys: [] as const, placementIds: ['placement-001', 'placement-duplicate'] },
+    }).placement;
+    const first = deriveCourseBookCompletion(created, 'student-001', 'binding-001', [{
+      bindingId: 'binding-001', studentId: 'student-001', courseMaterialId: 'course-material-001',
+      placementId: 'placement-001', activityVersionId: 'activity-version-001', status: 'completed',
+    }]);
+    expect(first).toMatchObject({ requiredCount: 2, completedCount: 1, status: 'in-progress' });
+    expect(new Set(first.requiredKeys).size).toBe(2);
+    expect(deriveCourseBookCompletion(created, 'student-001', 'binding-001', [
+      {
+        bindingId: 'binding-001', studentId: 'student-001', courseMaterialId: 'course-material-001',
+        placementId: 'placement-001', activityVersionId: 'activity-version-001', status: 'completed',
+      },
+      {
+        bindingId: 'binding-001', studentId: 'student-001', courseMaterialId: 'course-material-001',
+        placementId: 'placement-duplicate', activityVersionId: 'activity-version-001', status: 'completed',
+      },
+    ])).toMatchObject({ requiredCount: 2, completedCount: 2, status: 'completed' });
   });
 
   it('revokes deny-only and preserves immutable placement history', () => {

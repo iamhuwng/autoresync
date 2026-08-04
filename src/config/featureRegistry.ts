@@ -24,6 +24,7 @@ export const FEATURE_IDS = {
   adminPanel: 'adminPanel',
   antiCheat: 'antiCheat',
   classes: 'classes',
+  courses: 'courses',
   grading: 'grading',
   homework: 'homework',
   readingV2Studio: 'readingV2Studio',
@@ -473,7 +474,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     description: 'Homework assignment and management',
   },
   {
-    id: 'courses',
+    id: FEATURE_IDS.courses,
     name: 'Courses',
     routes: [
       '/teacher/courses',
@@ -488,6 +489,10 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'enrollStudent',
       'syncCourse',
       'addMaterial',
+      'openCourseBookPlacement',
+      'placeCourseBook',
+      'revokeCourseBook',
+      'prepareCourseBook',
       'addAnnouncement',
     ],
     description: 'Course management for teachers and students',

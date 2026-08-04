@@ -4,7 +4,8 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { useSortable, arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, Group, Text, ActionIcon, Badge, TextInput, Tooltip, Collapse, Stack, Button } from '@mantine/core';
-import { IconGripVertical, IconEdit, IconTrash, IconBook, IconCheck, IconPlus, IconChevronRight, IconRefresh, IconAlertTriangle, IconPlayerPlay, IconSettings } from '@tabler/icons-react';
+import { IconGripVertical, IconEdit, IconTrash, IconBook, IconCheck, IconPlus, IconChevronRight, IconRefresh, IconAlertTriangle, IconPlayerPlay, IconSettings, IconBooks } from '@tabler/icons-react';
+import { buildRoute } from '../../constants/routes';
 import type { Module, CourseMaterial } from '../../types/course.types';
 import type { ModuleSyncStatus } from '../../services/courseSyncService';
 import { ModuleSyncBanner } from './ModuleSyncBanner';
@@ -46,6 +47,7 @@ interface ModuleItemProps {
     onSyncComplete?: () => void;         // Callback when sync apply/dismiss completes
     onMarkComplete?: () => void;
     onAddMaterial?: () => void;
+    onAddBook?: () => void;
     onSyncMaterial?: (linkId: string) => Promise<void>;
     onRemoveMaterial?: (linkId: string) => Promise<void>;
     onReorderMaterials?: (newOrder: string[]) => Promise<void>;
@@ -88,17 +90,23 @@ const SortableMaterialItem = ({
                             <IconGripVertical size={14} color="gray" />
                         </div>
                         <IconBook size={13} color="gray" />
-                        <Text
-                            size="xs"
-                            fw={500}
-                            component={Link}
-                            to={`/material/${material.materialId}`}
-                            state={{ courseId: material.courseId, moduleId: material.moduleId }}
-                            style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', minWidth: 0, lineHeight: 1.3 }}
-                            lineClamp={1}
-                        >
-                            {material.title}
-                        </Text>
+                        {material.materialKind === 'book-delivery' ? (
+                            <Text
+                                size="xs" fw={500} component={Link}
+                                to={buildRoute('TEACHER_MATERIAL_BOOK', { bookId: material.materialId })}
+                                style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', minWidth: 0, lineHeight: 1.3 }}
+                                lineClamp={1}
+                            >{material.title}</Text>
+                        ) : (
+                            <Text
+                                size="xs" fw={500} component={Link}
+                                to={`/material/${material.materialId}`}
+                                state={{ courseId: material.courseId, moduleId: material.moduleId }}
+                                style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', minWidth: 0, lineHeight: 1.3 }}
+                                lineClamp={1}
+                            >{material.title}</Text>
+                        )}
+                        {material.materialKind === 'book-delivery' && <Badge size="xs" color="violet">Book</Badge>}
                         {material.isCopy && <Badge size="xs" color="blue" variant="dot">Copy</Badge>}
                         {material.isUnavailable && <Badge size="xs" color="red" leftSection={<IconAlertTriangle size={9} />}>Unavailable</Badge>}
                         {material.isCopy && material.syncedAt && (
@@ -125,7 +133,7 @@ const SortableMaterialItem = ({
                                 color="red"
                                 size="sm"
                                 onClick={() => onRemove(material.id)}
-                                aria-label="Remove material"
+                                aria-label={material.materialKind === 'book-delivery' ? 'Revoke Book item' : 'Remove material'}
                                 styles={iconActionStyles}
                             >
                                 <IconTrash size={13} />
@@ -147,6 +155,7 @@ export const ModuleItem = ({
     onSyncComplete,
     onMarkComplete,
     onAddMaterial,
+    onAddBook,
     onSyncMaterial,
     onRemoveMaterial,
     onReorderMaterials,
@@ -304,6 +313,13 @@ export const ModuleItem = ({
                             </ActionIcon>
                         </Tooltip>
                     )}
+                    {onAddBook && (
+                        <Tooltip label="Add a published Book to this module">
+                            <ActionIcon variant="light" color="violet" onClick={onAddBook} aria-label="Add Book" styles={iconActionStyles}>
+                                <IconBooks size={14} />
+                            </ActionIcon>
+                        </Tooltip>
+                    )}
                     {module.accessType === 'sequential' && !isCompleted && onMarkComplete && (
                         <Tooltip label="Mark as completed for this class">
                             <ActionIcon variant="light" color="green" onClick={onMarkComplete} aria-label="Mark complete" styles={iconActionStyles}>
@@ -364,4 +380,3 @@ export const ModuleItem = ({
         </Card>
     );
 };
-

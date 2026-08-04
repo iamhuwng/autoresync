@@ -54,6 +54,18 @@ vi.mock('../../hooks/useAuth', () => ({
     })
 }));
 
+vi.mock('../../hooks/useFeatureTracking', () => ({
+    useFeatureTracking: () => ({ trackAction: vi.fn() }),
+}));
+
+const courseBookMocks = vi.hoisted(() => ({ enabled: false }));
+vi.mock('../../services/book-delivery/courseBookPlacement.browser', () => ({
+    isCourseBookPlacementPresentationEnabled: () => courseBookMocks.enabled,
+    createCourseBookPlacementBrowserClient: () => ({ catalog: vi.fn(), place: vi.fn(), revoke: vi.fn() }),
+}));
+
+vi.mock('./CourseBookPlacementModal', () => ({ CourseBookPlacementModal: () => null }));
+
 // Mock dnd-kit components to capture handlers
 vi.mock('@dnd-kit/core', async (importOriginal) => {
     const actual: any = await importOriginal();
@@ -99,6 +111,7 @@ describe('ModuleList', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        courseBookMocks.enabled = false;
         (getModulesByCourse as any).mockResolvedValue(mockModules);
         (reorderModules as any).mockResolvedValue({ success: true });
         (getMaterialsByCourse as any).mockResolvedValue([
@@ -130,6 +143,17 @@ describe('ModuleList', () => {
             expect(screen.getByText('Module 1')).toBeInTheDocument();
             expect(screen.getByText('Module 2')).toBeInTheDocument();
         });
+    });
+
+    it('offers Book placement only on direct Courses when the presentation gate is enabled', async () => {
+        courseBookMocks.enabled = true;
+        const direct = renderWithMantine(<ModuleList courseId="c1" />);
+        expect(await screen.findAllByRole('button', { name: 'Add Book' })).toHaveLength(2);
+        direct.unmount();
+
+        renderWithMantine(<ModuleList courseId="c1" classId="class-1" />);
+        await screen.findByText('Module 1');
+        expect(screen.queryByRole('button', { name: 'Add Book' })).not.toBeInTheDocument();
     });
 
     it('handles module deletion', async () => {
@@ -263,4 +287,3 @@ describe('ModuleList', () => {
         });
     });
 });
-

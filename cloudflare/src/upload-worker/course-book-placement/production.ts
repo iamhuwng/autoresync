@@ -254,12 +254,18 @@ export const readCourseBookSelectionCatalog = async (
     .map((item) => ({
       placementId: item.placementId, nodeKey: item.nodeKey,
       activityId: item.activityId, activityVersionId: item.activityVersionId,
+      sourceKeys: [...new Set(item.sourcePages.map((page) => page.sourceKey))].sort(),
     }));
   if (placements.length === 0) throw new CourseBookCommandError('course_book_catalog_empty', 409);
   return {
     bookId, publicationId: current.publicationId,
     publicationRevision: current.publicationRevision,
     manifestVersionId: current.manifestVersionId,
+    sourceStrategy: version.manifest.sourceSet.sourceStrategy,
+    sources: version.manifest.sourceSet.sources.map((source) => ({
+      sourceKey: source.sourceKey,
+      ...('ownerNodeKey' in source ? { ownerNodeKey: source.ownerNodeKey } : {}),
+    })),
     nodes: version.manifest.nodes.map((node) => ({ ...node })), placements,
   };
 };

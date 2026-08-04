@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import JSON5 from 'json5';
 import wranglerSource from '../wrangler.jsonc?raw';
 import {
   canonicalBookRouteManifest,
@@ -6,7 +7,7 @@ import {
   validateBookRouteManifest,
 } from '../src/upload-worker/book-routes/manifest.ts';
 
-const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string, string> };
+const wranglerConfig = () => JSON5.parse(wranglerSource) as { vars: Record<string, string> };
 
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {

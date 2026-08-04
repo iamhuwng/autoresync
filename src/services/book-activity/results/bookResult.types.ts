@@ -34,7 +34,7 @@ export type BookResultSourceAvailability =
   | 'invalidated'
   | 'not-required';
 
-export type BookResultSurface = 'solo' | 'homework' | 'unknown';
+export type BookResultSurface = 'solo' | 'homework' | 'course' | 'unknown';
 
 export type BookResultEvaluationStatus = 'pending_review' | 'submitted' | 'graded';
 
@@ -120,7 +120,7 @@ export interface BookResultContextPolicy extends BookResultAttemptPolicy {
 
 /** Optional facts supplied by the trusted context/feedback reader. */
 export interface BookResultProjectionContext {
-  readonly kind?: Exclude<BookDeliveryContextKind, 'preview' | 'course' | 'class' | 'future_live'>;
+  readonly kind?: Exclude<BookDeliveryContextKind, 'preview' | 'class' | 'future_live'>;
   readonly contextId?: string;
   /** Exact delivery/binding context identity; never inferred from a bare book ID. */
   readonly deliveryId?: string;
@@ -143,7 +143,7 @@ export interface BookResultTerminalRecords {
 export interface BookResultProjectionInput extends BookResultTerminalRecords {
   readonly context?: BookResultProjectionContext;
   /** Alias accepted for callers that already use the Delivery surface name. */
-  readonly surface?: Exclude<BookDeliveryContextKind, 'preview' | 'course' | 'class' | 'future_live'>;
+  readonly surface?: Exclude<BookDeliveryContextKind, 'preview' | 'class' | 'future_live'>;
   /** Submission time is distinct from the terminal-row creation time when supplied by the writer. */
   readonly submittedAt?: string;
   readonly attemptPolicy?: BookResultAttemptPolicy;

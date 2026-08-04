@@ -21,7 +21,7 @@ const terminal = (options: {
   activityId?: string;
   contextId?: string;
   placementId?: string;
-  surface?: 'solo' | 'homework';
+  surface?: 'solo' | 'homework' | 'course';
   createdAt?: string;
   sourceVersionId?: string;
   status?: 'pending_review' | 'submitted';
@@ -129,6 +129,17 @@ describe('Book result projection', () => {
     expect(JSON.stringify(projection)).not.toMatch(/pdf|provider|answerKey|privateObjectKey|credential/iu);
     expect(Object.isFrozen(projection)).toBe(true);
     expect(Object.isFrozen(projection.summary.sources)).toBe(true);
+  });
+
+  it('projects Course attempts under the exact Course material and placement context', () => {
+    const projection = projectBookResultAttempt(terminal({
+      attemptId: 'course-attempt-1', attemptNumber: 1,
+      surface: 'course', contextId: 'course-material-1', placementId: 'placement-1',
+    }));
+    expect(projection.summary).toMatchObject({
+      surface: 'course', contextId: 'course-material-1', placementId: 'placement-1',
+      studentId: 'student-1', ownerId: 'teacher-1', homeworkId: null,
+    });
   });
 
   it('keeps deleted/replaced/missing source references display-only', () => {

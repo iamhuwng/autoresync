@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Badge, Loader, Progress } from '@mantine/core';
 import { useAuth } from '../hooks/useAuth';
@@ -29,6 +29,10 @@ import {
 } from '../services/reading-v2/readingV2LaunchIntegration.service';
 import type { ReadingV2DerivedProjection } from '../services/reading-v2/readingV2Projection.service';
 import type { ReadingV2MaterialMetadata } from '../services/reading-v2/readingV2MaterialMetadata.service';
+import { createCourseBookPlacementBrowserClient, isCourseBookPlacementPresentationEnabled } from '../services/book-delivery/courseBookPlacement.browser';
+import { CourseBookPrepareAction } from '../components/course/CourseBookPrepareAction';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 
 interface TestMeta { title: string; type: string; duration?: number; testType?: string; metadata?: any; }
 
@@ -45,6 +49,7 @@ interface StudentCourseDetailCacheEntry {
     overallProgress: number;
     expandedModule: string | null;
     testMeta: Record<string, TestMeta>;
+    directEnrollmentId: string | null;
 }
 
 const studentCourseDetailCache = new Map<string, StudentCourseDetailCacheEntry>();
@@ -161,6 +166,12 @@ const StudentCourseDetailPage: React.FC = () => {
     const { notStarted } = useResolvedStudentHomeworkList(user?.uid || '');
     const { enrolledClasses } = useResolvedStudentShellData();
     const initialCacheEntry = getStudentCourseDetailCache(user?.uid, courseId);
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.courses);
+    const courseBookEnabled = isCourseBookPlacementPresentationEnabled();
+    const courseBookClient = useMemo(
+        () => courseBookEnabled ? createCourseBookPlacementBrowserClient() : null,
+        [courseBookEnabled],
+    );
 
     const [course, setCourse] = useState<Course | null>(() => initialCacheEntry?.course ?? null);
     const [classData, setClassData] = useState<ClassSession | null>(() => initialCacheEntry?.classData ?? null);
@@ -170,6 +181,9 @@ const StudentCourseDetailPage: React.FC = () => {
     const [overallProgress, setOverallProgress] = useState(() => initialCacheEntry?.overallProgress ?? 0);
     const [expandedModule, setExpandedModule] = useState<string | null>(() => initialCacheEntry?.expandedModule ?? null);
     const [testMeta, setTestMeta] = useState<Record<string, TestMeta>>(() => initialCacheEntry?.testMeta ?? {});
+    const [directEnrollmentId, setDirectEnrollmentId] = useState<string | null>(
+        () => initialCacheEntry?.directEnrollmentId ?? null,
+    );
 
     const [resumeModalOpen, setResumeModalOpen] = useState(false);
     const [pendingMaterial, setPendingMaterial] = useState<{ materialId: string; moduleId: string; duration?: number } | null>(null);
@@ -185,6 +199,7 @@ const StudentCourseDetailPage: React.FC = () => {
                 setOverallProgress(cachedEntry.overallProgress);
                 setExpandedModule(cachedEntry.expandedModule);
                 setTestMeta(cachedEntry.testMeta);
+                setDirectEnrollmentId(cachedEntry.directEnrollmentId);
                 setLoading(false);
             }
 
@@ -198,6 +213,7 @@ const StudentCourseDetailPage: React.FC = () => {
         setOverallProgress(0);
         setExpandedModule(null);
         setTestMeta({});
+        setDirectEnrollmentId(null);
         setLoading(false);
         setError(null);
     }, [courseId, enrolledClasses, user?.uid]);
@@ -212,6 +228,7 @@ const StudentCourseDetailPage: React.FC = () => {
             setOverallProgress(cachedEntry.overallProgress);
             setExpandedModule(cachedEntry.expandedModule);
             setTestMeta(cachedEntry.testMeta);
+            setDirectEnrollmentId(cachedEntry.directEnrollmentId);
         }
 
         setLoading(!cachedEntry);
@@ -229,8 +246,12 @@ const StudentCourseDetailPage: React.FC = () => {
             if (courseRes.archivedAt) throw new Error('This course has been archived by the teacher and is no longer accessible.');
             setCourse(courseRes);
 
-            const studentEnrollment = allEnrollments.find(e => e.courseId === courseId);
+            const directEnrollment = allEnrollments.find(e => e.courseId === courseId
+                && !e.sourceClassId && e.enrollmentType !== 'class-based' && e.status === 'active');
+            const studentEnrollment = directEnrollment ?? allEnrollments.find(e => e.courseId === courseId);
             if (!studentEnrollment) throw new Error('You are not enrolled in this course');
+            const nextDirectEnrollmentId = directEnrollment?.id ?? null;
+            setDirectEnrollmentId(nextDirectEnrollmentId);
 
             let currentClass: ClassSession | null = null;
             if (studentEnrollment.sourceClassId) {
@@ -241,7 +262,9 @@ const StudentCourseDetailPage: React.FC = () => {
             // Enrich materials with real test titles and types
             let nextTestMeta: Record<string, TestMeta> = {};
             if (materialsRes.length > 0) {
-                const uniqueIds = [...new Set(materialsRes.map(m => m.materialId))];
+                const uniqueIds = [...new Set(materialsRes
+                    .filter(m => m.materialKind !== 'book-delivery')
+                    .map(m => m.materialId))];
                 const entries = await Promise.all(uniqueIds.map(async (tid) => [
                     tid,
                     await readCourseMaterialMeta(tid),
@@ -253,12 +276,14 @@ const StudentCourseDetailPage: React.FC = () => {
             // Populate modules with materials and status
             const populated = modulesRes.map(mod => {
                 const modMaterials = materialsRes.filter(m => m.moduleId === mod.id);
-                const completedCount = modMaterials.filter(m => progressRes?.completedMaterials?.[m.materialId]).length;
+                const legacyMaterials = modMaterials.filter(m => m.materialKind !== 'book-delivery');
+                const completedCount = legacyMaterials.filter(m => progressRes?.completedMaterials?.[m.materialId]).length;
 
                 let status: 'locked' | 'available' | 'completed' = 'available';
                 const classProgress = currentClass?.moduleProgress?.[mod.id];
                 if (classProgress) status = classProgress.status;
-                if (modMaterials.length > 0 && completedCount === modMaterials.length) status = 'completed';
+                if (legacyMaterials.length > 0 && completedCount === legacyMaterials.length
+                    && legacyMaterials.length === modMaterials.length) status = 'completed';
 
                 return { ...mod, materials: modMaterials, status, completionCount: completedCount };
             });
@@ -270,9 +295,10 @@ const StudentCourseDetailPage: React.FC = () => {
             setExpandedModule(nextExpandedModule);
 
             let nextOverallProgress = 0;
-            if (materialsRes.length > 0) {
-                const totalCompleted = materialsRes.filter(m => progressRes?.completedMaterials?.[m.materialId]).length;
-                nextOverallProgress = Math.round((totalCompleted / materialsRes.length) * 100);
+            const legacyCourseMaterials = materialsRes.filter(m => m.materialKind !== 'book-delivery');
+            if (legacyCourseMaterials.length > 0) {
+                const totalCompleted = legacyCourseMaterials.filter(m => progressRes?.completedMaterials?.[m.materialId]).length;
+                nextOverallProgress = Math.round((totalCompleted / legacyCourseMaterials.length) * 100);
             }
             setOverallProgress(nextOverallProgress);
 
@@ -283,6 +309,7 @@ const StudentCourseDetailPage: React.FC = () => {
                 overallProgress: nextOverallProgress,
                 expandedModule: nextExpandedModule,
                 testMeta: nextTestMeta,
+                directEnrollmentId: nextDirectEnrollmentId,
             });
 
         } catch (err) {
@@ -297,6 +324,7 @@ const StudentCourseDetailPage: React.FC = () => {
                 setOverallProgress(0);
                 setExpandedModule(null);
                 setTestMeta({});
+                setDirectEnrollmentId(null);
             }
         } finally {
             setLoading(false);
@@ -388,7 +416,10 @@ const StudentCourseDetailPage: React.FC = () => {
         );
     }
 
-    const totalMaterials = modules.reduce((acc, m) => acc + m.materials.length, 0);
+    const totalMaterials = modules.reduce(
+        (acc, m) => acc + m.materials.filter(material => material.materialKind !== 'book-delivery').length,
+        0,
+    );
     const completedMaterials = modules.reduce((acc, m) => acc + m.completionCount, 0);
 
     return (
@@ -559,10 +590,16 @@ const StudentCourseDetailPage: React.FC = () => {
                                                                 </div>
                                                                 <div style={{ minWidth: 0 }}>
                                                                     <p style={{ fontWeight: 600, color: studentTokens.textPrimary, margin: '0 0 2px', fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                                        {testMeta[material.materialId]?.title || 'Untitled'}
+                                                                        {material.materialKind === 'book-delivery'
+                                                                            ? material.bookDeliveryPlacement?.displayTitle || 'Book activity'
+                                                                            : testMeta[material.materialId]?.title || 'Untitled'}
                                                                     </p>
                                                                     {/* Phase 3 Task 5.2: THCS badge */}
-                                                                    {testMeta[material.materialId]?.testType === 'THCS-THPT' ? (
+                                                                    {material.materialKind === 'book-delivery' ? (
+                                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 4, background: '#ede9fe', color: '#6d28d9' }}>
+                                                                            Book
+                                                                        </span>
+                                                                    ) : testMeta[material.materialId]?.testType === 'THCS-THPT' ? (
                                                                         <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed' }}>
                                                                             THCS-THPT
                                                                         </span>
@@ -575,6 +612,19 @@ const StudentCourseDetailPage: React.FC = () => {
                                                             </div>
 
                                                             {/* CTA */}
+                                                            {material.materialKind === 'book-delivery' ? (
+                                                                courseBookClient ? (
+                                                                    <CourseBookPrepareAction
+                                                                        courseMaterialId={material.id}
+                                                                        legacyEnrollmentId={directEnrollmentId}
+                                                                        prepare={(request) => courseBookClient.prepare(request)}
+                                                                        trackAction={trackAction}
+                                                                        style={localStyles.startBtn}
+                                                                    />
+                                                                ) : (
+                                                                    <button type="button" style={localStyles.disabledBtn} disabled>Unavailable</button>
+                                                                )
+                                                            ) : (
                                                             <button
                                                                 style={localStyles.startBtn}
                                                                 onClick={() => handleStartMaterial(material, module.id)}
@@ -583,6 +633,7 @@ const StudentCourseDetailPage: React.FC = () => {
                                                             >
                                                                 Start →
                                                             </button>
+                                                            )}
                                                         </div>
                                                     );
                                                 })

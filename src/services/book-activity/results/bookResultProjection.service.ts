@@ -46,7 +46,7 @@ import {
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
 const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
 const TEXT = /^.{0,4096}$/su;
-const CONTEXT_KINDS: readonly BookResultSurface[] = ['solo', 'homework', 'unknown'];
+const CONTEXT_KINDS: readonly BookResultSurface[] = ['solo', 'homework', 'course', 'unknown'];
 const SOURCE_AVAILABILITIES: readonly BookResultSourceAvailability[] = [
   'available', 'missing', 'deleted', 'replaced', 'invalidated', 'not-required',
 ];
@@ -147,8 +147,9 @@ const validateSourceProvenance = (value: unknown, path: string, errors: MutableE
     const sourcePath = `${path}[${index}]`;
     if (!exact(source, sourceProvenanceFields, [], sourcePath, errors)) return;
     const sourceRecord = source as Record<string, unknown>;
-    if (!isId(sourceRecord.sourceKey) || sourceKeys.has(sourceRecord.sourceKey)) {
-      push(errors, sourceKeys.has(sourceRecord.sourceKey) ? 'duplicate-id' : 'invalid-value', `${sourcePath}.sourceKey`, 'Source key must be unique and safe.');
+    const sourceKey = sourceRecord.sourceKey;
+    if (!isId(sourceKey) || sourceKeys.has(sourceKey)) {
+      push(errors, isId(sourceKey) && sourceKeys.has(sourceKey) ? 'duplicate-id' : 'invalid-value', `${sourcePath}.sourceKey`, 'Source key must be unique and safe.');
     }
     if (!isId(sourceRecord.sourceVersionId)) push(errors, 'invalid-value', `${sourcePath}.sourceVersionId`, 'Source Version ID is invalid.');
     if (!Array.isArray(sourceRecord.pages) || sourceRecord.pages.length === 0 || sourceRecord.pages.some((page) => !isPositiveInt(page))) {
@@ -156,7 +157,7 @@ const validateSourceProvenance = (value: unknown, path: string, errors: MutableE
     } else if (new Set(sourceRecord.pages).size !== sourceRecord.pages.length) {
       push(errors, 'duplicate-id', `${sourcePath}.pages`, 'Source pages must be unique.');
     }
-    if (isId(sourceRecord.sourceKey)) sourceKeys.add(sourceRecord.sourceKey);
+    if (isId(sourceKey)) sourceKeys.add(sourceKey);
   });
   return true;
 };
@@ -287,16 +288,16 @@ const validateProjectionMetadata = (input: BookResultProjectionInput, errors: Mu
     if (input.attemptPolicy.maxAttempts !== null && !isPositiveInt(input.attemptPolicy.maxAttempts)) push(errors, 'invalid-value', '$.attemptPolicy.maxAttempts', 'Attempt limit must be null or positive.');
   }
   if (input.submittedAt !== undefined && !isIso(input.submittedAt)) push(errors, 'invalid-value', '$.submittedAt', 'Submission timestamp is invalid.');
-  if (input.surface !== undefined && !CONTEXT_KINDS.includes(input.surface as BookResultSurface)) push(errors, 'unsupported-context', '$.surface', 'Only Solo or Homework results are supported.');
+  if (input.surface !== undefined && !CONTEXT_KINDS.includes(input.surface as BookResultSurface)) push(errors, 'unsupported-context', '$.surface', 'Only Solo, Homework, or Course results are supported.');
   if (input.context !== undefined) {
     if (!isRecord(input.context) || !exact(input.context, [], ['contextId', 'deliveryId', 'homeworkId', 'kind', 'ownerId'], '$.context', errors)) return;
-    if (input.context.kind !== undefined && !CONTEXT_KINDS.includes(input.context.kind as BookResultSurface)) push(errors, 'unsupported-context', '$.context.kind', 'Only Solo or Homework contexts are supported.');
+    if (input.context.kind !== undefined && !CONTEXT_KINDS.includes(input.context.kind as BookResultSurface)) push(errors, 'unsupported-context', '$.context.kind', 'Only Solo, Homework, or Course contexts are supported.');
     if (input.context.contextId !== undefined && input.context.contextId !== input.attempt.contextId) push(errors, 'identity-mismatch', '$.context.contextId', 'Context ID must match the attempt.');
     for (const [field, value] of [['deliveryId', input.context.deliveryId], ['ownerId', input.context.ownerId]] as const) {
       if (value !== undefined && !isId(value)) push(errors, 'invalid-value', `$.context.${field}`, 'Context identity is invalid.');
     }
     if (input.context.homeworkId !== undefined && (!isId(input.context.homeworkId) || input.context.kind !== 'homework')) push(errors, 'invalid-value', '$.context.homeworkId', 'Homework ID requires a Homework context.');
-    if (input.context.kind === 'solo' && input.context.homeworkId !== undefined) push(errors, 'invalid-value', '$.context.homeworkId', 'Solo results cannot carry a Homework ID.');
+    if ((input.context.kind === 'solo' || input.context.kind === 'course') && input.context.homeworkId !== undefined) push(errors, 'invalid-value', '$.context.homeworkId', 'Only Homework results can carry a Homework ID.');
   }
   validateFeedback(input.feedback, '$.feedback', errors);
   validateEvaluation(input.evaluation, '$.evaluation', errors);
@@ -377,13 +378,14 @@ const validateSourceAvailability = (
       const path = `$.sources[${index}]`;
       if (!isRecord(entry) || !exact(entry, ['availability', 'sourceKey'], ['componentId', 'pages', 'sourceVersionId'], path, errors)) return;
       const entryRecord = entry as Record<string, unknown>;
-      if (!isId(entryRecord.sourceKey) || keys.has(entryRecord.sourceKey)) push(errors, keys.has(entryRecord.sourceKey) ? 'duplicate-id' : 'invalid-value', `${path}.sourceKey`, 'Source key is invalid or duplicated.');
+      const sourceKey = entryRecord.sourceKey;
+      if (!isId(sourceKey) || keys.has(sourceKey)) push(errors, isId(sourceKey) && keys.has(sourceKey) ? 'duplicate-id' : 'invalid-value', `${path}.sourceKey`, 'Source key is invalid or duplicated.');
       if (!SOURCE_AVAILABILITIES.includes(entryRecord.availability as BookResultSourceAvailability)) push(errors, 'invalid-value', `${path}.availability`, 'Source availability is invalid.');
       const source = provenance.find((item) => item.sourceKey === entryRecord.sourceKey);
       if (!source) push(errors, 'provenance-mismatch', `${path}.sourceKey`, 'Source is absent from attempt provenance.');
       if (source && entryRecord.sourceVersionId !== undefined && entryRecord.sourceVersionId !== source.sourceVersionId) push(errors, 'provenance-mismatch', `${path}.sourceVersionId`, 'Source Version ID does not match provenance.');
       if (source && entryRecord.pages !== undefined && stable(entryRecord.pages) !== stable(source.pages)) push(errors, 'provenance-mismatch', `${path}.pages`, 'Source pages do not match provenance.');
-      if (isId(entryRecord.sourceKey)) keys.add(entryRecord.sourceKey);
+      if (isId(sourceKey)) keys.add(sourceKey);
     });
     if (keys.size !== provenance.length) push(errors, 'provenance-mismatch', '$.sources', 'Every source provenance entry needs an availability state.');
     return;
@@ -440,7 +442,7 @@ export function assertValidBookResultProjectionInput(value: unknown): asserts va
 
 const contextKind = (input: BookResultProjectionInput): BookResultSurface => {
   const value = input.context?.kind ?? input.surface;
-  return value === 'solo' || value === 'homework' ? value : 'unknown';
+  return value === 'solo' || value === 'homework' || value === 'course' ? value : 'unknown';
 };
 
 const scoreProjection = (score: BookRuntimeScore | undefined): BookResultScore | undefined => (
@@ -684,7 +686,7 @@ export const groupBookResultAttempts = (
       if (!validateBookResultAttemptDetail(detail).valid) {
         throw new BookResultProjectionError('invalid-record', `inputs[${index}]: Malformed projected detail.`);
       }
-      return input as BookResultProjection;
+      return input as unknown as BookResultProjection;
     }
     return projectBookResultAttempt(input as BookResultProjectionInput);
   });

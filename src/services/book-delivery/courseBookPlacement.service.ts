@@ -107,9 +107,6 @@ const freezePins = (pins: CourseBookPins): CourseBookPins => {
       || !unique(pin.sourceVersionIds)) throw new CourseBookPlacementError('invalid-pins');
     return Object.freeze({ ...pin, sourceVersionIds: frozenStrings(pin.sourceVersionIds) });
   });
-  if (!unique(selectedActivities.map((pin) => pin.activityVersionId))) {
-    throw new CourseBookPlacementError('invalid-pins');
-  }
   return Object.freeze({ ...pins, selectedActivities: Object.freeze(selectedActivities) });
 };
 
@@ -123,8 +120,50 @@ export const courseBookProjectionKey = (
   placement: CourseBookPlacement,
   studentId: string,
   bindingId: string,
+  placementId: string,
   activityVersionId: string,
-): string => `${bindingId}:${studentId}:${placement.courseMaterialId}:${activityVersionId}`;
+): string => `${bindingId}:${studentId}:${placement.courseMaterialId}:${placementId}:${activityVersionId}`;
+
+export type CourseBookActivityCompletion = Readonly<{
+  bindingId: string;
+  studentId: string;
+  courseMaterialId: string;
+  placementId: string;
+  activityVersionId: string;
+  status: 'completed';
+}>;
+
+export const deriveCourseBookCompletion = (
+  placement: CourseBookPlacement,
+  studentId: string,
+  bindingId: string,
+  completions: readonly CourseBookActivityCompletion[],
+) => {
+  if (!valid(studentId) || !valid(bindingId) || placement.status !== 'active') {
+    throw new CourseBookPlacementError('invalid-completion-scope');
+  }
+  const requiredKeys = placement.pins.selectedActivities.map((pin) => courseBookProjectionKey(
+    placement, studentId, bindingId, pin.placementId, pin.activityVersionId,
+  ));
+  const completedKeys = new Set(completions.flatMap((completion) => {
+    if (completion.status !== 'completed' || completion.bindingId !== bindingId
+      || completion.studentId !== studentId || completion.courseMaterialId !== placement.courseMaterialId) return [];
+    return [courseBookProjectionKey(
+      placement, completion.studentId, completion.bindingId,
+      completion.placementId, completion.activityVersionId,
+    )];
+  }));
+  const completedRequiredKeys = requiredKeys.filter((key) => completedKeys.has(key));
+  return Object.freeze({
+    courseMaterialId: placement.courseMaterialId,
+    completionAggregationPolicy: placement.completionAggregationPolicy,
+    requiredCount: requiredKeys.length,
+    completedCount: completedRequiredKeys.length,
+    status: completedRequiredKeys.length === requiredKeys.length ? 'completed' as const : 'in-progress' as const,
+    requiredKeys: Object.freeze(requiredKeys),
+    completedKeys: Object.freeze(completedRequiredKeys),
+  });
+};
 
 export interface CourseBookPlacementRepository {
   read(courseMaterialId: string): CourseBookPlacement | undefined;
@@ -201,8 +240,8 @@ export const createCourseBookPlacementService = (repository: CourseBookPlacement
         selection: placement.selection, pins: placement.pins,
         activityKeys: Object.freeze(placement.pins.selectedActivities.map((pin) => Object.freeze({
           placementId: pin.placementId,
-          progressKey: courseBookProjectionKey(placement, input.studentId, input.bindingId, pin.activityVersionId),
-          resultKey: courseBookProjectionKey(placement, input.studentId, input.bindingId, pin.activityVersionId),
+          progressKey: courseBookProjectionKey(placement, input.studentId, input.bindingId, pin.placementId, pin.activityVersionId),
+          resultKey: courseBookProjectionKey(placement, input.studentId, input.bindingId, pin.placementId, pin.activityVersionId),
         }))),
       });
     },

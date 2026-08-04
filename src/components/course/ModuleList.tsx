@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     DndContext,
     closestCenter,
@@ -34,6 +34,11 @@ import type { CourseSyncStatus } from '../../services/courseSyncService';
 // @ts-ignore - JS service
 import queryOptimizer, { CacheTypes } from '../../services/firebaseQueryOptimizer';
 import { getMaterialsByCourse, syncMaterialContentWithOriginal, unmountMaterialFromModule, reorderMaterials } from '../../services/materialLinkManager';
+import { createCourseBookPlacementBrowserClient, isCourseBookPlacementPresentationEnabled } from '../../services/book-delivery/courseBookPlacement.browser';
+import { CourseBookPlacementModal } from './CourseBookPlacementModal';
+import { toast } from '../modern';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 
 const addButtonStyles = {
     root: {
@@ -56,6 +61,9 @@ interface ModuleListProps {
 
 export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProps) => {
     const { user } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.courses);
+    const courseBookEnabled = isCourseBookPlacementPresentationEnabled();
+    const courseBookClient = useMemo(() => courseBookEnabled ? createCourseBookPlacementBrowserClient() : null, [courseBookEnabled]);
     const [modules, setModules] = useState<Module[]>([]);
     const [moduleProgress, setModuleProgress] = useState<Record<string, ModuleProgress>>({});
     const [moduleMaterials, setModuleMaterials] = useState<Record<string, ExtendedMaterial[]>>({});
@@ -67,6 +75,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
     // Material selector state
     const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
     const [targetModuleId, setTargetModuleId] = useState<string | null>(null);
+    const [targetBookModuleId, setTargetBookModuleId] = useState<string | null>(null);
 
     // Practice Settings state
     const [settingsModuleId, setSettingsModuleId] = useState<string | null>(null);
@@ -90,13 +99,23 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
             const resolvedMaterials: Record<string, ExtendedMaterial[]> = {};
 
             // Prefetch all test data efficiently
-            const allMaterialIds = grouped.flatMap(g => g.materials.map(m => m.materialId));
+            const allMaterialIds = grouped.flatMap(g => g.materials
+                .filter(m => m.materialKind !== 'book-delivery')
+                .map(m => m.materialId));
             if (allMaterialIds.length > 0) {
                 await queryOptimizer.prefetch(CacheTypes.TEST, allMaterialIds);
             }
 
             for (const group of grouped) {
                 resolvedMaterials[group.moduleId] = await Promise.all(group.materials.map(async m => {
+                    if (m.materialKind === 'book-delivery') {
+                        return {
+                            ...m,
+                            title: m.bookDeliveryPlacement?.displayTitle || 'Book activity',
+                            testType: 'Book',
+                            isUnavailable: m.bookDeliveryPlacement?.status !== 'active',
+                        };
+                    }
                     const test = await queryOptimizer.getTest(m.materialId);
 
                     let isUnavailable = false;
@@ -184,14 +203,29 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
     };
 
     const handleRemoveMaterial = async (linkId: string) => {
-        if (!confirm('Are you sure you want to remove this material from the module?')) return;
+        const material = Object.values(moduleMaterials).flat().find((candidate) => candidate.id === linkId);
+        const question = material?.materialKind === 'book-delivery'
+            ? `Revoke "${material.title}" from this Course? Existing immutable Book records will be preserved.`
+            : 'Are you sure you want to remove this material from the module?';
+        if (!confirm(question)) return;
         try {
-            await unmountMaterialFromModule(linkId);
-            notifications.show({ color: 'blue', message: 'Material removed' });
+            if (material?.materialKind === 'book-delivery') {
+                if (!courseBookClient) throw new Error('course_book_routes_disabled');
+                trackAction('revokeCourseBook', { courseMaterialId: linkId, courseId });
+                await courseBookClient.revoke({ operationId: crypto.randomUUID(), courseMaterialId: linkId });
+                toast.success(`Revoked "${material.title}" from this Course. Existing immutable records were preserved.`);
+            } else {
+                await unmountMaterialFromModule(linkId);
+                notifications.show({ color: 'blue', message: 'Material removed' });
+            }
             loadModules();
         } catch (error) {
             console.error(error);
-            notifications.show({ color: 'red', message: 'Failed to remove material' });
+            if (Object.values(moduleMaterials).flat().some((candidate) => candidate.id === linkId && candidate.materialKind === 'book-delivery')) {
+                toast.error('Could not revoke this Book item from the Course.');
+            } else {
+                notifications.show({ color: 'red', message: 'Failed to remove material' });
+            }
         }
     };
 
@@ -302,6 +336,10 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                                         setTargetModuleId(module.id);
                                         setIsMaterialSelectorOpen(true);
                                     }}
+                                    onAddBook={!classId && courseBookClient ? () => {
+                                        trackAction('openCourseBookPlacement', { courseId, moduleId: module.id });
+                                        setTargetBookModuleId(module.id);
+                                    } : undefined}
                                     onSyncMaterial={handleSyncMaterial}
                                     onRemoveMaterial={handleRemoveMaterial}
                                     onReorderMaterials={(newOrder) => handleReorderMaterials(module.id, newOrder)}
@@ -341,6 +379,20 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                 onClose={() => setIsMaterialSelectorOpen(false)}
                 onSelect={handleAddMaterial}
             />
+
+            {targetBookModuleId && courseBookClient && user && (
+                <CourseBookPlacementModal
+                    opened
+                    onClose={() => setTargetBookModuleId(null)}
+                    teacherId={user.uid}
+                    courseId={courseId}
+                    moduleId={targetBookModuleId}
+                    readCatalog={(bookId) => courseBookClient.catalog(bookId)}
+                    place={(request) => courseBookClient.place(request)}
+                    onPlaced={loadModules}
+                    trackAction={trackAction}
+                />
+            )}
 
             {settingsModuleId && (
                 <PracticeSettingsModal

@@ -9,7 +9,8 @@ describe('default #59 Course worker composition', () => {
   it('serves only the owner-authorized accepted-publication selection catalog', async () => {
     const readCatalog = vi.fn(async () => ({
       bookId: 'book-001', publicationId: 'publication-001',
-      publicationRevision: 2, manifestVersionId: 'manifest-001', nodes: [], placements: [],
+      publicationRevision: 2, manifestVersionId: 'manifest-001', sourceStrategy: 'full_pdf' as const,
+      sources: [], nodes: [], placements: [],
     }));
     const handlers = createCourseBookPlacementWorkerHandlers({
       commandFor: () => ({ place: vi.fn(), prepare: vi.fn(), revoke: vi.fn() }),
