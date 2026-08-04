@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "ticket": "#102",
+  "baselineHead": "f76dcb1b76053e4ac87be44fc99ad22733ed57ab",
+  "status": "FROZEN_FOR_IMPLEMENTATION",
+  "authority": [
+    "documentation/tasks/PRD0062/prd-book-based-interactive-activity-runtime-and-assembly.md",
+    "documentation/tasks/PRD0062/supporting/authority-and-provenance.md",
+    "documentation/tasks/PRD0062/remaining-implementation-reconciliation-2026-08-04.md",
+    "documentation/tasks/PRD0062/ownership-registry.md"
+  ],
+  "identity": {
+    "placementId": "courseMaterialId",
+    "copyIdentity": "immutable copyId; never infer copy from materialId",
+    "contexts": ["course", "class-course"],
+    "requiredPins": ["bookId", "unitStableKey", "unitVersionId", "sourceVersionId", "activityId", "activityVersionId", "bindingRevision"],
+    "deliveryBinding": "one immutable bindingId per student, context, placement and pin set"
+  },
+  "authorityModel": {
+    "owner": "Course owner controls placement; Class consumption is constrained by linked course authority and active enrolment.",
+    "enrolment": "Student must pass existing Course/Class enrolment and module access before a Book entitlement is issued.",
+    "teacherVisibility": "Only teacher-owned Course/Class attempts/results are visible to their authorized teacher context."
+  },
+  "compatibility": {
+    "legacyMode": "Mode 1 bare materialId readers remain readable only for existing non-Book placements.",
+    "newBookRule": "New Book placements require courseMaterialId, context kind, copy identity, all exact pins, and delivery binding; bare materialId is rejected.",
+    "migration": "Additive dual-read: retain legacy reader, branch Book reads on explicit placement record, backfill only by explicit teacher-approved migration.",
+    "rollback": "Disable new Book placement writes and entitlement issuance; retain immutable bindings, pins, legacy data, and existing readable records without deletion."
+  },
+  "canonicalStorage": [
+    "courses/{courseId}/modules/{moduleId}/materials/{courseMaterialId}",
+    "classes/{classId}/course-links/{courseId}",
+    "book_delivery/bindings/{studentId}/{bindingId}",
+    "book_delivery/current_entitlements/{studentId}/{entitlementId}",
+    "book_delivery/entitlements/{studentId}/{entitlementId}"
+  ],
+  "owners": [
+    {"ticket":"#102","scope":"shared identity contract and Course vertical"},
+    {"ticket":"#103","scope":"Class/copy consumer; cannot redefine shared identity"},
+    {"ticket":"#104","scope":"thin launch dispatch only"},
+    {"ticket":"#107","scope":"read-only adapters"},
+    {"ticket":"#118","scope":"generated and active rules"},
+    {"ticket":"#130","scope":"final student proof"},
+    {"ticket":"#134","scope":"deployed/canary proof"}
+  ],
+  "handoffs": [
+    {"consumer":"#103","receives":"courseMaterialId/copy/context/pin/binding schema and Course authority"},
+    {"consumer":"#104","receives":"resolved immutable delivery binding for launch dispatch"},
+    {"consumer":"#107","receives":"read-only projection fields and legacy compatibility boundary"},
+    {"consumer":"#118","receives":"canonical storage paths and required rule fragments"},
+    {"consumer":"#130","receives":"fixture matrix and browser proof ownership"},
+    {"consumer":"#134","receives":"canary/deployed proof ownership and rollback gate"}
+  ],
+  "stateMatrix": ["draft", "placed", "active", "locked", "archived", "revoked", "replayed", "rolled-back"],
+  "failureClasses": ["not-enrolled", "wrong-context", "copy-mismatch", "pin-mismatch", "legacy-book-denied", "entitlement-revoked", "replay-conflict"],
+  "proofClasses": ["static-contract", "unit-fixture", "rules-emulator", "browser-student", "deployed-canary"],
+  "fixtures": ["src/services/book-delivery/bookDelivery.schema.test.ts", "src/services/book-delivery/bookDelivery.service.test.ts", "cloudflare/test/book-delivery-worker.test.ts", "src/pages/StudentPracticePage.test.tsx"],
+  "codeEvidence": [
+    {"path":"src/services/courseMaterialAccessService.ts","symbol":"export type MaterialAccessStatus"},
+    {"path":"src/services/book-delivery/bookDelivery.types.ts","symbol":"export interface BookDeliveryBinding"},
+    {"path":"src/services/book-delivery/bookDelivery.schema.ts","symbol":"isRunnableBookDeliveryBinding"},
+    {"path":"src/services/book-delivery/bookDelivery.entitlement.ts","symbol":"BOOK_DELIVERY_RECORD_ROOT"},
+    {"path":"src/services/book-delivery/bookDelivery.service.ts","symbol":"createBookDeliveryProjectionResolver"},
+    {"path":"cloudflare/src/upload-worker/book-delivery/worker.ts","symbol":"createBookDeliveryWorkerHandlers"},
+    {"path":"cloudflare/src/upload-worker/book-delivery/route.ts","symbol":"bookDeliveryRouteDescriptors"},
+    {"path":"database.rules.json","symbol":"book_delivery"},
+    {"path":"src/pages/StudentPracticePage.tsx","symbol":"StudentPracticePage"}
+  ],
+  "baselineIssues": [
+    {"id":"shared-contract","classification":"PASS","owner":"#102","trace":"contract-frozen"},
+    {"id":"course-class-product-placement","classification":"TICKET_OWNED","owner":"#102","trace":"not-implemented-by-foundation"},
+    {"id":"class-copy-consumption","classification":"TICKET_OWNED","owner":"#103","trace":"downstream-handoff"},
+    {"id":"launch-dispatch","classification":"TICKET_OWNED","owner":"#104","trace":"thin-dispatch-handoff"},
+    {"id":"active-rules","classification":"TICKET_OWNED","owner":"#118","trace":"generated-rules-handoff"},
+    {"id":"browser-proof","classification":"TICKET_OWNED","owner":"#130","trace":"proof-handoff"},
+    {"id":"canary-proof","classification":"TICKET_OWNED","owner":"#134","trace":"proof-handoff"}
+  ]
+}
