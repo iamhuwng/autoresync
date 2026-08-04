@@ -90,6 +90,8 @@ export interface BookRouteHandlersOptions {
   readonly teacherDocumentHandler?: BookRouteHandler;
   readonly historicalDocumentHandler?: BookRouteHandler;
   readonly futureHandlers?: BookRouteHandlerMap;
+  /** #102 direct-Course contributor; disabled unless composed by #59. */
+  readonly courseBookHandlers?: Record<string, unknown>;
 }
 
 export const createBookRouteHandlers = (
@@ -108,6 +110,7 @@ export const createBookRouteHandlers = (
   const homework = options.homeworkHandlers
     ?? createCanonicalBookHomeworkHandlers(options.homework);
   const sourceUpload = options.sourceUploadHandlers ?? createBookSourceUploadWorkerHandlers();
+  const courseBook = options.courseBookHandlers ?? {};
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
     ['create', 'activate', 'supersede', 'revoke'], 'bookDelivery', () => []);
@@ -143,6 +146,8 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, homework, ['homeworkTeacherStudentProjection'], 'futureSeam', () => ['assignmentId', 'studentId']);
   addFactoryHandlers(handlers, homework, ['homeworkTeacherProjection'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, sourceUpload, ['begin', 'complete', 'status', 'cancel'], 'bookSource');
+  addFactoryHandlers(handlers, courseBook, ['place', 'revoke'], 'courseBookPlacement');
+  addFactoryHandlers(handlers, courseBook, ['resolve'], 'courseBookPlacement', () => ['courseMaterialId']);
 
   const documentHandler = options.documentHandler
     ?? createBookSourceDocumentDeliveryHandler(options.sourceDocument);

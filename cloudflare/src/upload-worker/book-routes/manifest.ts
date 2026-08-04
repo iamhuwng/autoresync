@@ -18,6 +18,7 @@ import {
   bookTeacherAssemblyDocumentRouteDescriptor,
 } from '../book-delivery/route.ts';
 import { bookSourceRouteDescriptors } from '../book-source/route.ts';
+import { courseBookPlacementRouteDescriptors } from '../course-book-placement/route.ts';
 import { bookIntegrityReportRouteDescriptor } from '../book-activity-integrity/route.ts';
 import type {
   BookRouteDomain,
@@ -246,6 +247,23 @@ const sourceUploadRoutes = bookSourceRouteDescriptors.map((route) => contributor
   contributorTicket: '#49',
 }));
 
+const courseBookRoutes = courseBookPlacementRouteDescriptors.map((route) => contributor({
+  id: `book.course-placement.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#102',
+  domain: 'delivery',
+  handler: `courseBookPlacement.${route.handler}`,
+  firebaseAuth: route.handler === 'resolve' ? 'firebase-id-token-student' : 'firebase-id-token-owner',
+  rateClass: route.handler === 'resolve' ? 'book-read' : 'book-control',
+  gateEnv: 'COURSE_BOOK_PLACEMENT_ROUTES_ENABLED',
+  requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
+  contributorTicket: '#102',
+}));
+
 const documentRoute = contributor({
   id: 'book.document-delivery.serve-authorized-document',
   method: bookDocumentAuthorizationRouteDescriptor.method,
@@ -464,6 +482,7 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...assemblySuccessorRoutes,
   ...assemblyMappingRevisionRoutes,
   ...sourceUploadRoutes,
+  ...courseBookRoutes,
   ...runtimeRoutes,
   documentRoute,
   historicalAttemptDocumentRoute,
