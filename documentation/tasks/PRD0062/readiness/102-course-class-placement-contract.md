@@ -7,7 +7,7 @@ The authoritative machine-readable contract is [`102-course-class-placement-cont
 ## Frozen decisions
 
 - `courseMaterialId` is the immutable placement identity. A copy has its own immutable `copyId`; a Book may not infer either identity from `materialId`.
-- The context is exactly `course` or `class-course`. Every new Book placement pins Book, unit, source, activity, activity version, and binding revision before issuing the immutable per-student delivery binding.
+- The context is exactly `course` or `class-course`. Every new Book placement pins Book, accepted manifest publication, unit, source, activity, activity version, and binding revision before issuing the immutable per-student delivery binding.
 - Existing Mode 1 bare-`materialId` readers remain available only to legacy non-Book material. New Book reads require the explicit placement record and are denied if any context, copy, or pin differs.
 - Migration is additive dual-read. Rollback stops new Book writes/entitlements without deleting bindings, pins, legacy records, or already-readable material.
 - Existing Course access remains the enrolment/module-lock seam; Book Delivery remains the entitlement/pinned-projection seam. The shared contract does not introduce another Class binding schema.

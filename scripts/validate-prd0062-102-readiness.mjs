@@ -16,10 +16,11 @@ const OWNED_SUCCESSOR_PATHS = new Set([
   'cloudflare/src/upload-worker/listening-authoring/rtdb.ts',
   'cloudflare/test/rtdb-multi-location-patch.test.ts',
   'cloudflare/src/upload-worker/book-rules/fragments/42A.json',
+  'cloudflare/test/course-book-authority-fragment.test.ts',
 ]);
 const CLASSIFICATIONS = new Set(['PASS', 'PRE_EXISTING', 'TICKET_OWNED', 'INTEGRATION_OWNED']);
 const requiredArrays = ['authority', 'owners', 'handoffs', 'stateMatrix', 'failureClasses', 'proofClasses', 'fixtures', 'codeEvidence', 'baselineIssues'];
-const requiredIdentityPins = ['bookId', 'unitStableKey', 'unitVersionId', 'sourceVersionId', 'activityId', 'activityVersionId', 'bindingRevision'];
+const requiredIdentityPins = ['bookId', 'manifestVersionId', 'unitStableKey', 'unitVersionId', 'sourceVersionId', 'activityId', 'activityVersionId', 'bindingRevision'];
 const git = (repo, args) => {
   try { return { ok: true, value: execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }; }
   catch (error) { return { ok: false, status: error.status ?? null }; }

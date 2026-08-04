@@ -13,7 +13,7 @@
     "placementId": "courseMaterialId",
     "copyIdentity": "immutable copyId; never infer copy from materialId",
     "contexts": ["course", "class-course"],
-    "requiredPins": ["bookId", "unitStableKey", "unitVersionId", "sourceVersionId", "activityId", "activityVersionId", "bindingRevision"],
+    "requiredPins": ["bookId", "manifestVersionId", "unitStableKey", "unitVersionId", "sourceVersionId", "activityId", "activityVersionId", "bindingRevision"],
     "deliveryBinding": "one immutable bindingId per student, context, placement and pin set"
   },
   "authorityModel": {
@@ -45,7 +45,7 @@
       {"id":"moduleRelease","path":"course_book_authority/releases/{courseId}/{moduleId}/{studentId}","fields":["courseId","moduleId","studentId","released"],"writer":"#102 Course release projection producer"},
       {"id":"publication","path":"book_assembly_publications/books/{bookId}","fields":["current.publicationId","current.manifestVersionId","current.publicationRevision","versions/{manifestVersionId}.ownerId","versions/{manifestVersionId}.bookId","versions/{manifestVersionId}.lifecycle"],"writer":"BookAssemblyPublicationRepository.readScope(bookId); accepted Book Assembly publication worker"}
     ],
-    "immutable": ["courseMaterialId","courseId","moduleId","materialId","bookId","publicationId","unitVersionId","sourceVersionId","activityId","activityVersionId","bindingRevision","ownerId"],
+    "immutable": ["courseMaterialId","courseId","moduleId","materialId","bookId","publicationId","manifestVersionId","unitVersionId","sourceVersionId","activityId","activityVersionId","bindingRevision","ownerId"],
     "mutable": ["enrollment.status","enrollment.expiresAt","moduleRelease.released","course.archivedAt","binding.status"],
     "invalidation": {"archive":"revoke resolution","unenrolmentOrExpiry":"deny resolution","moduleLock":"deny resolution","revoke":"deny resolution; retain history","rollback":"deny new issuance; retain immutable records"},
     "enrollmentAuthorityPort": {
