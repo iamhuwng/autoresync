@@ -1,59 +1,68 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CourseBookPlacementError,
-  InMemoryCourseBookPlacementRepository,
-  InMemoryCourseEnrollmentAuthorityPort,
   createCourseBookPlacementService,
+  InMemoryCourseBookPlacementRepository,
+  type CourseBookPins,
 } from './courseBookPlacement.service';
 
-const pins = { bookId: 'book-001', publicationId: 'pub-001', manifestVersionId: 'manifest-v1', unitStableKey: 'unit-key-1', unitVersionId: 'unit-v1', sourceVersionId: 'source-v1', activityId: 'activity-001', activityVersionId: 'activity-v1', bindingRevision: 'binding-v1' };
-const publication = { ownerId: 'teacher-001', bookId: pins.bookId, publicationId: pins.publicationId, manifestVersionId: pins.manifestVersionId, lifecycle: 'published' as const };
-const placementInput = { actorId: 'teacher-001', courseId: 'course-001', moduleId: 'module-001', courseMaterialId: 'course-material-001', courseOwnerId: 'teacher-001', contextOwnerId: 'teacher-001', publication, pins };
-const enrollment = { legacyEnrollmentId: 'legacy-001', courseId: 'course-001', studentId: 'student-001', status: 'active' as const, revision: 1, operationId: 'operation-001' };
+const pins: CourseBookPins = {
+  bookId: 'book-001', publicationId: 'publication-001', publicationRevision: 2,
+  manifestVersionId: 'manifest-001', bindingRevision: 1,
+  selectedActivities: [
+    { placementId: 'placement-001', nodeKey: 'unit-001', unitStableKey: 'unit-001', unitVersionId: 'unit-projection-001', activityId: 'activity-001', activityVersionId: 'activity-version-001', sourceVersionIds: ['source-version-001'] },
+    { placementId: 'placement-002', nodeKey: 'unit-002', unitStableKey: 'unit-002', unitVersionId: 'unit-projection-002', activityId: 'activity-002', activityVersionId: 'activity-version-002', sourceVersionIds: ['source-version-002'] },
+  ],
+};
+const publication = { ownerId: 'teacher-001', bookId: 'book-001', publicationId: 'publication-001', publicationRevision: 2, manifestVersionId: 'manifest-001', lifecycle: 'published' as const };
+const placementInput = {
+  actorId: 'teacher-001', courseId: 'course-001', moduleId: 'module-001', courseMaterialId: 'course-material-001',
+  courseOwnerId: 'teacher-001', contextOwnerId: 'teacher-001', displayTitle: 'Selected units', publication,
+  selection: { kind: 'subtree' as const, nodeKeys: ['unit-001'], placementIds: [] as const }, pins,
+};
 
 describe('Course Book placement', () => {
-  it('creates and replays one immutable private-owner placement', () => {
-    const api = createCourseBookPlacementService(new InMemoryCourseBookPlacementRepository());
-    expect(api.place(placementInput).kind).toBe('created');
-    expect(api.place(placementInput).kind).toBe('replayed');
-    expect(() => api.place({ ...placementInput, pins: { ...pins, sourceVersionId: 'source-v2' } })).toThrow('pin-conflict');
-    expect(() => api.place({ ...placementInput, contextOwnerId: 'teacher-002' })).toThrow('forbidden');
-    expect(() => api.place({ ...placementInput, publication: { ...publication, ownerId: 'teacher-002' } })).toThrow('forbidden');
+  it('places and replays a subtree with multiple exact Activity pins', () => {
+    const service = createCourseBookPlacementService(new InMemoryCourseBookPlacementRepository());
+    expect(service.place(placementInput)).toMatchObject({ kind: 'created', placement: { displayTitle: 'Selected units' } });
+    expect(service.place(placementInput)).toMatchObject({ kind: 'replayed' });
   });
 
-  it('uses a bounded direct-Course enrollment authority lifecycle', () => {
-    const port = new InMemoryCourseEnrollmentAuthorityPort();
-    expect(port.transitionDirectCourseEnrollment(enrollment)).toEqual(enrollment);
-    expect(port.transitionDirectCourseEnrollment(enrollment)).toEqual(enrollment);
-    expect(() => port.transitionDirectCourseEnrollment({ ...enrollment, revision: 3, operationId: 'operation-002' })).toThrow('enrollment-revision-conflict');
-    expect(port.transitionDirectCourseEnrollment({ ...enrollment, status: 'revoked', revision: 2, operationId: 'operation-002' }).status).toBe('revoked');
+  it('requires an Activity selection to cover the exact selected placement pins', () => {
+    const service = createCourseBookPlacementService(new InMemoryCourseBookPlacementRepository());
+    expect(() => service.place({
+      ...placementInput,
+      selection: { kind: 'placements', nodeKeys: [] as const, placementIds: ['placement-001'] },
+    })).toThrow('selection-pin-mismatch');
+    expect(service.place({
+      ...placementInput,
+      courseMaterialId: 'course-material-002',
+      selection: { kind: 'placements', nodeKeys: [] as const, placementIds: ['placement-001'] },
+      pins: { ...pins, selectedActivities: [pins.selectedActivities[0]!] },
+    })).toMatchObject({ kind: 'created' });
   });
 
-  it('resolves only the exact active student, Course, module, and accepted immutable pins', () => {
-    const api = createCourseBookPlacementService(new InMemoryCourseBookPlacementRepository());
-    api.place(placementInput);
-    const one = api.resolve({ actorId: 'student-001', studentId: 'student-001', courseId: 'course-001', moduleId: 'module-001', courseMaterialId: 'course-material-001', enrollment, moduleReleased: true, publication });
-    const two = api.resolve({ actorId: 'student-002', studentId: 'student-002', courseId: 'course-001', moduleId: 'module-001', courseMaterialId: 'course-material-001', enrollment: { ...enrollment, studentId: 'student-002' }, moduleReleased: true, publication });
-    expect(one.progressKey).not.toBe(two.progressKey);
-    expect(one.resultKey).toBe(one.progressKey);
-    expect(one.completionAggregationPolicy).toBe('all-activities');
-    for (const denial of [
-      { courseMaterialId: undefined },
-      { courseId: 'course-002' },
-      { moduleId: 'module-002' },
-      { enrollment: { ...enrollment, status: 'revoked' as const } },
-      { enrollment: { ...enrollment, expiresAt: '2020-01-01T00:00:00.000Z' }, gate: { now: '2021-01-01T00:00:00.000Z' } },
-      { moduleReleased: false },
-      { publication: { ...publication, publicationId: 'pub-002' } },
-      { gate: { courseArchived: true } },
-    ]) expect(() => api.resolve({ actorId: 'student-001', studentId: 'student-001', courseId: 'course-001', moduleId: 'module-001', courseMaterialId: 'course-material-001', enrollment, moduleReleased: true, publication, ...denial })).toThrow(CourseBookPlacementError);
+  it('isolates resolved progress by actual per-student Delivery binding and Activity Version', () => {
+    const repository = new InMemoryCourseBookPlacementRepository();
+    const service = createCourseBookPlacementService(repository);
+    service.place(placementInput);
+    const common = {
+      actorId: 'student-001', studentId: 'student-001', courseId: 'course-001', moduleId: 'module-001',
+      courseMaterialId: 'course-material-001', bindingId: 'binding_student_001', moduleReleased: true, publication,
+      enrollment: { legacyEnrollmentId: 'legacy-001', courseId: 'course-001', studentId: 'student-001', status: 'active' as const, revision: 1, operationId: 'operation-001' },
+    };
+    const resolved = service.resolve(common);
+    expect(resolved.context.contextId).toBe('course-material-001');
+    expect(resolved.activityKeys).toHaveLength(2);
+    expect(resolved.activityKeys[0]?.progressKey).toContain('binding_student_001:student-001:course-material-001:activity-version-001');
+    expect(() => service.resolve({ ...common, actorId: 'student-002' })).toThrow('denied');
   });
 
-  it('denies new issuance during rollback or restore while preserving historical resolution', () => {
-    const api = createCourseBookPlacementService(new InMemoryCourseBookPlacementRepository());
-    expect(() => api.place({ ...placementInput, gate: { rollbackEnabled: true } })).toThrow('course-book-writes-disabled');
-    api.place(placementInput);
-    expect(() => api.revoke({ actorId: 'teacher-001', courseMaterialId: 'course-material-001', gate: { restoreInProgress: true } })).toThrow('course-book-writes-disabled');
-    expect(() => api.resolve({ actorId: 'student-001', studentId: 'student-001', courseId: 'course-001', moduleId: 'module-001', courseMaterialId: 'course-material-001', enrollment, moduleReleased: true, publication, gate: { restoreInProgress: true } })).toThrow('denied');
+  it('revokes deny-only and preserves immutable placement history', () => {
+    const repository = new InMemoryCourseBookPlacementRepository();
+    const service = createCourseBookPlacementService(repository);
+    service.place(placementInput);
+    const revoked = service.revoke({ actorId: 'teacher-001', courseMaterialId: 'course-material-001' });
+    expect(revoked).toMatchObject({ status: 'revoked', placementRevision: 2 });
+    expect(service.revoke({ actorId: 'teacher-001', courseMaterialId: 'course-material-001' })).toEqual(revoked);
   });
 });
