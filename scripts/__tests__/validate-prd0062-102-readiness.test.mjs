@@ -41,6 +41,9 @@ test('fails closed for duplicate ownership, missing symbol, and stale baseline s
     delete fixture.contract.courseAuthorityAdapter; writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
     assert.ok(inspectReadiness({ repo: fixture.root, contractPath: fixture.contractPath }).diagnostics.includes('course_authority_adapter_incomplete'));
     fixture.contract.courseAuthorityAdapter = structuredClone(sourceContract.courseAuthorityAdapter); writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
+    fixture.contract.courseAuthorityAdapter.enrollmentAuthorityPort.browserWrites = 'allow'; writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
+    assert.ok(inspectReadiness({ repo: fixture.root, contractPath: fixture.contractPath }).diagnostics.includes('enrollment_authority_port_incomplete'));
+    fixture.contract.courseAuthorityAdapter = structuredClone(sourceContract.courseAuthorityAdapter); writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
     fixture.contract.canonicalStorage = ['courses/{courseId}/modules/{moduleId}/materials/{courseMaterialId}']; writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
     assert.ok(inspectReadiness({ repo: fixture.root, contractPath: fixture.contractPath }).diagnostics.includes('course_authority_adapter_incomplete'));
     fixture.contract.canonicalStorage = structuredClone(sourceContract.canonicalStorage); writeFileSync(fixture.contractPath, JSON.stringify(fixture.contract));
