@@ -40,15 +40,16 @@
     "facts": [
       {"id":"course","path":"courses/{courseId}","fields":["id","ownerId","archivedAt"],"writer":"courseManager.createCourse/updateCourse/archiveCourse"},
       {"id":"module","path":"course_modules/{moduleId}","fields":["id","courseId","accessType"],"writer":"courseManager.createModule/updateModule"},
-      {"id":"material","path":"course_materials/{courseMaterialId}","fields":["id","courseId","moduleId","materialId","isCopy"],"writer":"courseManager.addMaterialToModule"},
+      {"id":"material","path":"course_materials/{courseMaterialId}","fields":["id","courseId","moduleId","materialId","isCopy"],"writer":"#102 CourseBookPlacementRepository.create/revoke"},
       {"id":"enrollment","path":"course_book_authority/enrollments/{courseId}/{studentId}","fields":["courseId","studentId","status","expiresAt"],"writer":"#102 enrollment projection producer"},
       {"id":"moduleRelease","path":"course_book_authority/releases/{courseId}/{moduleId}/{studentId}","fields":["courseId","moduleId","studentId","released"],"writer":"#102 Course release projection producer"},
-      {"id":"publication","path":"book_delivery/publications/{bookId}/{publicationId}","fields":["bookId","publicationId","ownerId","status"],"writer":"accepted Book publication producer"}
+      {"id":"publication","path":"book_assembly_publications/books/{bookId}","fields":["current.publicationId","current.manifestVersionId","current.publicationRevision","versions/{manifestVersionId}.ownerId","versions/{manifestVersionId}.bookId","versions/{manifestVersionId}.lifecycle"],"writer":"BookAssemblyPublicationRepository.readScope(bookId); accepted Book Assembly publication worker"}
     ],
     "immutable": ["courseMaterialId","courseId","moduleId","materialId","bookId","publicationId","unitVersionId","sourceVersionId","activityId","activityVersionId","bindingRevision","ownerId"],
     "mutable": ["enrollment.status","enrollment.expiresAt","moduleRelease.released","course.archivedAt","binding.status"],
     "invalidation": {"archive":"revoke resolution","unenrolmentOrExpiry":"deny resolution","moduleLock":"deny resolution","revoke":"deny resolution; retain history","rollback":"deny new issuance; retain immutable records"},
     "compatibility":"Legacy random enrollment IDs and bare-materialId non-Book readers remain untouched; only Book placement uses the additive exact projections.",
+    "legacyMaterialLinkCompatibility":"materialLinkManager.linkMaterialToModule/copyMaterialToModule/unmountMaterialFromModule remain legacy non-Book writers and are never trusted Book authority producers.",
     "classBoundary":"#103 owns Class locks, class progress, copies, and class-course identity; this adapter never reads class_progress or class copies.",
     "handoffs":{"#104":"resolved immutable projection only","#118":"compose projection paths/indexes into generated rules"},
     "rulesFragment":{"root":"course_book_authority","directChildren":["enrollments/{courseId}/{studentId}","releases/{courseId}/{moduleId}/{studentId}"],"writes":"trusted #102 projection producers only","browserWrites":"deny"},
@@ -81,6 +82,8 @@
     {"path":"src/services/book-delivery/bookDelivery.schema.ts","symbol":"isRunnableBookDeliveryBinding"},
     {"path":"src/services/book-delivery/bookDelivery.entitlement.ts","symbol":"BOOK_DELIVERY_RECORD_ROOT"},
     {"path":"src/services/book-delivery/bookDelivery.service.ts","symbol":"createBookDeliveryProjectionResolver"},
+    {"path":"cloudflare/src/upload-worker/book-assembly/publication-repository.ts","symbol":"BookAssemblyPublicationRepository"},
+    {"path":"cloudflare/src/upload-worker/book-assembly/publication-repository.ts","symbol":"readScope(bookId"},
     {"path":"cloudflare/src/upload-worker/book-delivery/worker.ts","symbol":"createBookDeliveryWorkerHandlers"},
     {"path":"cloudflare/src/upload-worker/book-delivery/route.ts","symbol":"bookDeliveryRouteDescriptors"},
     {"path":"database.rules.json","symbol":"book_delivery"},

@@ -54,6 +54,12 @@ export const inspectReadiness = ({ repo, contractPath }) => {
     || !Array.isArray(contract.canonicalStorage) || !contract.canonicalStorage.includes('course_materials/{courseMaterialId}') || contract.canonicalStorage.some((entry) => String(entry).includes('modules/{moduleId}/materials/{courseMaterialId}'))
     || !adapter.rulesFragment || !Array.isArray(adapter.rulesFragment.directChildren) || adapter.rulesFragment.directChildren.join(',') !== 'enrollments/{courseId}/{studentId},releases/{courseId}/{moduleId}/{studentId}' || Object.hasOwn(adapter.rulesFragment, 'indexes') || adapter.rulesFragment.browserWrites !== 'deny'
     || !Array.isArray(adapter.fixtures) || adapter.fixtures.length < 7) diagnostics.push('course_authority_adapter_incomplete');
+  if (!String(adapter?.facts?.find((fact) => fact?.id === 'material')?.writer ?? '').includes('CourseBookPlacementRepository.create/revoke')
+    || !String(adapter?.legacyMaterialLinkCompatibility ?? '').includes('materialLinkManager')) diagnostics.push('course_authority_writer_incomplete');
+  const publication = adapter?.facts?.find((fact) => fact?.id === 'publication');
+  if (publication?.path !== 'book_assembly_publications/books/{bookId}' || !String(publication?.writer ?? '').includes('BookAssemblyPublicationRepository.readScope(bookId)')
+    || !['current.publicationId', 'current.manifestVersionId', 'current.publicationRevision', 'versions/{manifestVersionId}.ownerId', 'versions/{manifestVersionId}.bookId', 'versions/{manifestVersionId}.lifecycle'].every((field) => publication?.fields?.includes(field))
+    || !(contract.codeEvidence ?? []).some((item) => item?.path === 'cloudflare/src/upload-worker/book-assembly/publication-repository.ts' && item?.symbol === 'readScope(bookId')) diagnostics.push('publication_authority_incomplete');
   const ownerTickets = (contract.owners ?? []).map((item) => item?.ticket).filter(Boolean);
   if (!unique(ownerTickets) || ownerTickets.length < 7 || !ownerTickets.includes('#102')) diagnostics.push('ownership_missing_or_duplicate');
   const consumers = (contract.handoffs ?? []).map((item) => item?.consumer).filter(Boolean);
