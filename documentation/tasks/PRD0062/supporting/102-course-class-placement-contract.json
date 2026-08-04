@@ -28,7 +28,7 @@
     "rollback": "Disable new Book placement writes and entitlement issuance; retain immutable bindings, pins, legacy data, and existing readable records without deletion."
   },
   "canonicalStorage": [
-    "courses/{courseId}/modules/{moduleId}/materials/{courseMaterialId}",
+    "course_materials/{courseMaterialId}",
     "classes/{classId}/course-links/{courseId}",
     "book_delivery/bindings/{studentId}/{bindingId}",
     "book_delivery/current_entitlements/{studentId}/{entitlementId}",
@@ -51,7 +51,7 @@
     "compatibility":"Legacy random enrollment IDs and bare-materialId non-Book readers remain untouched; only Book placement uses the additive exact projections.",
     "classBoundary":"#103 owns Class locks, class progress, copies, and class-course identity; this adapter never reads class_progress or class copies.",
     "handoffs":{"#104":"resolved immutable projection only","#118":"compose projection paths/indexes into generated rules"},
-    "rulesFragment":{"root":"course_book_authority","indexes":["enrollments/courseId/studentId","releases/courseId/moduleId/studentId"],"writes":"trusted #102 projection producers only","browserWrites":"deny"},
+    "rulesFragment":{"root":"course_book_authority","directChildren":["enrollments/{courseId}/{studentId}","releases/{courseId}/{moduleId}/{studentId}"],"writes":"trusted #102 projection producers only","browserWrites":"deny"},
     "fixtures":["legacy-random-enrollment-id","bare-material-non-book","expired-enrollment","module-lock","course-archive","revoke-replay","class-copy-excluded"]
   },
   "owners": [

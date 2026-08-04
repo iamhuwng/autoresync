@@ -51,7 +51,8 @@ export const inspectReadiness = ({ repo, contractPath }) => {
     || !requiredFacts.every((id) => adapter.facts.some((fact) => fact?.id === id && typeof fact.path === 'string' && Array.isArray(fact.fields) && fact.fields.length > 0 && typeof fact.writer === 'string' && fact.writer.length > 0))
     || !Array.isArray(adapter.immutable) || !Array.isArray(adapter.mutable) || !adapter.invalidation || !['archive', 'unenrolmentOrExpiry', 'moduleLock', 'revoke', 'rollback'].every((key) => typeof adapter.invalidation[key] === 'string' && adapter.invalidation[key].length > 0)
     || !String(adapter.compatibility ?? '').trim() || !String(adapter.classBoundary ?? '').includes('#103') || !adapter.handoffs?.['#104'] || !adapter.handoffs?.['#118']
-    || !adapter.rulesFragment || !Array.isArray(adapter.rulesFragment.indexes) || adapter.rulesFragment.indexes.length < 2 || adapter.rulesFragment.browserWrites !== 'deny'
+    || !Array.isArray(contract.canonicalStorage) || !contract.canonicalStorage.includes('course_materials/{courseMaterialId}') || contract.canonicalStorage.some((entry) => String(entry).includes('modules/{moduleId}/materials/{courseMaterialId}'))
+    || !adapter.rulesFragment || !Array.isArray(adapter.rulesFragment.directChildren) || adapter.rulesFragment.directChildren.join(',') !== 'enrollments/{courseId}/{studentId},releases/{courseId}/{moduleId}/{studentId}' || Object.hasOwn(adapter.rulesFragment, 'indexes') || adapter.rulesFragment.browserWrites !== 'deny'
     || !Array.isArray(adapter.fixtures) || adapter.fixtures.length < 7) diagnostics.push('course_authority_adapter_incomplete');
   const ownerTickets = (contract.owners ?? []).map((item) => item?.ticket).filter(Boolean);
   if (!unique(ownerTickets) || ownerTickets.length < 7 || !ownerTickets.includes('#102')) diagnostics.push('ownership_missing_or_duplicate');
