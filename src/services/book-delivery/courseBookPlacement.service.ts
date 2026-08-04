@@ -74,8 +74,8 @@ const unique = (values: readonly string[]): boolean => new Set(values).size === 
 const frozenStrings = (values: readonly string[]): readonly string[] => Object.freeze([...values]);
 
 const freezeSelection = (selection: CourseBookSelection): CourseBookSelection => selection.kind === 'subtree'
-  ? Object.freeze({ kind: 'subtree', nodeKeys: frozenStrings(selection.nodeKeys), placementIds: Object.freeze([]) })
-  : Object.freeze({ kind: 'placements', nodeKeys: Object.freeze([]), placementIds: frozenStrings(selection.placementIds) });
+  ? Object.freeze({ kind: 'subtree', nodeKeys: frozenStrings(selection.nodeKeys), placementIds: Object.freeze([]) as readonly [] })
+  : Object.freeze({ kind: 'placements', nodeKeys: Object.freeze([]) as readonly [], placementIds: frozenStrings(selection.placementIds) });
 
 const assertSelection = (selection: CourseBookSelection, pins: readonly CourseBookSelectedActivityPin[]): void => {
   if (selection.kind === 'subtree') {

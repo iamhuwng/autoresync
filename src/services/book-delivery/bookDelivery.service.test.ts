@@ -275,5 +275,16 @@ describe('Book Delivery projection resolver', () => {
       contextId: 'course-1',
       actor: { uid: 'student-1' },
     })).rejects.toThrow(new BookDeliveryProjectionError('book-delivery-unsupported-context', 422));
+    await expect(createBookDeliveryProjectionResolver({
+      repository: courseRepository,
+      allowedAdapterContexts: ['course'],
+    }).resolve({
+      recipientId: 'student-1',
+      contextId: 'course-1',
+      actor: { uid: 'student-1' },
+    })).resolves.toMatchObject({
+      recipientId: 'student-1',
+      context: { kind: 'course', contextId: 'course-1' },
+    });
   });
 });

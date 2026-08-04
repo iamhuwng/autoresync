@@ -70,6 +70,8 @@ const actionFlags = (kind: BookDeliveryContextKind): BookRuntimeDeliveryProjecti
 
 export const createBookDeliveryProjectionResolver = (options: {
   readonly repository: BookDeliveryRepository;
+  /** Additional contexts admitted only after an adapter has enforced its live authority. */
+  readonly allowedAdapterContexts?: readonly Extract<BookDeliveryContextKind, 'course' | 'class'>[];
   readonly makeOpaqueRouteKey?: (
     binding: BookDeliveryBinding,
     sourceKey: string,
@@ -77,6 +79,9 @@ export const createBookDeliveryProjectionResolver = (options: {
   ) => string;
 }) => {
   const makeOpaqueRouteKey = options.makeOpaqueRouteKey ?? routeKey;
+  const allowedContexts = new Set<BookDeliveryContextKind>([
+    ...runnableContexts, ...(options.allowedAdapterContexts ?? []),
+  ]);
 
   return {
     async resolve(input: ResolveBookDeliveryProjectionInput): Promise<BookRuntimeDeliveryProjection> {
@@ -100,7 +105,7 @@ export const createBookDeliveryProjectionResolver = (options: {
         || !isRunnableBookDeliveryBinding(binding)) {
         throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
       }
-      if (!runnableContexts.has(binding.context.kind)) {
+      if (!allowedContexts.has(binding.context.kind)) {
         throw new BookDeliveryProjectionError('book-delivery-unsupported-context', 422);
       }
       const documentRequests = binding.sourceSet.sources.map((source) => ({

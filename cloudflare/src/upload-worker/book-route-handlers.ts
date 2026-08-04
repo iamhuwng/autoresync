@@ -147,8 +147,8 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, homework, ['homeworkTeacherStudentProjection'], 'futureSeam', () => ['assignmentId', 'studentId']);
   addFactoryHandlers(handlers, homework, ['homeworkTeacherProjection'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, sourceUpload, ['begin', 'complete', 'status', 'cancel'], 'bookSource');
-  addFactoryHandlers(handlers, courseBook, ['place', 'revoke'], 'courseBookPlacement');
-  addFactoryHandlers(handlers, courseBook, ['resolve'], 'courseBookPlacement', () => ['courseMaterialId']);
+  addFactoryHandlers(handlers, courseBook, ['place', 'prepare', 'revoke'], 'courseBookPlacement');
+  addFactoryHandlers(handlers, courseBook, ['current'], 'courseBookPlacement', () => ['courseMaterialId']);
 
   const documentHandler = options.documentHandler
     ?? createBookSourceDocumentDeliveryHandler(options.sourceDocument);

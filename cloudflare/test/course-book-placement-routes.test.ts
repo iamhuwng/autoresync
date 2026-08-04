@@ -6,8 +6,9 @@ describe('#102 Course Book route contributor', () => {
     expect(courseBookPlacementRouteDescriptors.map((route) => route.path).sort()).toEqual([
       '/course-book-placement/current/:courseMaterialId',
       '/course-book-placement/place',
+      '/course-book-placement/prepare',
       '/course-book-placement/revoke',
     ]);
-    expect(courseBookPlacementRouteDescriptors.map((route) => route.handler).sort()).toEqual(['place', 'resolve', 'revoke']);
+    expect(courseBookPlacementRouteDescriptors.map((route) => route.handler).sort()).toEqual(['current', 'place', 'prepare', 'revoke']);
   });
 });

@@ -44,6 +44,8 @@
     }
   ],
   "vars": {
+    "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "disabled",
     "PUBLIC_URL": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev",
     "FIREBASE_PROJECT_ID": "temp-a1437",
     "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",

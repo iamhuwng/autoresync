@@ -9,7 +9,14 @@ export interface RepositoryEnv {
   readDatabaseValue?: (path: string, query?: FirebaseRtdbQuery) => Promise<unknown>;
 }
 
-export interface CourseBookAuthority102Claims {
+export interface FirebaseRtdbQuery {
+  readonly orderBy: '$key' | string;
+  readonly equalTo?: string | number | boolean | null;
+  readonly limitToFirst?: number;
+  readonly limitToLast?: number;
+}
+
+export interface CourseBookAuthority102EnrollmentClaims {
   readonly operation: 'enrollment-transition';
   readonly actorUid: string;
   readonly courseId: string;
@@ -20,11 +27,22 @@ export interface CourseBookAuthority102Claims {
   readonly operationId: string;
 }
 
-export interface FirebaseRtdbQuery {
-  readonly orderBy: '$key' | string;
-  readonly limitToFirst?: number;
-  readonly limitToLast?: number;
+export interface CourseBookAuthority102ReleaseClaims {
+  readonly operation: 'release-transition';
+  readonly actorUid: string;
+  readonly courseId: string;
+  readonly moduleId: string;
+  readonly studentId: string;
+  readonly expectedReleaseRevision: number;
+  readonly operationId: string;
 }
+
+export type CourseBookAuthority102Claims =
+  | CourseBookAuthority102EnrollmentClaims
+  | CourseBookAuthority102ReleaseClaims;
+
+export type CourseBookAuthority102TokenProvider =
+  (claims: CourseBookAuthority102Claims) => Promise<string>;
 
 interface ServiceAccountKey {
   client_email: string;
@@ -44,6 +62,8 @@ const FIREBASE_SCOPES = [
   'https://www.googleapis.com/auth/datastore',
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
+const ID = /^[A-Za-z0-9][A-Za-z0-9:_-]{2,159}$/u;
+const OPERATION = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 class TokenCache {
@@ -102,8 +122,6 @@ class TokenCache {
 }
 
 const tokenCaches = new Map<string, TokenCache>();
-const courseAuthorityTokenCaches = new Map<string, { token: string; expiresAt: number }>();
-
 const getTokenCache = (saKeyJson: string, fetchImpl: typeof fetch): TokenCache => {
   let cache = tokenCaches.get(saKeyJson);
   if (!cache) {
@@ -113,23 +131,104 @@ const getTokenCache = (saKeyJson: string, fetchImpl: typeof fetch): TokenCache =
   return cache;
 };
 
-const stableCourseClaims = (claims: CourseBookAuthority102Claims): string => JSON.stringify({
-  operation: claims.operation, actorUid: claims.actorUid, courseId: claims.courseId,
-  studentId: claims.studentId, legacyEnrollmentId: claims.legacyEnrollmentId,
-  expectedLegacyRevision: claims.expectedLegacyRevision,
-  expectedAuthorityRevision: claims.expectedAuthorityRevision, operationId: claims.operationId,
-});
+const stableCourseClaims = (claims: CourseBookAuthority102Claims): string => {
+  switch (claims.operation) {
+    case 'enrollment-transition':
+      return JSON.stringify({
+        operation: claims.operation,
+        actorUid: claims.actorUid,
+        courseId: claims.courseId,
+        studentId: claims.studentId,
+        legacyEnrollmentId: claims.legacyEnrollmentId,
+        expectedLegacyRevision: claims.expectedLegacyRevision,
+        expectedAuthorityRevision: claims.expectedAuthorityRevision,
+        operationId: claims.operationId,
+      });
+    case 'release-transition':
+      return JSON.stringify({
+        operation: claims.operation,
+        actorUid: claims.actorUid,
+        courseId: claims.courseId,
+        moduleId: claims.moduleId,
+        studentId: claims.studentId,
+        expectedReleaseRevision: claims.expectedReleaseRevision,
+        operationId: claims.operationId,
+      });
+    default:
+      throw new Error('invalid_course_book_authority_102_claims');
+  }
+};
 
 const assertCourseClaims = (claims: CourseBookAuthority102Claims): void => {
-  const id = /^[A-Za-z0-9][A-Za-z0-9:_-]{2,159}$/u;
-  const operation = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-  if (claims.operation !== 'enrollment-transition'
-    || ![claims.actorUid, claims.courseId, claims.studentId, claims.legacyEnrollmentId].every((value) => id.test(value))
-    || !operation.test(claims.operationId)
-    || !Number.isSafeInteger(claims.expectedLegacyRevision)
-    || !Number.isSafeInteger(claims.expectedAuthorityRevision)
-    || claims.expectedLegacyRevision < 0 || claims.expectedAuthorityRevision < 0) {
+  if (!claims || typeof claims !== 'object' || Array.isArray(claims)) {
     throw new Error('invalid_course_book_authority_102_claims');
+  }
+  if (claims.operation === 'enrollment-transition') {
+    const keys = Object.keys(claims as unknown as Record<string, unknown>).sort();
+    if (keys.join('\u0000') !== [
+      'actorUid', 'courseId', 'expectedAuthorityRevision', 'expectedLegacyRevision',
+      'legacyEnrollmentId', 'operation', 'operationId', 'studentId',
+    ].sort().join('\u0000')) {
+      throw new Error('invalid_course_book_authority_102_claims');
+    }
+    if (![claims.actorUid, claims.courseId, claims.studentId, claims.legacyEnrollmentId]
+      .every((value) => typeof value === 'string' && ID.test(value))
+      || !OPERATION.test(claims.operationId)
+      || !Number.isSafeInteger(claims.expectedLegacyRevision)
+      || !Number.isSafeInteger(claims.expectedAuthorityRevision)
+      || claims.expectedLegacyRevision < 0
+      || claims.expectedAuthorityRevision < 0) {
+      throw new Error('invalid_course_book_authority_102_claims');
+    }
+    return;
+  }
+  if (claims.operation === 'release-transition') {
+    const keys = Object.keys(claims as unknown as Record<string, unknown>).sort();
+    if (keys.join('\u0000') !== [
+      'actorUid', 'courseId', 'expectedReleaseRevision', 'moduleId',
+      'operation', 'operationId', 'studentId',
+    ].sort().join('\u0000')) {
+      throw new Error('invalid_course_book_authority_102_claims');
+    }
+    if (![claims.actorUid, claims.courseId, claims.moduleId, claims.studentId]
+      .every((value) => typeof value === 'string' && ID.test(value))
+      || !OPERATION.test(claims.operationId)
+      || !Number.isSafeInteger(claims.expectedReleaseRevision)
+      || claims.expectedReleaseRevision < 0) {
+      throw new Error('invalid_course_book_authority_102_claims');
+    }
+    return;
+  }
+  throw new Error('invalid_course_book_authority_102_claims');
+};
+
+const jwtClaimsFor = (claims: CourseBookAuthority102Claims): Record<string, unknown> => {
+  switch (claims.operation) {
+    case 'enrollment-transition':
+      return {
+        courseBookAuthority102: true,
+        operation: claims.operation,
+        actorUid: claims.actorUid,
+        courseId: claims.courseId,
+        studentId: claims.studentId,
+        legacyEnrollmentId: claims.legacyEnrollmentId,
+        expectedLegacyRevision: claims.expectedLegacyRevision,
+        expectedAuthorityRevision: claims.expectedAuthorityRevision,
+        operationId: claims.operationId,
+      };
+    case 'release-transition':
+      return {
+        courseBookAuthority102: true,
+        operation: claims.operation,
+        actorUid: claims.actorUid,
+        courseId: claims.courseId,
+        moduleId: claims.moduleId,
+        studentId: claims.studentId,
+        expectedReleaseRevision: claims.expectedReleaseRevision,
+        operationId: claims.operationId,
+      };
+    default:
+      throw new Error('invalid_course_book_authority_102_claims');
   }
 };
 
@@ -138,9 +237,10 @@ export const createCourseBookAuthority102TokenProvider = (options: {
   readonly env: RepositoryEnv;
   readonly fetchImpl?: typeof fetch;
   readonly now?: () => number;
-}) => {
+}): CourseBookAuthority102TokenProvider => {
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const now = options.now ?? Date.now;
+  const tokenCache = new Map<string, { token: string; expiresAt: number }>();
   return async (claims: CourseBookAuthority102Claims): Promise<string> => {
     assertCourseClaims(claims);
     const serviceAccountJson = options.env.GOOGLE_SA_KEY?.trim();
@@ -148,28 +248,69 @@ export const createCourseBookAuthority102TokenProvider = (options: {
     if (!serviceAccountJson) throw new Error('missing_course_book_authority_google_sa_key');
     if (!apiKey) throw new Error('missing_course_book_authority_firebase_web_api_key');
     let serviceAccount: ServiceAccountKey;
-    try { serviceAccount = JSON.parse(serviceAccountJson) as ServiceAccountKey; } catch { throw new Error('invalid_course_book_authority_google_sa_key'); }
-    if (!serviceAccount.client_email || !serviceAccount.private_key) throw new Error('invalid_course_book_authority_google_sa_key');
-    const cacheKey = `${serviceAccount.client_email}:${stableCourseClaims(claims)}`;
-    const cached = courseAuthorityTokenCaches.get(cacheKey);
+    try {
+      serviceAccount = JSON.parse(serviceAccountJson) as ServiceAccountKey;
+    } catch {
+      throw new Error('invalid_course_book_authority_google_sa_key');
+    }
+    if (!serviceAccount || typeof serviceAccount !== 'object' || Array.isArray(serviceAccount)
+      || typeof serviceAccount.client_email !== 'string'
+      || !serviceAccount.client_email.trim()
+      || typeof serviceAccount.private_key !== 'string'
+      || !serviceAccount.private_key.trim()) {
+      throw new Error('invalid_course_book_authority_google_sa_key');
+    }
+    const cacheKey = JSON.stringify([
+      apiKey,
+      serviceAccountJson,
+      stableCourseClaims(claims),
+    ]);
+    const cached = tokenCache.get(cacheKey);
     if (cached && now() < cached.expiresAt - 60_000) return cached.token;
     const issuedAt = Math.floor(now() / 1000);
     const privateKey = await importPKCS8(serviceAccount.private_key, 'RS256');
     const customToken = await new SignJWT({
-      iss: serviceAccount.client_email, sub: serviceAccount.client_email,
-      aud: FIREBASE_CUSTOM_TOKEN_AUDIENCE, iat: issuedAt, exp: issuedAt + 300,
+      iss: serviceAccount.client_email,
+      sub: serviceAccount.client_email,
+      aud: FIREBASE_CUSTOM_TOKEN_AUDIENCE,
+      iat: issuedAt,
+      exp: issuedAt + 300,
       uid: `course-book-authority-102:${claims.operationId}`,
-      claims: { courseBookAuthority102: true, ...claims },
+      claims: jwtClaimsFor(claims),
     }).setProtectedHeader({ alg: 'RS256', typ: 'JWT' }).sign(privateKey);
     let response: Response;
-    try { response = await fetchImpl.call(globalThis, `${IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL}?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: customToken, returnSecureToken: true }) }); } catch { throw new Error('course_book_authority_token_exchange_transport_failed'); }
+    try {
+      response = await fetchImpl.call(globalThis, `${IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL}?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: customToken, returnSecureToken: true }),
+      });
+    } catch {
+      throw new Error('course_book_authority_token_exchange_transport_failed');
+    }
     const raw = await response.text();
     if (!response.ok) throw new Error(`course_book_authority_token_exchange_failed:${response.status}`);
     let exchanged: { idToken?: unknown; expiresIn?: unknown };
-    try { exchanged = JSON.parse(raw) as { idToken?: unknown; expiresIn?: unknown }; } catch { throw new Error('course_book_authority_token_exchange_invalid_response'); }
-    if (typeof exchanged.idToken !== 'string' || exchanged.idToken.length < 16 || !/^\d+$/u.test(String(exchanged.expiresIn))) throw new Error('course_book_authority_token_exchange_invalid_response');
-    const lifetime = Math.min(300, Math.max(1, Number(exchanged.expiresIn))) * 1000;
-    courseAuthorityTokenCaches.set(cacheKey, { token: exchanged.idToken, expiresAt: now() + lifetime });
+    try {
+      exchanged = JSON.parse(raw) as { idToken?: unknown; expiresIn?: unknown };
+    } catch {
+      throw new Error('course_book_authority_token_exchange_invalid_response');
+    }
+    const expiresIn = exchanged.expiresIn;
+    const expiresInString = typeof expiresIn === 'number'
+      ? Number.isSafeInteger(expiresIn) ? String(expiresIn) : ''
+      : typeof expiresIn === 'string' ? expiresIn : '';
+    const expiresInSeconds = Number(expiresInString);
+    if (typeof exchanged.idToken !== 'string'
+      || exchanged.idToken.length < 16
+      || exchanged.idToken.trim() !== exchanged.idToken
+      || !/^\d+$/u.test(expiresInString)
+      || !Number.isSafeInteger(expiresInSeconds)
+      || expiresInSeconds < 1) {
+      throw new Error('course_book_authority_token_exchange_invalid_response');
+    }
+    const lifetime = Math.min(300, expiresInSeconds) * 1000;
+    tokenCache.set(cacheKey, { token: exchanged.idToken, expiresAt: now() + lifetime });
     return exchanged.idToken;
   };
 };
@@ -191,7 +332,7 @@ const encodeRtdbPath = (path: string): string =>
     .join('/');
 
 const rtdbUrl = (env: RepositoryEnv, path: string): string => {
-  const baseUrl = env.FIREBASE_DB_URL?.trim().replace(/\/$/, '');
+  const baseUrl = env.FIREBASE_DB_URL?.trim().replace(/\/$/u, '');
   if (!baseUrl) throw new Error('missing_firebase_db_url');
   const encodedPath = encodeRtdbPath(path);
   return encodedPath ? `${baseUrl}/${encodedPath}.json` : `${baseUrl}/.json`;
@@ -205,17 +346,16 @@ const withQuery = (
   const parameters = new URLSearchParams();
   if (query) {
     parameters.set('orderBy', JSON.stringify(query.orderBy));
-    if (query.limitToFirst !== undefined) {
-      parameters.set('limitToFirst', String(query.limitToFirst));
-    }
-    if (query.limitToLast !== undefined) {
-      parameters.set('limitToLast', String(query.limitToLast));
-    }
+    if (query.equalTo !== undefined) parameters.set('equalTo', JSON.stringify(query.equalTo));
+    if (query.limitToFirst !== undefined) parameters.set('limitToFirst', String(query.limitToFirst));
+    if (query.limitToLast !== undefined) parameters.set('limitToLast', String(query.limitToLast));
   }
   if (authToken !== undefined) parameters.set('auth', authToken);
   const encoded = parameters.toString();
   return encoded ? `${url}?${encoded}` : url;
 };
+
+const PATCH_PATH = /^[A-Za-z0-9_-]{1,160}(?:\/[A-Za-z0-9_-]{1,160})*$/u;
 
 export class FirebaseRtdbRestClient {
   constructor(
@@ -258,14 +398,37 @@ export class FirebaseRtdbRestClient {
     return { data: body as T, etag };
   }
 
-  async patchMultiLocation(updates: readonly { readonly path: string; readonly value: unknown }[]): Promise<void> {
-    if (!this.options.firebaseAuthToken) throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
-    if (!Array.isArray(updates) || updates.length < 2) throw new Error('firebase_rtdb_multi_location_patch_invalid');
+  async patchMultiLocation(
+    updates: readonly { readonly path: string; readonly value: unknown }[],
+  ): Promise<void> {
+    if (!this.options.firebaseAuthToken) {
+      throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
+    }
+    if (!Array.isArray(updates) || updates.length < 2) {
+      throw new Error('firebase_rtdb_multi_location_patch_invalid');
+    }
     const payload: Record<string, unknown> = {};
-    for (const update of updates) { const path = update?.path; if (typeof path !== 'string' || !/^[A-Za-z0-9_-]{1,160}(?:\/[A-Za-z0-9_-]{1,160})*$/u.test(path) || Object.hasOwn(payload, path) || Object.keys(payload).some((other) => path.startsWith(other + '/') || other.startsWith(path + '/'))) throw new Error('firebase_rtdb_multi_location_patch_invalid'); payload[path] = update.value; }
-    const auth = await this.requestAuth(''); let response: Response;
-    try { response = await this.options.fetchImpl.call(globalThis, auth.url, { method: 'PATCH', headers: { ...auth.headers, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); } catch { throw new Error('firebase_rtdb_multi_location_patch_transport_failed'); }
-    if (!response.ok) throw new Error('firebase_rtdb_multi_location_patch_failed:' + response.status);
+    for (const update of updates) {
+      const path = update?.path;
+      if (typeof path !== 'string' || !PATCH_PATH.test(path)
+        || Object.prototype.hasOwnProperty.call(payload, path)
+        || Object.keys(payload).some((other) => path.startsWith(`${other}/`) || other.startsWith(`${path}/`))) {
+        throw new Error('firebase_rtdb_multi_location_patch_invalid');
+      }
+      payload[path] = update.value;
+    }
+    const auth = await this.requestAuth('');
+    let response: Response;
+    try {
+      response = await this.options.fetchImpl.call(globalThis, auth.url, {
+        method: 'PATCH',
+        headers: { ...auth.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      throw new Error('firebase_rtdb_multi_location_patch_transport_failed');
+    }
+    if (!response.ok) throw new Error(`firebase_rtdb_multi_location_patch_failed:${response.status}`);
   }
 
   async writeIfMatch(path: string, value: unknown, etag: string): Promise<boolean> {
@@ -281,7 +444,7 @@ export class FirebaseRtdbRestClient {
     });
     if (response.status === 412) return false;
     if (!response.ok) {
-      const body = (await response.text()).slice(0, 240).replace(/[\r\n]+/g, ' ');
+      const body = (await response.text()).slice(0, 240).replace(/[\r\n]+/gu, ' ');
       throw new Error(`firebase_rtdb_put_failed:${response.status}:${body}`);
     }
     return true;
@@ -298,12 +461,20 @@ export class FirebaseRtdbRestClient {
     url: string;
     headers: Record<string, string>;
   }> {
-    const token = this.options.firebaseAuthToken && this.options.getFirebaseAuthToken
-      ? await this.options.getFirebaseAuthToken()
-      : await this.accessToken();
-    const url = rtdbUrl(this.options.env, path);
-    return this.options.firebaseAuthToken
-      ? { url: withQuery(url, query, token), headers: {} }
-      : { url: withQuery(url, query), headers: { Authorization: `Bearer ${token}` } };
+    if (this.options.firebaseAuthToken) {
+      const getFirebaseAuthToken = this.options.getFirebaseAuthToken ?? this.options.getAccessToken;
+      if (!getFirebaseAuthToken) {
+        throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
+      }
+      const token = await getFirebaseAuthToken();
+      if (typeof token !== 'string' || !token.trim()) {
+        throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
+      }
+      return { url: withQuery(rtdbUrl(this.options.env, path), query, token), headers: {} };
+    }
+    return {
+      url: withQuery(rtdbUrl(this.options.env, path), query),
+      headers: { Authorization: `Bearer ${await this.accessToken()}` },
+    };
   }
 }

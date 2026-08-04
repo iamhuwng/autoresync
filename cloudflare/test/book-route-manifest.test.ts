@@ -11,7 +11,7 @@ const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(31);
+    expect(contributorRoutes).toHaveLength(35);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
@@ -24,7 +24,8 @@ describe('canonical Book route contract catalog', () => {
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#80')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(31);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#102')).toHaveLength(4);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(35);
   });
 
   it('registers all future boundaries as disabled seams', () => {
