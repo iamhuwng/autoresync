@@ -181,6 +181,16 @@ export class FirebaseRtdbRestClient {
     return { data: body as T, etag };
   }
 
+  async patchMultiLocation(updates: readonly { readonly path: string; readonly value: unknown }[]): Promise<void> {
+    if (!this.options.firebaseAuthToken) throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
+    if (!Array.isArray(updates) || updates.length < 2) throw new Error('firebase_rtdb_multi_location_patch_invalid');
+    const payload: Record<string, unknown> = {};
+    for (const update of updates) { const path = update?.path; if (typeof path !== 'string' || !/^[A-Za-z0-9_-]{1,160}(?:\/[A-Za-z0-9_-]{1,160})*$/u.test(path) || Object.hasOwn(payload, path) || Object.keys(payload).some((other) => path.startsWith(other + '/') || other.startsWith(path + '/'))) throw new Error('firebase_rtdb_multi_location_patch_invalid'); payload[path] = update.value; }
+    const auth = await this.requestAuth(''); let response: Response;
+    try { response = await this.options.fetchImpl.call(globalThis, auth.url, { method: 'PATCH', headers: { ...auth.headers, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); } catch { throw new Error('firebase_rtdb_multi_location_patch_transport_failed'); }
+    if (!response.ok) throw new Error('firebase_rtdb_multi_location_patch_failed:' + response.status);
+  }
+
   async writeIfMatch(path: string, value: unknown, etag: string): Promise<boolean> {
     const auth = await this.requestAuth(path);
     const response = await this.options.fetchImpl.call(globalThis, auth.url, {

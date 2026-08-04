@@ -13,6 +13,9 @@ const OWNED_SUCCESSOR_PATHS = new Set([
   'src/services/book-delivery/courseBookPlacement.service.ts',
   'src/services/book-delivery/courseBookPlacement.service.test.ts',
   'documentation/tasks/PRD0062/evidence/102-course-placement-local-2026-08-05.json',
+  'cloudflare/src/upload-worker/listening-authoring/rtdb.ts',
+  'cloudflare/test/rtdb-multi-location-patch.test.ts',
+  'cloudflare/src/upload-worker/book-rules/fragments/42A.json',
 ]);
 const CLASSIFICATIONS = new Set(['PASS', 'PRE_EXISTING', 'TICKET_OWNED', 'INTEGRATION_OWNED']);
 const requiredArrays = ['authority', 'owners', 'handoffs', 'stateMatrix', 'failureClasses', 'proofClasses', 'fixtures', 'codeEvidence', 'baselineIssues'];
@@ -62,10 +65,10 @@ export const inspectReadiness = ({ repo, contractPath }) => {
     || !(contract.codeEvidence ?? []).some((item) => item?.path === 'cloudflare/src/upload-worker/book-assembly/publication-repository.ts' && item?.symbol === 'readScope(bookId')) diagnostics.push('publication_authority_incomplete');
   const port = adapter?.enrollmentAuthorityPort;
   if (!port || port.owner !== '#102 direct-Course vertical; contributes through #59 Worker composition' || port.symbol !== 'CourseEnrollmentAuthorityPort.transitionDirectCourseEnrollment'
-    || port.canonicalKey !== 'directCourseEnrollmentKey(courseId,studentId): course:${courseId}:student:${studentId}; collision-safe validated IDs'
-    || !Array.isArray(port.atomicWrites) || port.atomicWrites.join(',') !== 'course_enrollments/{directCourseEnrollmentKey(courseId,studentId)}'
+    || port.canonicalKey !== 'legacyEnrollmentId is preserved; courseId/studentId are the exact authority projection key'
+    || !Array.isArray(port.atomicWrites) || port.atomicWrites.join(',') !== 'course_enrollments/{legacyEnrollmentId},course_book_authority/enrollments/{courseId}/{studentId},course_book_authority/operations/{operationId}'
     || !String(port.directCourseOnly ?? '').includes('#103') || !['create', 'expiry', 'removal', 'migration', 'rollback', 'recovery'].every((key) => String(port[key] ?? '').trim()) || !String(port.browserWrites ?? '').startsWith('deny')
-    || adapter?.facts?.find((fact) => fact?.id === 'enrollment')?.path !== 'course_enrollments/{directCourseEnrollmentKey(courseId,studentId)}'
+    || adapter?.facts?.find((fact) => fact?.id === 'enrollment')?.path !== 'course_book_authority/enrollments/{courseId}/{studentId}'
     || !String(adapter?.facts?.find((fact) => fact?.id === 'enrollment')?.writer ?? '').includes(port.symbol)) diagnostics.push('enrollment_authority_port_incomplete');
   const ownerTickets = (contract.owners ?? []).map((item) => item?.ticket).filter(Boolean);
   if (!unique(ownerTickets) || ownerTickets.length < 7 || !ownerTickets.includes('#102')) diagnostics.push('ownership_missing_or_duplicate');
