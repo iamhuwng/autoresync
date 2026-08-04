@@ -48,8 +48,11 @@ const CANONICAL_TYPE_IDS = Object.freeze({
 });
 
 const canonicalRegistrationFor = (row) => ({
-  taxonomyId: row.domain === 'reading' ? 'ielts-reading' : 'ielts-listening',
-  typeId: CANONICAL_TYPE_IDS[row.id] ?? row.id.replace(/^reading-/u, ''),
+  taxonomyId: row.taskProfile?.taxonomyId,
+  typeId: row.taskProfile?.typeId,
+  family: row.interaction?.family,
+  variant: row.interaction?.variant,
+  presentationMode: row.presentationMode,
 });
 
 export const loadAcceptedAdapterRegistrations = (repoRoot = process.cwd()) => {
@@ -100,15 +103,13 @@ export const validatePrd0062ReadingListeningCoverage = (matrix, { repoRoot = pro
     required(errors, row.scoringReviewMode, `task type ${row.id} scoringReviewMode`);
     required(errors, row.accessibilityRepresentation, `task type ${row.id} accessibilityRepresentation`);
     if (!SUPPORT_STATUSES.has(row.support?.status)) errors.push(`task type ${row.id}: invalid support status.`);
-    const expectedFixtureTaxonomy = row.domain === 'reading' ? 'ielts:reading-v1' : 'ielts:listening-v1';
-    if (row.taskProfile?.taxonomyId !== expectedFixtureTaxonomy) errors.push(`task type ${row.id}: taxonomy profile mapping drift.`);
 
     if (row.presentationMode === 'source-assisted' &&
       (row.contextRequirement !== 'required' || !/correspondence/iu.test(row.accessibilityRepresentation ?? ''))) {
       errors.push(`task type ${row.id}: source-assisted coverage must require context and declare correspondence.`);
     }
     if (row.support?.status === 'structurally-supported' &&
-      (row.presentationMode !== 'structured' || row.taskProfile?.taxonomyId !== 'ielts:reading-v1')) {
+      (row.presentationMode !== 'structured' || !['ielts-reading', 'ielts-listening'].includes(row.taskProfile?.taxonomyId))) {
       errors.push(`task type ${row.id}: false structural support claim.`);
     }
     if (row.support?.status === 'supported-through-source-assisted' && row.presentationMode !== 'source-assisted') {
@@ -125,14 +126,14 @@ export const validatePrd0062ReadingListeningCoverage = (matrix, { repoRoot = pro
       const matches = accepted.registrations.filter((registration) => (
         registration?.profile?.taxonomyId === canonical.taxonomyId
         && registration?.profile?.typeId === canonical.typeId
+        && registration?.family === canonical.family
+        && registration?.variant === canonical.variant
+        && registration?.presentationMode === canonical.presentationMode
       ));
       if (matches.length === 0) {
         errors.push(`task type ${row.id}: canonical mapping is not registered by accepted adapters.`);
       } else {
-        const familyMatches = matches.some((registration) => registration.family === row.interaction?.family);
-        if (!familyMatches) errors.push(`task type ${row.id}: interaction family is not accepted-registered.`);
-        const structuredRegistered = matches.some((registration) => registration.presentationMode === 'structured' && registration.family === row.interaction?.family);
-        if (row.presentationMode === 'structured' && !structuredRegistered) errors.push(`task type ${row.id}: false structured support claim.`);
+        if (row.presentationMode === 'structured' && !matches.some((registration) => registration.presentationMode === 'structured')) errors.push(`task type ${row.id}: false structured support claim.`);
       }
     }
   }

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import {
   loadPrd0062ReadingListeningCoverage,
@@ -75,6 +76,16 @@ export const validatePrd0062AcceptanceMatrix = (matrix, { repoRoot = process.cwd
   if (conformance?.personalTimer?.status !== 'accepted-ui-only') errors.push('personal timer trace: must remain accepted-ui-only.');
   const timerInvariants = conformance?.personalTimer?.invariants;
   if (!Array.isArray(timerInvariants) || TIMER_INVARIANTS.some((invariant) => !timerInvariants.includes(invariant))) errors.push('personal timer trace: missing UI-only invariant.');
+  try {
+    const timerSource = execFileSync('git', ['-C', repoRoot, 'show', `${ACCEPTED_TIMER_COMMIT}:src/components/book-runtime/PersonalTimer.tsx`], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    if (!timerSource.includes('Optional focus aid') || !timerSource.includes('Unrelated to assignment deadlines and results.')) {
+      errors.push('personal timer trace: accepted UI-only source invariant missing.');
+    }
+  } catch {
+    errors.push('personal timer trace: accepted Git source unreadable.');
+  }
   const coverage = loadPrd0062ReadingListeningCoverage(repoRoot);
   for (const coverageError of validatePrd0062ReadingListeningCoverage(coverage, { repoRoot })) errors.push(`coverage: ${coverageError}`);
 
@@ -120,7 +131,7 @@ export const validatePrd0062AcceptanceMatrix = (matrix, { repoRoot = process.cwd
     }
     if (profile.status === 'explicitly-unsupported-release-blocking') required(errors, profile.releaseBlocker, `task type ${profile.id} releaseBlocker`);
     if (profile.status === 'separately-approved-deferral') required(errors, profile.approvalId, `task type ${profile.id} approvalId`);
-    if (profile.status === 'structurally-supported' && profile.profile !== 'ielts:reading-v1') {
+    if (profile.status === 'structurally-supported' && !['ielts-reading', 'ielts-listening'].includes(profile.profile)) {
       errors.push(`task type ${profile.id}: unsupported schema profile cannot claim structural support.`);
     }
   }

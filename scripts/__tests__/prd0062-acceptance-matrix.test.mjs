@@ -102,10 +102,12 @@ test('rejects 51D2 drift from local legacy and metadata-only recovery suite', ()
 test('rejects unclassified profile and false structural Listening support', () => {
   const invalid = matrix();
   invalid.taskTypeProfiles = invalid.taskTypeProfiles.filter((row) => row.id !== 'reading-matching-headings');
-  invalid.taskTypeProfiles.find((row) => row.id === 'listening-note-completion').status = 'structurally-supported';
+  const listeningTable = invalid.taskTypeProfiles.find((row) => row.id === 'listening-table-completion');
+  listeningTable.status = 'structurally-supported';
+  listeningTable.presentation = 'structured';
   const errors = validatePrd0062AcceptanceMatrix(invalid).join('\n');
   assert.match(errors, /reading-matching-headings: unclassified/);
-  assert.match(errors, /unsupported schema profile cannot claim structural support/);
+  assert.match(errors, /acceptance matrix and coverage fixture disagree/);
 });
 
 test('rejects source-conformance and PersonalTimer boundary drift', () => {
