@@ -41,7 +41,7 @@
       {"id":"course","path":"courses/{courseId}","fields":["id","ownerId","archivedAt"],"writer":"courseManager.createCourse/updateCourse/archiveCourse"},
       {"id":"module","path":"course_modules/{moduleId}","fields":["id","courseId","accessType"],"writer":"courseManager.createModule/updateModule"},
       {"id":"material","path":"course_materials/{courseMaterialId}","fields":["id","courseId","moduleId","materialId","isCopy"],"writer":"#102 CourseBookPlacementRepository.create/revoke"},
-      {"id":"enrollment","path":"course_book_authority/enrollments/{courseId}/{studentId}","fields":["courseId","studentId","status","expiresAt","legacyEnrollmentId","revision"],"writer":"#102 CourseEnrollmentAuthorityPort.transitionDirectCourseEnrollment"},
+      {"id":"enrollment","path":"course_enrollments/{directCourseEnrollmentKey(courseId,studentId)}","fields":["id","courseId","studentId","status","expiresAt","enrollmentType","revision"],"writer":"#102 CourseEnrollmentAuthorityPort.transitionDirectCourseEnrollment"},
       {"id":"moduleRelease","path":"course_book_authority/releases/{courseId}/{moduleId}/{studentId}","fields":["courseId","moduleId","studentId","released"],"writer":"#102 Course release projection producer"},
       {"id":"publication","path":"book_assembly_publications/books/{bookId}","fields":["current.publicationId","current.manifestVersionId","current.publicationRevision","versions/{manifestVersionId}.ownerId","versions/{manifestVersionId}.bookId","versions/{manifestVersionId}.lifecycle"],"writer":"BookAssemblyPublicationRepository.readScope(bookId); accepted Book Assembly publication worker"}
     ],
@@ -51,13 +51,14 @@
     "enrollmentAuthorityPort": {
       "owner":"#102 direct-Course vertical; contributes through #59 Worker composition",
       "symbol":"CourseEnrollmentAuthorityPort.transitionDirectCourseEnrollment",
-      "atomicWrites":["course_enrollments/{legacyEnrollmentId}","course_book_authority/enrollments/{courseId}/{studentId}"],
+      "canonicalKey":"directCourseEnrollmentKey(courseId,studentId): course:${courseId}:student:${studentId}; collision-safe validated IDs",
+      "atomicWrites":["course_enrollments/{directCourseEnrollmentKey(courseId,studentId)}"],
       "directCourseOnly":"Reject class-based enrollmentType and class cleanup; #103 owns Class enrollment/copies.",
       "create":"Require one active exact record; identical replay returns the stored revision; a competing active legacy record or authority record denies conflict.",
       "expiry":"At read and transition, expiresAt <= trusted now changes authority status to expired and denies eligibility.",
       "removal":"Unenrolment writes revoked status/revision; immutable Book placement/history is retained.",
-      "migration":"Explicit one-course-at-a-time backfill scans legacy random IDs under a bounded administrator-approved batch, denies duplicates/overflow, and records legacyEnrollmentId.",
-      "rollback":"Disable new port transitions; retain authority records as deny-only and retain legacy enrollment data.",
+      "migration":"Explicit one-course-at-a-time bounded activation gate maps one legacy random-ID direct-Course row to the deterministic key, denies duplicates/overflow, and never migrates Class rows.",
+      "rollback":"Disable new deterministic-key transitions; retain canonical rows as deny-only and preserve legacy non-Book enrollment data.",
       "recovery":"Restore/replay is side-effect suppressed unless the approved recovery phase explicitly invokes the port.",
       "browserWrites":"deny; #118 composes service-identity-only rules"
     },

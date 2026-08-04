@@ -62,8 +62,10 @@ export const inspectReadiness = ({ repo, contractPath }) => {
     || !(contract.codeEvidence ?? []).some((item) => item?.path === 'cloudflare/src/upload-worker/book-assembly/publication-repository.ts' && item?.symbol === 'readScope(bookId')) diagnostics.push('publication_authority_incomplete');
   const port = adapter?.enrollmentAuthorityPort;
   if (!port || port.owner !== '#102 direct-Course vertical; contributes through #59 Worker composition' || port.symbol !== 'CourseEnrollmentAuthorityPort.transitionDirectCourseEnrollment'
-    || !Array.isArray(port.atomicWrites) || port.atomicWrites.join(',') !== 'course_enrollments/{legacyEnrollmentId},course_book_authority/enrollments/{courseId}/{studentId}'
+    || port.canonicalKey !== 'directCourseEnrollmentKey(courseId,studentId): course:${courseId}:student:${studentId}; collision-safe validated IDs'
+    || !Array.isArray(port.atomicWrites) || port.atomicWrites.join(',') !== 'course_enrollments/{directCourseEnrollmentKey(courseId,studentId)}'
     || !String(port.directCourseOnly ?? '').includes('#103') || !['create', 'expiry', 'removal', 'migration', 'rollback', 'recovery'].every((key) => String(port[key] ?? '').trim()) || !String(port.browserWrites ?? '').startsWith('deny')
+    || adapter?.facts?.find((fact) => fact?.id === 'enrollment')?.path !== 'course_enrollments/{directCourseEnrollmentKey(courseId,studentId)}'
     || !String(adapter?.facts?.find((fact) => fact?.id === 'enrollment')?.writer ?? '').includes(port.symbol)) diagnostics.push('enrollment_authority_port_incomplete');
   const ownerTickets = (contract.owners ?? []).map((item) => item?.ticket).filter(Boolean);
   if (!unique(ownerTickets) || ownerTickets.length < 7 || !ownerTickets.includes('#102')) diagnostics.push('ownership_missing_or_duplicate');
