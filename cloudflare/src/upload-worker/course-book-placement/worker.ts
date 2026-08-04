@@ -1,5 +1,9 @@
 import { CourseBookCommandError, type CourseBookCommandSelection } from './command.ts';
-import { createProductionCourseBookCommand, resolveCurrentCourseBook } from './production.ts';
+import {
+  createProductionCourseBookCommand,
+  readCourseBookSelectionCatalog,
+  resolveCurrentCourseBook,
+} from './production.ts';
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -44,7 +48,7 @@ const selection = (value: unknown): CourseBookCommandSelection => {
     : { bookId: record.bookId, scope: { kind: 'placements', nodeKeys: [], placementIds: scope.placementIds } };
 };
 
-type Input = { request: Request; env: Record<string, unknown>; uid: string; courseMaterialId?: string };
+type Input = { request: Request; env: Record<string, unknown>; uid: string; courseMaterialId?: string; bookId?: string };
 
 const respond = async (run: () => Promise<unknown>) => {
   try { return { body: await run(), init: { status: 200 } }; }
@@ -59,10 +63,16 @@ const respond = async (run: () => Promise<unknown>) => {
 export const createCourseBookPlacementWorkerHandlers = (options: {
   commandFor?: (env: Record<string, unknown>) => ReturnType<typeof createProductionCourseBookCommand>;
   resolveCurrent?: typeof resolveCurrentCourseBook;
+  readCatalog?: typeof readCourseBookSelectionCatalog;
 } = {}) => {
   const commandFor = options.commandFor ?? createProductionCourseBookCommand;
   const resolveCurrent = options.resolveCurrent ?? resolveCurrentCourseBook;
+  const readCatalog = options.readCatalog ?? readCourseBookSelectionCatalog;
   return {
+    catalog: (input: Input) => respond(async () => {
+      if (!input.bookId) throw new CourseBookCommandError('course_book_catalog_invalid');
+      return readCatalog(input.env, input.uid, input.bookId);
+    }),
     place: (input: Input) => respond(async () => {
       const value = await json(input.request);
       exact(value, ['operationId', 'courseId', 'moduleId', 'courseMaterialId', 'selection']);

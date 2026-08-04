@@ -61,8 +61,13 @@ describe('durable Course Book placement repository', () => {
       env: { FIREBASE_DB_URL: 'https://db.test' },
       fetchImpl,
       getAccessToken: async () => 'token',
+      now: () => 1_786_000_000_000,
     });
     expect(await repo.create(placement as never)).toBe('created');
+    expect(values.get('course_materials/course-material-1')).toMatchObject({
+      id: 'course-material-1', materialId: 'book-1', materialKind: 'book-delivery',
+      order: 1_786_000_000_000, linkedAt: 1_786_000_000_000,
+    });
     expect(await repo.create(placement as never)).toBe('replayed');
     expect(await repo.revoke({
       courseMaterialId: placement.courseMaterialId,

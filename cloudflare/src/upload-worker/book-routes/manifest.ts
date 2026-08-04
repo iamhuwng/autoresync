@@ -256,7 +256,7 @@ const courseBookRoutes = courseBookPlacementRouteDescriptors.map((route) => cont
   handler: `courseBookPlacement.${route.handler}`,
   firebaseAuth: route.handler === 'current' || route.handler === 'prepare'
     ? 'firebase-id-token-student' : 'firebase-id-token-owner',
-  rateClass: route.handler === 'current' ? 'book-read' : 'book-control',
+  rateClass: route.handler === 'current' || route.handler === 'catalog' ? 'book-read' : 'book-control',
   gateEnv: 'BOOK_COURSE_PLACEMENT_ROUTES_ENABLED',
   requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
   responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,

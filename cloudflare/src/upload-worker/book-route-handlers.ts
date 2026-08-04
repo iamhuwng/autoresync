@@ -149,6 +149,7 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, sourceUpload, ['begin', 'complete', 'status', 'cancel'], 'bookSource');
   addFactoryHandlers(handlers, courseBook, ['place', 'prepare', 'revoke'], 'courseBookPlacement');
   addFactoryHandlers(handlers, courseBook, ['current'], 'courseBookPlacement', () => ['courseMaterialId']);
+  addFactoryHandlers(handlers, courseBook, ['catalog'], 'courseBookPlacement', () => ['bookId']);
 
   const documentHandler = options.documentHandler
     ?? createBookSourceDocumentDeliveryHandler(options.sourceDocument);

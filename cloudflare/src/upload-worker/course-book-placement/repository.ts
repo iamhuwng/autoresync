@@ -108,15 +108,18 @@ export class FirebaseCourseBookPlacementRepository {
   private readonly rtdb: FirebaseRtdbRestClient;
   private readonly fetchImpl: typeof fetch;
   private readonly tokenProvider: CourseBookAuthority102TokenProvider;
+  private readonly now: () => number;
 
   constructor(options: {
     readonly env: RepositoryEnv;
     readonly fetchImpl?: typeof fetch;
     readonly getAccessToken?: () => Promise<string>;
     readonly tokenProvider?: CourseBookAuthority102TokenProvider;
+    readonly now?: () => number;
   }) {
     this.env = options.env;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    this.now = options.now ?? Date.now;
     this.tokenProvider = options.tokenProvider ?? createCourseBookAuthority102TokenProvider({
       env: options.env,
       fetchImpl: this.fetchImpl,
@@ -147,12 +150,15 @@ export class FirebaseCourseBookPlacementRepository {
     const current = await this.rtdb.readWithEtag<Record<string, unknown> | null>(path);
     const existing = current.data?.bookDeliveryPlacement;
     if (existing) return equal(existing, placement) ? 'replayed' : 'conflict';
+    const linkedAt = this.now();
     const next = {
       ...(current.data ?? {}),
       id: placement.courseMaterialId,
       courseId: placement.courseId,
       moduleId: placement.moduleId,
       materialId: placement.pins.bookId,
+      order: linkedAt,
+      linkedAt,
       isCopy: false,
       materialKind: 'book-delivery',
       bookDeliveryPlacement: clone(placement),

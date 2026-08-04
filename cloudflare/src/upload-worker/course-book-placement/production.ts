@@ -3,13 +3,21 @@ import { createBookDeliveryBinding } from '../../../../src/services/book-deliver
 import { createBookDeliveryProjectionResolver } from '../../../../src/services/book-delivery/bookDelivery.service.ts';
 import type { BookDeliveryPublishedPublicationReference } from '../../../../src/services/book-delivery/bookDelivery.publication.ts';
 import type { CourseBookPlacement } from '../../../../src/services/book-delivery/courseBookPlacement.service.ts';
-import type { BookAssemblyPublicationScope } from '../../../../src/services/book-assembly/publicationRepository.ts';
+import type {
+  BookAssemblyPublicationRepository,
+  BookAssemblyPublicationScope,
+} from '../../../../src/services/book-assembly/publicationRepository.ts';
 import type { BookAssemblyPublicationResult } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import { FirebaseRestBookAssemblyPublicationRepository } from '../book-assembly/publication-repository.ts';
 import { FirebaseRestBookDeliveryRepository } from '../book-delivery/repository.ts';
 import { createTrustedBookDeliveryPublication } from '../book-delivery/worker.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
-import { createCourseBookPlacementCommand, type CourseBookCommandPorts, type CourseBookCommandSelection } from './command.ts';
+import {
+  CourseBookCommandError,
+  createCourseBookPlacementCommand,
+  type CourseBookCommandPorts,
+  type CourseBookCommandSelection,
+} from './command.ts';
 import { FirebaseCourseEnrollmentAuthorityPort } from './enrollment-authority.ts';
 import { FirebaseCourseBookPlacementRepository } from './repository.ts';
 
@@ -219,4 +227,39 @@ export const resolveCurrentCourseBook = async (env: WorkerEnv, uid: string, cour
   }).resolve({
     recipientId: uid, contextId: courseMaterialId, actor: { uid },
   });
+};
+
+export const readCourseBookSelectionCatalog = async (
+  env: WorkerEnv,
+  uid: string,
+  bookId: string,
+  repository: Pick<BookAssemblyPublicationRepository<BookAssemblyPublicationResult>, 'readScope'> =
+    new FirebaseRestBookAssemblyPublicationRepository({ env }),
+) => {
+  const scope = await repository.readScope(bookId);
+  const current = scope.current;
+  const version = current ? scope.versions?.[current.manifestVersionId] : undefined;
+  if (!current || !version || version.lifecycle !== 'published'
+    || version.ownerId !== uid || version.bookId !== bookId) {
+    throw new CourseBookCommandError('course_book_catalog_denied', 403);
+  }
+  const placements = Object.values(scope.placements ?? {})
+    .filter((item) => item.bookId === bookId
+      && item.ownerId === uid
+      && item.manifestVersionId === current.manifestVersionId
+      && item.publicationId === current.publicationId
+      && item.publicationRevision === current.publicationRevision)
+    .sort((left, right) => left.nodeKey.localeCompare(right.nodeKey)
+      || left.order - right.order || left.placementId.localeCompare(right.placementId))
+    .map((item) => ({
+      placementId: item.placementId, nodeKey: item.nodeKey,
+      activityId: item.activityId, activityVersionId: item.activityVersionId,
+    }));
+  if (placements.length === 0) throw new CourseBookCommandError('course_book_catalog_empty', 409);
+  return {
+    bookId, publicationId: current.publicationId,
+    publicationRevision: current.publicationRevision,
+    manifestVersionId: current.manifestVersionId,
+    nodes: version.manifest.nodes.map((node) => ({ ...node })), placements,
+  };
 };
