@@ -81,7 +81,7 @@ const placementFromScope = (input: {
     courseMaterialId: input.courseMaterialId, courseId: input.courseId, moduleId: input.moduleId,
     ownerId: input.actorUid, displayTitle: input.selection.bookId,
     selection: input.selection.scope, placementRevision: 1,
-    completionAggregationPolicy: 'all-activities', status: 'active',
+    completionAggregationPolicy: input.selection.completionAggregationPolicy ?? 'all-activities', status: 'active',
     pins: {
       bookId: input.selection.bookId, publicationId: current.publicationId,
       publicationRevision: current.publicationRevision, manifestVersionId: current.manifestVersionId,

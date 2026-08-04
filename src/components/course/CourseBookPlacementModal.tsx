@@ -16,7 +16,7 @@ import {
   listTeacherBooks,
   type MaterialBookListRow,
 } from '../../services/materialCatalog/materialBooks.service';
-import type { CourseBookSelection } from '../../services/book-delivery/courseBookPlacement.service';
+import type { CourseBookCompletionAggregationPolicy, CourseBookSelection } from '../../services/book-delivery/courseBookPlacement.service';
 import {
   courseBookExposureWarning,
   courseBookSelectionCount,
@@ -31,6 +31,7 @@ export interface CourseBookPlacementRequest {
   readonly selection: {
     readonly bookId: string;
     readonly scope: CourseBookSelection;
+    readonly completionAggregationPolicy: CourseBookCompletionAggregationPolicy;
   };
 }
 
@@ -72,6 +73,7 @@ export const CourseBookPlacementModal = ({
   const [nodeKey, setNodeKey] = useState<string | null>(null);
   const [placementIds, setPlacementIds] = useState<string[]>([]);
   const [warningAccepted, setWarningAccepted] = useState(false);
+  const [allowDerivedHomeworkCredit, setAllowDerivedHomeworkCredit] = useState(false);
   const [loading, setLoading] = useState(false);
   const [placing, setPlacing] = useState(false);
 
@@ -126,7 +128,13 @@ export const CourseBookPlacementModal = ({
         courseMaterialId: crypto.randomUUID(),
         courseId,
         moduleId,
-        selection: { bookId: catalog.bookId, scope: selection },
+        selection: {
+          bookId: catalog.bookId,
+          scope: selection,
+          completionAggregationPolicy: allowDerivedHomeworkCredit
+            ? 'all-activities-with-derived-homework-credit'
+            : 'all-activities',
+        },
       });
       toast.success(`Placed ${selectedCount} Book ${selectedCount === 1 ? 'Activity' : 'Activities'} in this Course module.`);
       await onPlaced();
@@ -198,6 +206,12 @@ export const CourseBookPlacementModal = ({
                 />
               </Alert>
             )}
+            <Checkbox
+              label="Count Homework created from this exact Course item toward its completion"
+              description="Off by default. Credit applies only when Homework retains this Course material identity and exact Activity placement."
+              checked={allowDerivedHomeworkCredit}
+              onChange={(event) => setAllowDerivedHomeworkCredit(event.currentTarget.checked)}
+            />
           </>
         )}
         <Button

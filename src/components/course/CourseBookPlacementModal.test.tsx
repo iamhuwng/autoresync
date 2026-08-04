@@ -76,7 +76,11 @@ describe('CourseBookPlacementModal', () => {
     await waitFor(() => expect(place).toHaveBeenCalled());
     expect(place).toHaveBeenCalledWith(expect.objectContaining({
       courseId: 'course-1', moduleId: 'module-1',
-      selection: { bookId: 'book-1', scope: { kind: 'subtree', nodeKeys: ['test-1'], placementIds: [] } },
+      selection: {
+        bookId: 'book-1',
+        scope: { kind: 'subtree', nodeKeys: ['test-1'], placementIds: [] },
+        completionAggregationPolicy: 'all-activities',
+      },
     }));
     expect(trackAction).toHaveBeenCalledWith('placeCourseBook', expect.objectContaining({ selectedCount: 1 }));
     expect(toast.success).toHaveBeenCalled();

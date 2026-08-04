@@ -32,7 +32,9 @@ const exact = (value: Record<string, unknown>, keys: readonly string[]): void =>
 const selection = (value: unknown): CourseBookCommandSelection => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new CourseBookCommandError('invalid_request');
   const record = value as Record<string, unknown>;
-  exact(record, ['bookId', 'scope']);
+  const keys = Object.keys(record);
+  if (!keys.every((key) => ['bookId', 'scope', 'completionAggregationPolicy'].includes(key))
+    || !keys.includes('bookId') || !keys.includes('scope')) throw new CourseBookCommandError('invalid_request');
   if (typeof record.bookId !== 'string' || !record.scope || typeof record.scope !== 'object' || Array.isArray(record.scope)) {
     throw new CourseBookCommandError('invalid_request');
   }
@@ -43,9 +45,16 @@ const selection = (value: unknown): CourseBookCommandSelection => {
     || (scope.kind !== 'subtree' && scope.kind !== 'placements')) {
     throw new CourseBookCommandError('invalid_request');
   }
+  const policy = record.completionAggregationPolicy;
+  if (policy !== undefined && policy !== 'all-activities'
+    && policy !== 'all-activities-with-derived-homework-credit') throw new CourseBookCommandError('invalid_request');
+  const base = {
+    bookId: record.bookId,
+    ...(policy === undefined ? {} : { completionAggregationPolicy: policy }),
+  };
   return scope.kind === 'subtree'
-    ? { bookId: record.bookId, scope: { kind: 'subtree', nodeKeys: scope.nodeKeys, placementIds: [] } }
-    : { bookId: record.bookId, scope: { kind: 'placements', nodeKeys: [], placementIds: scope.placementIds } };
+    ? { ...base, scope: { kind: 'subtree', nodeKeys: scope.nodeKeys, placementIds: [] } }
+    : { ...base, scope: { kind: 'placements', nodeKeys: [], placementIds: scope.placementIds } };
 };
 
 type Input = { request: Request; env: Record<string, unknown>; uid: string; courseMaterialId?: string; bookId?: string };

@@ -1,4 +1,4 @@
-import type { CourseBookPlacement } from '../../../../src/services/book-delivery/courseBookPlacement.service.ts';
+import type { CourseBookCompletionAggregationPolicy, CourseBookPlacement } from '../../../../src/services/book-delivery/courseBookPlacement.service.ts';
 import {
   deriveDirectCourseModuleRelease,
   requireActiveDirectCourseEnrollment,
@@ -16,6 +16,7 @@ export class CourseBookCommandError extends Error {
 
 export interface CourseBookCommandSelection {
   readonly bookId: string;
+  readonly completionAggregationPolicy?: CourseBookCompletionAggregationPolicy;
   readonly scope:
     | { readonly kind: 'subtree'; readonly nodeKeys: readonly string[]; readonly placementIds: readonly [] }
     | { readonly kind: 'placements'; readonly nodeKeys: readonly []; readonly placementIds: readonly string[] };
@@ -91,6 +92,11 @@ export const createCourseBookPlacementCommand = <Projection>(ports: CourseBookCo
       requireOperation(input.operationId);
       [input.courseId, input.moduleId, input.courseMaterialId, input.selection.bookId]
         .forEach((value) => requireId(value, 'course_book_placement_invalid'));
+      if (input.selection.completionAggregationPolicy !== undefined
+        && input.selection.completionAggregationPolicy !== 'all-activities'
+        && input.selection.completionAggregationPolicy !== 'all-activities-with-derived-homework-credit') {
+        throw new CourseBookCommandError('course_book_completion_policy_invalid');
+      }
       const [courseRaw, moduleRaw, flags] = await Promise.all([
         ports.readValue(`courses/${input.courseId}`),
         ports.readValue(`course_modules/${input.moduleId}`),

@@ -22,6 +22,10 @@ export type CourseBookPins = Readonly<{
   selectedActivities: readonly CourseBookSelectedActivityPin[];
 }>;
 
+export type CourseBookCompletionAggregationPolicy =
+  | 'all-activities'
+  | 'all-activities-with-derived-homework-credit';
+
 export type CourseBookPlacement = Readonly<{
   courseMaterialId: string;
   courseId: string;
@@ -30,7 +34,7 @@ export type CourseBookPlacement = Readonly<{
   displayTitle: string;
   selection: CourseBookSelection;
   placementRevision: number;
-  completionAggregationPolicy: 'all-activities';
+  completionAggregationPolicy: CourseBookCompletionAggregationPolicy;
   status: 'active' | 'revoked';
   pins: CourseBookPins;
 }>;
@@ -130,6 +134,8 @@ export type CourseBookActivityCompletion = Readonly<{
   courseMaterialId: string;
   placementId: string;
   activityVersionId: string;
+  surface?: 'course' | 'homework';
+  derivedFromCourseMaterialId?: string;
   status: 'completed';
 }>;
 
@@ -148,6 +154,11 @@ export const deriveCourseBookCompletion = (
   const completedKeys = new Set(completions.flatMap((completion) => {
     if (completion.status !== 'completed' || completion.bindingId !== bindingId
       || completion.studentId !== studentId || completion.courseMaterialId !== placement.courseMaterialId) return [];
+    const isCourseCompletion = completion.surface === undefined || completion.surface === 'course';
+    const isEnabledDerivedHomework = placement.completionAggregationPolicy === 'all-activities-with-derived-homework-credit'
+      && completion.surface === 'homework'
+      && completion.derivedFromCourseMaterialId === placement.courseMaterialId;
+    if (!isCourseCompletion && !isEnabledDerivedHomework) return [];
     return [courseBookProjectionKey(
       placement, completion.studentId, completion.bindingId,
       completion.placementId, completion.activityVersionId,

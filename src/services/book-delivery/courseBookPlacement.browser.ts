@@ -3,7 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { resolveR2UploadEndpoint } from '../r2UploadClient';
 import { trimWorkerEndpoint } from '../r2WorkerEndpoint';
 import type { BookRuntimeDeliveryProjection } from './bookDelivery.types';
-import type { CourseBookPlacement, CourseBookSelection } from './courseBookPlacement.service';
+import type { CourseBookCompletionAggregationPolicy, CourseBookPlacement, CourseBookSelection } from './courseBookPlacement.service';
 import type { CourseBookSelectionCatalog } from './courseBookPlacement.selection';
 import { BOOK_CONTENT_NODE_TYPES } from '../../types/bookAssembly.types';
 
@@ -28,6 +28,7 @@ export interface CourseBookPlacementClientOptions {
 export type CourseBookPlacementSelection = Readonly<{
   readonly bookId: string;
   readonly scope: CourseBookSelection;
+  readonly completionAggregationPolicy?: CourseBookCompletionAggregationPolicy;
 }>;
 
 export interface CourseBookPlacementPlaceInput {
@@ -89,7 +90,7 @@ export interface CourseBookPlacementRuntimeProjectionV1 {
   readonly bindingId: string;
   readonly bindingRevision: number;
   readonly placementRevision: number;
-  readonly completionAggregationPolicy: 'all-activities';
+  readonly completionAggregationPolicy: CourseBookCompletionAggregationPolicy;
   readonly selection: CourseBookSelection;
   readonly pins: CourseBookPlacementPins;
   readonly activityKeys: readonly {
@@ -202,12 +203,18 @@ function assertScope(value: unknown): asserts value is CourseBookSelection {
 }
 
 const normalizeSelection = (value: unknown): CourseBookPlacementSelection => {
-  if (!isRecord(value) || !exactKeys(value, ['bookId', 'scope'])) fail('invalid_selection');
+  if (!isRecord(value) || !exactKeys(value, ['bookId', 'scope'], ['completionAggregationPolicy'])) fail('invalid_selection');
   safeId(value.bookId, 'book_id');
   assertScope(value.scope);
+  if (value.completionAggregationPolicy !== undefined
+    && value.completionAggregationPolicy !== 'all-activities'
+    && value.completionAggregationPolicy !== 'all-activities-with-derived-homework-credit') fail('invalid_selection');
   return {
     bookId: value.bookId,
     scope: value.scope,
+    ...(value.completionAggregationPolicy === undefined ? {} : {
+      completionAggregationPolicy: value.completionAggregationPolicy,
+    }),
   } as CourseBookPlacementSelection;
 };
 
@@ -261,7 +268,8 @@ function assertPlacement(value: unknown): asserts value is CourseBookPlacement {
     || typeof value.ownerId !== 'string' || !ID.test(value.ownerId)
     || !safeText(value.displayTitle, 512)
     || !Number.isSafeInteger(value.placementRevision) || (value.placementRevision as number) < 1
-    || value.completionAggregationPolicy !== 'all-activities'
+    || (value.completionAggregationPolicy !== 'all-activities'
+      && value.completionAggregationPolicy !== 'all-activities-with-derived-homework-credit')
     || (value.status !== 'active' && value.status !== 'revoked')) {
     fail('invalid_response', 502);
   }
@@ -296,7 +304,8 @@ const assertCourseProjectionV1 = (value: Record<string, unknown>): void => {
     || value.bindingRevision < 1
     || typeof value.placementRevision !== 'number' || !Number.isSafeInteger(value.placementRevision)
     || value.placementRevision < 1
-    || value.completionAggregationPolicy !== 'all-activities'
+    || (value.completionAggregationPolicy !== 'all-activities'
+      && value.completionAggregationPolicy !== 'all-activities-with-derived-homework-credit')
     || !Array.isArray(value.activityKeys) || value.activityKeys.length < 1) {
     fail('invalid_response', 502);
   }

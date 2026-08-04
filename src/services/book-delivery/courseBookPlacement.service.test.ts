@@ -91,6 +91,30 @@ describe('Course Book placement', () => {
     ])).toMatchObject({ requiredCount: 2, completedCount: 2, status: 'completed' });
   });
 
+  it('credits derived Homework only when the exact Course placement explicitly enables it', () => {
+    const repository = new InMemoryCourseBookPlacementRepository();
+    const service = createCourseBookPlacementService(repository);
+    const courseOnly = service.place(placementInput).placement;
+    const homeworkCompletion = [{
+      bindingId: 'binding-001', studentId: 'student-001', courseMaterialId: 'course-material-001',
+      placementId: 'placement-001', activityVersionId: 'activity-version-001',
+      surface: 'homework' as const, derivedFromCourseMaterialId: 'course-material-001', status: 'completed' as const,
+    }];
+    expect(deriveCourseBookCompletion(courseOnly, 'student-001', 'binding-001', homeworkCompletion))
+      .toMatchObject({ completedCount: 0, status: 'in-progress' });
+    const enabled = {
+      ...courseOnly,
+      completionAggregationPolicy: 'all-activities-with-derived-homework-credit' as const,
+      pins: { ...courseOnly.pins, selectedActivities: [courseOnly.pins.selectedActivities[0]!] },
+      selection: { kind: 'placements' as const, nodeKeys: [] as const, placementIds: ['placement-001'] },
+    };
+    expect(deriveCourseBookCompletion(enabled, 'student-001', 'binding-001', homeworkCompletion))
+      .toMatchObject({ completedCount: 1, status: 'completed' });
+    expect(deriveCourseBookCompletion(enabled, 'student-001', 'binding-001', [{
+      ...homeworkCompletion[0]!, derivedFromCourseMaterialId: 'other-course-material',
+    }])).toMatchObject({ completedCount: 0, status: 'in-progress' });
+  });
+
   it('revokes deny-only and preserves immutable placement history', () => {
     const repository = new InMemoryCourseBookPlacementRepository();
     const service = createCourseBookPlacementService(repository);
