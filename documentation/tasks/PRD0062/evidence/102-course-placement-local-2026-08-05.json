@@ -1,9 +1,37 @@
 {
   "ticket": "#102/42A",
-  "classification": "LOCAL_DOMAIN_PROOF_ONLY",
-  "status": "PASS",
+  "classification": "LOCAL_IMPLEMENTATION_AND_COMPONENT_PROOF",
+  "status": "PASS_LOCAL",
   "authority": "private-owner: actor, Course owner, context owner, issuer owner and Book publication owner match",
   "projectionBoundary": "course-book-delivery-v1 consumed by #104; no shared dispatch or browser proof claimed",
-  "covered": ["idempotent placement", "manifest/version pin conflict", "private owner denial", "enrolment/module/bare denial", "revocation", "student-isolated progress/result keys", "rollback/restore deny-only gate", "42A root post-write receipt coupling"],
-  "notClaimed": ["Worker composition", "active rules", "browser proof", "deployed proof"]
+  "commit": "81194bd84725ca4db431166c4a072bfd77b05acb",
+  "covered": [
+    "accepted-publication owner catalog and exact subtree/activity placement",
+    "manifest/source/activity/binding pins and pin-conflict denial",
+    "claim-scoped atomic enrolment authority and replay receipts",
+    "durable placement/release authority and guarded Worker composition",
+    "owner, archive, enrolment, release, rollback and wrong-context denial",
+    "teacher placement/revocation and student direct-Course preparation components",
+    "duplicate same-Activity placement isolation",
+    "student/binding/courseMaterial/placement/activity-version result keys",
+    "all-required-Activities Course item completion aggregation",
+    "default-off exact Course-derived Homework completion credit",
+    "Course result projection without Solo/Homework completion transfer",
+    "deny-only rollback preserving immutable records"
+  ],
+  "verification": [
+    {"command": "scripts/harness/run-x64.ps1 -Tool vitest -ProjectPath .scratch/prd0062-ui-harness -- run --config vitest.course-book-local.config.mjs", "result": "15 files, 66 tests passed"},
+    {"command": "scripts/harness/run-x64.ps1 -Tool vitest -ProjectPath .scratch/prd0062-ui-harness -- run CourseBookPlacementModal CourseBookPrepareAction ModuleList StudentCourseDetailPage", "result": "4 files, 20 tests passed"},
+    {"command": "scripts/harness/run-x64.ps1 -Tool vitest -ProjectPath .scratch/prd0062-ui-harness -- run src/services/book-activity/results", "result": "2 files, 14 tests passed"},
+    {"command": "git diff --cached --check", "result": "passed before commit"},
+    {"command": "scoped TypeScript diagnostics for changed #102 paths", "result": "no matching diagnostics; repository-wide TypeScript remains outside this evidence claim"}
+  ],
+  "remainingOwnedBy": {
+    "#103/42B": "Class/copy placement, authority, sync and isolated Class progress/results",
+    "#104/42C": "thin Course/Class runtime launch dispatch",
+    "#118/09E": "generated/assembled/active RTDB rules and emulator/deployed rules proof",
+    "#130/51C1": "authenticated browser navigation, reload and persistence proof",
+    "#134/51E": "deployed/canary journey, cleanup and rollback proof"
+  },
+  "notClaimed": ["emulator rules proof", "authenticated browser proof", "deployed proof", "canary proof"]
 }

@@ -22,6 +22,10 @@ Rules are represented by `database.rules.json`; notification production remains 
 
 #102 owns this shared identity/authority contract and the Course vertical. #103 consumes it for Class/copy, #104 only dispatches an already-resolved binding, #107 exposes read-only adapters, #118 implements generated/active rules, and #130/#134 own browser and canary proof. Static and unit evidence here is not emulator, browser, or deployed evidence.
 
+## 2026-08-05 implementation reconciliation
+
+The shared contract and direct-Course vertical are implemented through commits `b0d2de8b` and `81194bd8`. Local focused proof covers accepted-publication selection, durable placement and direct-enrolment authority, guarded canonical Delivery issuance, exact `courseMaterialId` resolution, isolated result identity including duplicate same-Activity placements, all-required-Activity completion aggregation, default-off exact Course-derived Homework credit, migration/rollback, and teacher/student components. The presentation and Worker route gates remain default-disabled. #103 may now consume this contract; #104 remains the thin launch dispatcher. Active rules, authenticated browser, deployed, and canary proof remain exclusively with #118, #130, and #134 and are not claimed here.
+
 The validator reads Git tree objects, not working-tree path presence. It rejects duplicate ownership/handoffs, stale baseline ancestry, missing code evidence, incomplete state/failure/proof classes, compatibility or rollback omissions, and unlabeled baseline findings.
 
 ## Trusted Course authority adapter
