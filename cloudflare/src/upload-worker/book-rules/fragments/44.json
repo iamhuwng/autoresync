@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "44",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "44",
+    "issue": 106,
+    "generatedRuleLocations": [
+      "material_catalog/public_references/.read",
+      "material_catalog/public_references/$referenceId/.read",
+      "material_catalog/public_references/$referenceId/.write",
+      "material_catalog/public_reference_placements/$bookId/.read",
+      "material_catalog/public_reference_placements/$bookId/.write",
+      "book_activity/fork_history/$activityId/.read"
+    ],
+    "leastPrivilegePaths": [
+      "material_catalog/public_references/$referenceId",
+      "material_catalog/public_reference_placements/$bookId/$nodeId/$placementId",
+      "book_activity/fork_history/$activityId/$forkId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "material_catalog/public_references",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "material_catalog/public_references/$referenceId",
+      "rule": ".read",
+      "merge": "replace-exact-authorization",
+      "requiresExistingRule": false,
+      "expression": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && data.child('current').child('target').child('bookId').val() !== null && root.child('material_catalog').child('books').child(data.child('current').child('target').child('bookId').val()).child('ownerId').val() === auth.uid"
+    },
+    {
+      "path": "material_catalog/public_references/$referenceId",
+      "rule": ".write",
+      "merge": "replace-exact-owner",
+      "requiresExistingRule": false,
+      "expression": "auth != null && root.child('material_catalog').child('public_reference_rollback').child('denyNewWrites').val() !== true && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && newData.child('current').child('target').child('bookId').val() !== null && root.child('material_catalog').child('books').child(newData.child('current').child('target').child('bookId').val()).child('ownerId').val() === auth.uid"
+    },
+    {
+      "path": "material_catalog/public_references/$referenceId/current",
+      "rule": ".validate",
+      "merge": "conjoin-existing-validation-preserving-delete",
+      "requiresExistingRule": false,
+      "expression": "!newData.exists() || (newData.child('schemaVersion').val() === 1 && newData.child('recordKind').val() === 'public-book-reference' && newData.child('referenceId').val() === $referenceId && newData.child('target').child('bookId').val() !== null && newData.child('source').child('bookId').val() !== null && newData.child('source').child('publicationId').val() !== null && newData.child('source').child('publicationRevision').isNumber() && !newData.child('provider').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('answerKey').exists() && !newData.child('teacherNotes').exists() && !newData.child('candidates').exists())"
+    },
+    {
+      "path": "material_catalog/public_reference_placements/$bookId",
+      "rule": ".read",
+      "merge": "replace-exact-authorization",
+      "requiresExistingRule": false,
+      "expression": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && root.child('material_catalog').child('books').child($bookId).child('ownerId').val() === auth.uid"
+    },
+    {
+      "path": "material_catalog/public_reference_placements/$bookId",
+      "rule": ".write",
+      "merge": "replace-exact-owner",
+      "requiresExistingRule": false,
+      "expression": "auth != null && root.child('material_catalog').child('public_reference_rollback').child('denyNewWrites').val() !== true && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && root.child('material_catalog').child('books').child($bookId).child('ownerId').val() === auth.uid && !newData.child('provider').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('answerKey').exists() && !newData.child('teacherNotes').exists()"
+    },
+    {
+      "path": "book_activity/fork_history/$activityId",
+      "rule": ".read",
+      "merge": "replace-exact-authorization",
+      "requiresExistingRule": false,
+      "expression": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && data.child('target').child('bookId').val() !== null && root.child('material_catalog').child('books').child(data.child('target').child('bookId').val()).child('ownerId').val() === auth.uid"
+    }
+  ]
+}
