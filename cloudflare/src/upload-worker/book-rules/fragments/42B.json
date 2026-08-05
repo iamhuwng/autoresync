@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "42B",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "42B",
+    "issue": 103,
+    "serviceIdentity": "class_book_authority_103",
+    "generatedRuleLocations": [
+      "class_book_authority/copies/$classId/$copyId/.write",
+      "class_book_authority/placements/current/$contextId/.write",
+      "class_book_authority/placements/versions/$contextId/$placementRevision/.write",
+      "book_delivery/bindings/class-course/$bindingId/.write",
+      "class_book_authority/progress/$progressKey/.write",
+      "class_book_authority/results/$resultKey/.write",
+      "classes/$classId/book_locks/$classPlacementId/.write"
+    ],
+    "leastPrivilegePaths": [
+      "class_book_authority/copies/$classId/$copyId",
+      "class_book_authority/placements/current/$contextId",
+      "class_book_authority/placements/versions/$contextId/$placementRevision",
+      "book_delivery/bindings/class-course/$bindingId",
+      "class_book_authority/progress/$progressKey",
+      "class_book_authority/results/$resultKey",
+      "classes/$classId/book_locks/$classPlacementId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "class_book_authority/copies/$classId/$copyId",
+      "rule": ".write",
+      "merge": "owner-cas-immutable-copy",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.token.classId === $classId && auth.token.actorUid === root.child('classes').child($classId).child('createdBy').val() && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && !data.exists() && newData.child('copyId').val() === $copyId && newData.child('classId').val() === $classId && newData.child('ownerId').val() === auth.token.actorUid"
+    },
+    {
+      "path": "class_book_authority/placements/current/$contextId",
+      "rule": ".write",
+      "merge": "current-pointer-revision-cas",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.token.contextId === $contextId && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && newData.child('schemaVersion').val() === 1 && newData.child('classId').val() === auth.token.classId && newData.child('copyId').val() === auth.token.copyId && newData.child('courseMaterialId').val() === auth.token.courseMaterialId && newData.child('placementRevision').val() === data.child('placementRevision').val() + 1"
+    },
+    {
+      "path": "class_book_authority/placements/versions/$contextId/$placementRevision",
+      "rule": ".write",
+      "merge": "immutable-version-and-receipt",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.token.contextId === $contextId && auth.token.placementRevision === $placementRevision && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && !data.exists() && newData.child('placementRevision').val() === $placementRevision && newData.child('classPlacementId').val() === auth.token.classPlacementId"
+    },
+    {
+      "path": "book_delivery/bindings/class-course/$bindingId",
+      "rule": ".write",
+      "merge": "immutable-class-delivery-binding",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.token.bindingId === $bindingId && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewIssuance').val() !== true && !data.exists() && newData.child('schemaVersion').val() === 1 && newData.child('context').child('surface').val() === 'class-course' && newData.child('studentId').val() === auth.token.studentId"
+    },
+    {
+      "path": "class_book_authority/progress/$progressKey",
+      "rule": ".write",
+      "merge": "student-scoped-progress-cas",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.uid === auth.token.studentId && auth.token.classBookAuthority103 === true && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && newData.child('scope').child('surface').val() === 'class-course' && newData.child('scope').child('studentId').val() === auth.uid && newData.child('revision').val() === data.child('revision').val() + 1"
+    },
+    {
+      "path": "class_book_authority/results/$resultKey",
+      "rule": ".write",
+      "merge": "immutable-student-result",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.uid === auth.token.studentId && auth.token.classBookAuthority103 === true && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && !data.exists() && newData.child('scope').child('surface').val() === 'class-course' && newData.child('scope').child('studentId').val() === auth.uid"
+    },
+    {
+      "path": "classes/$classId/book_locks/$classPlacementId",
+      "rule": ".write",
+      "merge": "class-owner-lock-cas",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.token.classId === $classId && auth.token.actorUid === root.child('classes').child($classId).child('createdBy').val() && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && newData.child('revision').val() === data.child('revision').val() + 1 && newData.child('classPlacementId').val() === $classPlacementId"
+    }
+  ]
+}
