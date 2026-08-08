@@ -130,6 +130,11 @@ at #136.
 - **S5 — recovery and rules:** #119 precedes final #120 inventory; #125 two-pass recovery and #118 generated/active rules both pass before #126.
 - **S6 — stable local acceptance:** corrected #127 and stable producers precede final #128–#133 runs. Definitions, route interception, or earlier baselines do not close them.
 - **S7 — remote decision:** #126, #134, and #136 remain separate approval-gated mutations; #135 independently proves no-cost capacity.
+- **S8 — deferred local cleanup:** preserve the user-approved Markdown deletion set
+  and remove the four obsolete PRD0062 local clones only after the reconciliation,
+  clean-state, `origin/main` reachability, and junction-safety gates in
+  [`deferred-local-cleanup-2026-08-08.md`](deferred-local-cleanup-2026-08-08.md)
+  pass. This operational cleanup does not close or reopen a product ticket.
 
 ## Closure invariants
 
