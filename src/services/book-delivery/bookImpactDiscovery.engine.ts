@@ -29,8 +29,10 @@ import {
   type BookImpactDiscoveryQuery,
   type BookImpactDiscoveryReadPage,
   type BookImpactDiscoveryResult,
+  type BookImpactDiscoverySuccess,
   type BookImpactEffectiveWindow,
   type BookImpactPlacementInput,
+  type BookImpactProducerIdentity,
   type BookImpactReplacementInput,
   type BookImpactSourceReference,
   type BookImpactSourceScopeSummary,
@@ -54,7 +56,12 @@ export interface BookImpactDiscoveryPolicy {
   readonly adapterId: string;
   readonly adapterVersion: number;
   readonly contextKind: BookImpactDiscoveryContextKind;
-  readonly ownerScope: 'actor-owned-solo' | 'uploader-owned-homework';
+  readonly ownerScope:
+    | 'actor-owned-solo'
+    | 'uploader-owned-homework'
+    | 'teacher-owned-course'
+    | 'teacher-owned-class'
+    | 'downstream-owner-public-reference';
   readonly contextOwnedByActor: (
     value: Record<string, unknown>,
     actorId: string,
@@ -73,6 +80,7 @@ const CONTEXT_KEYS = [
   'contextId', 'effectiveWindow', 'kind', 'lifecycle', 'observedAt', 'ownerId', 'placements',
   'publicationId', 'publicationRevision', 'recipientId', 'replacement', 'sources', 'status',
 ] as const;
+const CONTEXT_KEYS_WITH_IDENTITY = [...CONTEXT_KEYS, 'identity'] as const;
 const WINDOW_KEYS = [
   'authorityRevision', 'availableFrom', 'deadline', 'dueAt', 'extensionDueAt',
   'extensionRevision', 'policyRevision', 'release', 'winner',
@@ -110,6 +118,9 @@ const isId = (value: unknown): value is string => typeof value === 'string' && I
 const isTime = (value: unknown): value is string => isBookImpactDiscoveryTimestamp(value);
 const isBefore = (value: string, evaluatedAt: string): boolean => (
   Date.parse(value) <= Date.parse(evaluatedAt)
+);
+const isStrictlyBefore = (value: string, evaluatedAt: string): boolean => (
+  Date.parse(value) < Date.parse(evaluatedAt)
 );
 const isDenseArray = (value: unknown): value is readonly unknown[] => (
   Array.isArray(value)
@@ -378,14 +389,97 @@ const isReplacement = (
   return true;
 };
 
+const hasIds = (value: Record<string, unknown>, keys: readonly string[]): boolean => (
+  keys.every((key) => isId(value[key]))
+);
+
+const hasPositiveRevisions = (value: Record<string, unknown>, keys: readonly string[]): boolean => (
+  keys.every((key) => isPositive(value[key]))
+);
+
+const isProducerIdentity = (
+  value: unknown,
+  context: Record<string, unknown>,
+): value is BookImpactProducerIdentity => {
+  if (!isPlainRecord(value)) return false;
+  if (value.kind === 'course') {
+    if (!hasExactKeys(value, [
+      'bindingId', 'bindingRevision', 'bookId', 'bookRevision', 'courseId', 'courseMaterialId',
+      'kind', 'manifestVersionId', 'moduleId', 'placementRevision', 'publicationId',
+      'publicationRevision', 'sourceVersionId', 'unitStableKey', 'unitVersionId',
+    ]) || !hasIds(value, [
+      'bindingId', 'bookId', 'courseId', 'courseMaterialId', 'manifestVersionId', 'moduleId',
+      'publicationId', 'sourceVersionId', 'unitStableKey', 'unitVersionId',
+    ]) || !hasPositiveRevisions(value, [
+      'bindingRevision', 'bookRevision', 'placementRevision', 'publicationRevision',
+    ])) return false;
+    return value.bindingId === context.bindingId
+      && value.bindingRevision === context.bindingRevision
+      && value.bookId === context.bookId
+      && value.bookRevision === context.bookRevision
+      && value.publicationId === context.publicationId
+      && value.publicationRevision === context.publicationRevision;
+  }
+  if (value.kind === 'class') {
+    if (!hasExactKeys(value, [
+      'bindingId', 'bookId', 'bookRevision', 'classCourseMaterialId', 'classId',
+      'classPlacementId', 'copyId', 'deliveryBindingRevision', 'kind', 'manifestVersionId',
+      'publicationId', 'publicationRevision', 'sourceCourseMaterialId', 'sourcePlacementRevision',
+      'sourceVersionId', 'unitStableKey', 'unitVersionId',
+    ]) || !hasIds(value, [
+      'bindingId', 'bookId', 'classCourseMaterialId', 'classId', 'classPlacementId', 'copyId',
+      'manifestVersionId', 'publicationId', 'sourceCourseMaterialId', 'sourceVersionId',
+      'unitStableKey', 'unitVersionId',
+    ]) || !hasPositiveRevisions(value, [
+      'bookRevision', 'deliveryBindingRevision', 'publicationRevision', 'sourcePlacementRevision',
+    ])) return false;
+    return value.bindingId === context.bindingId
+      && value.deliveryBindingRevision === context.bindingRevision
+      && value.bookId === context.bookId
+      && value.bookRevision === context.bookRevision
+      && value.publicationId === context.publicationId
+      && value.publicationRevision === context.publicationRevision;
+  }
+  if (value.kind === 'public-reference') {
+    if (!hasExactKeys(value, [
+      'bindingId', 'bindingRevision', 'downstreamOwnerId', 'kind', 'provenanceId',
+      'provenanceRevision', 'referenceId', 'referenceKind', 'referenceRevision', 'sourceBookId',
+      'sourceBookRevision', 'sourcePublicationId', 'sourcePublicationRevision', 'targetBookId',
+      'targetBookRevision', 'targetPlacementId', 'targetPlacementRevision', 'targetPublicationId',
+      'targetPublicationRevision', 'sourceOwnerId',
+    ]) || !hasIds(value, [
+      'bindingId', 'downstreamOwnerId', 'provenanceId', 'referenceId', 'sourceBookId',
+      'sourcePublicationId', 'targetBookId', 'targetPlacementId', 'targetPublicationId',
+      'sourceOwnerId',
+    ]) || !hasPositiveRevisions(value, [
+      'bindingRevision', 'provenanceRevision', 'referenceRevision', 'sourceBookRevision',
+      'sourcePublicationRevision', 'targetBookRevision', 'targetPlacementRevision',
+      'targetPublicationRevision',
+    ]) || !['reference', 'fork'].includes(value.referenceKind as string)) return false;
+    return value.bindingId === context.bindingId
+      && value.bindingRevision === context.bindingRevision
+      && value.downstreamOwnerId === context.ownerId
+      && value.targetBookId === context.bookId
+      && value.targetBookRevision === context.bookRevision
+      && value.targetPublicationId === context.publicationId
+      && value.targetPublicationRevision === context.publicationRevision;
+  }
+  return false;
+};
+
 const validateContext = (
   value: unknown,
   actorId: string,
   evaluatedAt: string,
   policy: BookImpactDiscoveryPolicy,
 ): value is BookImpactContextInput => {
-  if (!hasExactKeys(value, CONTEXT_KEYS)) return false;
+  if (!isPlainRecord(value)) return false;
   const record = value;
+  const requiresIdentity = ['course', 'class', 'public-reference'].includes(record.kind as string);
+  if (!hasExactKeys(record, requiresIdentity ? CONTEXT_KEYS_WITH_IDENTITY : CONTEXT_KEYS)
+    || (requiresIdentity && (!isPlainRecord(record.identity)
+      || record.identity.kind !== record.kind
+      || !isProducerIdentity(record.identity, record)))) return false;
   if (record.kind !== policy.contextKind
     || !isId(record.contextId)
     || !isId(record.ownerId)
@@ -409,7 +503,7 @@ const validateContext = (
     || !isDenseArray(record.replacement)
     || record.replacement.length > BOOK_IMPACT_DISCOVERY_MAX_REPLACEMENTS_PER_CONTEXT
     || !isTime(record.observedAt)
-    || !isBefore(record.observedAt, evaluatedAt)
+    || !isStrictlyBefore(record.observedAt, evaluatedAt)
     || containsBookImpactSensitiveKey(value)) return false;
 
   const placements = record.placements as readonly BookImpactPlacementInput[];
@@ -425,6 +519,16 @@ const validateContext = (
     || new Set(attempts.map((attempt) => (
       attempt.placementId + '\u0000' + attempt.activityId + '\u0000' + attempt.attemptNumber
     ))).size !== attempts.length) return false;
+  const identity = record.identity as BookImpactProducerIdentity | undefined;
+  if ((identity?.kind === 'course' || identity?.kind === 'class')
+    && (!sources.some((source) => source.sourceVersionId === identity.sourceVersionId)
+      || !placements.some((placement) => placement.sourceRefs.some(
+        (source) => source.sourceVersionId === identity.sourceVersionId,
+      )))) return false;
+  if (identity?.kind === 'public-reference'
+    && !placements.some((placement) => placement.placementId === identity.targetPlacementId)) {
+    return false;
+  }
   for (const source of sources) {
     const key = sourceIdentity(source);
     if (sourceMap.has(key)
@@ -534,7 +638,8 @@ const toSummary = (context: BookImpactContextInput): BookImpactSummary => ({
     ...replacement,
     placementIds: [...replacement.placementIds],
   })),
-});
+  ...(context.identity === undefined ? {} : { identity: structuredClone(context.identity) }),
+}) as BookImpactSummary;
 
 const replacementScopes = (contexts: readonly BookImpactContextInput[]) => {
   const groups = new Map<string, {
@@ -653,7 +758,7 @@ const discover = async (
         && record.recipientId !== query.actorId) {
         return blocked(query, policy, 'cross-owner');
       }
-      if (isTime(record.observedAt) && !isBefore(record.observedAt, query.evaluatedAt)) {
+      if (isTime(record.observedAt) && !isStrictlyBefore(record.observedAt, query.evaluatedAt)) {
         return blocked(query, policy, 'stale');
       }
     }
@@ -672,7 +777,7 @@ const discover = async (
     bindingIds.add(context.bindingId);
     if (context.status === 'active') contexts.push(context);
   }
-  const result = {
+  const resultBase = {
     status: 'ok' as const,
     contractVersion: BOOK_IMPACT_DISCOVERY_CONTRACT_VERSION,
     inputVersion: BOOK_IMPACT_DISCOVERY_INPUT_VERSION,
@@ -681,12 +786,41 @@ const discover = async (
     adapterVersion: policy.adapterVersion,
     contextKind: policy.contextKind,
     evaluatedAt: query.evaluatedAt,
-    impacts: contexts.map(toSummary).sort((left, right) => (
-      left.contextId.localeCompare(right.contextId)
-    )),
     replacementScopes: replacementScopes(contexts),
   };
-  return freezeBookImpactValue(result);
+  const impacts = contexts.map(toSummary).sort((left, right) => (
+    left.contextId.localeCompare(right.contextId)
+  ));
+  const resultForContextKind = <TContextKind extends BookImpactDiscoveryContextKind>(
+    contextKind: TContextKind,
+    scopedImpacts: readonly Extract<BookImpactSummary, { readonly contextKind: TContextKind }>[],
+  ): BookImpactDiscoverySuccess => ({
+    ...resultBase,
+    contextKind,
+    impacts: scopedImpacts,
+  } as BookImpactDiscoverySuccess);
+  switch (policy.contextKind) {
+    case 'solo':
+      return freezeBookImpactValue(resultForContextKind('solo', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'solo' }
+      >[]));
+    case 'homework':
+      return freezeBookImpactValue(resultForContextKind('homework', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'homework' }
+      >[]));
+    case 'course':
+      return freezeBookImpactValue(resultForContextKind('course', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'course' }
+      >[]));
+    case 'class':
+      return freezeBookImpactValue(resultForContextKind('class', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'class' }
+      >[]));
+    case 'public-reference':
+      return freezeBookImpactValue(resultForContextKind('public-reference', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'public-reference' }
+      >[]));
+  }
 };
 
 export const createBookImpactDiscoveryAdapter = (input: {

@@ -5,6 +5,8 @@ import {
 } from './bookHomeworkImpactAdapter.service';
 import type { BookImpactContextInput } from './bookImpactDiscovery.types';
 
+type HomeworkContext = Extract<BookImpactContextInput, { readonly kind: 'homework' }>;
+
 const classification = () => ({
   primaryEffect: 'redo-required' as const,
   effects: ['redo-required' as const],
@@ -20,7 +22,7 @@ const classification = () => ({
   requiresSuccessor: false,
 });
 
-const context = (overrides: Partial<BookImpactContextInput> = {}): BookImpactContextInput => ({
+const context = (overrides: Partial<HomeworkContext> = {}): HomeworkContext => ({
   contextId: 'assignment-1--student-1',
   kind: 'homework',
   ownerId: 'teacher-1',
