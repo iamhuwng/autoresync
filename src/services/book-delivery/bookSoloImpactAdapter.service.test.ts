@@ -5,6 +5,8 @@ import {
 } from './bookSoloImpactAdapter.service';
 import type { BookImpactContextInput } from './bookImpactDiscovery.types';
 
+type SoloContext = Extract<BookImpactContextInput, { readonly kind: 'solo' }>;
+
 const classification = () => ({
   primaryEffect: 'mapping-source-context' as const,
   effects: ['mapping-source-context' as const, 'display-only' as const],
@@ -20,7 +22,7 @@ const classification = () => ({
   requiresSuccessor: false,
 });
 
-const context = (overrides: Partial<BookImpactContextInput> = {}): BookImpactContextInput => ({
+const context = (overrides: Partial<SoloContext> = {}): SoloContext => ({
   contextId: 'solo-context-1',
   kind: 'solo',
   ownerId: 'student-1',

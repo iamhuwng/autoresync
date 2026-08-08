@@ -25,7 +25,12 @@ export const BOOK_IMPACT_DISCOVERY_MAX_PAGE_NUMBERS_PER_CONTEXT = 8192 as const;
 export const BOOK_IMPACT_DISCOVERY_MAX_CLASSIFICATION_REASONS = 64 as const;
 export const BOOK_IMPACT_DISCOVERY_MAX_REASON_LENGTH = 256 as const;
 
-export type BookImpactDiscoveryContextKind = 'solo' | 'homework';
+export type BookImpactDiscoveryContextKind =
+  | 'solo'
+  | 'homework'
+  | 'course'
+  | 'class'
+  | 'public-reference';
 export type BookImpactDiscoveryContextStatus = 'active' | 'closed' | 'archived';
 export type BookImpactDiscoveryLifecycle =
   | 'not-started'
@@ -149,7 +154,12 @@ export interface BookImpactDiscoveryAuthorization {
   readonly authorized: true;
   readonly actorId: string;
   readonly contextKind: BookImpactDiscoveryContextKind;
-  readonly ownerScope: 'actor-owned-solo' | 'uploader-owned-homework';
+  readonly ownerScope:
+    | 'actor-owned-solo'
+    | 'uploader-owned-homework'
+    | 'teacher-owned-course'
+    | 'teacher-owned-class'
+    | 'downstream-owner-public-reference';
   readonly maxContexts: number;
 }
 
@@ -229,13 +239,73 @@ export interface BookImpactReplacementInput {
   readonly ownerChoice: 'retain-owner' | 'owner-adopts-replacement' | 'invalidate-context';
 }
 
+/** Immutable producer pins for the Course/Class/public-reference adapters. */
+export type BookImpactProducerIdentity =
+  | {
+    readonly kind: 'course';
+    readonly courseId: string;
+    readonly moduleId: string;
+    readonly courseMaterialId: string;
+    readonly unitStableKey: string;
+    readonly unitVersionId: string;
+    readonly sourceVersionId: string;
+    readonly manifestVersionId: string;
+    readonly bookId: string;
+    readonly bookRevision: number;
+    readonly publicationId: string;
+    readonly publicationRevision: number;
+    readonly placementRevision: number;
+    readonly bindingId: string;
+    readonly bindingRevision: number;
+  }
+  | {
+    readonly kind: 'class';
+    readonly classId: string;
+    readonly copyId: string;
+    readonly classPlacementId: string;
+    readonly classCourseMaterialId: string;
+    readonly sourceCourseMaterialId: string;
+    readonly sourcePlacementRevision: number;
+    readonly unitStableKey: string;
+    readonly unitVersionId: string;
+    readonly sourceVersionId: string;
+    readonly manifestVersionId: string;
+    readonly bookId: string;
+    readonly bookRevision: number;
+    readonly publicationId: string;
+    readonly publicationRevision: number;
+    /** Numeric revision from the Delivery binding, never a placement pin. */
+    readonly deliveryBindingRevision: number;
+    readonly bindingId: string;
+  }
+  | {
+    readonly kind: 'public-reference';
+    readonly referenceKind: 'reference' | 'fork';
+    readonly referenceId: string;
+    readonly referenceRevision: number;
+    readonly sourceBookId: string;
+    readonly sourceBookRevision: number;
+    readonly sourcePublicationId: string;
+    readonly sourcePublicationRevision: number;
+    readonly targetBookId: string;
+    readonly targetBookRevision: number;
+    readonly targetPublicationId: string;
+    readonly targetPublicationRevision: number;
+    readonly targetPlacementId: string;
+    readonly targetPlacementRevision: number;
+    readonly downstreamOwnerId: string;
+    readonly provenanceId: string;
+    readonly provenanceRevision: number;
+    readonly bindingId: string;
+    readonly bindingRevision: number;
+  };
+
 /**
  * Immutable, already-authorized facts.  Adapters never accept raw answers,
  * PDFs, provider keys, credentials, or authoring records in this shape.
  */
-export interface BookImpactContextInput {
+export interface BookImpactContextInputBase {
   readonly contextId: string;
-  readonly kind: BookImpactDiscoveryContextKind;
   /** Context owner used by the adapter authorization scope, not a provider key. */
   readonly ownerId: string;
   readonly recipientId: string;
@@ -255,6 +325,42 @@ export interface BookImpactContextInput {
   readonly replacement: readonly BookImpactReplacementInput[];
   readonly observedAt: string;
 }
+
+export type BookImpactSoloContextInput = BookImpactContextInputBase & {
+  readonly kind: 'solo';
+  readonly identity?: never;
+};
+
+export type BookImpactHomeworkContextInput = BookImpactContextInputBase & {
+  readonly kind: 'homework';
+  readonly identity?: never;
+};
+
+export type BookImpactCourseContextInput = BookImpactContextInputBase & {
+  readonly kind: 'course';
+  readonly identity: Extract<BookImpactProducerIdentity, { readonly kind: 'course' }>;
+};
+
+export type BookImpactClassContextInput = BookImpactContextInputBase & {
+  readonly kind: 'class';
+  readonly identity: Extract<BookImpactProducerIdentity, { readonly kind: 'class' }>;
+};
+
+export type BookImpactPublicReferenceContextInput = BookImpactContextInputBase & {
+  readonly kind: 'public-reference';
+  readonly identity: Extract<BookImpactProducerIdentity, { readonly kind: 'public-reference' }>;
+};
+
+/**
+ * Immutable, already-authorized facts with a producer identity tied to the
+ * context discriminator. Solo/Homework deliberately have no producer identity.
+ */
+export type BookImpactContextInput =
+  | BookImpactSoloContextInput
+  | BookImpactHomeworkContextInput
+  | BookImpactCourseContextInput
+  | BookImpactClassContextInput
+  | BookImpactPublicReferenceContextInput;
 
 export interface BookImpactSourceScopeSummary {
   readonly sourceKey: string;
@@ -299,6 +405,7 @@ export interface BookImpactSummary {
     'primaryEffect' | 'effects' | 'reasons' | 'requiresRedo' | 'requiresRegrade'
   >;
   readonly replacement: readonly BookImpactReplacementInput[];
+  readonly identity?: BookImpactProducerIdentity;
 }
 
 export interface BookImpactDiscoverySuccess {
@@ -354,6 +461,30 @@ export interface BookSoloImpactReader {
 }
 
 export interface BookHomeworkImpactReader {
+  authorize(input: { readonly actorId: string }): Promise<BookImpactDiscoveryAuthorizationResult>;
+  readOwnedContexts(input: {
+    readonly actorId: string;
+    readonly limit: number;
+  }): Promise<BookImpactDiscoveryReadPage>;
+}
+
+export interface BookCourseImpactReader {
+  authorize(input: { readonly actorId: string }): Promise<BookImpactDiscoveryAuthorizationResult>;
+  readOwnedContexts(input: {
+    readonly actorId: string;
+    readonly limit: number;
+  }): Promise<BookImpactDiscoveryReadPage>;
+}
+
+export interface BookClassImpactReader {
+  authorize(input: { readonly actorId: string }): Promise<BookImpactDiscoveryAuthorizationResult>;
+  readOwnedContexts(input: {
+    readonly actorId: string;
+    readonly limit: number;
+  }): Promise<BookImpactDiscoveryReadPage>;
+}
+
+export interface BookPublicImpactReader {
   authorize(input: { readonly actorId: string }): Promise<BookImpactDiscoveryAuthorizationResult>;
   readOwnedContexts(input: {
     readonly actorId: string;
@@ -420,7 +551,9 @@ export const freezeBookImpactValue = <T>(value: T): T => {
 };
 
 const adapterIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
-const contextKinds = new Set<BookImpactDiscoveryContextKind>(['solo', 'homework']);
+const contextKinds = new Set<BookImpactDiscoveryContextKind>([
+  'solo', 'homework', 'course', 'class', 'public-reference',
+]);
 const effects = new Set<BookImpactEffect>(BOOK_IMPACT_DISCOVERY_EFFECTS);
 const replacementModes = new Set<BookImpactDiscoverySourceReplacementMode>([
   'invalidation-only',

@@ -3,8 +3,13 @@ import {
   BOOK_IMPACT_DISCOVERY_EFFECTS,
   createBookImpactDiscoveryConformanceRegistry,
 } from './bookImpactDiscovery.types';
+import { BOOK_CLASS_IMPACT_ADAPTER_DECLARATION } from './bookClassImpactAdapter.service';
+import { BOOK_COURSE_IMPACT_ADAPTER_DECLARATION } from './bookCourseImpactAdapter.service';
+import { BOOK_HOMEWORK_IMPACT_ADAPTER_DECLARATION } from './bookHomeworkImpactAdapter.service';
+import { BOOK_PUBLIC_IMPACT_ADAPTER_DECLARATION } from './bookPublicImpactAdapter.service';
+import { BOOK_SOLO_IMPACT_ADAPTER_DECLARATION } from './bookSoloImpactAdapter.service';
 
-const declaration = (adapterId: string, contextKind: 'solo' | 'homework') => ({
+const declaration = (adapterId: string, contextKind: 'solo' | 'homework' | 'course' | 'class' | 'public-reference') => ({
   adapterId,
   adapterVersion: 1,
   contextKind,
@@ -28,12 +33,17 @@ const declaration = (adapterId: string, contextKind: 'solo' | 'homework') => ({
 });
 
 describe('39B impact discovery contract registration', () => {
-  it('registers Solo and Homework declarations without activation', () => {
+  it('registers all canonical declarations without activation', () => {
     const registry = createBookImpactDiscoveryConformanceRegistry([
-      declaration('book-solo-impact-v1', 'solo'),
-      declaration('book-homework-impact-v1', 'homework'),
+      BOOK_SOLO_IMPACT_ADAPTER_DECLARATION,
+      BOOK_HOMEWORK_IMPACT_ADAPTER_DECLARATION,
+      BOOK_COURSE_IMPACT_ADAPTER_DECLARATION,
+      BOOK_CLASS_IMPACT_ADAPTER_DECLARATION,
+      BOOK_PUBLIC_IMPACT_ADAPTER_DECLARATION,
     ]);
-    expect(registry.declarations.map((item) => item.contextKind)).toEqual(['solo', 'homework']);
+    expect(registry.declarations.map((item) => item.contextKind)).toEqual([
+      'solo', 'homework', 'course', 'class', 'public-reference',
+    ]);
     expect(registry.get('book-solo-impact-v1')?.adapterVersion).toBe(1);
     expect(Object.isFrozen(registry.declarations)).toBe(true);
     expect(JSON.stringify(registry)).not.toMatch(
@@ -67,7 +77,7 @@ describe('39B impact discovery contract registration', () => {
   it.each([
     ['uncertain conformance', { conformance: { status: 'uncertain', contractVersion: 1, verifiedAdapterVersion: 1 } }],
     ['stale conformance', { conformance: { status: 'verified', contractVersion: 1, verifiedAdapterVersion: 2 } }],
-    ['wrong context', { contextKind: 'course' }],
+    ['wrong context', { contextKind: 'unsupported-context' }],
     ['extra authority field', { authorizationDecision: 'allow' }],
   ])('rejects %s', (_label, patch) => {
     expect(() => createBookImpactDiscoveryConformanceRegistry([
