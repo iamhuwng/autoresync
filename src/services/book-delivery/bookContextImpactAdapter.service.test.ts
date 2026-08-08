@@ -58,7 +58,8 @@ const identity = (kind: 'course' | 'class' | 'public-reference') => {
     sourcePublicationId: 'source-publication-1', sourcePublicationRevision: 5,
     targetBookId: 'book-1', targetBookRevision: 1,
     targetPublicationId: 'publication-1', targetPublicationRevision: 1,
-    targetPlacementId: 'target-placement-1', targetPlacementRevision: 3,
+    targetPlacementId: 'placement-1', targetPlacementRevision: 3,
+    sourceOwnerId: 'teacher-1',
     downstreamOwnerId: 'teacher-1', provenanceId: 'provenance-1', provenanceRevision: 2,
     bindingId: 'binding-1', bindingRevision: 7,
   } as const;
@@ -162,7 +163,7 @@ describe('canonical Course/Class/public Book impact adapters', () => {
     expect(wrongScope.readOwnedContexts).not.toHaveBeenCalled();
   });
 
-  it('rejects exact identity/binding mismatches, opaque class pin substitution, and source-owner public authorization', async () => {
+  it('rejects exact identity/binding mismatches, source-version and target-placement mismatches', async () => {
     const course = context('course', { identity: { ...identity('course'), publicationId: 'publication-2' } });
     await expect(createBookCourseImpactAdapter({ reader: reader('course', [course]) }).discover(query))
       .resolves.toMatchObject({ status: 'blocked', code: 'malformed' });
@@ -173,11 +174,34 @@ describe('canonical Course/Class/public Book impact adapters', () => {
     await expect(createBookClassImpactAdapter({ reader: reader('class', [classRecord]) }).discover(query))
       .resolves.toMatchObject({ status: 'blocked', code: 'malformed' });
 
+    const sourceVersionMismatch = context('course', {
+      identity: { ...identity('course'), sourceVersionId: 'source-v2' },
+    });
+    await expect(createBookCourseImpactAdapter({ reader: reader('course', [sourceVersionMismatch]) }).discover(query))
+      .resolves.toMatchObject({ status: 'blocked', code: 'malformed' });
+
+    const classSourceVersionMismatch = context('class', {
+      identity: { ...identity('class'), sourceVersionId: 'source-v2' },
+    });
+    await expect(createBookClassImpactAdapter({
+      reader: reader('class', [classSourceVersionMismatch]),
+    }).discover(query)).resolves.toMatchObject({ status: 'blocked', code: 'malformed' });
+
     const publicRecord = context('public-reference', {
-      identity: { ...identity('public-reference'), downstreamOwnerId: 'teacher-2' },
+      identity: { ...identity('public-reference'), targetPlacementId: 'placement-2' },
     });
     await expect(createBookPublicImpactAdapter({ reader: reader('public-reference', [publicRecord]) }).discover(query))
       .resolves.toMatchObject({ status: 'blocked', code: 'malformed' });
+  });
+
+  it('uses downstream-owner authority and rejects cross-owner public records', async () => {
+    const downstreamOwnerMismatch = context('public-reference', {
+      ownerId: 'teacher-2',
+      identity: { ...identity('public-reference'), downstreamOwnerId: 'teacher-2' },
+    });
+    const downstreamReader = reader('public-reference', [downstreamOwnerMismatch]);
+    await expect(createBookPublicImpactAdapter({ reader: downstreamReader }).discover(query))
+      .resolves.toMatchObject({ status: 'blocked', code: 'cross-owner' });
   });
 
   it.each([

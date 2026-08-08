@@ -29,6 +29,7 @@ import {
   type BookImpactDiscoveryQuery,
   type BookImpactDiscoveryReadPage,
   type BookImpactDiscoveryResult,
+  type BookImpactDiscoverySuccess,
   type BookImpactEffectiveWindow,
   type BookImpactPlacementInput,
   type BookImpactProducerIdentity,
@@ -445,10 +446,11 @@ const isProducerIdentity = (
       'provenanceRevision', 'referenceId', 'referenceKind', 'referenceRevision', 'sourceBookId',
       'sourceBookRevision', 'sourcePublicationId', 'sourcePublicationRevision', 'targetBookId',
       'targetBookRevision', 'targetPlacementId', 'targetPlacementRevision', 'targetPublicationId',
-      'targetPublicationRevision',
+      'targetPublicationRevision', 'sourceOwnerId',
     ]) || !hasIds(value, [
       'bindingId', 'downstreamOwnerId', 'provenanceId', 'referenceId', 'sourceBookId',
       'sourcePublicationId', 'targetBookId', 'targetPlacementId', 'targetPublicationId',
+      'sourceOwnerId',
     ]) || !hasPositiveRevisions(value, [
       'bindingRevision', 'provenanceRevision', 'referenceRevision', 'sourceBookRevision',
       'sourcePublicationRevision', 'targetBookRevision', 'targetPlacementRevision',
@@ -517,6 +519,16 @@ const validateContext = (
     || new Set(attempts.map((attempt) => (
       attempt.placementId + '\u0000' + attempt.activityId + '\u0000' + attempt.attemptNumber
     ))).size !== attempts.length) return false;
+  const identity = record.identity as BookImpactProducerIdentity | undefined;
+  if ((identity?.kind === 'course' || identity?.kind === 'class')
+    && (!sources.some((source) => source.sourceVersionId === identity.sourceVersionId)
+      || !placements.some((placement) => placement.sourceRefs.some(
+        (source) => source.sourceVersionId === identity.sourceVersionId,
+      )))) return false;
+  if (identity?.kind === 'public-reference'
+    && !placements.some((placement) => placement.placementId === identity.targetPlacementId)) {
+    return false;
+  }
   for (const source of sources) {
     const key = sourceIdentity(source);
     if (sourceMap.has(key)
@@ -627,7 +639,7 @@ const toSummary = (context: BookImpactContextInput): BookImpactSummary => ({
     placementIds: [...replacement.placementIds],
   })),
   ...(context.identity === undefined ? {} : { identity: structuredClone(context.identity) }),
-});
+}) as BookImpactSummary;
 
 const replacementScopes = (contexts: readonly BookImpactContextInput[]) => {
   const groups = new Map<string, {
@@ -765,7 +777,7 @@ const discover = async (
     bindingIds.add(context.bindingId);
     if (context.status === 'active') contexts.push(context);
   }
-  const result = {
+  const resultBase = {
     status: 'ok' as const,
     contractVersion: BOOK_IMPACT_DISCOVERY_CONTRACT_VERSION,
     inputVersion: BOOK_IMPACT_DISCOVERY_INPUT_VERSION,
@@ -774,12 +786,41 @@ const discover = async (
     adapterVersion: policy.adapterVersion,
     contextKind: policy.contextKind,
     evaluatedAt: query.evaluatedAt,
-    impacts: contexts.map(toSummary).sort((left, right) => (
-      left.contextId.localeCompare(right.contextId)
-    )),
     replacementScopes: replacementScopes(contexts),
   };
-  return freezeBookImpactValue(result);
+  const impacts = contexts.map(toSummary).sort((left, right) => (
+    left.contextId.localeCompare(right.contextId)
+  ));
+  const resultForContextKind = <TContextKind extends BookImpactDiscoveryContextKind>(
+    contextKind: TContextKind,
+    scopedImpacts: readonly Extract<BookImpactSummary, { readonly contextKind: TContextKind }>[],
+  ): BookImpactDiscoverySuccess => ({
+    ...resultBase,
+    contextKind,
+    impacts: scopedImpacts,
+  } as BookImpactDiscoverySuccess);
+  switch (policy.contextKind) {
+    case 'solo':
+      return freezeBookImpactValue(resultForContextKind('solo', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'solo' }
+      >[]));
+    case 'homework':
+      return freezeBookImpactValue(resultForContextKind('homework', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'homework' }
+      >[]));
+    case 'course':
+      return freezeBookImpactValue(resultForContextKind('course', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'course' }
+      >[]));
+    case 'class':
+      return freezeBookImpactValue(resultForContextKind('class', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'class' }
+      >[]));
+    case 'public-reference':
+      return freezeBookImpactValue(resultForContextKind('public-reference', impacts as readonly Extract<
+        BookImpactSummary, { readonly contextKind: 'public-reference' }
+      >[]));
+  }
 };
 
 export const createBookImpactDiscoveryAdapter = (input: {

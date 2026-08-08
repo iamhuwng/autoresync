@@ -293,6 +293,7 @@ export type BookImpactProducerIdentity =
     readonly targetPublicationRevision: number;
     readonly targetPlacementId: string;
     readonly targetPlacementRevision: number;
+    readonly sourceOwnerId: string;
     readonly downstreamOwnerId: string;
     readonly provenanceId: string;
     readonly provenanceRevision: number;
@@ -383,7 +384,7 @@ export interface BookImpactReplacementScopeSummary {
   readonly automaticUpdate: false;
 }
 
-export interface BookImpactSummary {
+interface BookImpactSummaryBase {
   readonly contextId: string;
   readonly contextKind: BookImpactDiscoveryContextKind;
   readonly ownerId: string;
@@ -405,21 +406,62 @@ export interface BookImpactSummary {
     'primaryEffect' | 'effects' | 'reasons' | 'requiresRedo' | 'requiresRegrade'
   >;
   readonly replacement: readonly BookImpactReplacementInput[];
-  readonly identity?: BookImpactProducerIdentity;
 }
 
-export interface BookImpactDiscoverySuccess {
+export type BookImpactSummary =
+  | (BookImpactSummaryBase & {
+    readonly contextKind: 'solo';
+    readonly identity?: never;
+  })
+  | (BookImpactSummaryBase & {
+    readonly contextKind: 'homework';
+    readonly identity?: never;
+  })
+  | (BookImpactSummaryBase & {
+    readonly contextKind: 'course';
+    readonly identity: Extract<BookImpactProducerIdentity, { readonly kind: 'course' }>;
+  })
+  | (BookImpactSummaryBase & {
+    readonly contextKind: 'class';
+    readonly identity: Extract<BookImpactProducerIdentity, { readonly kind: 'class' }>;
+  })
+  | (BookImpactSummaryBase & {
+    readonly contextKind: 'public-reference';
+    readonly identity: Extract<BookImpactProducerIdentity, { readonly kind: 'public-reference' }>;
+  });
+
+interface BookImpactDiscoverySuccessBase {
   readonly status: 'ok';
   readonly contractVersion: typeof BOOK_IMPACT_DISCOVERY_CONTRACT_VERSION;
   readonly inputVersion: typeof BOOK_IMPACT_DISCOVERY_INPUT_VERSION;
   readonly outputVersion: typeof BOOK_IMPACT_DISCOVERY_OUTPUT_VERSION;
   readonly adapterId: string;
   readonly adapterVersion: number;
-  readonly contextKind: BookImpactDiscoveryContextKind;
   readonly evaluatedAt: string;
-  readonly impacts: readonly BookImpactSummary[];
   readonly replacementScopes: readonly BookImpactReplacementScopeSummary[];
 }
+
+export type BookImpactDiscoverySuccess =
+  | (BookImpactDiscoverySuccessBase & {
+    readonly contextKind: 'solo';
+    readonly impacts: readonly Extract<BookImpactSummary, { readonly contextKind: 'solo' }>[];
+  })
+  | (BookImpactDiscoverySuccessBase & {
+    readonly contextKind: 'homework';
+    readonly impacts: readonly Extract<BookImpactSummary, { readonly contextKind: 'homework' }>[];
+  })
+  | (BookImpactDiscoverySuccessBase & {
+    readonly contextKind: 'course';
+    readonly impacts: readonly Extract<BookImpactSummary, { readonly contextKind: 'course' }>[];
+  })
+  | (BookImpactDiscoverySuccessBase & {
+    readonly contextKind: 'class';
+    readonly impacts: readonly Extract<BookImpactSummary, { readonly contextKind: 'class' }>[];
+  })
+  | (BookImpactDiscoverySuccessBase & {
+    readonly contextKind: 'public-reference';
+    readonly impacts: readonly Extract<BookImpactSummary, { readonly contextKind: 'public-reference' }>[];
+  });
 
 export interface BookImpactDiscoveryBlocked {
   readonly status: 'blocked';
@@ -492,6 +534,7 @@ export interface BookPublicImpactReader {
   }): Promise<BookImpactDiscoveryReadPage>;
 }
 
+/** Separate read seam for downstream public-reference consumers. */
 export const BOOK_IMPACT_DISCOVERY_FORBIDDEN_KEYS = Object.freeze([
   'answer',
   'answerKey',
