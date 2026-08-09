@@ -60,6 +60,7 @@ const assertPins = (pins: ClassBookPlacementPins): void => {
     pins.sourceVersionId,
     pins.bindingRevision,
   ]) assertClassBookSafeId(value, 'class_book_pin_invalid');
+  assertClassBookRevision(pins.publicationRevision, 'class_book_publication_revision_invalid');
 };
 
 const assertSelection = (selection: ClassBookSelection, activities: readonly ClassBookActivitySelection[]): void => {
@@ -464,7 +465,7 @@ export class ClassBookPlacementService {
     }
     const activity = current.activities.find((candidate) => candidate.placementId === input.activityPlacementId);
     if (!activity) throw new ClassBookPlacementError('class_book_activity_unavailable');
-    const createdAt = input.createdAt ?? new Date().toISOString();
+    const createdAt = input.createdAt ?? input.now ?? new Date().toISOString();
     assertClassBookTimestamp(createdAt);
     assertClassBookTimestamp(input.expiresAt);
     if (Date.parse(input.expiresAt) <= Date.parse(createdAt)) {
@@ -596,6 +597,37 @@ export class ClassBookPlacementService {
         bindingId: input.binding.bindingId,
       }),
     };
+  }
+
+  async resolveDeliveryByIds(input: {
+    readonly actorId: string;
+    readonly classId: string;
+    readonly copyId: string;
+    readonly classPlacementId: string;
+    readonly classCourseMaterialId: string;
+    readonly bindingId: string;
+    readonly now?: string;
+  }): Promise<ClassBookDeliveryProjection> {
+    this.gate.assertExistingBindingResolutionAllowed();
+    for (const value of [
+      input.actorId,
+      input.classId,
+      input.copyId,
+      input.classPlacementId,
+      input.classCourseMaterialId,
+      input.bindingId,
+    ]) assertClassBookSafeId(value, 'class_book_delivery_identity_invalid');
+    const binding = await this.repository.readBinding(input.bindingId);
+    if (!binding) throw new ClassBookPlacementError('class_book_delivery_context_denied');
+    return this.resolveDelivery({
+      studentId: input.actorId,
+      classId: input.classId,
+      copyId: input.copyId,
+      classPlacementId: input.classPlacementId,
+      classCourseMaterialId: input.classCourseMaterialId,
+      binding,
+      now: input.now,
+    });
   }
 
   getPlacement(input: {

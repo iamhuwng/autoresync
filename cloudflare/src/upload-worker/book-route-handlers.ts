@@ -23,6 +23,14 @@ import {
 } from './book-source/document.ts';
 import { createTeacherAssemblyPreviewWorker } from './book-delivery/teacher-assembly-preview-worker.js';
 import { createCourseBookPlacementWorkerHandlers } from './course-book-placement/worker.ts';
+import {
+  createClassBookPlacementWorkerHandlers,
+  type ClassBookPlacementWorkerHandlerOptions,
+} from './class-book-placement/worker.ts';
+import {
+  createBookRuntimeLaunchCanonicalHandlers,
+  type BookRuntimeLaunchCanonicalHandlersOptions,
+} from './book-runtime-launch/canonical.ts';
 import type {
   BookRouteParams,
   BookRouterEnv,
@@ -93,6 +101,10 @@ export interface BookRouteHandlersOptions {
   readonly futureHandlers?: BookRouteHandlerMap;
   /** #102 direct-Course contributor; disabled unless composed by #59. */
   readonly courseBookHandlers?: Record<string, unknown>;
+  /** #104 canonical Class delivery contributor; disabled unless composed by #59. */
+  readonly classBookPlacement?: ClassBookPlacementWorkerHandlerOptions;
+  /** #104 runtime-launch contributor; disabled unless composed by #59. */
+  readonly runtimeLaunch?: BookRuntimeLaunchCanonicalHandlersOptions;
 }
 
 export const createBookRouteHandlers = (
@@ -112,6 +124,8 @@ export const createBookRouteHandlers = (
     ?? createCanonicalBookHomeworkHandlers(options.homework);
   const sourceUpload = options.sourceUploadHandlers ?? createBookSourceUploadWorkerHandlers();
   const courseBook = options.courseBookHandlers ?? createCourseBookPlacementWorkerHandlers();
+  const classBookPlacement = createClassBookPlacementWorkerHandlers(options.classBookPlacement);
+  const runtimeLaunch = createBookRuntimeLaunchCanonicalHandlers(options.runtimeLaunch);
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
     ['create', 'activate', 'supersede', 'revoke'], 'bookDelivery', () => []);
@@ -150,6 +164,11 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, courseBook, ['place', 'prepare', 'revoke'], 'courseBookPlacement');
   addFactoryHandlers(handlers, courseBook, ['current'], 'courseBookPlacement', () => ['courseMaterialId']);
   addFactoryHandlers(handlers, courseBook, ['catalog'], 'courseBookPlacement', () => ['bookId']);
+  addFactoryHandlers(handlers, classBookPlacement, ['prepare'], 'classBookPlacement');
+  addFactoryHandlers(handlers, classBookPlacement, ['current'], 'classBookPlacement', () => [
+    'classId', 'copyId', 'classPlacementId', 'classCourseMaterialId', 'bindingId',
+  ]);
+  addFactoryHandlers(handlers, runtimeLaunch, ['launch'], 'bookRuntimeLaunch');
 
   const documentHandler = options.documentHandler
     ?? createBookSourceDocumentDeliveryHandler(options.sourceDocument);

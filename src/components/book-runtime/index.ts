@@ -12,3 +12,17 @@ export type {
 export { BookRuntimeFrame } from './BookRuntimeFrame';
 export { BookPdfViewer } from './BookPdfViewer';
 export { BookPdfViewerHost } from './BookPdfViewerHost';
+export {
+  BookRuntimeViewerAdapterView,
+  createBookRuntimeViewerAdapter,
+} from './BookRuntimeViewerAdapter';
+export type {
+  BookRuntimeViewerAdapterOptions,
+  BookRuntimeViewerAdapterViewProps,
+} from './BookRuntimeViewerAdapter';
+export {
+  BookPlacementRuntimeHost,
+} from './BookPlacementRuntimeHost';
+export type {
+  BookPlacementRuntimeHostProps,
+} from './BookPlacementRuntimeHost';

@@ -37,6 +37,13 @@ The teacher-materials bulk-library branch keeps every PRD-0040/PRD-0041 FR closu
 
 The session lifecycle recovery branch keeps every PRD-0040/PRD-0041 FR closure row at its prior status. It restores admin session action telemetry and adds expired-session failure handling to `useTestSubmission`, but does not change saved-result shell reuse, result visibility policy, teacher ownership, guest-result claim behavior, Writing lifecycle ownership, or release-state visibility. No result-view FR is reopened or newly closed.
 
+## 2026-08-09 PRD0062 #104 Book Runtime Launch Note
+
+PRD0062 #104 registers Book runtime launch, blocked-launch, and return telemetry
+in `src/config/featureRegistry.ts`. The feature does not add a result-view
+surface, change result storage or visibility, or modify saved-result ownership.
+Every PRD-0040/PRD-0041 FR closure row remains at its prior status.
+
 Status keys:
 - `planned`
 - `in-progress`

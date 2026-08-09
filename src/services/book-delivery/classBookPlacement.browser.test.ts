@@ -30,4 +30,55 @@ describe('#103 Class Book browser consumer', () => {
     });
     await expect(client.sync({ classId: 'class-1' })).rejects.toThrowError('class_book_locked');
   });
+
+  it('resolves current delivery with stable path IDs, auth, and no request body', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ bindingId: 'binding-1' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    const client = createClassBookPlacementBrowserClient({
+      baseUrl: 'https://upload.test/',
+      getIdToken: async () => 'id-token-1',
+      fetchImpl,
+    });
+    await expect(client.resolveCurrent({
+      classId: 'class-1', copyId: 'copy-1', classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1', bindingId: 'binding-1',
+    })).resolves.toEqual({ bindingId: 'binding-1' });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://upload.test/v1/book-class-placement/current/class-1/copy-1/class-placement-1/class-material-1/binding-1',
+      expect.objectContaining({
+        method: 'GET',
+        credentials: 'omit',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: 'Bearer id-token-1' }),
+      }),
+    );
+    expect(fetchImpl.mock.calls[0][1]).not.toHaveProperty('body');
+  });
+
+  it('prepares canonical Class delivery through the production route without a legacy envelope', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      schemaVersion: 1,
+      projectionKind: 'book-runtime-delivery',
+      bindingId: 'binding-1',
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = createClassBookPlacementBrowserClient({
+      baseUrl: 'https://upload.test',
+      getIdToken: async () => 'id-token-1',
+      fetchImpl,
+    });
+
+    await expect(client.prepareDelivery({
+      operationId: '11111111-1111-4111-8111-111111111111',
+      classId: 'class-1',
+      copyId: 'copy-1',
+      classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1',
+    })).resolves.toMatchObject({ projectionKind: 'book-runtime-delivery', bindingId: 'binding-1' });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://upload.test/v1/book-class-placement/prepare',
+      expect.objectContaining({ method: 'POST', body: expect.any(String) }),
+    );
+  });
 });

@@ -28,6 +28,7 @@ const {
   flushIntegrityEventsMock,
   getIntegrityReportMock,
   addIntegrityEventMock,
+  resolveBookPlacementLaunchMock,
 } = vi.hoisted(() => ({
   getMock: vi.fn(),
   ieltsPracticeViewPropsMock: vi.fn(),
@@ -49,6 +50,7 @@ const {
   flushIntegrityEventsMock: vi.fn(),
   getIntegrityReportMock: vi.fn(),
   addIntegrityEventMock: vi.fn(),
+  resolveBookPlacementLaunchMock: vi.fn(),
 }));
 
 vi.mock('firebase/database', () => ({
@@ -63,6 +65,39 @@ vi.mock('../services/firebase', () => ({
 
 vi.mock('../services/practiceSettingsResolver', () => ({
   resolvePracticeSettings: (...args: unknown[]) => resolvePracticeSettingsMock(...args),
+}));
+
+vi.mock('../services/book-delivery/bookPlacementLaunch.browser', async () => {
+  const actual = await vi.importActual<typeof import('../services/book-delivery/bookPlacementLaunch.browser')>(
+    '../services/book-delivery/bookPlacementLaunch.browser',
+  );
+  return {
+    ...actual,
+    resolveBookPlacementLaunch: (...args: unknown[]) => resolveBookPlacementLaunchMock(...args),
+  };
+});
+
+vi.mock('../components/book-runtime/BookPlacementRuntimeHost', () => ({
+  BookPlacementRuntimeHost: (props: {
+    projection: unknown;
+    onAction?: (action: string, metadata?: Record<string, unknown>) => void;
+    onReturn?: () => void;
+  }) => (
+    <div data-testid="book-placement-runtime-host">
+      Book runtime: {String((props.projection as { bindingId?: unknown }).bindingId)}
+      {props.onReturn ? (
+        <button
+          type="button"
+          onClick={() => {
+            props.onAction?.('bookRuntimeReturn', { surface: 'course', outcome: 'returned' });
+            props.onReturn?.();
+          }}
+        >
+          Return
+        </button>
+      ) : null}
+    </div>
+  ),
 }));
 
 vi.mock('../services/reading-v2/readingV2LaunchIntegration.service', async () => {
@@ -303,6 +338,110 @@ describe('StudentPracticePage', () => {
       shouldAutoSubmit: false,
       flushEvents: flushIntegrityEventsMock,
       getIntegrityReport: getIntegrityReportMock,
+    });
+  });
+
+  it('dispatches an explicit Book query before any legacy Firebase/test loading', async () => {
+    const user = userEvent.setup();
+    resolveBookPlacementLaunchMock.mockResolvedValue({
+      status: 'resolved',
+      projection: {
+        bindingId: 'binding-1',
+        bindingRevision: 1,
+        recipientId: 'student-1',
+        context: { kind: 'course', contextId: 'course-material-1' },
+      },
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/student/practice/legacy-path?bookSurface=course&courseMaterialId=course-material-1&bindingId=binding-1',
+        ]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId('book-placement-runtime-host')).toHaveTextContent('binding-1');
+    await user.click(screen.getByRole('button', { name: 'Return' }));
+    expect(trackActionMock).toHaveBeenCalledWith('bookRuntimeReturn', expect.objectContaining({
+      surface: 'course',
+      outcome: 'returned',
+    }));
+    expect(resolveBookPlacementLaunchMock).toHaveBeenCalledWith(expect.objectContaining({
+      studentId: 'student-1',
+      launch: expect.objectContaining({
+        kind: 'course',
+        courseMaterialId: 'course-material-1',
+        bindingId: 'binding-1',
+      }),
+    }));
+    expect(getMock).not.toHaveBeenCalled();
+    expect(refMock).not.toHaveBeenCalled();
+  });
+
+  it('dispatches the exact Class Book identity before any legacy Firebase/test loading', async () => {
+    resolveBookPlacementLaunchMock.mockResolvedValue({
+      status: 'resolved',
+      projection: {
+        bindingId: 'binding-1',
+        bindingRevision: 1,
+        recipientId: 'student-1',
+        context: { kind: 'class', contextId: 'class-context-1' },
+      },
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/student/practice/book-1?bookSurface=class&classId=class-1&copyId=copy-1&classPlacementId=placement-1&classCourseMaterialId=material-1&bindingId=binding-1',
+        ]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId('book-placement-runtime-host')).toHaveTextContent('binding-1');
+    expect(resolveBookPlacementLaunchMock).toHaveBeenCalledWith(expect.objectContaining({
+      studentId: 'student-1',
+      launch: {
+        kind: 'class',
+        surface: 'class',
+        explicit: true,
+        classId: 'class-1',
+        copyId: 'copy-1',
+        classPlacementId: 'placement-1',
+        classCourseMaterialId: 'material-1',
+        bindingId: 'binding-1',
+      },
+    }));
+    expect(getMock).not.toHaveBeenCalled();
+    expect(refMock).not.toHaveBeenCalled();
+  });
+
+  it('tracks Return from an invalid explicit Book launch', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/student/practice/book-1?bookSurface=unknown']}>
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('invalid');
+    await user.click(screen.getByRole('button', { name: 'Return' }));
+    expect(trackActionMock).toHaveBeenCalledWith('bookRuntimeReturn', {
+      surface: 'unknown',
+      reason: 'unsupported-surface',
+      destination: 'courses',
+      outcome: 'returned',
     });
   });
 

@@ -19,6 +19,8 @@ import {
 } from '../book-delivery/route.ts';
 import { bookSourceRouteDescriptors } from '../book-source/route.ts';
 import { courseBookPlacementRouteDescriptors } from '../course-book-placement/route.ts';
+import { classBookPlacementRouteDescriptors } from '../class-book-placement/route.ts';
+import { bookRuntimeLaunchRouteDescriptors } from '../book-runtime-launch/route.ts';
 import { bookIntegrityReportRouteDescriptor } from '../book-activity-integrity/route.ts';
 import type {
   BookRouteDomain,
@@ -265,6 +267,38 @@ const courseBookRoutes = courseBookPlacementRouteDescriptors.map((route) => cont
   contributorTicket: '#102',
 }));
 
+const classBookPlacementRoutes = classBookPlacementRouteDescriptors.map((route) => contributor({
+  id: `book.class-placement.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#104',
+  domain: 'delivery',
+  handler: `classBookPlacement.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-student',
+  rateClass: route.handler === 'current' ? 'book-read' : 'book-control',
+  gateEnv: 'BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED',
+  requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
+  contributorTicket: '#104',
+}));
+
+const bookRuntimeLaunchRoutes = bookRuntimeLaunchRouteDescriptors.map((route) => contributor({
+  id: `book.runtime-launch.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#104',
+  domain: 'runtime',
+  handler: `bookRuntimeLaunch.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-student',
+  rateClass: 'book-read',
+  gateEnv: 'BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED',
+  requestBodyBytes: 128 * 1024,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  contributorTicket: '#104',
+}));
+
 const documentRoute = contributor({
   id: 'book.document-delivery.serve-authorized-document',
   method: bookDocumentAuthorizationRouteDescriptor.method,
@@ -484,6 +518,8 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...assemblyMappingRevisionRoutes,
   ...sourceUploadRoutes,
   ...courseBookRoutes,
+  ...classBookPlacementRoutes,
+  ...bookRuntimeLaunchRoutes,
   ...runtimeRoutes,
   documentRoute,
   historicalAttemptDocumentRoute,

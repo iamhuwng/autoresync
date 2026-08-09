@@ -16,6 +16,7 @@ const service = (place: ReturnType<typeof vi.fn>) => ({
   setLock: vi.fn(),
   issueDelivery: vi.fn(),
   resolveDelivery: vi.fn(),
+  resolveDeliveryByIds: vi.fn(),
   getPlacement: vi.fn(),
 });
 
@@ -51,5 +52,25 @@ describe('#103 Class Book Worker composition', () => {
     });
     expect(response.init?.status).toBe(503);
     expect(place).not.toHaveBeenCalled();
+  });
+
+  it('resolves exact current delivery identity by path IDs and authenticated actor', async () => {
+    const resolveDeliveryByIds = vi.fn().mockResolvedValue({ projectionKind: 'class-book-delivery-v1' });
+    const handlers = createClassBookPlacementWorkerHandlers({
+      service: { ...service(vi.fn()), resolveDeliveryByIds },
+    });
+    const response = await handlers.handle({
+      request: new Request(
+        'https://upload.test/v1/book-class-placement/current/class-1/copy-1/class-placement-1/class-material-1/binding-1',
+        { method: 'GET' },
+      ),
+      env: { CLASS_BOOK_PLACEMENT_ENABLED: 'true' },
+      uid: 'student-1',
+    });
+    expect(response.init?.status).toBe(200);
+    expect(resolveDeliveryByIds).toHaveBeenCalledWith({
+      actorId: 'student-1', classId: 'class-1', copyId: 'copy-1', classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1', bindingId: 'binding-1',
+    });
   });
 });

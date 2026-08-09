@@ -44,6 +44,16 @@ The session lifecycle recovery branch touches the same result-related files with
 
 Required governance docs updated in the same branch: `result-view-map.md`, `result-view-permission-matrix.md`, and `result-view-fr-closure-matrix.md`. No PRD-0040 FR closure status changed.
 
+## 0.3 2026-08-09 PRD0062 #104 Book Runtime Launch Governance Note
+
+Among the PRD0062 #104 changes, `src/config/featureRegistry.ts` is touched only
+to register Book runtime launch, denial, and return telemetry. The Book runtime
+is not a result-view surface: it does not introduce a saved-result shell,
+result route, result data path, visibility decision, or teacher action. The
+surface map, visibility policy, and FR closure matrix are included in the same
+branch and PR closure packet to record that result-view architecture and every
+PRD-0040 closure status remain unchanged.
+
 ## 1. Saved-Result Shells
 
 ### 1.1 ResultSlidePanel (Student Shell)

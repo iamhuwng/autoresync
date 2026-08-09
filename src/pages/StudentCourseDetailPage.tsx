@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Badge, Loader, Progress } from '@mantine/core';
 import { useAuth } from '../hooks/useAuth';
 import { getCourse, getModulesByCourse, getMaterialsByCourse, getStudentCourseProgress } from '../services/courseManager';
 import { getEnrollmentsByStudent } from '../services/enrollmentManager';
@@ -15,7 +14,7 @@ import { resolvePracticeSettings } from '../services/practiceSettingsResolver';
 import { getStudentResults } from '../services/testResults.service';
 import { clearSoloProgress } from '../hooks/solo/useSoloAutoSave';
 import { SoloResumeModal } from '../components/test/SoloResumeModal';
-import { notifications } from '@mantine/notifications';
+import { toast } from '../components/modern/ToastNotification';
 import type { Course, Module, CourseMaterial } from '../types/course.types';
 import type { ClassSession } from '../types/class.types';
 import type { SoloSessionProgress } from '../types/practice.types';
@@ -30,9 +29,11 @@ import {
 import type { ReadingV2DerivedProjection } from '../services/reading-v2/readingV2Projection.service';
 import type { ReadingV2MaterialMetadata } from '../services/reading-v2/readingV2MaterialMetadata.service';
 import { createCourseBookPlacementBrowserClient, isCourseBookPlacementPresentationEnabled } from '../services/book-delivery/courseBookPlacement.browser';
+import { buildBookPlacementPracticeRouteParams } from '../services/book-delivery/bookPlacementLaunch.browser';
 import { CourseBookPrepareAction } from '../components/course/CourseBookPrepareAction';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { useNavigation } from '../hooks/useNavigation';
 
 interface TestMeta { title: string; type: string; duration?: number; testType?: string; metadata?: any; }
 
@@ -140,28 +141,96 @@ const localStyles = {
     },
     startBtn: {
         background: studentTokens.accent, color: 'white', border: 'none', borderRadius: 8,
-        padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+        minHeight: 44, minWidth: 44, padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
         transition: 'background 0.2s', whiteSpace: 'nowrap' as const
     },
     completedBtn: {
         background: '#edf5f9', color: '#4c5458', border: 'none', borderRadius: 8,
-        padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+        minHeight: 44, minWidth: 44, padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
         whiteSpace: 'nowrap' as const
     },
     disabledBtn: {
         background: studentTokens.bgSurfaceAlt, color: studentTokens.textDim, border: 'none', borderRadius: 8,
-        padding: '8px 18px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+        minHeight: 44, minWidth: 44, padding: '8px 18px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
         whiteSpace: 'nowrap' as const
     },
     outlineBtn: {
         background: 'transparent', color: studentTokens.textBody, border: `1px solid ${studentTokens.borderSoft}`, borderRadius: 8,
-        padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const
+        minHeight: 44, minWidth: 44, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const
     },
 };
+
+type CourseStatusTone = 'locked' | 'completed' | 'available';
+
+const CourseStatusBadge = ({ status }: { readonly status: CourseStatusTone }) => {
+    const palette = {
+        locked: { background: '#f1f3f4', color: studentTokens.textMuted },
+        completed: { background: '#dcfce7', color: '#166534' },
+        available: { background: studentTokens.accentSoft, color: studentTokens.accentHover },
+    }[status];
+
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                minHeight: 28,
+                padding: '4px 10px',
+                borderRadius: 999,
+                background: palette.background,
+                color: palette.color,
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+            }}
+        >
+            {status === 'locked' ? 'Locked' : status === 'completed' ? 'Done' : 'Available'}
+        </span>
+    );
+};
+
+const CourseProgressBar = ({ value }: { readonly value: number }) => {
+    const safeValue = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+    return (
+        <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={safeValue}
+            style={{ height: 8, borderRadius: 999, background: studentTokens.bgSurfaceAlt, overflow: 'hidden' }}
+        >
+            <div
+                aria-hidden="true"
+                style={{ width: `${safeValue}%`, height: '100%', borderRadius: 999, background: studentTokens.accent, transition: 'width 0.2s ease-out' }}
+            />
+        </div>
+    );
+};
+
+const CourseLoader = () => (
+    <>
+        <span
+            role="status"
+            aria-label="Loading course"
+            style={{
+                display: 'inline-block',
+                width: 32,
+                height: 32,
+                border: `3px solid ${studentTokens.accentSoft}`,
+                borderTopColor: studentTokens.accent,
+                borderRadius: '50%',
+                animation: 'studentCourseSpinner 0.8s linear infinite',
+            }}
+        />
+        <style>{'@keyframes studentCourseSpinner { to { transform: rotate(360deg); } }'}</style>
+    </>
+);
 
 const StudentCourseDetailPage: React.FC = () => {
     const { courseId } = useParams<{ courseId: string }>();
     const navigate = useNavigate();
+    const { navigateTo } = useNavigation('student');
     const { user, profile } = useAuth();
     const { notStarted } = useResolvedStudentHomeworkList(user?.uid || '');
     const { enrolledClasses } = useResolvedStudentShellData();
@@ -343,7 +412,7 @@ const StudentCourseDetailPage: React.FC = () => {
             );
 
             if (!resolved.enabled) {
-                notifications.show({ title: 'Not Available', message: 'Practice not available for this material', color: 'orange' });
+                toast.show({ title: 'Not Available', message: 'Practice not available for this material', tone: 'warning' });
                 return;
             }
 
@@ -352,7 +421,7 @@ const StudentCourseDetailPage: React.FC = () => {
                 const allResults = await getStudentResults(studentId);
                 const materialResults = allResults.filter((r: any) => r.testId === material.materialId);
                 if (materialResults.length >= resolved.maxAttempts) {
-                    notifications.show({ title: 'Limit Reached', message: `Maximum attempts reached (${materialResults.length}/${resolved.maxAttempts})`, color: 'red' });
+                    toast.show({ title: 'Limit Reached', message: `Maximum attempts reached (${materialResults.length}/${resolved.maxAttempts})`, tone: 'error' });
                     return;
                 }
             }
@@ -386,7 +455,7 @@ const StudentCourseDetailPage: React.FC = () => {
             });
         } catch (error) {
             console.error("Failed to start material:", error);
-            notifications.show({ title: 'Error', message: 'Failed to start practice mode.', color: 'red' });
+            toast.show({ title: 'Error', message: 'Failed to start practice mode.', tone: 'error' });
         }
     };
 
@@ -396,7 +465,7 @@ const StudentCourseDetailPage: React.FC = () => {
         return (
             <StudentLayout mobileTitle="Loading..." sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}>
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-                    <Loader size="md" color={studentTokens.accent} />
+                    <CourseLoader />
                     <p style={{ color: studentTokens.textMuted, marginTop: 16 }}>Loading course...</p>
                 </div>
             </StudentLayout>
@@ -432,7 +501,7 @@ const StudentCourseDetailPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <button
                         onClick={() => navigate('/student/courses')}
-                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: 8, color: studentTokens.textMuted }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, padding: 8, borderRadius: 8, color: studentTokens.textMuted }}
                         onMouseEnter={e => e.currentTarget.style.background = studentTokens.bgSurfaceStrong}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         aria-label="Back to courses"
@@ -479,7 +548,7 @@ const StudentCourseDetailPage: React.FC = () => {
                         <p style={{ fontSize: '0.875rem', color: studentTokens.textMuted, margin: '0 0 10px' }}>
                             {completedMaterials} of {totalMaterials} materials completed
                         </p>
-                        <Progress value={overallProgress} size="sm" radius="xl" color={studentTokens.accent} style={{ background: studentTokens.bgSurfaceAlt }} />
+                        <CourseProgressBar value={overallProgress} />
                     </div>
                 </div>
 
@@ -545,13 +614,7 @@ const StudentCourseDetailPage: React.FC = () => {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            <Badge
-                                                color={isLocked ? 'gray' : isCompleted ? 'green' : 'indigo'}
-                                                variant="light"
-                                                size="sm"
-                                            >
-                                                {isLocked ? 'Locked' : isCompleted ? 'Done' : 'Available'}
-                                            </Badge>
+                                            <CourseStatusBadge status={isLocked ? 'locked' : isCompleted ? 'completed' : 'available'} />
                                             {!isLocked && (
                                                 <svg
                                                     width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"
@@ -618,6 +681,29 @@ const StudentCourseDetailPage: React.FC = () => {
                                                                         courseMaterialId={material.id}
                                                                         legacyEnrollmentId={directEnrollmentId}
                                                                         prepare={(request) => courseBookClient.prepare(request)}
+                                                                        onPrepared={(preparedProjection) => {
+                                                                            const candidate = preparedProjection as {
+                                                                                projectionKind?: unknown;
+                                                                                bindingId?: unknown;
+                                                                                context?: { kind?: unknown; contextId?: unknown };
+                                                                            };
+                                                                            if (candidate.projectionKind !== 'book-runtime-delivery'
+                                                                                || typeof candidate.bindingId !== 'string'
+                                                                                || candidate.context?.kind !== 'course'
+                                                                                || candidate.context.contextId !== material.id) {
+                                                                                throw new Error('course_book_canonical_projection_required');
+                                                                            }
+                                                                            navigateTo(
+                                                                                'STUDENT_PRACTICE',
+                                                                                buildBookPlacementPracticeRouteParams(material.materialId, {
+                                                                                    kind: 'course',
+                                                                                    surface: 'course',
+                                                                                    courseMaterialId: material.id,
+                                                                                    bindingId: candidate.bindingId,
+                                                                                }),
+                                                                                { force: true, reason: 'course_book_runtime_launch' },
+                                                                            );
+                                                                        }}
                                                                         trackAction={trackAction}
                                                                         style={localStyles.startBtn}
                                                                     />

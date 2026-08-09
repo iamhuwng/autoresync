@@ -60,6 +60,7 @@ export interface BookRuntimeViewerAdapter {
 }
 
 export type BookRuntimeAction =
+  | 'bookRuntimeReturn'
   | 'bookRuntimePageGroupSelected'
   | 'bookRuntimeComponentSelected'
   | 'bookRuntimeComponentPageChanged'

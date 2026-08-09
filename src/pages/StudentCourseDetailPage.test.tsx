@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import StudentCourseDetailPage from './StudentCourseDetailPage';
 import { BrowserRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
 import '@testing-library/jest-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
@@ -25,7 +24,7 @@ vi.mock('../context/StudentShellDataContext');
 vi.mock('../services/firebase', () => ({ database: {} }));
 vi.mock('../services/draftCloudService', () => ({ testDraftService: {} }));
 vi.mock('../services/writingSubmissionService', () => ({}));
-const bookMocks = vi.hoisted(() => ({ enabled: false, prepare: vi.fn() }));
+const bookMocks = vi.hoisted(() => ({ enabled: false, prepare: vi.fn(), navigateTo: vi.fn() }));
 vi.mock('../services/book-delivery/courseBookPlacement.browser', () => ({
     isCourseBookPlacementPresentationEnabled: () => bookMocks.enabled,
     createCourseBookPlacementBrowserClient: () => ({ prepare: bookMocks.prepare }),
@@ -120,7 +119,7 @@ describe('StudentCourseDetailPage', () => {
             user: { uid: 's1', displayName: 'Student User' }
         });
         (useNavigation as any).mockReturnValue({
-            navigateTo: vi.fn()
+            navigateTo: bookMocks.navigateTo,
         });
         (getCourse as any).mockResolvedValue(mockCourse);
         (getModulesByCourse as any).mockResolvedValue(mockModules);
@@ -135,9 +134,7 @@ describe('StudentCourseDetailPage', () => {
     const renderPage = () => {
         return render(
             <BrowserRouter>
-                <MantineProvider>
-                    <StudentCourseDetailPage />
-                </MantineProvider>
+                <StudentCourseDetailPage />
             </BrowserRouter>
         );
     };
@@ -187,10 +184,41 @@ describe('StudentCourseDetailPage', () => {
         renderPage();
 
         expect(await screen.findByText('Unit 1: Progress')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Start →' })).toHaveStyle({ minHeight: '44px' });
         fireEvent.click(screen.getByRole('button', { name: 'Start →' }));
         await waitFor(() => expect(bookMocks.prepare).toHaveBeenCalledWith(expect.objectContaining({
             courseMaterialId: 'course-material-1', legacyEnrollmentId: 'enrollment-1',
         })));
+    });
+
+    it('navigates a canonical Course Book projection with stable query identity', async () => {
+        bookMocks.enabled = true;
+        bookMocks.prepare.mockResolvedValue({
+            projectionKind: 'book-runtime-delivery',
+            bindingId: 'binding-1',
+            context: { kind: 'course', contextId: 'course-material-1' },
+        });
+        (getMaterialsByCourse as any).mockResolvedValue([{
+            id: 'course-material-1', courseId: 'c1', moduleId: 'm1', materialId: 'book-1',
+            order: 1, isCopy: false, materialKind: 'book-delivery',
+            bookDeliveryPlacement: { displayTitle: 'Unit 1: Progress', status: 'active' },
+        }]);
+        (getEnrollmentsByStudent as any).mockResolvedValue([{
+            id: 'enrollment-1', studentId: 's1', courseId: 'c1', status: 'active', enrollmentType: 'individual',
+        }]);
+        renderPage();
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Start →' }));
+        await waitFor(() => expect(bookMocks.navigateTo).toHaveBeenCalledWith(
+            'STUDENT_PRACTICE',
+            expect.objectContaining({
+                materialId: expect.stringContaining('bookSurface=course'),
+            }),
+            expect.objectContaining({ reason: 'course_book_runtime_launch' }),
+        ));
+        const params = bookMocks.navigateTo.mock.calls.at(-1)?.[1] as { materialId?: string };
+        expect(params.materialId).toContain('courseMaterialId=course-material-1');
+        expect(params.materialId).toContain('bindingId=binding-1');
     });
 
     it('falls back to legacy test metadata when the Reading V2 metadata probe is denied', async () => {
