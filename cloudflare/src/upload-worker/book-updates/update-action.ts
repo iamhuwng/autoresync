@@ -243,6 +243,7 @@ export const createBookUpdateActionService = (options: {
       state: 'accepted',
       stateRevision: 0,
       acceptedAt: now,
+      committedAt: null,
       updatedAt: now,
       terminalFailureCode: null,
       audit: Object.freeze({
@@ -325,6 +326,7 @@ export const transitionBookUpdateActionRecord = (
     ...action,
     state: nextState,
     stateRevision: action.stateRevision + 1,
+    committedAt: nextState === 'committed' ? at : action.committedAt,
     updatedAt: at,
     terminalFailureCode: nextState === 'terminal-failure' ? terminalFailureCode ?? null : null,
     audit: {

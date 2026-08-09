@@ -13,7 +13,8 @@ const action = (overrides: Partial<BookUpdateActionRecord> = {}): BookUpdateActi
     contextKey: 'homework:one', placementId: 'placement-1', choice: 'retain-current',
   }],
   state: 'accepted', stateRevision: 0,
-  acceptedAt: '2026-08-10T00:05:00.000Z', updatedAt: '2026-08-10T00:05:00.000Z',
+  acceptedAt: '2026-08-10T00:05:00.000Z', committedAt: null,
+  updatedAt: '2026-08-10T00:05:00.000Z',
   terminalFailureCode: null,
   audit: {
     actorId: 'teacher-1', acceptedAt: '2026-08-10T00:05:00.000Z', reason: 'Reviewed update',

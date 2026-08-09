@@ -66,6 +66,7 @@ export interface BookUpdateActionRecord {
   readonly state: BookUpdateActionState;
   readonly stateRevision: number;
   readonly acceptedAt: string;
+  readonly committedAt: string | null;
   readonly updatedAt: string;
   readonly terminalFailureCode: string | null;
   readonly audit: BookUpdateActionAuditFacts;
