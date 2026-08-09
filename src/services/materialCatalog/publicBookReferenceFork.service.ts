@@ -1,24 +1,10 @@
 import {
-  createActivityMaterialIdentity,
-  normalizeActivityRevision,
-  validateEditableActivityJson,
-} from '../book-activity/activitySchema.service';
-import type {
-  BookActivityEditableAnswerRule,
-  BookActivityEditableInteraction,
-  BookActivityEditableJson,
-  BookActivityNormalizedContent,
-  BookActivityVersionRecord,
-} from '../../types/bookActivity.types';
-import {
   PUBLIC_BOOK_REFERENCE_FORK_SCHEMA_VERSION,
   PUBLIC_BOOK_SELECTION_KINDS,
   type PublicBookActivitySelectionSnapshot,
   type PublicBookCatalogView,
   type PublicBookDocumentIssuer,
   type PublicBookEntitlementSnapshot,
-  type PublicBookForkedActivity,
-  type PublicBookForkHistoryRecord,
   type PublicBookLegacyReferenceMigrationInput,
   type PublicBookReferenceForkMutationInput,
   type PublicBookReferenceForkResolveInput,
@@ -139,8 +125,6 @@ const selectedActivities = (
     const activity = byId.get(requested.activityId);
     if (!activity
       || activity.versionId !== requested.activityVersionId
-      || activity.projection.activityId !== activity.activityId
-      || activity.projection.versionId !== activity.versionId
       || activity.order !== requested.order
       || !pathWithin(activity.selectionPath, selection.selectionPath)) {
       throw new PublicBookReferenceForkError(
@@ -153,22 +137,16 @@ const selectedActivities = (
   });
 };
 
-const contextRequirementFor = (
-  activities: readonly PublicBookActivitySelectionSnapshot[],
-): 'none' | 'optional' | 'required' => {
-  if (activities.some((activity) => activity.projection.contextRequirement === 'required')) return 'required';
-  if (activities.some((activity) => activity.projection.contextRequirement === 'optional')) return 'optional';
-  return 'none';
-};
-
 const validateSourceContext = (
   source: PublicBookSelectionSnapshot,
   activities: readonly PublicBookActivitySelectionSnapshot[],
   context: PublicBookSourceContextChoice,
 ): void => {
   assertContext(context);
-  const requirement = contextRequirementFor(activities);
-  if (requirement === 'required' && context.mode === 'none') {
+  const requiresBookContext = activities.some(
+    (activity) => activity.projection.contextRequirement.mode === 'required',
+  );
+  if (requiresBookContext && context.mode === 'none') {
     throw new PublicBookReferenceForkError(
       'source-context-required',
       'The selected Activity requires accepted Book source context.',
@@ -176,9 +154,14 @@ const validateSourceContext = (
     );
   }
   if (context.mode === 'book-source-reference') {
+    const allAcceptBookPages = activities.every((activity) => {
+      const requirement = activity.projection.contextRequirement;
+      return requirement.mode !== 'none' && requirement.acceptedKinds.includes('book-pages');
+    });
     if (context.sourceBookId !== source.bookId
       || context.sourceVersionId !== source.source.sourceVersionId
       || !pathWithin(context.selectionPath, activities[0]?.selectionPath ?? [])
+      || !allAcceptBookPages
       || !sourceIsReady(source)) {
       throw new PublicBookReferenceForkError(
         'source-context-invalid',
@@ -283,89 +266,6 @@ const sourceIdentityFor = (
   })),
   sourceVersionId: source.source.sourceVersionId,
 });
-
-const editableFromCanonical = (version: BookActivityVersionRecord): BookActivityEditableJson => {
-  const content = version.content as BookActivityNormalizedContent;
-  const labelsById = new Map<string, { readonly left: string; readonly right: string }>();
-  const orderLabelsById = new Map<string, string>();
-  const interactions: BookActivityEditableInteraction[] = content.interactions.map((interaction) => {
-    const base: BookActivityEditableInteraction = {
-      family: interaction.family,
-      prompt: interaction.prompt,
-      ...(interaction.responseShape === undefined ? {} : { responseShape: interaction.responseShape }),
-      ...(interaction.source === undefined ? {} : { source: { ...interaction.source } }),
-    };
-    if (interaction.family === 'choice') {
-      return { ...base, choices: [...(interaction.choices ?? [])] };
-    }
-    if (interaction.family === 'matching') {
-      const pairs = (interaction.pairs ?? []).map((pair) => {
-        labelsById.set(pair.leftItemId + ':' + pair.rightItemId, { left: pair.left, right: pair.right });
-        return { left: pair.left, right: pair.right };
-      });
-      return { ...base, pairs };
-    }
-    if (interaction.family === 'ordering') {
-      const orderingItems = (interaction.orderingItems ?? []).map((item) => {
-        orderLabelsById.set(item.answerItemId, item.label);
-        return item.label;
-      });
-      return { ...base, orderingItems };
-    }
-    return base;
-  });
-
-  const answerRule: BookActivityEditableAnswerRule = (() => {
-    switch (content.answerRule.type) {
-      case 'single-choice':
-      case 'multiple-choice':
-        return { type: content.answerRule.type, correctChoiceIndexes: [...content.answerRule.correctChoiceIndexes] };
-      case 'text-exact':
-        return { type: 'text-exact', acceptableAnswers: [...content.answerRule.acceptableAnswers] };
-      case 'rubric':
-        return { type: 'rubric', rubric: content.answerRule.rubric };
-      case 'matching': {
-        const matchingPairs = content.answerRule.correctPairs.map((pair) => {
-          const labels = labelsById.get(pair.leftItemId + ':' + pair.rightItemId);
-          if (!labels) {
-            throw new PublicBookReferenceForkError('source-version-invalid', 'The source answer mapping is invalid.', 422);
-          }
-          return labels;
-        });
-        return { type: 'matching', matchingPairs };
-      }
-      case 'ordering':
-        return {
-          type: 'ordering',
-          ordering: content.answerRule.correctOrderingItemIds.map((id) => {
-            const label = orderLabelsById.get(id);
-            if (!label) {
-              throw new PublicBookReferenceForkError('source-version-invalid', 'The source answer mapping is invalid.', 422);
-            }
-            return label;
-          }),
-        };
-      default:
-        throw new PublicBookReferenceForkError('source-version-invalid', 'The source Activity version is invalid.', 422);
-    }
-  })();
-
-  const editable = {
-    schemaVersion: content.schemaVersion,
-    title: content.title,
-    ...(content.taskProfile === undefined ? {} : { taskProfile: content.taskProfile }),
-    presentationMode: content.presentationMode,
-    contextRequirement: content.contextRequirement,
-    ...(content.instructions === undefined ? {} : { instructions: content.instructions }),
-    ...(content.stimulus === undefined ? {} : { stimulus: content.stimulus }),
-    ...(content.assetRefs === undefined ? {} : { assetRefs: [...content.assetRefs] }),
-    interactions,
-    answerRule,
-    ...(content.scoring === undefined ? {} : { scoring: content.scoring }),
-    ...(content.teacherNotes === undefined ? {} : { teacherNotes: content.teacherNotes }),
-  } satisfies BookActivityEditableJson;
-  return validateEditableActivityJson(editable);
-};
 
 const assertIssuedDocument = (
   issuer: PublicBookDocumentIssuer,
@@ -619,132 +519,14 @@ export const createPublicBookReferenceForkService = (
     };
   };
 
-  const fork = async (
-    input: PublicBookReferenceForkMutationInput,
-  ): Promise<{
-    readonly activities: readonly PublicBookForkedActivity[];
-    readonly history: readonly PublicBookForkHistoryRecord[];
-    readonly placements: readonly PublicBookReferencePlacementRecord[];
-  }> => {
-    const { source, activities: selected, context } = await requireMutationInputs(input);
-    const timestamp = now();
-    const sourceIdentity = sourceIdentityFor(source, input.selection);
-    const forkedActivities: PublicBookForkedActivity[] = [];
-    const history: PublicBookForkHistoryRecord[] = [];
-    const placements: PublicBookReferencePlacementRecord[] = [];
-
-    for (const selectedActivity of selected) {
-      const sourceVersion = selectedActivity.canonicalVersion;
-      if (!sourceVersion
-        || sourceVersion.activityId !== selectedActivity.activityId
-        || sourceVersion.versionId !== selectedActivity.versionId
-        || sourceVersion.materialKind !== 'interactive-activity') {
-        throw new PublicBookReferenceForkError(
-          'source-version-unavailable',
-          'The selected Activity source version is not available for a safe fork.',
-          403,
-        );
-      }
-      const editable = editableFromCanonical(sourceVersion);
-      let hiddenSequence = 0;
-      const normalized = normalizeActivityRevision(editable, {
-        idFactory: () => createId('fork-hidden-' + (++hiddenSequence)),
-      });
-      const forkedActivityId = createId('forked-activity');
-      const candidateVersionId = 'v1';
-      const candidateId = createId('fork-candidate');
-      const draftId = createId('fork-draft');
-      const forkId = createId('fork-history');
-      const identity = createActivityMaterialIdentity({
-        ownerId: input.actorId,
-        now: timestamp,
-        idFactory: () => forkedActivityId,
-      });
-      const material = {
-        ...identity,
-        title: normalized.title,
-        lifecycleState: 'draft' as const,
-        currentDraftId: draftId,
-        updatedAt: timestamp,
-        provenance: {
-          source: 'fork' as const,
-          forkedFromMaterialId: sourceVersion.activityId,
-          forkedFromVersionId: sourceVersion.versionId,
-          sourceBookId: source.bookId,
-          sourcePublicationId: source.publication.publicationId,
-          sourcePublicationRevision: source.publication.revision,
-          sourceSelectionPath: [...selectedActivity.selectionPath],
-          createdAt: timestamp,
-          createdBy: input.actorId,
-        },
-      };
-      const candidate = {
-        candidateId,
-        targetActivityId: forkedActivityId,
-        ownerId: input.actorId,
-        replacementContent: editable,
-        status: 'valid' as const,
-        errors: [],
-        createdAt: timestamp,
-      };
-      const draft = {
-        activityId: forkedActivityId,
-        draftId,
-        ownerId: input.actorId,
-        editableContent: editable,
-        baseVersionId: sourceVersion.versionId,
-        draftRevision: 1,
-        validationState: 'valid' as const,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      };
-      forkedActivities.push({
-        material,
-        candidate,
-        draft,
-        candidateVersionId,
-        sourceActivityVersionId: sourceVersion.versionId,
-      });
-      history.push({
-        schemaVersion: PUBLIC_BOOK_REFERENCE_FORK_SCHEMA_VERSION,
-        historyKind: 'public-book-fork',
-        forkId,
-        forkedActivityId,
-        candidateId,
-        draftId,
-        source: {
-          ...sourceIdentity,
-          sourceActivityId: sourceVersion.activityId,
-          sourceActivityVersionId: sourceVersion.versionId,
-        },
-        candidateVersionId,
-        target: { ...input.target },
-        context,
-        createdAt: timestamp,
-        createdBy: input.actorId,
-      });
-      placements.push({
-        schemaVersion: PUBLIC_BOOK_REFERENCE_FORK_SCHEMA_VERSION,
-        placementKind: 'forked-activity',
-        target: {
-          ...input.target,
-          placementId: createId('fork-placement'),
-        },
-        materialId: forkedActivityId,
-        materialKind: 'interactive-activity',
-        snapshotVersionId: candidateVersionId,
-        order: selectedActivity.order,
-        createdAt: timestamp,
-        createdBy: input.actorId,
-      });
-    }
-    await options.store.writeForkMutation({
-      operationId: input.operationId ?? createId('fork-operation'),
-      placements,
-      activities: forkedActivities,
-      history,
-    });
-    return { activities: forkedActivities, history, placements };
+  const fork = async (_input: PublicBookReferenceForkMutationInput): Promise<never> => {
+    // This must precede all input/source/target/store work. A canonical writer
+    // is deliberately out of scope for this compatibility seam.
+    throw new PublicBookReferenceForkError(
+      'fork-disabled',
+      'Public Book Activity forks are disabled pending a canonical writer.',
+      503,
+    );
   };
 
   const readReferenceForOwner = async (

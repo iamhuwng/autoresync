@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "kind": "prd0062-106-safe-compatibility-stabilization",
+  "recordedAt": "2026-08-09",
+  "branch": "codex/prd0062-106-activity-schema-compatibility",
+  "baseHead": "884f0b9eb773bfdb7ff464050598191bce93c021",
+  "proofBoundary": "bounded-local-compatibility-stabilization",
+  "status": "SAFE_COMPATIBILITY_STABILIZATION_ONLY",
+  "changes": [
+    "Retired Activity imports/helpers are repaired against the canonical Activity schema/type model.",
+    "Renderer and Worker consumers share one exact runtime-neutral student-safe projection validator.",
+    "Reference, resolve, runtime, and migration paths are preserved behind existing default-off gates.",
+    "Fork is explicitly fail-closed with HTTP 503 before service construction or store access.",
+    "The unused fork/reference panel, test, and stylesheet are deleted."
+  ],
+  "focusedValidation": {
+    "root": {
+      "command": "npx vitest run src/services/materialCatalog/publicBookReferenceFork.service.test.ts src/services/materialCatalog/publicBookReferenceFork.contract.test.ts src/services/materialCatalog/publicBookReferenceFork.rolloutGate.test.ts src/services/materialCatalog/publicBookReferenceFork.worker.test.ts --passWithNoTests=false",
+      "result": "4 files, 19 tests passed"
+    },
+    "cloudflare": {
+      "command": "cd cloudflare && npx vitest run --config vitest.config.mjs test/book-reference-fork-worker.test.ts --passWithNoTests=false",
+      "result": "1 file, 6 tests passed"
+    }
+  },
+  "sharedProjectionValidation": {
+    "command": "npx vitest run src/services/book-activity/runtime/activityRendererRegistry.test.tsx --passWithNoTests=false",
+    "result": "1 file, 10 tests passed"
+  },
+  "adjacentProductionAdapterRegression": {
+    "root": {
+      "command": "npx vitest run src/services/materialCatalog/publicBookReferenceFork.service.test.ts src/services/materialCatalog/publicBookReferenceFork.contract.test.ts src/services/materialCatalog/publicBookReferenceFork.rolloutGate.test.ts src/services/materialCatalog/publicBookReferenceFork.worker.test.ts src/services/materialCatalog/contentCatalog.materialBooksRepository.test.ts src/services/book-activity/activityDomain.service.test.ts src/services/book-assembly/canonicalActivityVersion.service.test.ts --passWithNoTests=false",
+      "result": "7 files, 44 tests passed"
+    },
+    "cloudflare": {
+      "command": "cd cloudflare && npx vitest run --config vitest.config.mjs test/book-reference-fork-worker.test.ts --passWithNoTests=false",
+      "result": "1 file, 6 tests passed"
+    }
+  },
+  "notClaimed": [
+    "canonical-fork-writer",
+    "version-1-fork-contract",
+    "emulator-proof",
+    "authenticated-browser-proof",
+    "generated-active-rules",
+    "deployment",
+    "canary",
+    "activation",
+    "pilot",
+    "full-v1-acceptance"
+  ],
+  "nextGate": "Review and accept the canonical fork writer/version-1 contract; #108 remains blocked until that gate passes."
+}

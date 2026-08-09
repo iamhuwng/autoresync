@@ -104,8 +104,8 @@ Foundation Pilot is a gate inside P3/P4, not Full V1 completion. After accepted 
 
 Historical validator text retained verbatim: Current packet is P2. That pointer
 is superseded for execution. #102, #103, #104, and #107 are locally verified on
-the integrated lineage. #106 is integrated but requires the canonical Activity
-schema/type compatibility investigation and accepted repair recorded in the
-2026-08-09 post-#104 evidence. After that gate, resume at #108. Final rules, authenticated browser,
+the integrated lineage. #106 has a bounded safe compatibility stabilization,
+but remains unaccepted until its canonical fork writer/version-1 contract is
+reviewed and accepted. #108 remains blocked behind that gate. Final rules, authenticated browser,
 activation, deployment, canary, cost, and pilot gates remain deferred to their
 named live-ticket owners.

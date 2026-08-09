@@ -16,7 +16,7 @@ const MAX_REQUEST_BYTES = 32 * 1024;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9:_-]{0,159}$/u;
 const ROLES = ['student', 'teacher', 'super_admin'] as const;
 type PublicBookRole = (typeof ROLES)[number];
-const MUTATION_ACTIONS = new Set(['reference', 'fork', 'migrate', 'adopt', 'rollback']);
+const MUTATION_ACTIONS = new Set(['reference', 'migrate', 'adopt', 'rollback']);
 export const isPublicBookReferenceForkPath = (pathname: string): boolean =>
   pathname === '/v1/public-book-reference-fork'
   || pathname.startsWith('/v1/public-book-reference-fork/');
@@ -199,13 +199,6 @@ export const createPublicBookReferenceForkWorkerHandlers = (
       if (!isPublicBookReferenceForkPath(new URL(request.url).pathname)) {
         throw new PublicBookReferenceForkError('route-not-found', 'Public Book reference/fork route was not found.', 404);
       }
-      if (!compositionEnabled) {
-        throw new PublicBookReferenceForkError(
-          'feature-disabled',
-          'Public Book reference/fork is disabled.',
-          503,
-        );
-      }
       if (request.method !== 'POST') {
         throw new PublicBookReferenceForkError('method-not-allowed', 'POST is required.', 405);
       }
@@ -216,6 +209,22 @@ export const createPublicBookReferenceForkWorkerHandlers = (
       const body = await readJson(request);
       if (typeof body.action !== 'string') {
         throw new PublicBookReferenceForkError('request-invalid', 'Action is required.', 400);
+      }
+      // Forks have no authorized canonical version-1 writer. Reject before
+      // rollout checks, service construction, or any store access.
+      if (body.action === 'fork') {
+        throw new PublicBookReferenceForkError(
+          'fork-disabled',
+          'Public Book Activity forks are disabled pending a canonical writer.',
+          503,
+        );
+      }
+      if (!compositionEnabled) {
+        throw new PublicBookReferenceForkError(
+          'feature-disabled',
+          'Public Book reference/fork is disabled.',
+          503,
+        );
       }
       if (MUTATION_ACTIONS.has(body.action)
         && PublicBookReferenceForkRolloutGate.fromEnvironment(env).rollback) {
@@ -254,13 +263,12 @@ export const createPublicBookReferenceForkWorkerHandlers = (
             ? await service.resolve(input)
             : await service.prepareRuntime(input));
         }
-        case 'reference':
-        case 'fork': {
+        case 'reference': {
           if (role !== 'teacher' && role !== 'super_admin') {
             throw new PublicBookReferenceForkError('role-denied', 'Teacher ownership is required.', 403);
           }
           if (!keysWithOptional(body, ['action', 'target', 'selection'], ['context', 'operationId'])) {
-            throw new PublicBookReferenceForkError('request-invalid', 'Reference/fork request is invalid.', 400);
+            throw new PublicBookReferenceForkError('request-invalid', 'Reference request is invalid.', 400);
           }
           const input = {
             actorId: uid,
@@ -269,9 +277,7 @@ export const createPublicBookReferenceForkWorkerHandlers = (
             context: contextFromBody(body.context),
             operationId: body.operationId === undefined ? undefined : safeId(body.operationId, 'operationId'),
           };
-          return responseFor(body.action === 'reference'
-            ? await service.reference(input)
-            : await service.fork(input));
+          return responseFor(await service.reference(input));
         }
         case 'migrate': {
           if (role !== 'teacher' && role !== 'super_admin'

@@ -4,7 +4,7 @@ This registry records current architectural roles and cross-ticket
 reimbursements. Ticket numbers belong here rather than in the permanent goal.
 Update this file whenever live ownership changes.
 
-Status snapshot: 2026-08-04, 112 published tickets, 79 closed, 33 open. Exact
+Status snapshot: 2026-08-09, 112 published tickets, 79 closed, 33 open. Exact
 remaining ownership is canonical in
 [remaining-implementation-reconciliation-2026-08-04.md](remaining-implementation-reconciliation-2026-08-04.md).
 Effective planning additionally includes the specific #127/51A
@@ -41,9 +41,9 @@ Populate and maintain this table from live GitHub contracts:
 | Shared Course/Class placement contract and Course vertical | #102/42A | 2026-08-05 | IMPLEMENTED_LOCAL_VERIFIED through `81194bd8`; no emulator/browser/deployed claim; contract is frozen for consumers |
 | Class placement owner | #103/42B | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED at `72c1b753`; active rules/authenticated browser/deployed proof remain downstream |
 | Course/Class launch dispatcher | #104/42C | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED at `4196c03f`, merged by `12951542`; localhost external boundaries are mocked |
-| Public reference/fork owner | #106/44 | 2026-08-09 | IMPLEMENTED_INTEGRATION_FIX_REQUIRED at `a92c8158`; canonical Activity schema/type compatibility must be established and repaired before acceptance |
+| Public reference/fork owner | #106/44 | 2026-08-09 | `SAFE_COMPATIBILITY_STABILIZATION_ONLY`; retired Activity imports/helpers are repaired, reference/resolve/runtime/migration paths are preserved behind existing default-off gates, and fork fail-closes with HTTP 503 before service/store. **Not complete/accepted:** canonical fork writer/version-1 contract is absent. |
 | Remaining impact adapters owner | #107/39D | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED through `16567771`; read-only only, no snapshot persistence |
-| Impact snapshot owner | #108/39C | 2026-08-09 | NEXT_READINESS_LANE_PENDING_106_FIX |
+| Impact snapshot owner | #108/39C | 2026-08-09 | `BLOCKED_DEPENDENCY` on #106's absent canonical fork writer/version-1 contract |
 | Update ledger/finalizer owners | #109/40A, #110/40C | 2026-08-04 | BLOCKED by #108/#109 |
 | Update case owners | #111–#114/40B–41C | 2026-08-04 | BLOCKED by the shared ledger/finalizer |
 | Replacement owners | #115–#119/45–47 | 2026-08-04 | BLOCKED by update/impact producers |
@@ -91,7 +91,7 @@ Record producer/consumer relationships separately from hard prerequisites:
 | #100/38C | Trusted Book notification emitter and committed-action adapter | #110, #124 | #110 local update finalizer; #134 deployed drill |
 | #101/39B | Solo/Homework impact adapters and registry contract | #107, #108 | #108 snapshot proof |
 | #102/42A + #103/42B | Exact Course/Class placement projections | #104, #107, #130 | #104 launch composition; #130 final student suite |
-| #106/44 | Public reference/fork contract | #107, #108 | #108 complete-context snapshot |
+| #106/44 | Public reference/resolve/runtime/migration compatibility seam preserved behind default-off gates; fork remains fail-closed pending its canonical writer/version-1 contract | #107, #108 | #108 complete-context snapshot |
 | #108/39C | Immutable all-context impact snapshot | #109, #112–#115 | #109 ledger integration |
 | #109/40A + #110/40C | Shared update ledger and post-commit finalizer | #111–#117 | Case-owner focused proof, then #129 |
 | #116/46A + #117/46B | Replacement saga and context revocation | #119–#125 | #134 deployed lifecycle drill |
