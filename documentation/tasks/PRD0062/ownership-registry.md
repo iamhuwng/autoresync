@@ -39,11 +39,11 @@ Populate and maintain this table from live GitHub contracts:
 | Integration baseline | #59/09D plus accepted producer provenance | 2026-08-04 | CURRENT S0; integrate accepted source, do not rebuild it |
 | Acceptance-definition owner | #127/51A | 2026-08-04 | REOPEN_REQUIRED_ARTIFACT; source/registry/fixture conformance missing |
 | Shared Course/Class placement contract and Course vertical | #102/42A | 2026-08-05 | IMPLEMENTED_LOCAL_VERIFIED through `81194bd8`; no emulator/browser/deployed claim; contract is frozen for consumers |
-| Class placement owner | #103/42B | 2026-08-05 | READY; consumes frozen #102 shared contract and owns all Class/copy outcomes |
-| Course/Class launch dispatcher | #104/42C | 2026-08-04 | BLOCKED by #102/#103 |
-| Public reference/fork owner | #106/44 | 2026-08-05 | READY independent lane; does not rewrite #102 placement authority |
-| Remaining impact adapters owner | #107/39D | 2026-08-04 | BLOCKED by #102/#103/#106 |
-| Impact snapshot owner | #108/39C | 2026-08-04 | BLOCKED by #107 |
+| Class placement owner | #103/42B | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED at `72c1b753`; active rules/authenticated browser/deployed proof remain downstream |
+| Course/Class launch dispatcher | #104/42C | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED at `4196c03f`, merged by `12951542`; localhost external boundaries are mocked |
+| Public reference/fork owner | #106/44 | 2026-08-09 | IMPLEMENTED_INTEGRATION_FIX_REQUIRED at `a92c8158`; canonical Activity schema/type compatibility must be established and repaired before acceptance |
+| Remaining impact adapters owner | #107/39D | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED through `16567771`; read-only only, no snapshot persistence |
+| Impact snapshot owner | #108/39C | 2026-08-09 | NEXT_READINESS_LANE_PENDING_106_FIX |
 | Update ledger/finalizer owners | #109/40A, #110/40C | 2026-08-04 | BLOCKED by #108/#109 |
 | Update case owners | #111–#114/40B–41C | 2026-08-04 | BLOCKED by the shared ledger/finalizer |
 | Replacement owners | #115–#119/45–47 | 2026-08-04 | BLOCKED by update/impact producers |

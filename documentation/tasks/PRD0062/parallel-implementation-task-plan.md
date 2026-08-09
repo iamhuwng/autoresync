@@ -1,6 +1,6 @@
 # PRD0062 implementation task plan
 
-Status: `CURRENT` as of 2026-08-05. Product authority:
+Status: `CURRENT` as of 2026-08-09. Product authority:
 [PRD](prd-book-based-interactive-activity-runtime-and-assembly.md). Readiness
 authority:
 [implementation-readiness analysis](implementation-readiness-analysis-2026-08-04.md).
@@ -11,6 +11,16 @@ The published plan has 112 tickets: 79 closed and 33 open. One specifically
 closed artifact owner, #127/51A, is `REOPEN_REQUIRED_ARTIFACT`; this does not
 change the published count until formally accepted. Closed product behavior is
 consumed from accepted commits and is never scheduled for reimplementation.
+
+## 2026-08-09 dispatch update
+
+The S1/S2 scheduling prose below is retained as historical sequence but is no
+longer the current frontier. #103, #104, and #107 are integrated and locally
+verified. #106 is integrated but must establish compatibility between its
+retired Activity types/helpers and the canonical schema model before the
+smallest repair can be selected and accepted. Then dispatch #108 as the next
+serialized readiness lane. See
+[`evidence/post-104-integration-validation-2026-08-09.json`](evidence/post-104-integration-validation-2026-08-09.json).
 
 ## Dispatch rule
 
@@ -26,9 +36,13 @@ If a vertical discovers an unnamed cross-ticket foundation, stop the vertical,
 assign the foundation and its consumers, and revise this plan before coding
 continues.
 
-## Current stage — S1 remaining parallel verticals
+## Current stage — post-S2 integration correction and S3 readiness
 
-S0 exits passed. #102's shared placement contract and direct-Course vertical are locally verified through `81194bd8`. #103 and #106 are the active independent verticals; #104 waits for #103, while #118 may consume the inactive #102 fragment without claiming aggregate rules closure.
+S0 exits passed. #102, #103, #104, and #107 are locally verified on the
+integrated lineage. #106 is integrated but its canonical Activity schema/type
+compatibility boundary must be reviewed and repaired before local acceptance.
+After that gate, #108 is the next serialized readiness lane. #118 may continue consuming inactive
+producer fragments without claiming aggregate rules closure.
 
 | Lane | Outcome | Exit |
 |---|---|---|
@@ -42,9 +56,9 @@ The historical S0 block is satisfied. Do not schedule #102 for reimplementation.
 
 | Stage | Foundation first | Vertical work and safe parallelism | Synchronization exit |
 |---:|---|---|---|
-| S1 | **Satisfied producer:** #102 froze the shared exact Course/Class Book placement and compatibility contract and locally verified the Course vertical. | #103 Class/copy and #106 public reference/fork now run independently. #118 may ingest the inactive #102 fragment; #135 read-only demand modeling may proceed without final claims. | #103 and #106 each accept their identities, paths, fragments, migration/rollback, fixtures, and focused proof without rewriting #102. |
-| S2 | #107 consumes #101's adapter contract; #104 consumes only the frozen #102/#103 launch projections. | #104 launch composition and #107 read-only impact adapters run in parallel. | Course/Class launches and complete bounded context-adapter registry accepted. |
-| S3 | #108 freezes the immutable all-context impact snapshot, TTL/fingerprint, persistence, review, and denial contract. | One serialized contract lane. | No context is missing or uncertain before update design starts. |
+| S1 | #102 froze the shared exact Course/Class placement contract; #103 is locally verified. #106 is integrated but not accepted pending canonical Activity schema/type compatibility. | Review and repair only #106's compatibility boundary. #118 may ingest accepted inactive fragments; #135 read-only demand modeling may proceed without final claims. | #106 accepts its canonical types/helpers, paths, fragment, migration/rollback, fixtures, and focused proof without rewriting adjacent domains. |
+| S2 | #104 consumes the frozen #102/#103 launch projections; #107 consumes #101's adapter contract. | **Locally satisfied:** #104 launch composition and #107 read-only impact adapters are integrated and locally verified. | Course/Class local launch and bounded adapter proof are recorded; downstream proof remains open. |
+| S3 | After #106 acceptance, #108 freezes the immutable all-context impact snapshot, TTL/fingerprint, persistence, review, and denial contract. | Next serialized contract lane. | No context is missing or uncertain before update design starts. |
 | S4 | #109 freezes the complete update ledger/state matrix; #110 freezes one post-commit finalizer using #100. | Prove #112 as the first simple handler. Then #111, #113, and #114 may run in disjoint modules; shared ledger/schema edits remain serialized. #115 read-only replacement planning can proceed after #108/#109. | All update cases consume one ledger, notification, replay, and fixture contract; replacement token plan accepted. |
 | S5 | #116 freezes the aggregate/item replacement saga and visibility point. | #116 → #117 context adoption/revocation → #119 exact retired-byte deletion. | All old deliveries revoked before exact provider deletion; deletion outcomes recorded for recovery/inventory. |
 | S6A | #118 continuously ingests producer fragments and rejects conflicts. | Final generation/assembled emulator/active rules proof begins only after all fragments are final. | Deterministic generated rules, legacy preservation, active readback, and rollback accepted. |

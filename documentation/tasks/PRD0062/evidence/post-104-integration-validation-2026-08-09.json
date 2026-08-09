@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "prd0062-post-104-integration-validation",
+  "branch": "codex/prd0062-post-104-reconciliation",
+  "head": "129515426a5938eeb0afdfb276f629ea4be43c89",
+  "sourceBranch": "origin/codex/prd0062b-implementation",
+  "proofBoundary": "committed-source-and-bounded-local-tests",
+  "passes": [
+    {"command": "node scripts/validate-prd0062-stage-0-baseline.mjs --repo . --manifest documentation/tasks/PRD0062/supporting/stage-0-accepted-baseline.manifest.json", "result": "PASS; accepted producer lineage and required paths reach HEAD"},
+    {"command": "node --test scripts/__tests__/validate-prd0062-stage-0-baseline.test.mjs scripts/__tests__/validate-prd0062-102-readiness.test.mjs", "result": "6 tests passed"},
+    {"command": "node --test scripts/__tests__/check-prd0062-activity-coverage.test.mjs && node scripts/check-prd0062-activity-coverage.mjs", "result": "19 tests passed; 32 independent fixture rows passed"},
+    {"command": "node --test scripts/__tests__/prd0062-reading-listening-coverage.test.mjs", "result": "4 tests passed"},
+    {"command": "LD_LIBRARY_PATH=/tmp/prd0062-playwright-libs/root/usr/lib/aarch64-linux-gnu npx playwright test --config=e2e/playwright.prd0062-ticket104.config.ts", "result": "8 Chromium tests passed in 17.2s at merged tree 129515426a5938eeb0afdfb276f629ea4be43c89", "boundary": "Production student route table and StudentPracticePage/runtime shell on localhost; authentication, Firebase, Worker, document, and activity network boundaries are deterministic mocks; not authenticated-browser or deployed proof."},
+    {"command": "npm run lint", "result": "PASS; ESLint and Mantine boundary"}
+  ],
+  "aggregateResults": {
+    "root": {"passedFiles": 12, "passedTests": 98, "failedFiles": 2, "failedTests": 8},
+    "cloudflare": {"passedFiles": 12, "passedTests": 63, "failedSuites": 2},
+    "commands": {
+      "root": "VITE_FIREBASE_API_KEY=dummy VITE_FIREBASE_AUTH_DOMAIN=dummy VITE_FIREBASE_DATABASE_URL=https://dummy.firebaseio.com VITE_FIREBASE_PROJECT_ID=dummy VITE_FIREBASE_STORAGE_BUCKET=dummy VITE_FIREBASE_MESSAGING_SENDER_ID=dummy VITE_FIREBASE_APP_ID=dummy npx vitest run --reporter=dot src/components/book-runtime/BookPlacementRuntimeHost.test.tsx src/components/books/PublicBookReferenceForkPanel.test.tsx src/pages/StudentCourseDetailPage.test.tsx src/pages/StudentCoursesPage.test.tsx src/pages/StudentPracticePage.test.tsx src/services/book-activity/activityLaunch.browser.test.ts src/services/book-delivery/*{ContextImpactAdapter,PlacementLaunch,ImpactDiscovery,ClassBookPlacement,CourseBookPlacement}*.test.ts src/services/materialCatalog/{contentCatalog.service,publicBookReferenceFork.contract,publicBookReferenceFork.rolloutGate,publicBookReferenceFork.service,publicBookReferenceFork.worker}.test.ts",
+      "cloudflare": "npm test -- --reporter=dot test/course-book-*.test.ts test/class-book-*.test.ts test/book-route-manifest.test.ts test/book-runtime-launch-production.test.ts src/upload-worker/book-runtime-launch/worker.test.ts test/book-class-runtime-launch-route-integration.test.ts test/book-reference-fork-worker.test.ts test/book-impact-discovery.test.ts"
+    }
+  },
+  "classifiedResiduals": [
+    {"code": "PUBLIC_REFERENCE_FORK_ACTIVITY_SCHEMA_COMPATIBILITY_DRIFT", "owner": "#106", "classification": "INTEGRATION_FIX_REQUIRED", "detail": "Public reference/fork imports retired BookActivity types and absent Activity schema helpers; tests currently surface first because normalizeActivityRevision is not a function. Establish the canonical compatibility mapping before selecting a repair."},
+    {"code": "TOP_LEVEL_ROLLOUT_SEAM_MISSING", "owner": "#59 integration baseline", "classification": "PRE_EXISTING_COMPOSITION_BLOCKER", "detail": "The combined route test cannot collect because cloudflare/src/book-rollout-gate.ts is absent."},
+    {"code": "DORMANT_CHECKER_SCOPE_DRIFT", "owner": "PRD0062b archive governance", "classification": "CHECKER_SCOPE_DRIFT", "detail": "The dormant-plan test still requires active Book product paths to be absent."},
+    {"code": "ACCEPTANCE_HARNESS_BLOCKED", "owner": "#127", "classification": "REOPEN_REQUIRED_ARTIFACT", "detail": "The acceptance-matrix test imports missing E2E fixture modules and its referenced validator CLI is absent."},
+    {"code": "FROZEN_102_CHECKER_SCOPE_DRIFT", "owner": "#102 readiness archive", "classification": "CHECKER_SCOPE_DRIFT", "detail": "The frozen #102 validator rejects legitimate downstream #103/#104/#106/#107 successor paths as baseline_head_stale."}
+  ],
+  "notClaimed": ["emulator-proof", "authenticated-browser-proof", "active-generated-rules", "deployment", "canary", "activation", "pilot", "full-v1-acceptance"],
+  "nextLane": "Establish and accept the #106 canonical Activity schema/type compatibility repair, then begin #108 authoritative affected-context snapshot readiness."
+}

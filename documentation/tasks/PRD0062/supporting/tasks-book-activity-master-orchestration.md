@@ -103,7 +103,9 @@ Foundation Pilot is a gate inside P3/P4, not Full V1 completion. After accepted 
 ## Next pointer
 
 Historical validator text retained verbatim: Current packet is P2. That pointer
-is superseded for execution. #102 is locally verified through `81194bd8`; resume from
-#103 and #106 under the 2026-08-05 reconciliation. #104 waits for #103, while
-final proof, activation, deployment, canary, and pilot
-gates remain deferred to their named live-ticket owners.
+is superseded for execution. #102, #103, #104, and #107 are locally verified on
+the integrated lineage. #106 is integrated but requires the canonical Activity
+schema/type compatibility investigation and accepted repair recorded in the
+2026-08-09 post-#104 evidence. After that gate, resume at #108. Final rules, authenticated browser,
+activation, deployment, canary, cost, and pilot gates remain deferred to their
+named live-ticket owners.
