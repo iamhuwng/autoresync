@@ -7,7 +7,7 @@ import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authori
 import type { BookImpactSnapshotRepository } from './impact-snapshot.ts';
 
 export const BOOK_IMPACT_SNAPSHOT_ROOT = 'book_impact_snapshots';
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
 
 interface SnapshotPointer {
   readonly snapshotId: string;

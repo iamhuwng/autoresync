@@ -18,7 +18,7 @@ import {
   type BookImpactSnapshotReadResult,
 } from '../../../../src/services/book-delivery/bookImpactSnapshot.types.ts';
 
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
 const EXPECTED_KINDS = new Set<BookImpactDiscoveryContextKind>(BOOK_IMPACT_SNAPSHOT_CONTEXT_KINDS);
 

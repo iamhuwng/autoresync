@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "40A",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "40A",
+    "issue": 109,
+    "serviceIdentity": "book_update_action_service",
+    "generatedRuleLocations": [
+      "book_update_actions/.read",
+      "book_update_actions/.write",
+      "book_update_actions/records/$ownerId/$actionId/.read",
+      "book_update_actions/records/$ownerId/$actionId/.write",
+      "book_update_actions/by_idempotency/.read",
+      "book_update_actions/by_idempotency/.write",
+      "book_update_actions/by_idempotency/$ownerId/$idempotencyKey/.read",
+      "book_update_actions/by_idempotency/$ownerId/$idempotencyKey/.write",
+      "book_update_actions/by_book/.read",
+      "book_update_actions/by_book/.write",
+      "book_update_actions/by_book/$ownerId/$bookId/.read",
+      "book_update_actions/by_book/$ownerId/$bookId/.write"
+    ],
+    "leastPrivilegePaths": [
+      "book_update_actions/records/$ownerId/$actionId",
+      "book_update_actions/by_idempotency/$ownerId/$idempotencyKey",
+      "book_update_actions/by_book/$ownerId/$bookId"
+    ],
+    "backupInventory": "include-metadata",
+    "recoveryLedgerRoot": "book_update_action_recovery"
+  },
+  "operations": [
+    {
+      "path": "book_update_actions",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_actions",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_actions/records/$ownerId/$actionId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bua.s == true && auth.token.bua.o == $ownerId && auth.token.bua.a == $actionId && auth.token.bua.dl >= now"
+    },
+    {
+      "path": "book_update_actions/records/$ownerId/$actionId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bua.s == true && auth.token.bua.o == $ownerId && auth.token.bua.a == $actionId && auth.token.bua.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('actorId').val() == $ownerId && newData.child('actionId').val() == $actionId && newData.child('schemaVersion').val() == 1 && (!data.exists() ? newData.child('state').val() == 'accepted' && newData.child('stateRevision').val() == 0 : newData.child('snapshotId').val() == data.child('snapshotId').val() && newData.child('snapshotFingerprint').val() == data.child('snapshotFingerprint').val() && newData.child('idempotencyKey').val() == data.child('idempotencyKey').val() && newData.child('requestFingerprint').val() == data.child('requestFingerprint').val() && newData.child('reason').val() == data.child('reason').val() && newData.child('selections').val() == data.child('selections').val() && newData.child('audit/actorId').val() == data.child('audit/actorId').val() && newData.child('audit/reason').val() == data.child('audit/reason').val() && newData.child('audit/selectedContextKeys').val() == data.child('audit/selectedContextKeys').val() && newData.child('stateRevision').val() == data.child('stateRevision').val() + 1)"
+    },
+    {
+      "path": "book_update_actions/by_idempotency",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_actions/by_idempotency",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_actions/by_idempotency/$ownerId/$idempotencyKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bua.s == true && auth.token.bua.o == $ownerId && auth.token.bua.k == $idempotencyKey && auth.token.bua.dl >= now"
+    },
+    {
+      "path": "book_update_actions/by_idempotency/$ownerId/$idempotencyKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bua.s == true && auth.token.bua.o == $ownerId && auth.token.bua.k == $idempotencyKey && auth.token.bua.dl >= now && !data.exists()"
+    },
+    {
+      "path": "book_update_actions/by_book",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_actions/by_book",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_actions/by_book/$ownerId/$bookId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bua.s == true && auth.token.bua.o == $ownerId && auth.token.bua.b == $bookId && auth.token.bua.dl >= now && query.orderByChild == 'acceptedAt' && query.limitToLast != null && query.limitToLast <= 50"
+    },
+    {
+      "path": "book_update_actions/by_book/$ownerId/$bookId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bua.s == true && auth.token.bua.o == $ownerId && auth.token.bua.b == $bookId && auth.token.bua.dl >= now"
+    }
+  ]
+}
