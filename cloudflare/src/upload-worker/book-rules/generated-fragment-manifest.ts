@@ -43,6 +43,7 @@ export type GeneratedBookRuleValidationCode =
   | 'declared-path-gap'
   | 'duplicate-operation'
   | 'incompatible-merge-semantics'
+  | 'ancestor-descendant-conflict'
   | 'duplicate-fragment-id'
   | 'multiple-owners'
   | 'declared-fragment-gap';
@@ -244,6 +245,19 @@ export const validateGeneratedBookRuleFragment = (
     operation.rule,
     `Fragment ${fragmentId} operation`,
   ));
+  const missingOwnerLocations = missingValues(operationLocations, ownerLocations);
+  const extraOwnerLocations = extraValues(ownerLocations, operationLocations);
+  if (missingOwnerLocations.length > 0 || extraOwnerLocations.length > 0) {
+    throw new GeneratedBookRuleValidationError(
+      'declared-path-gap',
+      `Fragment ${fragmentId} owner locations must exactly match operations.`,
+      {
+        fragmentId,
+        missingOwnerLocations,
+        extraOwnerLocations,
+      },
+    );
+  }
   const firstOperationByLocation = new Map<string, GeneratedBookRuleOperation>();
   for (const [index, operation] of operations.entries()) {
     const location = operationLocations[index];
@@ -265,19 +279,6 @@ export const validateGeneratedBookRuleFragment = (
       );
     }
     firstOperationByLocation.set(location, operation);
-  }
-  const missingOwnerLocations = missingValues(operationLocations, ownerLocations);
-  const extraOwnerLocations = extraValues(ownerLocations, operationLocations);
-  if (missingOwnerLocations.length > 0 || extraOwnerLocations.length > 0) {
-    throw new GeneratedBookRuleValidationError(
-      'declared-path-gap',
-      `Fragment ${fragmentId} owner locations must exactly match operations.`,
-      {
-        fragmentId,
-        missingOwnerLocations,
-        extraOwnerLocations,
-      },
-    );
   }
   return {
     schemaVersion: GENERATED_BOOK_RULE_FRAGMENT_SCHEMA_VERSION,
@@ -379,6 +380,9 @@ export const createGeneratedBookRuleFragmentManifest = (
 export const validateGeneratedBookRuleFragmentManifest = (
   manifest: GeneratedBookRuleFragmentManifest,
 ): GeneratedBookRuleFragmentManifest => {
+  if (!Array.isArray(manifest)) {
+    invalid('Manifest must be an array.');
+  }
   const normalized = manifest.map((entry) => {
     if (!isRecord(entry) || typeof entry.sourcePath !== 'string') {
       invalid('Manifest entries must contain a string sourcePath.');

@@ -120,6 +120,74 @@ const validateRequiredLocations = (
   }
 };
 
+const ACCESS_RULES = new Set(['.read', '.write']);
+
+const pathSegments = (path: string): readonly string[] => (
+  path === '' ? [] : path.split('/')
+);
+
+const isStrictAncestorPath = (ancestor: string, descendant: string): boolean => {
+  const ancestorSegments = pathSegments(ancestor);
+  const descendantSegments = pathSegments(descendant);
+  return ancestorSegments.length < descendantSegments.length
+    && ancestorSegments.every((segment, index) => segment === descendantSegments[index]);
+};
+
+const isExplicitDeny = (operation: ComposedGeneratedBookRuleOperation): boolean => (
+  operation.expression.trim() === 'false'
+);
+
+const isPermissiveFallback = (operation: ComposedGeneratedBookRuleOperation): boolean => {
+  const expression = operation.expression.trim();
+  return expression === 'true' || /^auth\s*==\s*null\s*\|\|/u.test(expression);
+};
+
+/**
+ * RTDB access grants from an ancestor are additive. A descendant literal deny
+ * therefore cannot revoke an ancestor grant. A literal ancestor deny may still
+ * coexist with a narrower descendant grant, which is a normal least-privilege
+ * pattern. Only literal decisions are checked here; arbitrary RTDB expressions
+ * remain producer owned and are not guessed at by the composer.
+ */
+const validateAncestorConflicts = (
+  operations: readonly ComposedGeneratedBookRuleOperation[],
+): void => {
+  for (let leftIndex = 0; leftIndex < operations.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < operations.length; rightIndex += 1) {
+      const left = operations[leftIndex];
+      const right = operations[rightIndex];
+      if (left.rule !== right.rule || !ACCESS_RULES.has(left.rule)) continue;
+
+      const ancestor = isStrictAncestorPath(left.path, right.path) ? left
+        : isStrictAncestorPath(right.path, left.path) ? right
+          : undefined;
+      const descendant = ancestor === left ? right : ancestor === right ? left : undefined;
+      if (!ancestor || !descendant) continue;
+
+      const ancestorDenied = isExplicitDeny(ancestor);
+      const descendantDenied = isExplicitDeny(descendant);
+      if (ancestorDenied || !descendantDenied) continue;
+
+      throw new GeneratedBookRuleValidationError(
+        'ancestor-descendant-conflict',
+        `Access rule ${descendant.location} conflicts with ancestor ${ancestor.location}.`,
+        {
+          reason: 'descendant-deny-cannot-revoke-ancestor',
+          rule: ancestor.rule,
+          ancestorFragmentId: ancestor.fragmentId,
+          ancestorLocation: ancestor.location,
+          descendantFragmentId: descendant.fragmentId,
+          descendantLocation: descendant.location,
+          ancestorIsExplicitDeny: ancestorDenied,
+          descendantIsExplicitDeny: descendantDenied,
+          ancestorIsPermissiveFallback: isPermissiveFallback(ancestor),
+          descendantIsPermissiveFallback: isPermissiveFallback(descendant),
+        },
+      );
+    }
+  }
+};
+
 const validateOperationConflicts = (
   manifest: GeneratedBookRuleFragmentManifest,
 ): ComposedGeneratedBookRuleOperation[] => {
@@ -169,6 +237,7 @@ const validateOperationConflicts = (
       operations.push(composed);
     }
   }
+  validateAncestorConflicts(operations);
   return operations.sort((left, right) => (
     compareDeterministically(left.location, right.location)
     || compareDeterministically(left.fragmentId, right.fragmentId)

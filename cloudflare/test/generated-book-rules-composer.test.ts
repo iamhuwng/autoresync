@@ -3,6 +3,7 @@ import fragment04 from '../src/upload-worker/book-rules/fragments/04.json';
 import fragment42A from '../src/upload-worker/book-rules/fragments/42A.json';
 import {
   discoverGeneratedBookRuleFragmentManifest,
+  validateGeneratedBookRuleFragment,
   type GeneratedBookRuleFragmentSource,
 } from '../src/upload-worker/book-rules/generated-fragment-manifest';
 import {
@@ -12,12 +13,42 @@ import {
   GeneratedBookRuleValidationError,
 } from '../src/upload-worker/book-rules/generated-fragment-manifest';
 
+const currentFragmentModules = import.meta.glob(
+  '../src/upload-worker/book-rules/fragments/*.json',
+  { eager: true, import: 'default' },
+) as Record<string, unknown>;
+
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 const source = (
   sourcePath: string,
   fragment: unknown,
 ): GeneratedBookRuleFragmentSource => ({ sourcePath, fragment });
+
+const operationLocation = (operation: { path: string; rule: string }): string => (
+  operation.path === '' ? `/${operation.rule}` : `${operation.path}/${operation.rule}`
+);
+
+const currentFragmentSources = (): GeneratedBookRuleFragmentSource[] => (
+  Object.entries(currentFragmentModules).map(([sourcePath, fragment]) => source(sourcePath, fragment))
+);
+
+const currentFragment = (fileName: string): unknown => {
+  const entry = Object.entries(currentFragmentModules).find(([sourcePath]) => (
+    sourcePath.endsWith(`/${fileName}.json`)
+  ));
+  if (!entry) throw new Error(`Missing current fragment ${fileName}.json.`);
+  return entry[1];
+};
+
+const withExactOwnerLocations = (fragment: unknown): unknown => {
+  const copy = clone(fragment) as {
+    owner: { generatedRuleLocations: string[] };
+    operations: Array<{ path: string; rule: string }>;
+  };
+  copy.owner.generatedRuleLocations = [...new Set(copy.operations.map(operationLocation))];
+  return copy;
+};
 
 const simpleFragment = (
   ticketId: string,
@@ -48,6 +79,25 @@ const simpleFragment = (
   }],
 });
 
+const fragmentWithOperations = (
+  ticketId: string,
+  operations: readonly {
+    path: string;
+    rule: string;
+    merge: string;
+    requiresExistingRule: boolean;
+    expression: string;
+  }[],
+) => ({
+  schemaVersion: 1,
+  ticketId,
+  owner: {
+    ticketId,
+    generatedRuleLocations: [...new Set(operations.map(operationLocation))],
+  },
+  operations,
+});
+
 const expectCode = (run: () => unknown, code: string): void => {
   try {
     run();
@@ -73,6 +123,20 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(JSON.stringify(reverse)).toBe(JSON.stringify(forward));
   });
 
+  it('discovers every current producer fragment in stable order', () => {
+    const sources = currentFragmentSources();
+    const forward = discoverGeneratedBookRuleFragmentManifest(sources);
+    const reverse = discoverGeneratedBookRuleFragmentManifest([...sources].reverse());
+
+    expect(forward).toHaveLength(25);
+    expect(forward.map((entry) => entry.fragmentId)).toEqual([
+      '04', '08B', '12C', '13A', '16', '16A', '17', '18', '19', '20A',
+      '20C', '21', '28A', '29', '33C', '35', '36', '37A', '37B', '38B5',
+      '39B', '42A', '42B', '43', '44',
+    ]);
+    expect(JSON.stringify(reverse)).toBe(JSON.stringify(forward));
+  });
+
   it('composes a deterministic in-memory candidate and normalizes the root path only', () => {
     const reverse = composeGeneratedBookRules([
       source('fragments/42A.json', fragment42A),
@@ -90,6 +154,75 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect((reverse.rules as Record<string, unknown>)['.validate']).toBeTypeOf('string');
     expect((reverse.rules as Record<string, Record<string, unknown>>)
       .book_source_upload_accounts['.read']).toBe('false');
+  });
+
+  it('fails closed when composing the current fragment set at its first real gap', () => {
+    expectCode(() => composeGeneratedBookRules(currentFragmentSources()), 'declared-path-gap');
+  });
+
+  it('rejects each real producer owner-location gap', () => {
+    for (const fileName of ['16A', '28A', '29', '44']) {
+      expectCode(
+        () => validateGeneratedBookRuleFragment(currentFragment(fileName)),
+        'declared-path-gap',
+      );
+    }
+  });
+
+  it('rejects the real 16A incompatible duplicate after isolating its owner gap', () => {
+    expectCode(() => validateGeneratedBookRuleFragment(
+      withExactOwnerLocations(currentFragment('16A')),
+    ), 'incompatible-merge-semantics');
+  });
+
+  it('allows the real 20A ancestor deny with a descendant access grant', () => {
+    const candidate = composeGeneratedBookRules([
+      source('fragments/20A.json', currentFragment('20A')),
+    ]);
+    expect(candidate.fragmentIds).toEqual(['20A']);
+    expect(candidate.byLocation['material_catalog/books/$bookId/.write']).toBeDefined();
+  });
+
+  it('rejects the real 20A/44 duplicate after isolating 44 owner gaps', () => {
+    expectCode(() => composeGeneratedBookRules([
+      source('fragments/20A.json', currentFragment('20A')),
+      source('fragments/44-repaired-owner.json', withExactOwnerLocations(currentFragment('44'))),
+    ]), 'duplicate-operation');
+  });
+
+  it('rejects a descendant deny beneath explicit or permissive ancestor grants', () => {
+    for (const { ticketId, expression } of [
+      { ticketId: 'explicit-grant', expression: 'auth != null && auth.token.admin === true' },
+      { ticketId: 'permissive-fallback', expression: 'auth == null || auth.token.admin === true' },
+    ]) {
+      const fragment = fragmentWithOperations(ticketId, [
+        {
+          path: 'books',
+          rule: '.write',
+          merge: 'replace-grant',
+          requiresExistingRule: false,
+          expression,
+        },
+        {
+          path: 'books/private',
+          rule: '.write',
+          merge: 'replace-exact-deny',
+          requiresExistingRule: false,
+          expression: 'false',
+        },
+      ]);
+      expectCode(() => composeGeneratedBookRules([
+        source(`fragments/${ticketId}.json`, fragment),
+      ]), 'ancestor-descendant-conflict');
+    }
+  });
+
+  it('rejects a malformed current-shape fragment', () => {
+    const malformed = clone(currentFragment('04')) as { operations: unknown };
+    malformed.operations = {};
+    expectCode(() => composeGeneratedBookRules([
+      source('fragments/malformed.json', malformed),
+    ]), 'malformed-fragment');
   });
 
   it('rejects duplicate fragment ids', () => {
