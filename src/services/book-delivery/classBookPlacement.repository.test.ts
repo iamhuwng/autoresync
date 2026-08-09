@@ -54,7 +54,7 @@ describe('#103 Class Book durable projection storage', () => {
       placementRevision: 1,
       status: 'active',
       pins: {
-        bookId: 'book-1', publicationId: 'publication-1', unitStableKey: 'unit-1', unitVersionId: 'unit-version-1',
+        bookId: 'book-1', publicationId: 'publication-1', publicationRevision: 1, unitStableKey: 'unit-1', unitVersionId: 'unit-version-1',
         manifestVersionId: 'manifest-1', sourceVersionId: 'source-version-1', bindingRevision: 'binding-1',
       },
       selection: { kind: 'placements', nodeKeys: [], placementIds: ['activity-placement-1'] },

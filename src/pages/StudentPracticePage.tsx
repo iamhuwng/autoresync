@@ -70,6 +70,14 @@ import { useFullscreenMode } from '../hooks/test/useFullscreenMode';
 import { useTestIntegrity } from '../hooks/test/useTestIntegrity';
 import type { AntiCheatConfig } from '../types/integrity.types';
 import { storage } from '../core/platform/storage';
+import {
+    isExplicitBookPlacementLaunch,
+    parseBookPlacementLaunchQuery,
+    resolveBookPlacementLaunch,
+    type BookPlacementLaunchQuery,
+    type ValidBookPlacementLaunch,
+} from '../services/book-delivery/bookPlacementLaunch.browser';
+import { BookPlacementRuntimeHost } from '../components/book-runtime/BookPlacementRuntimeHost';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -257,6 +265,152 @@ const resolveReadingPassageHomeworkProjection = async (input: {
 
 const isExplicitReadingV2Launch = (testData: unknown): boolean =>
     isReadingV2LaunchCandidate(testData);
+
+const bookLaunchStateStyle = {
+    minHeight: '100vh',
+    padding: 24,
+    background: '#f8f9fa',
+    color: '#2b3437',
+    boxSizing: 'border-box' as const,
+};
+
+const BookPlacementLaunchState = ({
+    title,
+    message,
+    onReturn,
+    error = false,
+}: {
+    readonly title: string;
+    readonly message: string;
+    readonly onReturn: () => void;
+    readonly error?: boolean;
+}) => (
+    <main style={bookLaunchStateStyle} data-testid="book-placement-launch-state">
+        <section
+            role={error ? 'alert' : 'status'}
+            aria-live="polite"
+            style={{ maxWidth: 560, margin: '48px auto', padding: 24, background: '#fff', border: '1px solid #e1e6e8', borderRadius: 12 }}
+        >
+            <h1 style={{ marginTop: 0, fontSize: '1.5rem' }}>{title}</h1>
+            <p>{message}</p>
+            <button
+                type="button"
+                onClick={() => onReturn()}
+                style={{ minHeight: 44, padding: '10px 16px', border: 0, borderRadius: 8, background: '#4d44e3', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+            >
+                Return
+            </button>
+        </section>
+    </main>
+);
+
+const BookPlacementLaunchPage: React.FC<{
+    launch: Exclude<BookPlacementLaunchQuery, { readonly kind: 'none' }>;
+}> = ({ launch }) => {
+    const { user } = useAuth();
+    const { navigateTo } = useNavigation('student');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
+    const [projection, setProjection] = useState<import('../services/book-delivery/bookDelivery.types').BookRuntimeDeliveryProjection | null>(null);
+    const [loading, setLoading] = useState(launch.kind !== 'invalid');
+    const [error, setError] = useState<string | null>(launch.kind === 'invalid' ? 'The Book launch link is invalid.' : null);
+
+    const returnToEntry = useCallback((source: 'launch-state' | 'runtime' = 'launch-state') => {
+        if (source === 'launch-state') {
+            trackAction('bookRuntimeReturn', {
+                surface: launch.kind === 'invalid' ? 'unknown' : launch.surface,
+                reason: launch.kind === 'invalid' ? launch.reason : 'user_requested',
+                destination: launch.kind === 'class' ? 'class-detail' : 'courses',
+                outcome: 'returned',
+            });
+        }
+        if (launch.kind === 'class') {
+            navigateTo('STUDENT_CLASS_DETAIL', { classId: launch.classId }, {
+                force: true,
+                reason: 'book_runtime_return_class',
+            });
+            return;
+        }
+        navigateTo('STUDENT_COURSES', undefined, {
+            force: true,
+            reason: 'book_runtime_return_course',
+        });
+    }, [launch, navigateTo, trackAction]);
+
+    useEffect(() => {
+        if (launch.kind === 'invalid') return;
+        if (!user?.uid) {
+            setError('Sign in again to open this Book.');
+            setLoading(false);
+            return;
+        }
+
+        let mounted = true;
+        setLoading(true);
+        setError(null);
+        setProjection(null);
+        void resolveBookPlacementLaunch({
+            launch: launch as ValidBookPlacementLaunch,
+            studentId: user.uid,
+        }).then((result) => {
+            if (!mounted) return;
+            if (result.status !== 'resolved') {
+                trackAction('bookRuntimeLaunchBlocked', {
+                    surface: launch.surface,
+                    reason: result.reason,
+                    ...(launch.kind === 'course'
+                        ? { courseMaterialId: launch.courseMaterialId, bindingId: launch.bindingId }
+                        : {
+                            classId: launch.classId,
+                            copyId: launch.copyId,
+                            classPlacementId: launch.classPlacementId,
+                            classCourseMaterialId: launch.classCourseMaterialId,
+                            bindingId: launch.bindingId,
+                        }),
+                    outcome: 'blocked',
+                });
+                setError('This Book launch is no longer available for your account.');
+                setLoading(false);
+                return;
+            }
+            trackAction('launchBookRuntime', {
+                surface: launch.surface,
+                bindingId: result.projection.bindingId,
+                bindingRevision: result.projection.bindingRevision,
+                contextId: result.projection.context.contextId,
+                recipientId: result.projection.recipientId,
+                outcome: 'success',
+            });
+            setProjection(result.projection);
+            setLoading(false);
+        }).catch((reason: unknown) => {
+            if (!mounted) return;
+            trackAction('bookRuntimeLaunchBlocked', {
+                surface: launch.surface,
+                reason: reason instanceof Error ? reason.name : 'unknown',
+                outcome: 'blocked',
+            });
+            setError('This Book launch could not be resolved.');
+            setLoading(false);
+        });
+        return () => {
+            mounted = false;
+        };
+    }, [launch, trackAction, user?.uid]);
+
+    if (loading) {
+        return <BookPlacementLaunchState title="Loading Book" message="Resolving your published Book access." onReturn={returnToEntry} />;
+    }
+    if (error || !projection) {
+        return <BookPlacementLaunchState title="Book unavailable" message={error || 'This Book is not available.'} onReturn={returnToEntry} error />;
+    }
+    return (
+        <BookPlacementRuntimeHost
+            onAction={(action, metadata) => trackAction(action, metadata)}
+            onReturn={() => returnToEntry('runtime')}
+            projection={projection}
+        />
+    );
+};
 
 // ── Router Content ─────────────────────────────────────────────────────────────
 
@@ -986,6 +1140,15 @@ const StudentPracticePageContent: React.FC = () => {
 
 export const StudentPracticePage: React.FC = () => {
     const { materialId } = useParams<{ materialId: string }>();
+    const location = useLocation();
+    const bookLaunch = parseBookPlacementLaunchQuery(location.search);
+    if (isExplicitBookPlacementLaunch(bookLaunch)) {
+        return (
+            <TestErrorBoundary sessionCode={materialId}>
+                <BookPlacementLaunchPage launch={bookLaunch} />
+            </TestErrorBoundary>
+        );
+    }
     return (
         <TestErrorBoundary sessionCode={materialId}>
             <StudentPracticePageContent />

@@ -33,6 +33,7 @@ const source = (overrides: Partial<ClassBookSourcePlacement> = {}): ClassBookSou
   pins: {
     bookId: 'book-1',
     publicationId: 'publication-1',
+    publicationRevision: 1,
     unitStableKey: 'unit-1',
     unitVersionId: 'unit-version-1',
     manifestVersionId: 'manifest-1',
@@ -230,6 +231,31 @@ describe('#103 Class Book placement and delivery chain', () => {
     expect(repository.readVersion(classBookContextId('class-1', 'copy-1', 'class-material-1'), 1)).toEqual(placement);
     expect(createClassBookRollbackState({ reason: 'local proof', changedAt: later, operationId: 'op-rollback' }).denyNewWrites)
       .toBe(true);
+  });
+
+  it('hydrates bindings server-side for ID resolution and denies forged student/context or missing bindings', async () => {
+    const { service } = setup();
+    issue(service);
+    await expect(service.resolveDeliveryByIds({
+      actorId: 'student-1', classId: 'class-1', copyId: 'copy-1', classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1', bindingId: 'binding-1', now,
+    })).resolves.toMatchObject({ binding: { bindingId: 'binding-1', studentId: 'student-1' } });
+    await expect(service.resolveDeliveryByIds({
+      actorId: 'student-2', classId: 'class-1', copyId: 'copy-1', classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1', bindingId: 'binding-1', now,
+    })).rejects.toThrowError('class_book_delivery_context_denied');
+    await expect(service.resolveDeliveryByIds({
+      actorId: 'student-1', classId: 'class-1', copyId: 'copy-2', classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1', bindingId: 'binding-1', now,
+    })).rejects.toThrowError('class_book_delivery_context_denied');
+    await expect(service.resolveDeliveryByIds({
+      actorId: 'student-1', classId: 'class-1', copyId: 'copy-1', classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1', bindingId: 'missing-binding', now,
+    })).rejects.toThrowError('class_book_delivery_context_denied');
+    await expect(service.resolveDeliveryByIds({
+      actorId: 'student-1', classId: 'class-1', copyId: 'copy-1', classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1', bindingId: 'binding-1', now: expires,
+    })).rejects.toThrowError('class_book_delivery_expired');
   });
 
   it('migrates only an explicit class copy/placement and rejects a legacy bare material', () => {

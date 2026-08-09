@@ -16,6 +16,8 @@ export type ClassBookLockState = 'unlocked' | 'locked';
 export interface ClassBookPlacementPins {
   readonly bookId: string;
   readonly publicationId: string;
+  /** Immutable Course publication authority; absent legacy records are not runnable. */
+  readonly publicationRevision: number;
   readonly unitStableKey: string;
   readonly unitVersionId: string;
   readonly manifestVersionId: string;
@@ -121,16 +123,40 @@ export interface ClassBookPlacement {
   readonly supersededByPlacementId?: string;
 }
 
-import type { BookDeliveryBinding } from './bookDelivery.types';
-
-/** Exact #102 Book Delivery binding schema, narrowed to class-course. */
-export type ClassBookDeliveryBinding = Omit<BookDeliveryBinding, 'context'> & {
+/** Retained #103 compatibility record. Canonical runtime delivery uses BookDeliveryBinding v3. */
+export interface ClassBookDeliveryBinding {
+  readonly schemaVersion: 1;
+  readonly bindingId: string;
+  readonly studentId: string;
   readonly context: {
     readonly surface: 'class-course';
     readonly contextId: string;
     readonly entitlementId: string;
   };
-};
+  readonly book: {
+    readonly bookId: string;
+    readonly unitStableKey: string;
+    readonly unitNodeId: string;
+    readonly manifestVersionId: string;
+    readonly sourceVersionId: string;
+  };
+  readonly activity: {
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersionId: string;
+    readonly bindingRevision: string;
+    readonly pageGroupId: string;
+    readonly physicalPageNumber: number;
+    readonly completionAggregation: 'all-required' | 'any-required' | 'manual';
+  };
+  readonly titleSnapshot: {
+    readonly bookTitle: string;
+    readonly unitTitle: string;
+    readonly activityTitle: string;
+  };
+  readonly createdAt: string;
+  readonly expiresAt: string;
+}
 
 export interface ClassBookDeliveryProjection {
   readonly projectionKind: 'class-book-delivery-v1';
@@ -155,6 +181,8 @@ export interface ClassBookPlacementRepository {
   readonly readCopy: (classId: string, copyId: string) => ClassBookCopyIdentity | null;
   readonly readCurrent: (contextId: string) => ClassBookPlacement | null;
   readonly readVersion: (contextId: string, placementRevision: number) => ClassBookPlacement | null;
+  /** Binding hydration may be backed by a synchronous or durable async store. */
+  readonly readBinding: (bindingId: string) => ClassBookDeliveryBinding | null | Promise<ClassBookDeliveryBinding | null>;
   readonly createCopy: (copy: ClassBookCopyIdentity) => 'created' | 'replayed' | 'conflict';
   readonly createPlacement: (placement: ClassBookPlacement, operationId: string) => 'created' | 'replayed' | 'conflict';
   readonly appendPlacement: (placement: ClassBookPlacement, operationId: string) => 'created' | 'replayed' | 'conflict';

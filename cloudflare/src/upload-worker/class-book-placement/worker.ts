@@ -2,6 +2,11 @@ import {
   ClassBookRolloutGate,
   isClassBookPlacementPath,
 } from '../../../../src/services/book-delivery/classBookRolloutGate.ts';
+import {
+  ClassBookDeliveryProductionError,
+  prepareClassBookDelivery,
+  resolveCurrentClassBookDelivery,
+} from './production.ts';
 
 export interface ClassBookPlacementWorkerService {
   readonly createCopy: (input: Record<string, unknown>) => unknown | Promise<unknown>;
@@ -10,11 +15,16 @@ export interface ClassBookPlacementWorkerService {
   readonly setLock: (input: Record<string, unknown>) => unknown | Promise<unknown>;
   readonly issueDelivery: (input: Record<string, unknown>) => unknown | Promise<unknown>;
   readonly resolveDelivery: (input: Record<string, unknown>) => unknown | Promise<unknown>;
+  readonly resolveDeliveryByIds: (input: Record<string, unknown>) => unknown | Promise<unknown>;
   readonly getPlacement: (input: Record<string, unknown>) => unknown | Promise<unknown>;
 }
 
 export interface ClassBookPlacementWorkerHandlerOptions {
   readonly service?: ClassBookPlacementWorkerService;
+  /** Injectable canonical production boundary for focused Worker tests. */
+  readonly prepare?: typeof prepareClassBookDelivery;
+  /** Injectable canonical production boundary for focused Worker tests. */
+  readonly resolveCurrent?: typeof resolveCurrentClassBookDelivery;
   readonly maxBodyBytes?: number;
 }
 
@@ -56,17 +66,99 @@ const parseBody = async (request: Request, maxBodyBytes: number): Promise<Record
   return parsed;
 };
 
+const exact = (body: Record<string, unknown>, keys: readonly string[]): void => {
+  if (Object.keys(body).length !== keys.length || Object.keys(body).some((key) => !keys.includes(key))) {
+    throw new ClassBookDeliveryProductionError('class_book_request_invalid', 400);
+  }
+};
+
+const productionGate = (env: Record<string, unknown> | undefined): void => {
+  if (env?.BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED !== 'enabled') {
+    throw new ClassBookDeliveryProductionError('class_book_rollout_disabled', 503);
+  }
+};
+
+const productionResponse = async (run: () => Promise<unknown>): Promise<ClassBookPlacementWorkerResponse> => {
+  try {
+    const body = await run();
+    if (!body || typeof body !== 'object' || Array.isArray(body)
+      || (body as Record<string, unknown>).projectionKind !== 'book-runtime-delivery') {
+      throw new ClassBookDeliveryProductionError('class_book_legacy_delivery_output_rejected', 500);
+    }
+    return {
+      body,
+      init: { status: 200, headers: { 'Cache-Control': 'no-store' } },
+    };
+  } catch (error) {
+    if (error instanceof ClassBookDeliveryProductionError) {
+      return { body: { code: error.code }, init: { status: error.status, headers: { 'Cache-Control': 'no-store' } } };
+    }
+    return { body: { code: 'class_book_delivery_unavailable' }, init: { status: 503, headers: { 'Cache-Control': 'no-store' } } };
+  }
+};
+
 const operation = (body: Record<string, unknown>, uid: string): Record<string, unknown> => ({
   ...body,
   actorId: uid,
 });
+
+const currentDeliveryInput = (pathname: string): Record<string, unknown> | null => {
+  const prefix = '/v1/book-class-placement/current/';
+  if (!pathname.startsWith(prefix)) return null;
+  const values = pathname.slice(prefix.length).split('/');
+  if (values.length !== 5) return null;
+  try {
+    const [classId, copyId, classPlacementId, classCourseMaterialId, bindingId] = values.map(decodeURIComponent);
+    return { classId, copyId, classPlacementId, classCourseMaterialId, bindingId };
+  } catch {
+    throw new Error('class_book_route_invalid');
+  }
+};
 
 /** Default-disabled Worker fragment; #104 launch dispatch remains separate. */
 export const createClassBookPlacementWorkerHandlers = (
   options: ClassBookPlacementWorkerHandlerOptions = {},
 ) => {
   const maxBodyBytes = options.maxBodyBytes ?? MAX_BODY_BYTES;
+  const prepare = options.prepare ?? prepareClassBookDelivery;
+  const resolveCurrent = options.resolveCurrent ?? resolveCurrentClassBookDelivery;
   return {
+    prepare: (input: {
+      readonly request: Request;
+      readonly env: Record<string, unknown>;
+      readonly uid: string;
+    }) => productionResponse(async () => {
+      productionGate(input.env);
+      const body = await parseBody(input.request, maxBodyBytes);
+      exact(body, ['operationId', 'classId', 'copyId', 'classPlacementId', 'classCourseMaterialId']);
+      return prepare(input.env, {
+        operationId: String(body.operationId),
+        classId: String(body.classId),
+        copyId: String(body.copyId),
+        classPlacementId: String(body.classPlacementId),
+        classCourseMaterialId: String(body.classCourseMaterialId),
+        studentId: input.uid,
+      });
+    }),
+    current: (input: {
+      readonly env: Record<string, unknown>;
+      readonly uid: string;
+      readonly classId?: string;
+      readonly copyId?: string;
+      readonly classPlacementId?: string;
+      readonly classCourseMaterialId?: string;
+      readonly bindingId?: string;
+    }) => productionResponse(async () => {
+      productionGate(input.env);
+      return resolveCurrent(input.env, {
+        classId: String(input.classId),
+        copyId: String(input.copyId),
+        classPlacementId: String(input.classPlacementId),
+        classCourseMaterialId: String(input.classCourseMaterialId),
+        bindingId: String(input.bindingId),
+        studentId: input.uid,
+      });
+    }),
     async handle(input: {
       readonly request: Request;
       readonly env: Record<string, unknown> | undefined;
@@ -80,6 +172,14 @@ export const createClassBookPlacementWorkerHandlers = (
       try {
         gate.assertReadAllowed();
         if (!options.service) throw new Error('class_book_handler_unavailable');
+        if (input.request.method === 'GET') {
+          gate.assertExistingBindingResolutionAllowed();
+          const deliveryInput = currentDeliveryInput(url.pathname);
+          if (deliveryInput) {
+            const result = await options.service.resolveDeliveryByIds({ ...deliveryInput, actorId: input.uid });
+            return { body: { data: result }, init: { status: 200, headers: { 'Cache-Control': 'no-store' } } };
+          }
+        }
         if (input.request.method === 'GET' && url.pathname === '/v1/class-book-placement/current') {
           gate.assertExistingBindingResolutionAllowed();
           const body = Object.fromEntries(url.searchParams.entries());

@@ -12,7 +12,7 @@ const wranglerConfig = () => JSON5.parse(wranglerSource) as { vars: Record<strin
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(36);
+    expect(contributorRoutes).toHaveLength(39);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
@@ -26,7 +26,8 @@ describe('canonical Book route contract catalog', () => {
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#80')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#102')).toHaveLength(5);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(36);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#104')).toHaveLength(3);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(39);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -192,6 +193,54 @@ describe('canonical Book route contract catalog', () => {
       credentialEnv: 'BOOK_RUNTIME_GOOGLE_SA_KEY',
       contributorTicket: '#74',
     }));
+  });
+
+  it('registers #104 canonical Class prepare/current and runtime launch as disabled seams', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.class-placement.prepare',
+        methods: ['POST'],
+        pathTemplate: '/v1/book-class-placement/prepare',
+        owner: '#104',
+        domain: 'delivery',
+        handler: 'classBookPlacement.prepare',
+        firebaseAuth: 'firebase-id-token-student',
+        rateClass: 'book-control',
+        gateEnv: 'BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
+        contributorTicket: '#104',
+      }),
+      expect.objectContaining({
+        id: 'book.class-placement.current',
+        methods: ['GET'],
+        pathTemplate: '/v1/book-class-placement/current/:classId/:copyId/:classPlacementId/:classCourseMaterialId/:bindingId',
+        owner: '#104',
+        domain: 'delivery',
+        handler: 'classBookPlacement.current',
+        firebaseAuth: 'firebase-id-token-student',
+        rateClass: 'book-read',
+        gateEnv: 'BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
+        contributorTicket: '#104',
+      }),
+      expect.objectContaining({
+        id: 'book.runtime-launch.launch',
+        methods: ['POST'],
+        pathTemplate: '/v1/book-runtime-launch/activities',
+        owner: '#104',
+        domain: 'runtime',
+        handler: 'bookRuntimeLaunch.launch',
+        firebaseAuth: 'firebase-id-token-student',
+        rateClass: 'book-read',
+        gateEnv: 'BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        contributorTicket: '#104',
+      }),
+    ]));
   });
 
   it('registers source upload control routes only through the disabled #49 seam', () => {

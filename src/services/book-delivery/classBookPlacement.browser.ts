@@ -3,6 +3,7 @@ import type {
   ClassBookDeliveryProjection,
   ClassBookPlacement,
 } from './classBookPlacement.types';
+import type { BookRuntimeDeliveryProjection } from './bookDelivery.types';
 
 export interface ClassBookPlacementBrowserClientOptions {
   readonly baseUrl: string;
@@ -18,6 +19,20 @@ export interface ClassBookPlacementBrowserClient {
   readonly setLock: (body: Record<string, unknown>) => Promise<unknown>;
   readonly issueDelivery: (body: Record<string, unknown>) => Promise<ClassBookDeliveryBinding>;
   readonly resolveDelivery: (body: Record<string, unknown>) => Promise<ClassBookDeliveryProjection>;
+  readonly prepareDelivery: (body: {
+    readonly operationId: string;
+    readonly classId: string;
+    readonly copyId: string;
+    readonly classPlacementId: string;
+    readonly classCourseMaterialId: string;
+  }) => Promise<BookRuntimeDeliveryProjection>;
+  readonly resolveCurrent: (input: {
+    readonly classId: string;
+    readonly copyId: string;
+    readonly classPlacementId: string;
+    readonly classCourseMaterialId: string;
+    readonly bindingId: string;
+  }) => Promise<BookRuntimeDeliveryProjection>;
   readonly getCurrent: (query: Record<string, string>) => Promise<ClassBookPlacement>;
 }
 
@@ -42,6 +57,19 @@ const dataOrThrow = (body: unknown, response: Response): unknown => {
   return (body as { data: unknown }).data;
 };
 
+const canonicalOrThrow = (body: unknown, response: Response): unknown => {
+  if (!response.ok) {
+    const candidate = body && typeof body === 'object' && !Array.isArray(body)
+      ? (body as Record<string, unknown>).code
+      : null;
+    throw new Error(typeof candidate === 'string' ? candidate : 'class_book_request_failed');
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new Error('class_book_response_invalid');
+  }
+  return body;
+};
+
 export const createClassBookPlacementBrowserClient = (
   options: ClassBookPlacementBrowserClientOptions,
 ): ClassBookPlacementBrowserClient => {
@@ -49,7 +77,12 @@ export const createClassBookPlacementBrowserClient = (
   const baseUrl = options.baseUrl.replace(/\/$/u, '');
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
 
-  const request = async (path: string, method: 'GET' | 'POST', body?: Record<string, unknown>): Promise<unknown> => {
+  const request = async (
+    path: string,
+    method: 'GET' | 'POST',
+    body?: Record<string, unknown>,
+    responseShape: 'legacy-envelope' | 'canonical' = 'legacy-envelope',
+  ): Promise<unknown> => {
     const token = await options.getIdToken();
     if (!token) throw new Error('class_book_authentication_required');
     const response = await fetchImpl(`${baseUrl}${path}`, {
@@ -63,7 +96,10 @@ export const createClassBookPlacementBrowserClient = (
       credentials: 'omit',
       redirect: 'error',
     });
-    return dataOrThrow(await readResponse(response, maxResponseBytes), response);
+    const responseBody = await readResponse(response, maxResponseBytes);
+    return responseShape === 'canonical'
+      ? canonicalOrThrow(responseBody, response)
+      : dataOrThrow(responseBody, response);
   };
 
   return {
@@ -73,6 +109,21 @@ export const createClassBookPlacementBrowserClient = (
     setLock: (body) => request('/v1/class-book-placement/lock', 'POST', body),
     issueDelivery: (body) => request('/v1/class-book-placement/issue', 'POST', body) as Promise<ClassBookDeliveryBinding>,
     resolveDelivery: (body) => request('/v1/class-book-placement/resolve', 'POST', body) as Promise<ClassBookDeliveryProjection>,
+    prepareDelivery: (body) => request(
+      '/v1/book-class-placement/prepare', 'POST', body, 'canonical',
+    ) as Promise<BookRuntimeDeliveryProjection>,
+    resolveCurrent: (input) => {
+      const path = [
+        input.classId,
+        input.copyId,
+        input.classPlacementId,
+        input.classCourseMaterialId,
+        input.bindingId,
+      ].map(encodeURIComponent).join('/');
+      return request(
+        `/v1/book-class-placement/current/${path}`, 'GET', undefined, 'canonical',
+      ) as Promise<BookRuntimeDeliveryProjection>;
+    },
     getCurrent: (query) => {
       const parameters = new URLSearchParams(query);
       return request(`/v1/class-book-placement/current?${parameters.toString()}`, 'GET') as Promise<ClassBookPlacement>;
