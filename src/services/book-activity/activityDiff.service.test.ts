@@ -1,64 +1,50 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  BookActivityEditableJson,
-  BookActivityVersionRecord,
-} from '../../types/bookActivity.types';
-import { classifyActivityChange } from './activityDiff.service';
-import { normalizeActivityRevision } from './activitySchema.service';
+import type { NormalizedActivity } from '../../types/bookActivity.types';
+import { diffActivities } from './activityDiff.service';
 
-const editable = (overrides: Partial<BookActivityEditableJson> = {}): BookActivityEditableJson => ({
+const activity = (): NormalizedActivity => ({
   schemaVersion: 1,
-  title: 'Activity',
-  presentationMode: 'structured',
-  contextRequirement: 'none',
-  interactions: [
-    { family: 'choice', prompt: 'Pick one.', choices: ['A', 'B'] },
-  ],
-  answerRule: { type: 'single-choice', correctChoiceIndexes: [0] },
-  scoring: { points: 1 },
-  ...overrides,
-});
-
-const version = (
-  content: BookActivityEditableJson,
-  versionId: string,
-): BookActivityVersionRecord => ({
-  activityId: 'activity-1',
-  versionId,
-  ownerId: 'teacher-1',
-  materialKind: 'interactive-activity',
-  content: normalizeActivityRevision(content, { idFactory: () => `${versionId}-hidden` }),
-  publishedAt: '2026-07-09T00:00:00.000Z',
-  publishedBy: 'teacher-1',
+  title: 'Activity', taskProfile: null, presentationMode: 'structured',
+  contextRequirement: { mode: 'required', acceptedKinds: ['pdf-page'] },
+  instructions: [{ text: 'Choose.' }], stimulus: null, assetRefs: [],
+  interaction: { family: 'choice', variant: 'single' },
+  answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+  interactions: [{
+    family: 'choice', interactionId: 'interaction-1', prompt: 'Pick one', options: ['A', 'B'],
+    itemIdentities: { family: 'choice', optionIds: ['option-a', 'option-b'] },
+    answerKey: { family: 'choice', acceptedOptionItemIds: ['option-a'] },
+  }, {
+    family: 'choice', interactionId: 'interaction-2', prompt: 'Pick another', options: ['C', 'D'],
+    itemIdentities: { family: 'choice', optionIds: ['option-c', 'option-d'] },
+    answerKey: { family: 'choice', acceptedOptionItemIds: ['option-c'] },
+  }],
+  scoring: { mode: 'auto-where-possible' },
 });
 
 describe('activityDiff.service', () => {
-  it('classifies Activity changes into no-redo regrade and redo-required outcomes', () => {
-    const oldVersion = version(editable(), 'v1');
+  it('classifies display, regrade, structural redo, and context changes', () => {
+    const before = activity();
+    expect(diffActivities(before, { ...activity(), title: 'Renamed' }))
+      .toMatchObject({ classification: 'display-only', requiresRedo: false });
+    const regraded = activity();
+    regraded.answerRule.defaultPoints = 2;
+    expect(diffActivities(before, regraded))
+      .toMatchObject({ classification: 'regrade', requiresRedo: false });
+    const changedPrompt = activity();
+    changedPrompt.interactions[0]!.prompt = 'A structurally different prompt';
+    expect(diffActivities(before, changedPrompt))
+      .toMatchObject({ classification: 'redo-required', requiresRedo: true });
+    expect(diffActivities(before, {
+      ...activity(), contextRequirement: { mode: 'required', acceptedKinds: ['image'] },
+    })).toMatchObject({ classification: 'presentation-context', requiresRedo: false });
+  });
 
-    expect(classifyActivityChange(oldVersion, version(editable({ title: 'Renamed' }), 'v2')).classification)
-      .toBe('no-redo');
-    expect(classifyActivityChange(oldVersion, version(editable({ scoring: { points: 2 } }), 'v3')).classification)
-      .toBe('recalculate-no-redo');
-    expect(classifyActivityChange(oldVersion, version(editable({
-      answerRule: { type: 'single-choice', correctChoiceIndexes: [1] },
-    }), 'v4')).classification).toBe('regrade-no-redo');
-    expect(classifyActivityChange(
-      version(editable({
-        answerRule: { type: 'rubric', rubric: 'Old' },
-        interactions: [{ family: 'long-response', prompt: 'Explain.', responseShape: 'paragraph' }],
-      }), 'v5'),
-      version(editable({
-        answerRule: { type: 'rubric', rubric: 'New' },
-        interactions: [{ family: 'long-response', prompt: 'Explain.', responseShape: 'paragraph' }],
-      }), 'v6'),
-    ).classification).toBe('teacher-regrade-no-redo');
-    expect(classifyActivityChange(oldVersion, version(editable({
-      interactions: [
-        { family: 'choice', prompt: 'Pick another.', choices: ['A', 'B'] },
-      ],
-    }), 'v7')).classification).toBe('redo-required');
-    expect(classifyActivityChange(oldVersion, version(editable({ contextRequirement: 'required' }), 'v8')).classification)
-      .toBe('redo-required');
+  it('treats pure stable-identity interaction reorder as explicit no-redo', () => {
+    const before = activity();
+    const after = activity();
+    after.interactions.reverse();
+    expect(diffActivities(before, after)).toEqual({
+      classification: 'reordered', reasons: ['interaction-reordered'], requiresRedo: false,
+    });
   });
 });
