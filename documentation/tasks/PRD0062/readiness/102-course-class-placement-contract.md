@@ -26,6 +26,15 @@ Rules are represented by `database.rules.json`; notification production remains 
 
 The shared contract and direct-Course vertical are implemented through commits `b0d2de8b` and `81194bd8`. Local focused proof covers accepted-publication selection, durable placement and direct-enrolment authority, guarded canonical Delivery issuance, exact `courseMaterialId` resolution, isolated result identity including duplicate same-Activity placements, all-required-Activity completion aggregation, default-off exact Course-derived Homework credit, migration/rollback, and teacher/student components. The presentation and Worker route gates remain default-disabled. #103 may now consume this contract; #104 remains the thin launch dispatcher. Active rules, authenticated browser, deployed, and canary proof remain exclusively with #118, #130, and #134 and are not claimed here.
 
+## 2026-08-09 downstream integration note
+
+#103 and #104 have now consumed this frozen contract on the integrated lineage;
+their implementation does not change #102 identity or authority. The original
+#102 validator intentionally examines a bounded successor allowlist from its
+2026-08-05 proof boundary, so it reports later #103/#104/#106/#107 paths as
+`baseline_head_stale`. That is historical-checker scope drift, not evidence that
+#102 should be rebuilt or that the shared placement contract changed.
+
 The validator reads Git tree objects, not working-tree path presence. It rejects duplicate ownership/handoffs, stale baseline ancestry, missing code evidence, incomplete state/failure/proof classes, compatibility or rollback omissions, and unlabeled baseline findings.
 
 ## Trusted Course authority adapter
