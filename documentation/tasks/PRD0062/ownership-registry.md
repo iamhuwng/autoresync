@@ -44,8 +44,8 @@ Populate and maintain this table from live GitHub contracts:
 | Public reference/fork owner | #106/44 | 2026-08-10 | `IMPLEMENTED_LOCAL_VERIFIED_ACCEPTED`; compatibility stabilization and the canonical fork writer/version-1 contract are merged through `5ac9ba9b`. Generated/active rules, authenticated browser, and deployed/canary proof remain with #118/#130/#134. |
 | Remaining impact adapters owner | #107/39D | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED through `16567771`; read-only only, no snapshot persistence |
 | Impact snapshot owner | #108/39C | 2026-08-10 | `IMPLEMENTED_LOCAL_VERIFIED_ACCEPTED` at `94ddf39a`; immutable all-context snapshot, fingerprint/TTL, persistence/indexes, ownership denial, read projection, teacher review, and inactive `39C.json` are locally verified. No delivery mutation, generated-rules, browser-session, or deployed claim. |
-| Update ledger/finalizer owners | #109/40A, #110/40C | 2026-08-10 | #109 `IN_PROGRESS_PRIMARY_SERIALIZED`; #110 remains blocked by #109. |
-| Update case owners | #111–#114/40B–41C | 2026-08-04 | BLOCKED by the shared ledger/finalizer |
+| Update ledger/finalizer owners | #109/40A, #110/40C | 2026-08-10 | `IMPLEMENTED_LOCAL_VERIFIED_ACCEPTED`; #109 ledger at `63b9981c`, #110 post-commit finalizer at `b4d95e30`. No deployed proof. |
+| Update case owners | #111–#114/40B–41C | 2026-08-10 | #112 `IN_PROGRESS_PRIMARY_SERIALIZED`; #111/#113/#114 remain pending their ordered implementation lanes. |
 | Replacement owners | #115–#119/45–47 | 2026-08-04 | BLOCKED by update/impact producers |
 | Generated-rules owner | #118/09E | 2026-08-10 | `PARTIAL_STANDING_LANE_BLOCKED_FINAL_PRODUCERS`; safe manifest/composer/conflict validation accepted at `5e2b609d`. No final generated/assembled/active rules claim until all producer fragments are final. |
 | Recovery owners | #120–#125/48B–49E | 2026-08-04 | BLOCKED by replacement and prior recovery stage |
