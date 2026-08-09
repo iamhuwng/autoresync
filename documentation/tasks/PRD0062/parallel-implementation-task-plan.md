@@ -18,8 +18,9 @@ The S1/S2 scheduling prose below is retained as historical sequence but is no
 longer the current frontier. #103, #104, #106, and #107 are integrated and
 locally accepted. #106's canonical fork writer/version-1 contract is merged
 through `5ac9ba9b`, releasing #108. #108 is locally accepted at `94ddf39a`;
-#109/#110 are accepted at `63b9981c`/`b4d95e30`; #112 is now the primary
-serialized critical-path lane. In parallel, #118's safe
+#109/#110 are accepted at `63b9981c`/`b4d95e30`; #112 is accepted at
+`1c30bf19`. The requested #108 → #109 → #110 → #112 serialized slice is locally
+complete; no later case lane is implicitly dispatched. In parallel, #118's safe
 manifest/composer/conflict validation is accepted at `5e2b609d`; it cannot
 claim final generated/assembled/active rules until every
 producer fragment is final. #135 local refusal-safe preparation is accepted at
@@ -43,8 +44,8 @@ continues.
 ## Current stage — post-S2 integration correction and S3 readiness
 
 S0 exits passed. #102, #103, #104, #106, and #107 are locally verified on the
-integrated lineage. #108/#109/#110 are locally accepted and #112 is in progress
-as the primary serialized readiness lane. #118 may continue consuming inactive producer fragments without claiming
+integrated lineage. #108/#109/#110/#112 are locally accepted; the requested
+serialized slice is complete. #118 may continue consuming inactive producer fragments without claiming
 aggregate rules closure. #135's local preparation is accepted; remote
 measurement remains deferred.
 
