@@ -14,6 +14,7 @@ import {
   createMaterialBooksRepository,
   listPublicBookReviewQueue,
   listTeacherBooks,
+  planMaterialBookTreeUpdate,
   rejectPublicBookReview,
   returnPublicBookToPrivate,
   updateBookMetadata,
@@ -446,7 +447,7 @@ describe('materialBooks.service', () => {
     const nextNode = node({
       nodeId: materialCatalogIds.nodeId('chapter-1'),
       type: 'chapter',
-      order: 1,
+      order: 2,
     });
 
     await expect(
@@ -475,6 +476,99 @@ describe('materialBooks.service', () => {
       'material_catalog/book_nodes/book-1/chapter-1': expect.any(Object),
       'material_catalog/books/book-1': expect.objectContaining({ status: 'ready' }),
     });
+  });
+
+  it('plans the complete Book, index, and material-summary mirror update without I/O', () => {
+    const current = metadata({ updatedAt: 'base' });
+    const nextNode = node({
+      materialRefs: [{
+        refId: materialCatalogIds.refId('fork-ref'),
+        materialId: 'fork-activity',
+        materialKind: 'interactive-activity',
+        snapshotVersionId: 'fork-version',
+        titleSnapshot: 'Forked activity',
+        testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+        visibilitySnapshot: 'private',
+        availability: 'available',
+        updateState: 'current',
+        ownerIdSnapshot: current.ownerId,
+        order: 0,
+        addedAt: NOW,
+        addedBy: current.ownerId,
+      }],
+    });
+
+    const plan = planMaterialBookTreeUpdate({
+      current,
+      previousNodes: [node()],
+      nextNodes: [nextNode],
+      expectedUpdatedAt: 'base',
+      now: NOW,
+      context: {
+        actorId: current.ownerId,
+        actorRole: 'teacher',
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+    });
+
+    expect(plan.metadata).toMatchObject({ updatedAt: NOW, updatedBy: current.ownerId });
+    expect(plan.nodes[0]?.updatedAt).toBe(NOW);
+    expect(plan.updates).toMatchObject({
+      'material_catalog/books/book-1': expect.objectContaining({ updatedAt: NOW }),
+      'material_catalog/book_nodes/book-1/node-1': expect.objectContaining({
+        materialRefs: expect.arrayContaining([expect.objectContaining({ refId: 'fork-ref' })]),
+      }),
+      'material_catalog/book_indexes/by_owner/teacher-1/book-1': expect.any(Object),
+      'material_catalog/material_summary_indexes/v1/by_id/book-1': expect.any(Object),
+    });
+  });
+
+  it('scopes a canonical fork plan to the target node while validating the full tree', () => {
+    const current = metadata({ updatedAt: 'base' });
+    const target = node({ updatedAt: 'before' });
+    const sibling = node({
+      nodeId: materialCatalogIds.nodeId('node-2'),
+      title: 'Unrelated section',
+      order: 2,
+      updatedAt: 'before',
+    });
+    const nextTarget = {
+      ...target,
+      materialRefs: [{
+        refId: materialCatalogIds.refId('fork-ref'),
+        materialId: 'fork-activity',
+        materialKind: 'interactive-activity' as const,
+        snapshotVersionId: 'fork-version',
+        titleSnapshot: 'Forked activity',
+        testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+        visibilitySnapshot: 'private' as const,
+        availability: 'available' as const,
+        updateState: 'current' as const,
+        ownerIdSnapshot: current.ownerId,
+        order: 0,
+        addedAt: NOW,
+        addedBy: current.ownerId,
+      }],
+    };
+
+    const plan = planMaterialBookTreeUpdate({
+      current,
+      previousNodes: [target, sibling],
+      nextNodes: [nextTarget, sibling],
+      touchedNodeIds: [target.nodeId],
+      expectedUpdatedAt: 'base',
+      now: NOW,
+      context: {
+        actorId: current.ownerId,
+        actorRole: 'teacher',
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+    });
+
+    expect(plan.nodes.find((entry) => entry.nodeId === target.nodeId)?.updatedAt).toBe(NOW);
+    expect(plan.nodes.find((entry) => entry.nodeId === sibling.nodeId)?.updatedAt).toBe('before');
+    expect(plan.updates).toHaveProperty('material_catalog/book_nodes/book-1/node-1');
+    expect(plan.updates).not.toHaveProperty('material_catalog/book_nodes/book-1/node-2');
   });
 
   it('does not perform partial Book writes when an atomic metadata update fails', async () => {

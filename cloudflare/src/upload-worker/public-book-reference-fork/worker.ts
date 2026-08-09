@@ -1,19 +1,30 @@
 import {
   createPublicBookReferenceForkService,
   PublicBookReferenceForkError,
+  validatePublicBookCanonicalForkRequest,
 } from '../../../../src/services/materialCatalog/publicBookReferenceFork.service.ts';
 import { PublicBookReferenceForkRolloutGate } from '../../../../src/services/materialCatalog/publicBookReferenceFork.rolloutGate.ts';
 import type {
+  PublicBookCanonicalForkWriter,
   PublicBookDocumentIssuer,
   PublicBookReferenceForkService,
   PublicBookReferenceForkStore,
   PublicBookSourceContextChoice,
 } from '../../../../src/services/materialCatalog/publicBookReferenceFork.types.ts';
 import { FirebaseRestPublicBookReferenceForkRepository } from './repository.ts';
+import { createPublicBookCanonicalForkWriter } from './writer.ts';
+import type { PublicBookCanonicalForkRepository } from './writer.ts';
+import {
+  createPublicBookCanonicalForkTokenProvider,
+  type PublicBookCanonicalForkTokenClaims,
+} from './token.ts';
+import {
+  FirebaseRestExactPublishedActivityVersionReader,
+} from '../book-assembly/canonical-activity-version-repository.ts';
 import type { RepositoryEnv } from '../listening-authoring/rtdb.ts';
 
 const MAX_REQUEST_BYTES = 32 * 1024;
-const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9:_-]{0,159}$/u;
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@_-]{0,159}$/u;
 const ROLES = ['student', 'teacher', 'super_admin'] as const;
 type PublicBookRole = (typeof ROLES)[number];
 const MUTATION_ACTIONS = new Set(['reference', 'migrate', 'adopt', 'rollback']);
@@ -24,6 +35,12 @@ export const isPublicBookReferenceForkPath = (pathname: string): boolean =>
 export interface PublicBookReferenceForkWorkerEnv extends RepositoryEnv {
   readonly PUBLIC_BOOK_REFERENCE_FORK_ENABLED?: string;
   readonly PUBLIC_BOOK_REFERENCE_FORK_ROLLBACK?: string;
+  readonly PUBLIC_BOOK_CANONICAL_FORK_ENABLED?: string;
+  readonly PUBLIC_BOOK_CANONICAL_FORK_MUTATIONS_ENABLED?: string;
+  readonly PUBLIC_BOOK_CANONICAL_FORK_SERVICE_IDENTITY?: string;
+  readonly PUBLIC_BOOK_CANONICAL_FORK_GOOGLE_SA_KEY?: string;
+  readonly BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY?: string;
+  readonly BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY?: string;
 }
 
 type HandlerContext = {
@@ -172,16 +189,76 @@ export interface PublicBookReferenceForkWorkerOptions {
   readonly now?: () => string;
   readonly createId?: (kind: string) => string;
   readonly documentIssuer?: PublicBookDocumentIssuer;
+  readonly canonicalForkEnabled?: boolean;
+  readonly canonicalForkMutationsEnabled?: boolean;
+  readonly canonicalForkWriter?: PublicBookCanonicalForkWriter;
+  readonly canonicalForkRepository?: PublicBookCanonicalForkRepository;
+  readonly resolveCanonicalForkRole?: (
+    uid: string,
+    env: PublicBookReferenceForkWorkerEnv,
+  ) => Promise<PublicBookRole | null>;
 }
+
+const flag = (value: string | boolean | undefined): boolean =>
+  value === true || (typeof value === 'string' && value.trim().toLowerCase() === 'true');
+
+const authoritativeRole = async (
+  uid: string,
+  env: PublicBookReferenceForkWorkerEnv,
+  resolver: PublicBookReferenceForkWorkerOptions['resolveCanonicalForkRole'],
+): Promise<PublicBookRole | null> => {
+  if (resolver) return resolver(uid, env);
+  if (typeof env.readDatabaseValue !== 'function') return null;
+  const profile = await env.readDatabaseValue(`users/${uid}`);
+  if (!isRecord(profile)
+    || profile.forceReauth === true
+    || profile.status === 'blocked'
+    || profile.status === 'inactive'
+    || profile.status === 'suspended'
+    || !ROLES.includes(profile.role as PublicBookRole)) return null;
+  return profile.role as PublicBookRole;
+};
 
 export const createPublicBookReferenceForkWorkerHandlers = (
   options: PublicBookReferenceForkWorkerOptions = {},
 ) => {
   const storeFor = (env: PublicBookReferenceForkWorkerEnv): PublicBookReferenceForkStore =>
     options.store ?? new FirebaseRestPublicBookReferenceForkRepository({ env });
+  const canonicalRepositoryFor = (
+    env: PublicBookReferenceForkWorkerEnv,
+  ): PublicBookCanonicalForkRepository => {
+    if (options.canonicalForkRepository) return options.canonicalForkRepository;
+    const exactReader = env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY
+      && env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY
+      ? new FirebaseRestExactPublishedActivityVersionReader({
+        env: {
+          ...env,
+          BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY:
+            env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY,
+          BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY:
+            env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY,
+        },
+      })
+      : undefined;
+    if (!exactReader) throw new Error('missing_public_book_canonical_fork_exact_reader');
+    const tokenProvider = createPublicBookCanonicalForkTokenProvider({ env });
+    return new FirebaseRestPublicBookReferenceForkRepository({
+      env,
+      canonicalForkExactReader: exactReader,
+      getCanonicalForkFirebaseAuthToken: (claims) =>
+        tokenProvider(claims as unknown as PublicBookCanonicalForkTokenClaims),
+    });
+  };
+  const canonicalWriterFor = (
+    env: PublicBookReferenceForkWorkerEnv,
+  ): PublicBookCanonicalForkWriter => options.canonicalForkWriter ?? createPublicBookCanonicalForkWriter({
+    repository: canonicalRepositoryFor(env),
+  });
   const serviceFor = (env: PublicBookReferenceForkWorkerEnv): PublicBookReferenceForkService =>
     options.service ?? (() => {
       const rollout = PublicBookReferenceForkRolloutGate.fromEnvironment(env);
+      const canonicalEnabled = options.canonicalForkEnabled
+        ?? flag(env.PUBLIC_BOOK_CANONICAL_FORK_ENABLED);
       return createPublicBookReferenceForkService({
         store: storeFor(env),
         now: options.now,
@@ -189,6 +266,13 @@ export const createPublicBookReferenceForkWorkerHandlers = (
         mutationsEnabled: options.mutationsEnabled === true && rollout.enabled,
         rollbackEnabled: rollout.rollback,
         documentIssuer: options.documentIssuer,
+        canonicalForkEnabled: canonicalEnabled,
+        canonicalForkMutationsEnabled: options.canonicalForkMutationsEnabled
+          ?? flag(env.PUBLIC_BOOK_CANONICAL_FORK_MUTATIONS_ENABLED),
+        canonicalForkWriter: canonicalEnabled
+          && (options.canonicalForkMutationsEnabled ?? flag(env.PUBLIC_BOOK_CANONICAL_FORK_MUTATIONS_ENABLED))
+          ? canonicalWriterFor(env)
+          : undefined,
       });
     })();
 
@@ -203,21 +287,46 @@ export const createPublicBookReferenceForkWorkerHandlers = (
         throw new PublicBookReferenceForkError('method-not-allowed', 'POST is required.', 405);
       }
       safeId(uid, 'uid');
-      if (!ROLES.includes(role)) {
-        throw new PublicBookReferenceForkError('role-denied', 'Role is not authorized.', 403);
-      }
       const body = await readJson(request);
       if (typeof body.action !== 'string') {
         throw new PublicBookReferenceForkError('request-invalid', 'Action is required.', 400);
       }
-      // Forks have no authorized canonical version-1 writer. Reject before
-      // rollout checks, service construction, or any store access.
       if (body.action === 'fork') {
-        throw new PublicBookReferenceForkError(
-          'fork-disabled',
-          'Public Book Activity forks are disabled pending a canonical writer.',
-          503,
-        );
+        if (!keysWithOptional(body, ['action', 'operationId', 'target', 'selection'], ['context'])) {
+          throw new PublicBookReferenceForkError('request-invalid', 'Canonical fork request is invalid.', 400);
+        }
+        const canonicalEnabled = options.canonicalForkEnabled
+          ?? flag(env.PUBLIC_BOOK_CANONICAL_FORK_ENABLED);
+        const canonicalMutationsEnabled = options.canonicalForkMutationsEnabled
+          ?? flag(env.PUBLIC_BOOK_CANONICAL_FORK_MUTATIONS_ENABLED);
+        if (!compositionEnabled || !canonicalEnabled || !canonicalMutationsEnabled) {
+          throw new PublicBookReferenceForkError(
+            'fork-disabled',
+            'Public Book Activity forks are disabled pending the canonical writer gate.',
+            503,
+          );
+        }
+        if (rollout.rollback) {
+          throw new PublicBookReferenceForkError(
+            'feature-rollback',
+            'Public Book reference/fork writes are blocked by deny-only rollback.',
+            503,
+          );
+        }
+        const forkInput = {
+          actorId: uid,
+          operationId: typeof body.operationId === 'string' ? body.operationId : '',
+          target: targetFromBody(body.target),
+          selection: selectionFromBody(body.selection),
+          context: contextFromBody(body.context),
+        };
+        validatePublicBookCanonicalForkRequest(forkInput);
+        const authoritative = await authoritativeRole(uid, env, options.resolveCanonicalForkRole);
+        if (authoritative !== 'teacher' && authoritative !== 'super_admin') {
+          throw new PublicBookReferenceForkError('role-denied', 'Teacher ownership is required.', 403);
+        }
+        const service = serviceFor(env);
+        return responseFor(await service.fork(forkInput));
       }
       if (!compositionEnabled) {
         throw new PublicBookReferenceForkError(
@@ -225,6 +334,9 @@ export const createPublicBookReferenceForkWorkerHandlers = (
           'Public Book reference/fork is disabled.',
           503,
         );
+      }
+      if (!ROLES.includes(role)) {
+        throw new PublicBookReferenceForkError('role-denied', 'Role is not authorized.', 403);
       }
       if (MUTATION_ACTIONS.has(body.action)
         && PublicBookReferenceForkRolloutGate.fromEnvironment(env).rollback) {

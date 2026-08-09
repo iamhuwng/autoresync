@@ -172,6 +172,35 @@ export interface PublicBookReferencePlacementRecord {
   readonly createdBy: string;
 }
 
+export interface PublicBookCanonicalForkCommand {
+  readonly actorId: string;
+  readonly operationId: string;
+  readonly target: PublicBookReferenceTarget;
+  readonly selection: PublicBookSelectionRequest;
+  readonly context: PublicBookSourceContextChoice;
+}
+
+export interface PublicBookCanonicalForkPlacementResult {
+  readonly state: 'present' | 'moved' | 'removed';
+  readonly bookId: string;
+  readonly originalNodeId: string;
+  readonly currentNodeId?: string;
+  readonly refId: string;
+}
+
+export interface PublicBookCanonicalForkResult {
+  readonly status: 'created' | 'replayed';
+  readonly operationId: string;
+  readonly activityId: string;
+  readonly activityVersionId: string;
+  readonly activityVersion: 1;
+  readonly placement: PublicBookCanonicalForkPlacementResult;
+}
+
+export interface PublicBookCanonicalForkWriter {
+  fork(input: PublicBookCanonicalForkCommand): Promise<PublicBookCanonicalForkResult>;
+}
+
 export interface PublicBookCatalogView {
   readonly bookId: string;
   readonly title: string;
@@ -248,6 +277,9 @@ export interface PublicBookReferenceForkServiceOptions {
   readonly createId?: PublicBookReferenceForkIdFactory;
   readonly mutationsEnabled?: boolean;
   readonly rollbackEnabled?: boolean;
+  readonly canonicalForkEnabled?: boolean;
+  readonly canonicalForkMutationsEnabled?: boolean;
+  readonly canonicalForkWriter?: PublicBookCanonicalForkWriter;
   readonly documentIssuer?: PublicBookDocumentIssuer;
 }
 
@@ -301,8 +333,7 @@ export interface PublicBookReferenceForkService {
     readonly reference: PublicBookReferenceRecord;
     readonly receipt: PublicBookReferenceMigrationReceipt;
   }>;
-  /** Permanently fail closed until a separately authorized canonical writer exists. */
-  fork(input: PublicBookReferenceForkMutationInput): Promise<never>;
+  fork(input: PublicBookReferenceForkMutationInput): Promise<PublicBookCanonicalForkResult>;
   status(input: {
     readonly actorId: string;
     readonly referenceId: string;
