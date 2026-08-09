@@ -1,6 +1,6 @@
 # PRD0062 implementation task plan
 
-Status: `CURRENT` as of 2026-08-09. Product authority:
+Status: `CURRENT` as of 2026-08-10. Product authority:
 [PRD](prd-book-based-interactive-activity-runtime-and-assembly.md). Readiness
 authority:
 [implementation-readiness analysis](implementation-readiness-analysis-2026-08-04.md).
@@ -12,21 +12,17 @@ closed artifact owner, #127/51A, is `REOPEN_REQUIRED_ARTIFACT`; this does not
 change the published count until formally accepted. Closed product behavior is
 consumed from accepted commits and is never scheduled for reimplementation.
 
-## 2026-08-09 dispatch update
+## 2026-08-10 dispatch update
 
 The S1/S2 scheduling prose below is retained as historical sequence but is no
-longer the current frontier. #103, #104, and #107 are integrated and locally
-verified. #106 is at `SAFE_COMPATIBILITY_STABILIZATION_ONLY`: retired Activity
-imports/helpers are repaired against the canonical schema/type model;
-reference/resolve/runtime/migration paths are preserved behind existing
-default-off gates; fork is fail-closed with HTTP 503
-before service/store access; and the unused fork/reference panel is deleted.
-Focused #106 validation is green for 19 root + 6 Cloudflare tests, plus 10
-runtime-registry tests for the shared projection validator. #106 is
-**not complete or accepted** because the canonical fork writer/version-1
-contract is absent. Keep #108 blocked until that contract is reviewed and
-accepted, then dispatch #108 as the next serialized readiness lane. See
-[`evidence/106-compatibility-stabilization-2026-08-09.json`](evidence/106-compatibility-stabilization-2026-08-09.json).
+longer the current frontier. #103, #104, #106, and #107 are integrated and
+locally accepted. #106's canonical fork writer/version-1 contract is merged
+through `5ac9ba9b`, releasing #108. #108 is now the primary serialized
+critical-path lane. In parallel, #118 is limited to manifest/composer/conflict
+validation and cannot claim final generated/assembled/active rules until every
+producer fragment is final. #135 local refusal-safe preparation is accepted at
+`a155f55e`/`9fc08ebe`; its representative remote measurement waits stable
+routes and #118 and requires separate remote-access authorization.
 
 ## Dispatch rule
 
@@ -44,12 +40,11 @@ continues.
 
 ## Current stage — post-S2 integration correction and S3 readiness
 
-S0 exits passed. #102, #103, #104, and #107 are locally verified on the
-integrated lineage. #106's retired Activity compatibility drift is stabilized,
-but its canonical fork writer/version-1 contract must be reviewed and accepted
-before #106 local acceptance. #108 remains blocked until that gate; it is the
-next serialized readiness lane afterward. #118 may continue consuming inactive
-producer fragments without claiming aggregate rules closure.
+S0 exits passed. #102, #103, #104, #106, and #107 are locally verified on the
+integrated lineage. #108 is in progress as the primary serialized readiness
+lane. #118 may continue consuming inactive producer fragments without claiming
+aggregate rules closure. #135's local preparation is accepted; remote
+measurement remains deferred.
 
 | Lane | Outcome | Exit |
 |---|---|---|
@@ -63,9 +58,9 @@ The historical S0 block is satisfied. Do not schedule #102 for reimplementation.
 
 | Stage | Foundation first | Vertical work and safe parallelism | Synchronization exit |
 |---:|---|---|---|
-| S1 | #102 froze the shared exact Course/Class placement contract; #103 is locally verified. #106's retired Activity compatibility is stabilized but not accepted pending its canonical fork writer/version-1 contract. | Review and accept only #106's remaining canonical writer/contract boundary. #118 may ingest accepted inactive fragments; #135 read-only demand modeling may proceed without final claims. | #106 accepts its canonical writer/types/helpers, paths, fragment, migration/rollback, fixtures, and focused proof without rewriting adjacent domains. |
+| S1 | #102 froze the shared exact Course/Class placement contract; #103 and #106 are locally accepted. | Satisfied. #118 may ingest accepted inactive fragments. | #106 canonical writer/types/helpers, paths, fragment, migration/rollback, fixtures, and focused proof are accepted without rewriting adjacent domains. |
 | S2 | #104 consumes the frozen #102/#103 launch projections; #107 consumes #101's adapter contract. | **Locally satisfied:** #104 launch composition and #107 read-only impact adapters are integrated and locally verified. | Course/Class local launch and bounded adapter proof are recorded; downstream proof remains open. |
-| S3 | After #106's canonical fork writer/version-1 contract is accepted, #108 freezes the immutable all-context impact snapshot, TTL/fingerprint, persistence, review, and denial contract. | Blocked until the #106 gate; then the next serialized contract lane. | No context is missing or uncertain before update design starts. |
+| S3 | #108 freezes the immutable all-context impact snapshot, TTL/fingerprint, persistence, review, and denial contract. | **In progress:** primary serialized contract lane. | No context is missing or uncertain before update design starts. |
 | S4 | #109 freezes the complete update ledger/state matrix; #110 freezes one post-commit finalizer using #100. | Prove #112 as the first simple handler. Then #111, #113, and #114 may run in disjoint modules; shared ledger/schema edits remain serialized. #115 read-only replacement planning can proceed after #108/#109. | All update cases consume one ledger, notification, replay, and fixture contract; replacement token plan accepted. |
 | S5 | #116 freezes the aggregate/item replacement saga and visibility point. | #116 → #117 context adoption/revocation → #119 exact retired-byte deletion. | All old deliveries revoked before exact provider deletion; deletion outcomes recorded for recovery/inventory. |
 | S6A | #118 continuously ingests producer fragments and rejects conflicts. | Final generation/assembled emulator/active rules proof begins only after all fragments are final. | Deterministic generated rules, legacy preservation, active readback, and rollback accepted. |
@@ -79,7 +74,7 @@ The historical S0 block is satisfied. Do not schedule #102 for reimplementation.
 ```text
 S0 accepted integrated baseline + #127 artifact correction
   -> #102 shared Course/Class placement contract + Course vertical [LOCAL VERIFIED]
-  -> (#103 Class vertical || #106 safe compatibility stabilization)
+  -> (#103 Class vertical || #106 public/fork vertical) [LOCAL ACCEPTED]
   -> (#104 launch || #107 adapters)
   -> #108 complete impact snapshot
   -> #109 update ledger -> #110 finalizer -> #112 proving handler
@@ -103,13 +98,13 @@ not merely because multiple issue nodes are graph-clear.
 - **S0:** lineage integration, #127 artifact conformance, and read-only baseline
   inventory may run concurrently if they do not edit the same planning or
   generated artifacts.
-- **S1 verticals:** #103 Class/copy is locally verified. #106's compatibility
-  stabilization is bounded and safe, but its canonical fork writer/version-1
-  contract remains serialized; #108 cannot start until acceptance.
+- **S1 verticals:** #103 Class/copy and #106 public/fork are locally accepted;
+  #108 has started from their frozen outputs.
 - **Standing aggregation:** #118 may develop composer/manifest/conflict checks
   and consume fragments incrementally; it cannot generate final proof early.
-- **Standing cost lane:** #135 may build the refusal-safe read-only demand model
-  early; representative/final evidence waits stable routes and #118.
+- **Standing cost lane:** #135 refusal-safe local preparation is accepted;
+  representative/final remote evidence waits stable routes, #118, and separate
+  remote-access authorization.
 - **S2:** #104 runtime dispatch and #107 read-only discovery are independent.
 - **S4 cases:** after #109/#110 and the #112 proving handler, case modules may
   parallelize. Any change to shared ledger, authority, schema, route registry,
