@@ -104,8 +104,9 @@ Foundation Pilot is a gate inside P3/P4, not Full V1 completion. After accepted 
 
 Historical validator text retained verbatim: Current packet is P2. That pointer
 is superseded for execution. #102, #103, #104, #106, and #107 are locally accepted on
-the integrated lineage. #108 is the active primary serialized snapshot lane.
-#118 remains limited to safe manifest/composer/conflict validation until all
+the integrated lineage. #108 is locally accepted at `94ddf39a`; #109 is the
+active primary serialized ledger lane. #118's safe manifest/composer/conflict
+validation is accepted at `5e2b609d` and remains limited to that scope until all
 producer fragments are final. Final rules, authenticated browser,
 activation, deployment, canary, cost, and pilot gates remain deferred to their
 named live-ticket owners.

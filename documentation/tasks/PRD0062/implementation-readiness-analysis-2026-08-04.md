@@ -34,8 +34,9 @@ pilot proof remain with their existing owners.
 
 The 2026-08-09 #106 gate is superseded. Compatibility stabilization and the
 canonical fork writer/version-1 contract are accepted through merge
-`5ac9ba9b`; #108 is unblocked and is the primary serialized critical-path lane.
-#118 may continue only its safe manifest/composer/conflict-validation work and
+`5ac9ba9b`; #108 is locally accepted at `94ddf39a`, and #109 is the primary
+serialized critical-path lane. #118's safe manifest/composer/conflict-validation
+slice is accepted at `5e2b609d`; it may continue only that standing work and
 must not claim final generated, assembled, or active rules before all producer
 fragments are final. #135 refusal-safe local preparation is accepted at
 `a155f55e`, merged by `9fc08ebe`; representative remote measurement remains
@@ -105,7 +106,7 @@ reimplement closed tickets.
 | Inventory actual production routes, schemas/paths/indexes, rules fragments, fixtures, and evidence harnesses consumed by remaining work. | Planning/integration owner | Readiness packets for the next stage with no unnamed cross-ticket foundation. |
 
 The Stage 0 block is satisfied. #102, #103, #104, #106, and #107 are locally
-accepted. #108 is now the active serialized snapshot lane.
+accepted. #108 is locally accepted; #109 is now the active serialized ledger lane.
 
 Stage 0 must resolve these known branch/baseline contradictions without
 silently assigning them to #102:

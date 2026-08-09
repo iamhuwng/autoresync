@@ -17,9 +17,10 @@ consumed from accepted commits and is never scheduled for reimplementation.
 The S1/S2 scheduling prose below is retained as historical sequence but is no
 longer the current frontier. #103, #104, #106, and #107 are integrated and
 locally accepted. #106's canonical fork writer/version-1 contract is merged
-through `5ac9ba9b`, releasing #108. #108 is now the primary serialized
-critical-path lane. In parallel, #118 is limited to manifest/composer/conflict
-validation and cannot claim final generated/assembled/active rules until every
+through `5ac9ba9b`, releasing #108. #108 is locally accepted at `94ddf39a`, and
+#109 is now the primary serialized critical-path lane. In parallel, #118's safe
+manifest/composer/conflict validation is accepted at `5e2b609d`; it cannot
+claim final generated/assembled/active rules until every
 producer fragment is final. #135 local refusal-safe preparation is accepted at
 `a155f55e`/`9fc08ebe`; its representative remote measurement waits stable
 routes and #118 and requires separate remote-access authorization.
@@ -41,8 +42,8 @@ continues.
 ## Current stage — post-S2 integration correction and S3 readiness
 
 S0 exits passed. #102, #103, #104, #106, and #107 are locally verified on the
-integrated lineage. #108 is in progress as the primary serialized readiness
-lane. #118 may continue consuming inactive producer fragments without claiming
+integrated lineage. #108 is locally accepted and #109 is in progress as the
+primary serialized readiness lane. #118 may continue consuming inactive producer fragments without claiming
 aggregate rules closure. #135's local preparation is accepted; remote
 measurement remains deferred.
 
@@ -60,7 +61,7 @@ The historical S0 block is satisfied. Do not schedule #102 for reimplementation.
 |---:|---|---|---|
 | S1 | #102 froze the shared exact Course/Class placement contract; #103 and #106 are locally accepted. | Satisfied. #118 may ingest accepted inactive fragments. | #106 canonical writer/types/helpers, paths, fragment, migration/rollback, fixtures, and focused proof are accepted without rewriting adjacent domains. |
 | S2 | #104 consumes the frozen #102/#103 launch projections; #107 consumes #101's adapter contract. | **Locally satisfied:** #104 launch composition and #107 read-only impact adapters are integrated and locally verified. | Course/Class local launch and bounded adapter proof are recorded; downstream proof remains open. |
-| S3 | #108 freezes the immutable all-context impact snapshot, TTL/fingerprint, persistence, review, and denial contract. | **In progress:** primary serialized contract lane. | No context is missing or uncertain before update design starts. |
+| S3 | #108 freezes the immutable all-context impact snapshot, TTL/fingerprint, persistence, review, and denial contract. | **Locally satisfied:** accepted at `94ddf39a`; downstream browser/deployed proof remains with its named owners. | No context is missing or uncertain before update design starts. |
 | S4 | #109 freezes the complete update ledger/state matrix; #110 freezes one post-commit finalizer using #100. | Prove #112 as the first simple handler. Then #111, #113, and #114 may run in disjoint modules; shared ledger/schema edits remain serialized. #115 read-only replacement planning can proceed after #108/#109. | All update cases consume one ledger, notification, replay, and fixture contract; replacement token plan accepted. |
 | S5 | #116 freezes the aggregate/item replacement saga and visibility point. | #116 → #117 context adoption/revocation → #119 exact retired-byte deletion. | All old deliveries revoked before exact provider deletion; deletion outcomes recorded for recovery/inventory. |
 | S6A | #118 continuously ingests producer fragments and rejects conflicts. | Final generation/assembled emulator/active rules proof begins only after all fragments are final. | Deterministic generated rules, legacy preservation, active readback, and rollback accepted. |
