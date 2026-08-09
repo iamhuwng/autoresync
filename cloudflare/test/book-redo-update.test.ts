@@ -288,34 +288,58 @@ describe('book redo update executor', () => {
     expect(current.finalizerCalls.value).toBe(0);
   });
 
-  it('replays a new projection without resetting a later new-authority answer', async () => {
-    const projection: BookRedoCurrentProjection = {
-      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
-      bindingId: 'redo:action-1:homework:1:student-1', bindingRevision: 4,
+  it('sets new action provenance and preserves it across safe replay', async () => {
+    let projection: BookRedoCurrentProjection = {
+      actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      bindingId: 'binding-old', bindingRevision: 3,
       activities: [{
-        placementId: 'placement-1', activityVersionId: 'new-version-1', required: true, completionStatus: 'in-progress',
-        answerState: { answer: 'new-authority-answer' }, attemptCount: 1, attemptEligibility: 'eligible', evaluationRevision: 1,
+        placementId: 'placement-1', activityVersionId: 'old-version-1', required: true, completionStatus: 'in-progress',
+        answerState: { answer: 'old-answer' }, attemptCount: 1, attemptEligibility: 'eligible', evaluationRevision: 1,
         earnedScore: null, maximumScore: null, correctionNote: null, feedbackRelease: 'hidden',
       }],
       completion: {
-        schemaVersion: 1, actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
-        bindingId: 'redo:action-1:homework:1:student-1', bindingRevision: 4,
+        schemaVersion: 1, actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+        bindingId: 'binding-old', bindingRevision: 3,
         requiredPlacementIds: ['placement-1'], completedPlacementIds: [], requiredCount: 1, completedCount: 0, status: 'in-progress', activities: [],
       },
     };
     let commitCalls = 0;
     const adapter = createBookRedoCurrentProjectionAdapter({
       async read() { return structuredClone(projection); },
-      async commit() { commitCalls += 1; return { status: 'conflict' as const }; },
+      async commit(input) {
+        commitCalls += 1;
+        projection = structuredClone(input.projection);
+        return { status: 'applied' as const };
+      },
     });
-    await expect(adapter.apply({
+    const input = {
       operationId: 'action-1:redo:homework:1:homework-1:student-1:redo-exclusion',
       actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
       bindingId: 'redo:action-1:homework:1:student-1', bindingRevision: 4,
       previousBindingId: 'binding-old', previousBindingRevision: 3,
       selectedPlacementIds: ['placement-1'], nextActivityVersionIds: { 'placement-1': 'new-version-1' },
-    })).resolves.toMatchObject({ status: 'replayed', projection: { activities: [{ answerState: { answer: 'new-authority-answer' } }] } });
-    expect(commitCalls).toBe(0);
+    } as const;
+    await expect(adapter.apply(input)).resolves.toMatchObject({ status: 'applied' });
+    expect(projection.actionId).toBe('action-1');
+    expect(projection.completion.actionId).toBe('action-1');
+    projection = {
+      ...projection,
+      activities: projection.activities.map((activity) => ({
+        ...activity,
+        answerState: { answer: 'new-authority-answer' },
+        attemptCount: 1,
+      })),
+    };
+    await expect(adapter.apply(input)).resolves.toMatchObject({
+      status: 'replayed',
+      projection: { actionId: 'action-1', activities: [{ answerState: { answer: 'new-authority-answer' } }] },
+    });
+    expect(commitCalls).toBe(1);
+    projection = { ...projection, actionId: 'different-action' };
+    await expect(adapter.apply(input)).resolves.toMatchObject({
+      status: 'conflict',
+      code: 'current-projection-replay-mismatch',
+    });
   });
 
   it('keeps the inactive 40B producer contract deny-only above exact service paths', () => {

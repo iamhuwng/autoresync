@@ -155,7 +155,8 @@ export const createBookRedoCurrentProjectionAdapter = (
       && current.bindingRevision === input.bindingRevision;
     if (!currentIsOld && !currentIsNew) return { status: 'conflict', code: 'binding-revision-stale' };
     if (currentIsNew) {
-      if (current.completion.bindingId !== input.bindingId
+      if (current.actionId !== input.actionId
+        || current.completion.bindingId !== input.bindingId
         || current.completion.bindingRevision !== input.bindingRevision) {
         return { status: 'conflict', code: 'current-projection-replay-mismatch' };
       }
@@ -190,6 +191,7 @@ export const createBookRedoCurrentProjectionAdapter = (
     if (completion.status !== 'projected') return { status: 'conflict', code: completion.code };
     const projection: BookRedoCurrentProjection = {
       ...clone(current),
+      actionId: input.actionId,
       bindingId: input.bindingId,
       bindingRevision: input.bindingRevision,
       activities,
