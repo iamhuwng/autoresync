@@ -1,11 +1,4 @@
-import type {
-  BookActivityCandidateRecord,
-  BookActivityDraftRecord,
-  BookActivityEditableJson,
-  BookActivityMaterialRecord,
-  BookActivityStudentSafeProjection,
-  BookActivityVersionRecord,
-} from '../../types/bookActivity.types';
+import type { StudentActivityProjection } from '../../types/bookActivity.types';
 
 export const PUBLIC_BOOK_REFERENCE_FORK_SCHEMA_VERSION = 1 as const;
 
@@ -74,9 +67,7 @@ export interface PublicBookActivitySelectionSnapshot {
   readonly title: string;
   readonly order: number;
   readonly selectionPath: readonly string[];
-  readonly projection: BookActivityStudentSafeProjection;
-  /** Trusted server-side source used only when creating an owned fork. */
-  readonly canonicalVersion?: BookActivityVersionRecord;
+  readonly projection: StudentActivityProjection;
 }
 
 export interface PublicBookSelectionSnapshot {
@@ -170,7 +161,7 @@ export interface PublicBookReferenceRecord {
 
 export interface PublicBookReferencePlacementRecord {
   readonly schemaVersion: typeof PUBLIC_BOOK_REFERENCE_FORK_SCHEMA_VERSION;
-  readonly placementKind: 'public-book-reference' | 'forked-activity';
+  readonly placementKind: 'public-book-reference';
   readonly target: PublicBookReferenceTarget;
   readonly materialId: string;
   readonly materialKind: 'interactive-activity' | 'book-reference';
@@ -179,50 +170,6 @@ export interface PublicBookReferencePlacementRecord {
   readonly referenceId?: string;
   readonly createdAt: string;
   readonly createdBy: string;
-}
-
-export interface PublicBookForkHistoryRecord {
-  readonly schemaVersion: typeof PUBLIC_BOOK_REFERENCE_FORK_SCHEMA_VERSION;
-  readonly historyKind: 'public-book-fork';
-  readonly forkId: string;
-  readonly forkedActivityId: string;
-  /** Candidate identity is the first immutable fork revision, not a published source version. */
-  readonly candidateVersionId: string;
-  readonly candidateId: string;
-  readonly draftId: string;
-  readonly source: PublicBookReferenceSource & {
-    readonly sourceActivityId: string;
-    readonly sourceActivityVersionId: string;
-  };
-  readonly target: PublicBookReferenceTarget;
-  readonly context: PublicBookSourceContextChoice;
-  readonly createdAt: string;
-  readonly createdBy: string;
-}
-
-export interface PublicBookForkMaterialProvenance {
-  readonly source: 'fork';
-  readonly forkedFromMaterialId: string;
-  readonly forkedFromVersionId: string;
-  readonly sourceBookId: string;
-  readonly sourcePublicationId: string;
-  readonly sourcePublicationRevision: number;
-  readonly sourceSelectionPath: readonly string[];
-  readonly createdAt: string;
-  readonly createdBy: string;
-}
-
-export interface PublicBookForkMaterialRecord
-  extends Omit<BookActivityMaterialRecord, 'provenance'> {
-  readonly provenance: PublicBookForkMaterialProvenance;
-}
-
-export interface PublicBookForkedActivity {
-  readonly material: PublicBookForkMaterialRecord;
-  readonly candidate: BookActivityCandidateRecord;
-  readonly draft: BookActivityDraftRecord;
-  readonly candidateVersionId: string;
-  readonly sourceActivityVersionId: string;
 }
 
 export interface PublicBookCatalogView {
@@ -275,12 +222,6 @@ export interface PublicBookReferenceForkStore {
     readonly operationId: string;
     readonly reference: PublicBookReferenceRecord;
     readonly placement: PublicBookReferencePlacementRecord;
-  }): Promise<void>;
-  writeForkMutation(input: {
-    readonly operationId: string;
-    readonly placements: readonly PublicBookReferencePlacementRecord[];
-    readonly activities: readonly PublicBookForkedActivity[];
-    readonly history: readonly PublicBookForkHistoryRecord[];
   }): Promise<void>;
 }
 
@@ -360,11 +301,8 @@ export interface PublicBookReferenceForkService {
     readonly reference: PublicBookReferenceRecord;
     readonly receipt: PublicBookReferenceMigrationReceipt;
   }>;
-  fork(input: PublicBookReferenceForkMutationInput): Promise<{
-    readonly activities: readonly PublicBookForkedActivity[];
-    readonly history: readonly PublicBookForkHistoryRecord[];
-    readonly placements: readonly PublicBookReferencePlacementRecord[];
-  }>;
+  /** Permanently fail closed until a separately authorized canonical writer exists. */
+  fork(input: PublicBookReferenceForkMutationInput): Promise<never>;
   status(input: {
     readonly actorId: string;
     readonly referenceId: string;

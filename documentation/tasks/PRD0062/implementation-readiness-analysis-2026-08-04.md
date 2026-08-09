@@ -9,14 +9,24 @@ Stage 0 passed. #102 then completed its full dependency chain—authority produc
 ## 2026-08-09 execution update
 
 The 2026-08-05 S1/S2 status above is superseded. #103, #104, and #107 are now
-integrated and locally verified; #106 is integrated but requires a canonical
-Activity schema/type compatibility investigation and accepted repair before
-local verification. The
-aggregate evidence and non-claims are recorded in
-[`evidence/post-104-integration-validation-2026-08-09.json`](evidence/post-104-integration-validation-2026-08-09.json).
-After that #106 gate, #108 is the next serialized readiness lane. Final
-rules, authenticated browser, deployment, activation, canary, cost, and pilot
-proof remain with their existing owners.
+integrated and locally verified. #106 has a bounded safe compatibility
+stabilization: retired Activity imports/helpers now use the canonical schema/
+type model; reference, resolve, runtime, and migration paths are preserved
+behind existing default-off gates; fork is
+explicitly fail-closed with HTTP 503 before service/store access; and the
+unused fork/reference panel is deleted. Focused #106 validation is green for
+19 root + 6 Cloudflare tests; the shared projection validator remains green for
+10 runtime-registry tests, and the adjacent regression is green for 44 root +
+6 Cloudflare tests. This is
+`SAFE_COMPATIBILITY_STABILIZATION_ONLY`, not #106 completion or acceptance,
+because the canonical fork writer/version-1 contract is absent. #108 remains
+blocked until that contract is reviewed and accepted. The aggregate baseline
+and non-claims remain recorded in
+[`evidence/post-104-integration-validation-2026-08-09.json`](evidence/post-104-integration-validation-2026-08-09.json);
+the stabilization evidence is
+[`evidence/106-compatibility-stabilization-2026-08-09.json`](evidence/106-compatibility-stabilization-2026-08-09.json).
+Final rules, authenticated browser, deployment, activation, canary, cost, and
+pilot proof remain with their existing owners.
 
 This analysis revises how the whole remaining PRD0062 program is executed. It
 does not make #100 a special case. #59, #100, and #101 are evidence of a
@@ -81,8 +91,10 @@ reimplement closed tickets.
 | Inventory actual production routes, schemas/paths/indexes, rules fragments, fixtures, and evidence harnesses consumed by remaining work. | Planning/integration owner | Readiness packets for the next stage with no unnamed cross-ticket foundation. |
 
 The Stage 0 block is satisfied. #102, #103, #104, and #107 are locally
-verified. #106 is integrated but gated on canonical Activity schema/type
-compatibility review and repair; #108 follows only after that acceptance.
+verified. #106's retired Activity compatibility drift is stabilized locally,
+but #106 remains unaccepted until the canonical fork writer/version-1 contract
+is reviewed and accepted. #108 remains blocked and follows only after that
+acceptance.
 
 Stage 0 must resolve these known branch/baseline contradictions without
 silently assigning them to #102:
@@ -108,7 +120,7 @@ silently assigning them to #102:
 | Tickets | Foundation pass that must finish first | Vertical work after foundation freeze | Avoided backtracking |
 |---|---|---|---|
 | #102–#104 | **Satisfied locally:** #102 froze the additive exact Course/Class Book placement contract; #103 consumed it for Class/copy; #104 composed the exact launch projections. | #102, #103, and #104 are locally verified. Active rules, authenticated browser, deployment, and activation remain downstream. | #103 did not invent a second binding model; bare-`materialId` readers remain legacy-only. |
-| #106–#108 | #106 contains the public reference/fork vertical but must reconcile retired Activity types/helpers with the canonical schema model. #107's bounded adapters are locally verified. | Accept the smallest #106 compatibility repair, then freeze #108's complete immutable all-context snapshot and TTL/fingerprint contract. | No update executor discovers a missing context after mutation design starts. |
+| #106–#108 | #106's retired Activity imports/helpers are repaired against the canonical schema/type model; reference/resolve/runtime/migration paths are preserved behind existing default-off gates, while fork is fail-closed before service/store. The canonical fork writer/version-1 contract is still absent; #107's bounded adapters are locally verified. | Keep #106 at `SAFE_COMPATIBILITY_STABILIZATION_ONLY` until the canonical writer/version-1 contract is reviewed and accepted; then freeze #108's complete immutable all-context snapshot and TTL/fingerprint contract. | No update executor discovers a missing context after mutation design starts, and #108 does not start while #106 is unaccepted. |
 | #109–#114 | #109 first freezes the all-case update state machine, immutable choices, per-context/student ledger, shared ports, paths/fragments, and crash/replay matrix. #110 freezes one post-commit finalizer using #100. | Prove one simple non-redo handler (#112) against the shared port, then implement #111/#113/#114 in disjoint case modules. Shared ledger/schema edits stay serialized through #109/#110. | Four case tickets do not independently invent ledger, notification, retry, or fixture semantics. |
 | #115–#119 | #115 freezes a read-only complete-context delta/token contract. #116 freezes one aggregate/item saga and single Firebase visibility point. #117 freezes context adoption/revocation; #119 alone owns exact retired-byte deletion. | Planner → saga → context UI/revocation → exact deletion. | Planning cannot mutate; Firebase+B2 atomicity is never assumed; bytes are not deleted before every consumer is revoked. |
 | #118 | Create composer/manifest/conflict-validator scaffolding early and ingest each producer fragment continuously. | Final root generation, full emulator matrix, active hash/readback, legacy preservation, and rollback only after every producer fragment is final. | Producers are never blocked on the aggregate they feed, and late fragment conflicts are detected early. |

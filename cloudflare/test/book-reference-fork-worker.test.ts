@@ -1,31 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { createStudentSafeActivityProjection } from '../../src/services/book-activity/activityProjection.service';
-import { normalizeActivityRevision } from '../../src/services/book-activity/activitySchema.service';
+import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service';
+import { projectStudentActivity } from '../../src/services/book-activity/activityProjection.service';
 import { createInMemoryPublicBookReferenceForkStore } from '../../src/services/materialCatalog/publicBookReferenceFork.repository';
 import { createPublicBookReferenceForkService } from '../../src/services/materialCatalog/publicBookReferenceFork.service';
-import type { BookActivityVersionRecord } from '../../src/types/bookActivity.types';
+import type { EditableActivity } from '../../src/types/bookActivity.types';
 import type { PublicBookSelectionSnapshot } from '../../src/services/materialCatalog/publicBookReferenceFork.types';
+import { FirebaseRestPublicBookReferenceForkRepository } from '../src/upload-worker/public-book-reference-fork/repository';
 import { createPublicBookReferenceForkWorkerHandlers } from '../src/upload-worker/public-book-reference-fork/worker';
 
 const timestamp = '2026-08-05T00:00:00.000Z';
 
-const version: BookActivityVersionRecord = {
-  activityId: 'source-activity',
-  versionId: 'source-version-1',
-  ownerId: 'source-owner',
-  materialKind: 'interactive-activity',
-  content: normalizeActivityRevision({
+const editable: EditableActivity = {
     schemaVersion: 1,
     title: 'Source activity',
+    taskProfile: null,
     presentationMode: 'structured',
-    contextRequirement: 'none',
-    interactions: [{ family: 'choice', prompt: 'Prompt', choices: ['A', 'B'] }],
-    answerRule: { type: 'single-choice', correctChoiceIndexes: [0] },
-    teacherNotes: 'Private note.',
-  }, { idFactory: (() => { let n = 0; return () => 'hidden-' + (++n); })() }),
-  publishedAt: timestamp,
-  publishedBy: 'source-owner',
+    contextRequirement: { mode: 'none', acceptedKinds: [] },
+    instructions: [{ text: 'Choose the correct answer.' }],
+    stimulus: null,
+    assetRefs: [],
+    interaction: { family: 'choice', variant: 'single-choice' },
+    interactions: [{ prompt: 'Prompt', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
+    answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+    scoring: { mode: 'auto-where-possible' },
 };
+let nextId = 0;
+const activity = normalizeActivity(editable, { createId: () => 'hidden-' + (++nextId) });
+const activityId = 'source-activity';
+const versionId = 'source-version-1';
 
 const source: PublicBookSelectionSnapshot = {
   bookId: 'source-book',
@@ -35,13 +37,12 @@ const source: PublicBookSelectionSnapshot = {
   source: { sourceVersionId: 'source-pdf-1', lifecycleState: 'ready', studentSafeStatus: 'ready', documentDeliveryStatus: 'ready' },
   nodes: [{ nodeId: 'unit-1', nodeKind: 'unit', title: 'Unit', order: 0, selectionPath: ['unit-1'] }],
   activities: [{
-    activityId: version.activityId,
-    versionId: version.versionId,
-    title: version.content.title,
+    activityId,
+    versionId,
+    title: activity.title,
     order: 0,
     selectionPath: ['unit-1'],
-    projection: createStudentSafeActivityProjection(version, timestamp),
-    canonicalVersion: version,
+    projection: projectStudentActivity(activity),
   }],
 };
 
@@ -51,7 +52,7 @@ const selection = {
   publicationRevision: source.publication.revision,
   kind: 'activity' as const,
   selectionPath: ['unit-1'],
-  activities: [{ activityId: version.activityId, activityVersionId: version.versionId, order: 0 }],
+  activities: [{ activityId, activityVersionId: versionId, order: 0 }],
 };
 
 const target = { bookId: 'target-book', nodeId: 'target-unit', placementId: 'placement-1' };
@@ -107,7 +108,83 @@ const call = (
   role,
 });
 
+const productionRepositoryFor = (content: unknown, reads: string[] = []) =>
+  new FirebaseRestPublicBookReferenceForkRepository({
+    env: {
+      readDatabaseValue: async (path) => {
+        reads.push(path);
+        if (path === 'material_catalog/public_book_projections/' + source.bookId) {
+          return {
+            ...source,
+            activities: source.activities.map(({ projection: _projection, ...entry }) => entry),
+          };
+        }
+        if (path === 'book_activity/student_safe_projections/' + activityId + '/' + versionId) {
+          return {
+            schemaVersion: 1,
+            projectionKind: 'student-safe',
+            activityId,
+            activityVersionId: versionId,
+            ownerId: 'teacher-1',
+            content,
+            payloadFingerprint: 'fnv1a64:0123456789abcdef',
+            createdByOperationId: 'operation-1',
+            publishedAt: timestamp,
+          };
+        }
+        throw new Error('unexpected read: ' + path);
+      },
+    },
+  });
+
 describe('public Book reference/fork Worker boundary', () => {
+  it('loads the canonical student-safe record without reading the private Activity version', async () => {
+    const reads: string[] = [];
+    const projection = projectStudentActivity(activity);
+    const repository = productionRepositoryFor(projection, reads);
+
+    const loaded = await repository.readPublicBook(source.bookId);
+
+    expect(loaded?.activities[0]?.projection.answerRule).toEqual(projection.answerRule);
+    expect(reads).toEqual([
+      'material_catalog/public_book_projections/' + source.bookId,
+      'book_activity/student_safe_projections/' + activityId + '/' + versionId,
+    ]);
+    expect(reads.some((path) => path.includes('book_activity/versions/'))).toBe(false);
+  });
+
+  it('fails closed when a stored projection violates canonical runtime rules', async () => {
+    const projection = projectStudentActivity(activity);
+    const invalidLongResponse = {
+      ...projection,
+      interaction: { family: 'long-response', variant: 'draft-response' },
+      interactions: projection.interactions.map(({ options: _options, ...entry }) => ({
+        ...entry,
+        family: 'long-response',
+      })),
+      answerRule: { defaultPoints: 0, normalization: 'exact' },
+      scoring: { mode: 'auto-where-possible', feedbackVisibility: 'none' },
+    };
+    await expect(productionRepositoryFor(invalidLongResponse).readPublicBook(source.bookId))
+      .resolves.toBeNull();
+
+    const incompleteSourceAssisted = {
+      ...projection,
+      presentationMode: 'source-assisted',
+      contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+      interactions: projection.interactions.map((entry) => ({
+        ...entry,
+        sourceAssisted: {
+          questionLabel: 'Question 1',
+          accessiblePrompt: 'Choose one answer.',
+          responseShape: 'matching',
+        },
+      })),
+    };
+    await expect(productionRepositoryFor(incompleteSourceAssisted).readPublicBook(source.bookId))
+      .resolves.toBeNull();
+  });
+
   it('is hard-disabled by default before it reads or mutates storage', async () => {
     const { store } = setup();
     const handlers = createPublicBookReferenceForkWorkerHandlers({ store });
@@ -146,34 +223,43 @@ describe('public Book reference/fork Worker boundary', () => {
     expect(JSON.stringify(runtime.body)).not.toMatch(/objectKey|provider|privateAsset|bucketBinding/i);
   });
 
-  it('enforces server-derived teacher ownership and creates fork identities only for the owner', async () => {
-    const { service, store } = setup();
-    const handlers = createPublicBookReferenceForkWorkerHandlers({ service, enabled: true });
-    const wrongOwner = await call(handlers, {
-      action: 'fork',
-      target,
-      selection,
-    }, 'teacher-2', 'teacher');
-    expect(wrongOwner.init.status).toBe(403);
-    expect(wrongOwner.body).toEqual({ code: 'target-owner-denied' });
-
+  it('rejects fork before service construction or any store access', async () => {
+    let storeAccesses = 0;
+    let serviceAccesses = 0;
+    const options = {
+      // Keep composition enabled so this proves the action guard, rather than
+      // the general rollout gate, prevents service construction.
+      enabled: true,
+      store: {
+        readPublicBook: async () => { storeAccesses += 1; return null; },
+        readTargetBook: async () => { storeAccesses += 1; return null; },
+        readEntitlement: async () => { storeAccesses += 1; return null; },
+        readCurrentReference: async () => { storeAccesses += 1; return null; },
+        readReferenceRevision: async () => { storeAccesses += 1; return null; },
+        writeReferenceMutation: async () => { storeAccesses += 1; },
+      },
+    };
+    Object.defineProperty(options, 'service', {
+      get: () => {
+        serviceAccesses += 1;
+        throw new Error('service must not be constructed for fork');
+      },
+    });
+    const handlers = createPublicBookReferenceForkWorkerHandlers(options);
     const fork = await call(handlers, {
       action: 'fork',
       target,
       selection,
-      operationId: 'fork-operation-1',
     }, 'teacher-1', 'teacher');
-    expect(fork.init.status).toBe(200);
-    expect(fork.body.activities[0].material.activityId).not.toBe(version.activityId);
-    expect(fork.body.activities[0].material.provenance).toMatchObject({
-      source: 'fork',
-      forkedFromMaterialId: version.activityId,
-      forkedFromVersionId: version.versionId,
-    });
-    expect(fork.body.activities[0].candidateVersionId).toBe('v1');
-    expect(store.snapshot().histories).toBeDefined();
+    expect(fork.init.status).toBe(503);
+    expect(fork.body).toEqual({ code: 'fork-disabled' });
+    expect(serviceAccesses).toBe(0);
+    expect(storeAccesses).toBe(0);
 
-    const forged = await call(handlers, {
+    const { service } = setup();
+    const referenceHandlers = createPublicBookReferenceForkWorkerHandlers({ service, enabled: true });
+
+    const forged = await call(referenceHandlers, {
       action: 'reference',
       ownerId: 'teacher-1',
       target,

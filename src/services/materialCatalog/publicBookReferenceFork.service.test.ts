@@ -1,75 +1,70 @@
 import { describe, expect, it } from 'vitest';
-import { createStudentSafeActivityProjection } from '../book-activity/activityProjection.service';
-import { normalizeActivityRevision } from '../book-activity/activitySchema.service';
+import { normalizeActivity } from '../book-activity/activityCanonical.service';
+import { projectStudentActivity } from '../book-activity/activityProjection.service';
 import { createInMemoryPublicBookReferenceForkStore } from './publicBookReferenceFork.repository';
 import {
   createPublicBookReferenceForkService,
   PublicBookReferenceForkError,
 } from './publicBookReferenceFork.service';
+import type { EditableActivity, NormalizedActivity } from '../../types/bookActivity.types';
 import type {
-  BookActivityStudentSafeProjection,
-  BookActivityVersionRecord,
-} from '../../types/bookActivity.types';
-import type {
+  PublicBookReferenceForkStore,
   PublicBookSelectionRequest,
   PublicBookSelectionSnapshot,
 } from './publicBookReferenceFork.types';
 
 const now = '2026-08-05T00:00:00.000Z';
 
-const editable = (contextRequirement: 'none' | 'optional' | 'required' = 'none') => ({
-  schemaVersion: 1 as const,
+const editable = (contextMode: 'none' | 'optional' | 'required' = 'none'): EditableActivity => ({
+  schemaVersion: 1,
   title: 'Source activity',
+  taskProfile: null,
   presentationMode: 'structured' as const,
-  contextRequirement,
-  instructions: 'Choose the best answer.',
+  contextRequirement: {
+    mode: contextMode,
+    acceptedKinds: contextMode === 'none' ? [] : ['book-pages'],
+  },
+  instructions: [{ text: 'Choose the best answer.' }],
+  stimulus: null,
+  assetRefs: [],
+  interaction: { family: 'choice', variant: 'single-choice' },
   interactions: [{
-    family: 'choice' as const,
     prompt: 'Which answer is correct?',
-    choices: ['A', 'B'],
+    options: ['A', 'B'],
+    acceptedOptionIndexes: [0],
   }],
   answerRule: {
-    type: 'single-choice' as const,
-    correctChoiceIndexes: [0],
+    defaultPoints: 1,
+    normalization: 'exact',
+    requiredSelectionCount: 1,
   },
-  teacherNotes: 'Private authoring note.',
+  scoring: { mode: 'auto-where-possible' },
 });
 
-const sourceVersion = (
-  activityId: string,
-  versionId: string,
+const sourceActivity = (
   contextRequirement: 'none' | 'optional' | 'required' = 'none',
-): BookActivityVersionRecord => ({
-  activityId,
-  versionId,
-  ownerId: 'source-owner',
-  materialKind: 'interactive-activity',
-  content: normalizeActivityRevision(editable(contextRequirement), {
-    idFactory: (() => {
-      let next = 0;
-      return () => 'hidden-' + (++next);
-    })(),
-  }),
-  publishedAt: now,
-  publishedBy: 'source-owner',
-});
+): NormalizedActivity => {
+  let next = 0;
+  return normalizeActivity(editable(contextRequirement), { createId: () => 'hidden-' + (++next) });
+};
 
 const publicActivity = (
-  version: BookActivityVersionRecord,
+  activity: NormalizedActivity,
+  activityId: string,
+  versionId: string,
   order: number,
   selectionPath: readonly string[],
 ): PublicBookSelectionSnapshot['activities'][number] => ({
-  activityId: version.activityId,
-  versionId: version.versionId,
-  title: version.content.title,
+  activityId,
+  versionId,
+  title: activity.title,
   order,
   selectionPath,
-  projection: createStudentSafeActivityProjection(version, now),
-  canonicalVersion: version,
+  projection: projectStudentActivity(activity),
 });
 
 const sourceBook = (overrides: Partial<PublicBookSelectionSnapshot> = {}): PublicBookSelectionSnapshot => {
-  const version = sourceVersion('source-activity', 'source-version-1');
+  const activity = sourceActivity();
   return {
     bookId: 'source-book',
     title: 'Public source Book',
@@ -94,7 +89,7 @@ const sourceBook = (overrides: Partial<PublicBookSelectionSnapshot> = {}): Publi
       order: 0,
       selectionPath: ['unit-1'],
     }],
-    activities: [publicActivity(version, 0, ['unit-1'])],
+    activities: [publicActivity(activity, 'source-activity', 'source-version-1', 0, ['unit-1'])],
     ...overrides,
   };
 };
@@ -224,16 +219,10 @@ describe('public Book reference/fork vertical', () => {
       ...mutationInput(),
       actorId: 'teacher-2',
     })).rejects.toMatchObject({ code: 'target-owner-denied' });
-    await expect(service.fork({
-      ...mutationInput(),
-      context: {
-        mode: 'book-source-reference',
-        sourceBookId: 'source-book',
-        sourceVersionId: 'private-source-version',
-        selectionPath: ['unit-1'],
-        pageGroupIds: ['page-1'],
-      },
-    })).rejects.toMatchObject({ code: 'source-context-invalid' });
+    await expect(service.fork(mutationInput())).rejects.toMatchObject({
+      code: 'fork-disabled',
+      statusCode: 503,
+    });
   });
 
   it('prepares an opaque document only for an entitled student-safe runtime', async () => {
@@ -252,7 +241,7 @@ describe('public Book reference/fork vertical', () => {
     expect(JSON.stringify(runtime)).not.toMatch(/objectKey|provider|privateAsset|bucket|answerKey|teacherNotes/i);
   });
 
-  it('creates a pinned reference and a distinct teacher-owned fork with provenance/history', async () => {
+  it('creates a pinned reference without creating a teacher-owned fork', async () => {
     const { service, store } = setup();
     const reference = await service.reference(mutationInput());
     expect(reference).toMatchObject({
@@ -267,26 +256,7 @@ describe('public Book reference/fork vertical', () => {
     });
     expect(JSON.stringify(reference)).not.toMatch(/objectKey|provider|answerKey|teacherNotes/i);
 
-    const fork = await service.fork(mutationInput());
-    expect(fork.activities).toHaveLength(1);
-    expect(fork.activities[0]?.material.activityId).not.toBe('source-activity');
-    expect(fork.activities[0]?.material.ownerId).toBe('teacher-1');
-    expect(fork.activities[0]?.material.provenance).toMatchObject({
-      source: 'fork',
-      forkedFromMaterialId: 'source-activity',
-      forkedFromVersionId: 'source-version-1',
-      sourceBookId: 'source-book',
-    });
-    expect(fork.activities[0]?.candidate.replacementContent).toHaveProperty('answerRule');
-    expect(fork.activities[0]?.candidateVersionId).toBe('v1');
-    expect(fork.activities[0]?.draft.baseVersionId).toBe('source-version-1');
-    expect(fork.history[0]).toMatchObject({
-      historyKind: 'public-book-fork',
-      candidateVersionId: 'v1',
-      source: { sourceActivityId: 'source-activity', sourceActivityVersionId: 'source-version-1' },
-    });
     expect(store.snapshot().currentReferences?.[reference.referenceId]?.revision).toBe(1);
-    expect(store.snapshot().forks?.[fork.activities[0]?.material.activityId ?? '']).toBeDefined();
   });
 
   it('requires an explicit identity-preserving legacy migration and rejects bare material IDs', async () => {
@@ -321,15 +291,15 @@ describe('public Book reference/fork vertical', () => {
   });
 
   it('requires accepted source context for required Activities while preserving optional none', async () => {
-    const requiredVersion = sourceVersion('source-activity', 'source-version-1', 'required');
+    const requiredVersion = sourceActivity('required');
     const source = sourceBook({
-      activities: [publicActivity(requiredVersion, 0, ['unit-1'])],
+      activities: [publicActivity(requiredVersion, 'source-activity', 'source-version-1', 0, ['unit-1'])],
     });
     const { service } = setup(source);
-    await expect(service.fork(mutationInput(activitySelection()))).rejects.toMatchObject({
+    await expect(service.reference(mutationInput(activitySelection()))).rejects.toMatchObject({
       code: 'source-context-required',
     });
-    await expect(service.fork({
+    await expect(service.reference({
       ...mutationInput(activitySelection()),
       context: {
         mode: 'book-source-reference',
@@ -338,13 +308,40 @@ describe('public Book reference/fork vertical', () => {
         selectionPath: ['unit-1'],
         pageGroupIds: ['page-1'],
       },
-    })).resolves.toMatchObject({ activities: [{ material: { provenance: { source: 'fork' } } }] });
+    })).resolves.toMatchObject({ recordKind: 'public-book-reference' });
+
+    const incompatibleProjection = publicActivity(
+      requiredVersion,
+      'source-activity',
+      'source-version-1',
+      0,
+      ['unit-1'],
+    );
+    const incompatible = setup(sourceBook({
+      activities: [{
+        ...incompatibleProjection,
+        projection: {
+          ...incompatibleProjection.projection,
+          contextRequirement: { mode: 'required', acceptedKinds: ['reading-passage'] },
+        },
+      }],
+    })).service;
+    await expect(incompatible.reference({
+      ...mutationInput(activitySelection()),
+      context: {
+        mode: 'book-source-reference',
+        sourceBookId: 'source-book',
+        sourceVersionId: 'source-pdf-1',
+        selectionPath: ['unit-1'],
+        pageGroupIds: ['page-1'],
+      },
+    })).rejects.toMatchObject({ code: 'source-context-invalid' });
   });
 
   it('detects newer upstream versions and rolls an adoption back without deleting history', async () => {
     const { service, store } = setup();
     const reference = await service.reference(mutationInput());
-    const newerVersion = sourceVersion('source-activity', 'source-version-2');
+    const newerVersion = sourceActivity();
     store.replacePublicBook(sourceBook({
       publication: {
         publicationId: 'publication-1',
@@ -353,7 +350,7 @@ describe('public Book reference/fork vertical', () => {
         publishedAt: now,
         updatedAt: now,
       },
-      activities: [publicActivity(newerVersion, 0, ['unit-1'])],
+      activities: [publicActivity(newerVersion, 'source-activity', 'source-version-2', 0, ['unit-1'])],
     }));
     await expect(service.status({ actorId: 'teacher-1', referenceId: reference.referenceId }))
       .resolves.toBe('newer-version-available');
@@ -380,9 +377,7 @@ describe('public Book reference/fork vertical', () => {
     await expect(disabled.reference(mutationInput())).rejects.toMatchObject({
       code: 'feature-disabled',
     });
-    await expect(disabled.fork(mutationInput())).rejects.toMatchObject({
-      code: 'feature-disabled',
-    });
+    await expect(disabled.fork(mutationInput())).rejects.toMatchObject({ code: 'fork-disabled' });
     const rollback = createPublicBookReferenceForkService({
       store,
       mutationsEnabled: true,
@@ -391,5 +386,24 @@ describe('public Book reference/fork vertical', () => {
     await expect(rollback.reference(mutationInput())).rejects.toMatchObject({
       code: 'feature-rollback',
     });
+  });
+
+  it('rejects fork before any source, target, or mutation store access', async () => {
+    let storeReadsOrWrites = 0;
+    const store: PublicBookReferenceForkStore = {
+      readPublicBook: async () => { storeReadsOrWrites += 1; return null; },
+      readTargetBook: async () => { storeReadsOrWrites += 1; return null; },
+      readEntitlement: async () => { storeReadsOrWrites += 1; return null; },
+      readCurrentReference: async () => { storeReadsOrWrites += 1; return null; },
+      readReferenceRevision: async () => { storeReadsOrWrites += 1; return null; },
+      writeReferenceMutation: async () => { storeReadsOrWrites += 1; },
+    };
+    const service = createPublicBookReferenceForkService({ store, mutationsEnabled: true });
+
+    await expect(service.fork(mutationInput())).rejects.toMatchObject({
+      code: 'fork-disabled',
+      statusCode: 503,
+    });
+    expect(storeReadsOrWrites).toBe(0);
   });
 });

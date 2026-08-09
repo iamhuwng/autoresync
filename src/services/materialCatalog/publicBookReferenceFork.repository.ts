@@ -1,7 +1,5 @@
 import type {
   PublicBookEntitlementSnapshot,
-  PublicBookForkedActivity,
-  PublicBookForkHistoryRecord,
   PublicBookReferenceForkStore,
   PublicBookReferencePlacementRecord,
   PublicBookReferenceRecord,
@@ -19,8 +17,6 @@ export interface InMemoryPublicBookReferenceForkState {
   readonly currentReferences?: Readonly<Record<string, PublicBookReferenceRecord>>;
   readonly referenceRevisions?: Readonly<Record<string, Readonly<Record<string, PublicBookReferenceRecord>>>>;
   readonly placements?: Readonly<Record<string, PublicBookReferencePlacementRecord>>;
-  readonly forks?: Readonly<Record<string, PublicBookForkedActivity>>;
-  readonly histories?: Readonly<Record<string, PublicBookForkHistoryRecord>>;
 }
 
 export interface InMemoryPublicBookReferenceForkStore
@@ -45,9 +41,7 @@ export const createInMemoryPublicBookReferenceForkStore = (
     );
   }
   const placements = new Map(Object.entries(initial.placements ?? {}).map(([key, value]) => [key, clone(value)]));
-  const forks = new Map(Object.entries(initial.forks ?? {}).map(([key, value]) => [key, clone(value)]));
-  const histories = new Map(Object.entries(initial.histories ?? {}).map(([key, value]) => [key, clone(value)]));
-  const operations = new Map<string, 'reference' | 'fork'>();
+  const operations = new Map<string, 'reference'>();
 
   const saveReference = (reference: PublicBookReferenceRecord): void => {
     const revisions = referenceRevisions.get(reference.referenceId) ?? new Map();
@@ -89,24 +83,6 @@ export const createInMemoryPublicBookReferenceForkStore = (
       );
       operations.set(input.operationId, 'reference');
     },
-    async writeForkMutation(input) {
-      if (operations.has(input.operationId)) return;
-      for (const activity of input.activities) {
-        if (forks.has(activity.material.activityId)) throw new Error('public_book_fork_identity_conflict');
-        forks.set(activity.material.activityId, clone(activity));
-      }
-      for (const history of input.history) {
-        if (histories.has(history.forkId)) throw new Error('public_book_fork_history_conflict');
-        histories.set(history.forkId, clone(history));
-      }
-      for (const placement of input.placements) {
-        placements.set(
-          placement.target.bookId + ':' + placement.target.nodeId + ':' + placement.target.placementId,
-          clone(placement),
-        );
-      }
-      operations.set(input.operationId, 'fork');
-    },
     snapshot: () => ({
       publicBooks: Object.fromEntries([...publicBooks.entries()].map(([key, value]) => [key, clone(value)])),
       targetBooks: Object.fromEntries([...targetBooks.entries()].map(([key, value]) => [key, clone(value)])),
@@ -117,8 +93,6 @@ export const createInMemoryPublicBookReferenceForkStore = (
         Object.fromEntries([...values.entries()].map(([revision, value]) => [String(revision), clone(value)])),
       ])),
       placements: Object.fromEntries([...placements.entries()].map(([key, value]) => [key, clone(value)])),
-      forks: Object.fromEntries([...forks.entries()].map(([key, value]) => [key, clone(value)])),
-      histories: Object.fromEntries([...histories.entries()].map(([key, value]) => [key, clone(value)])),
     }),
     replacePublicBook: (book) => {
       publicBooks.set(book.bookId, clone(book));
