@@ -269,14 +269,14 @@ export type ActivityDiffClass =
 
 export type ActivityDiff =
   | {
-    classification: 'redo-required' | 'reordered' | 'unsupported';
+    classification: 'redo-required' | 'unsupported';
     reasons: string[];
     requiresRedo: true;
   }
   | {
     classification: Exclude<
       ActivityDiffClass,
-      'redo-required' | 'reordered' | 'unsupported'
+      'redo-required' | 'unsupported'
     >;
     reasons: string[];
     requiresRedo: false;

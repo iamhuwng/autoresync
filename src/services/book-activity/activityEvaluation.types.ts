@@ -23,9 +23,10 @@ export const canonicalActivityEvaluationFingerprint = (value: unknown): string =
   return JSON.stringify(value);
 };
 
-export type BookActivityEvaluationContextKind = 'homework' | 'course' | 'class';
+export type BookActivityEvaluationContextKind = 'solo' | 'homework' | 'course' | 'class';
 export type BookActivityEvaluationCommandKind =
   | 'evaluate_objective'
+  | 'regrade_objective'
   | 'teacher_evaluation'
   | 'regrade';
 
@@ -70,7 +71,7 @@ interface BookActivityEvaluationCommandBase {
 
 export type BookActivityEvaluationCommand =
   | (BookActivityEvaluationCommandBase & {
-      readonly kind: 'evaluate_objective';
+      readonly kind: 'evaluate_objective' | 'regrade_objective';
       readonly evaluation?: never;
     })
   | (BookActivityEvaluationCommandBase & {

@@ -380,7 +380,10 @@ export const isBookScheduleWindowDecision = (
       value.permissions.canSubmit,
       value.permissions.canReview,
     ].every((candidate) => typeof candidate === 'boolean')
-    && (value.outcome === 'allowed') === operationAllowed(value.operation as BookScheduleWindowOperation, value.permissions as BookScheduleWindowPermissions)
+    && (value.outcome === 'allowed') === operationAllowed(
+      value.operation as BookScheduleWindowOperation,
+      value.permissions as unknown as BookScheduleWindowPermissions,
+    )
     && (value.code === 'book_window_allowed') === (value.outcome === 'allowed');
 };
 

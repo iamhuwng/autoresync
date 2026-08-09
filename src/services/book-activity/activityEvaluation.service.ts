@@ -74,7 +74,7 @@ const validTarget = (target: unknown): target is BookActivityEvaluationTarget =>
     target.activityVersionId,
   ];
   if (!ids.every((value) => typeof value === 'string' && ID.test(value))
-    || !['homework', 'course', 'class'].includes(target.contextKind as string)
+    || !['solo', 'homework', 'course', 'class'].includes(target.contextKind as string)
     || !Number.isSafeInteger(target.bindingRevision) || (target.bindingRevision as number) < 1
     || !Number.isSafeInteger(target.activityVersion) || (target.activityVersion as number) < 1
     || !Number.isSafeInteger(target.attemptNumber) || (target.attemptNumber as number) < 1
@@ -114,11 +114,13 @@ const validCommand = (command: unknown): command is BookActivityEvaluationComman
   if (command.schemaVersion !== ACTIVITY_EVALUATION_SCHEMA_VERSION
     || command.scorerVersion !== ACTIVITY_EVALUATION_SCORER_VERSION
     || typeof command.operationId !== 'string' || !ID.test(command.operationId)
-    || !['evaluate_objective', 'teacher_evaluation', 'regrade'].includes(command.kind as string)
+    || !['evaluate_objective', 'regrade_objective', 'teacher_evaluation', 'regrade'].includes(command.kind as string)
     || !Number.isSafeInteger(command.expectedEvaluationRevision)
     || (command.expectedEvaluationRevision as number) < 0
     || !validTarget(command.target)) return false;
-  if (command.kind === 'evaluate_objective') return command.evaluation === undefined;
+  if (command.kind === 'evaluate_objective' || command.kind === 'regrade_objective') {
+    return command.evaluation === undefined;
+  }
   return exactKeys(command.evaluation, ['earnedScore', 'maximumScore'], ['feedback', 'correctionFacts']);
 };
 
@@ -245,7 +247,7 @@ export class TrustedBookActivityEvaluationService {
       }
 
       let facts: BookActivityEvaluationFacts;
-      if (command.kind === 'evaluate_objective') {
+      if (command.kind === 'evaluate_objective' || command.kind === 'regrade_objective') {
         if (safeActor.kind !== 'trusted_scorer'
           || safeActor.serviceIdentity !== this.dependencies.trustedScorerIdentity) {
           return rejected('evaluation_objective_scorer_required');
@@ -259,7 +261,7 @@ export class TrustedBookActivityEvaluationService {
         facts = scored.status === 'review_required'
           ? { status: 'review_required', correctionFacts: [] }
           : { ...scored, correctionFacts: [] };
-      } else {
+      } else if (command.kind === 'teacher_evaluation' || command.kind === 'regrade') {
         if (safeActor.kind !== 'teacher') return rejected('evaluation_actor_unauthorized');
         const authority = await this.dependencies.resolveTeacherAuthority({
           actorUid: safeActor.uid,
@@ -271,9 +273,12 @@ export class TrustedBookActivityEvaluationService {
         const evaluated = teacherFacts(command, resolved);
         if (!evaluated) return rejected('evaluation_teacher_payload_invalid');
         facts = evaluated;
+      } else {
+        return rejected('evaluation_command_unsupported');
       }
 
-      if (command.kind === 'regrade' && command.expectedEvaluationRevision === 0) {
+      if ((command.kind === 'regrade' || command.kind === 'regrade_objective')
+        && command.expectedEvaluationRevision === 0) {
         return rejected('evaluation_stale_revision', 0);
       }
       if (command.kind === 'teacher_evaluation'

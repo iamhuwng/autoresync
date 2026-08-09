@@ -115,8 +115,8 @@ const diff = (
 
 /**
  * Pure deterministic impact classifier. Structural severity wins over display
- * and grading changes; a pure Interaction reorder remains explicit but carries
- * requiresRedo=true per the canonical Activity redo boundary.
+ * and grading changes; a pure Interaction reorder remains explicit and keeps
+ * stable interaction identity, so it does not require redo.
  */
 export const diffActivities = (
   before: NormalizedActivity | null,
@@ -320,7 +320,7 @@ export const diffActivities = (
     return diff('redo-required', reasons, true);
   }
   if (reasons.includes('interaction-reordered')) {
-    return diff('reordered', reasons, true);
+    return diff('reordered', reasons);
   }
   if (reasons.includes('answer-or-scoring')) return diff('regrade', reasons);
   if (reasons.includes('presentation') || reasons.includes('context')) {

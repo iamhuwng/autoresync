@@ -83,8 +83,8 @@ describe('Ticket 39A Book impact classification', () => {
       const result = classifyBookImpact(pair);
       expect(result.effects).toContain(effect);
       if (effect === 'reordered') {
-        expect(result.requiresRedo).toBe(true);
-        expect(result.activityDiff.requiresRedo).toBe(true);
+        expect(result.requiresRedo).toBe(false);
+        expect(result.activityDiff.requiresRedo).toBe(false);
       }
       expect(pair).toEqual(beforeCall);
       expect(Object.isFrozen(result)).toBe(true);
