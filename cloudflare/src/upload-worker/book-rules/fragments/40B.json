@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "40B",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "40B",
+    "issue": 111,
+    "serviceIdentity": "book_update_redo_service",
+    "generatedRuleLocations": [
+      "book_update_checkpoints/.read",
+      "book_update_checkpoints/.write",
+      "book_update_checkpoints/records/.read",
+      "book_update_checkpoints/records/.write",
+      "book_update_checkpoints/records/$ownerId/$checkpointId/.read",
+      "book_update_checkpoints/records/$ownerId/$checkpointId/.write",
+      "book_update_checkpoints/records/$ownerId/$checkpointId/.validate",
+      "book_update_checkpoints/by_student/.read",
+      "book_update_checkpoints/by_student/.write",
+      "book_update_checkpoints/by_student/$ownerId/$contextKey/$studentId/$checkpointId/.read",
+      "book_update_checkpoints/by_student/$ownerId/$contextKey/$studentId/$checkpointId/.write",
+      "book_update_action_recovery/redo_receipts/.read",
+      "book_update_action_recovery/redo_receipts/.write",
+      "book_update_action_recovery/redo_receipts/$ownerId/$actionId/$contextKey/$contextId/$studentId/.read",
+      "book_update_action_recovery/redo_receipts/$ownerId/$actionId/$contextKey/$contextId/$studentId/.write",
+      "book_update_redo/binding_transitions/.read",
+      "book_update_redo/binding_transitions/.write",
+      "book_update_redo/binding_transitions/$ownerId/$actionId/$contextKey/$contextId/$studentId/.read",
+      "book_update_redo/binding_transitions/$ownerId/$actionId/$contextKey/$contextId/$studentId/.write",
+      "book_update_redo/history_exclusions/.read",
+      "book_update_redo/history_exclusions/.write",
+      "book_update_redo/history_exclusions/$ownerId/$actionId/$contextKey/$contextId/$studentId/.read",
+      "book_update_redo/history_exclusions/$ownerId/$actionId/$contextKey/$contextId/$studentId/.write"
+    ],
+    "leastPrivilegePaths": [
+      "book_update_checkpoints/records/$ownerId/$checkpointId",
+      "book_update_checkpoints/by_student/$ownerId/$contextKey/$studentId/$checkpointId",
+      "book_update_action_recovery/redo_receipts/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "book_update_redo/binding_transitions/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "book_update_redo/history_exclusions/$ownerId/$actionId/$contextKey/$contextId/$studentId"
+    ],
+    "backupInventory": "include-metadata",
+    "recoveryLedgerRoot": "book_update_action_recovery"
+  },
+  "operations": [
+    {
+      "path": "book_update_checkpoints",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_checkpoints",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_checkpoints/records",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_checkpoints/records",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_checkpoints/records/$ownerId/$checkpointId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.c == $checkpointId && auth.token.brd.dl >= now && (auth.token.brd.r == true || auth.token.brd.studentId == data.child('studentId').val())"
+    },
+    {
+      "path": "book_update_checkpoints/records/$ownerId/$checkpointId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.c == $checkpointId && auth.token.brd.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('checkpointId').val() == $checkpointId && (!data.exists() || newData.val() == data.val())"
+    },
+    {
+      "path": "book_update_checkpoints/records/$ownerId/$checkpointId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.child('schemaVersion').val() == 1 && newData.child('status').val() == 'review-only' && newData.child('actionId').val() == auth.token.brd.a && newData.child('ownerId').val() == $ownerId && newData.child('checkpointId').val() == $checkpointId && newData.child('contextKey').val() == newData.child('auditContext').child('contextKey').val() && newData.child('contextId').val() == newData.child('auditContext').child('contextId').val() && newData.child('studentId').val() == newData.child('auditContext').child('studentId').val() && !newData.child('completion').exists() && !newData.child('currentGrade').exists() && !newData.child('pdfAuthority').exists() && !newData.child('documentRequest').exists()"
+    },
+    {
+      "path": "book_update_checkpoints/by_student",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_checkpoints/by_student",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_checkpoints/by_student/$ownerId/$contextKey/$studentId/$checkpointId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.contextKey == $contextKey && auth.token.brd.studentId == $studentId && auth.token.brd.c == $checkpointId && auth.token.brd.dl >= now"
+    },
+    {
+      "path": "book_update_checkpoints/by_student/$ownerId/$contextKey/$studentId/$checkpointId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.contextKey == $contextKey && auth.token.brd.studentId == $studentId && auth.token.brd.c == $checkpointId && auth.token.brd.dl >= now && newData.child('checkpointId').val() == $checkpointId && !data.exists()"
+    },
+    {
+      "path": "book_update_action_recovery/redo_receipts",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_action_recovery/redo_receipts",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_action_recovery/redo_receipts/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.a == $actionId && auth.token.brd.contextKey == $contextKey && auth.token.brd.contextId == $contextId && auth.token.brd.studentId == $studentId && auth.token.brd.dl >= now"
+    },
+    {
+      "path": "book_update_action_recovery/redo_receipts/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.a == $actionId && auth.token.brd.contextKey == $contextKey && auth.token.brd.contextId == $contextId && auth.token.brd.studentId == $studentId && auth.token.brd.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('actionId').val() == $actionId && newData.child('bookId').val() == auth.token.brd.bookId && newData.child('contextKey').val() == $contextKey && newData.child('contextId').val() == $contextId && newData.child('studentId').val() == $studentId && ((!data.exists() && newData.child('revision').val() == 1) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1))"
+    },
+    {
+      "path": "book_update_redo",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_redo",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_redo/binding_transitions",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_redo/binding_transitions",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_redo/binding_transitions/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.a == $actionId && auth.token.brd.contextKey == $contextKey && auth.token.brd.contextId == $contextId && auth.token.brd.studentId == $studentId && auth.token.brd.dl >= now"
+    },
+    {
+      "path": "book_update_redo/binding_transitions/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.a == $actionId && auth.token.brd.contextKey == $contextKey && auth.token.brd.contextId == $contextId && auth.token.brd.studentId == $studentId && auth.token.brd.dl >= now && newData.child('bindingId').val() == auth.token.brd.bindingId && newData.child('bindingRevision').val() == auth.token.brd.bindingRevision && newData.child('previousBindingId').val() == auth.token.brd.previousBindingId && newData.child('previousBindingRevision').val() == auth.token.brd.previousBindingRevision && newData.child('status').val() == 'advanced'"
+    },
+    {
+      "path": "book_update_redo/history_exclusions",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_redo/history_exclusions",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_redo/history_exclusions/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.a == $actionId && auth.token.brd.contextKey == $contextKey && auth.token.brd.contextId == $contextId && auth.token.brd.studentId == $studentId && auth.token.brd.dl >= now"
+    },
+    {
+      "path": "book_update_redo/history_exclusions/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.a == $actionId && auth.token.brd.contextKey == $contextKey && auth.token.brd.contextId == $contextId && auth.token.brd.studentId == $studentId && auth.token.brd.dl >= now && newData.child('checkpointId').val() == auth.token.brd.checkpointId && newData.child('oldBindingId').val() == auth.token.brd.oldBindingId && newData.child('oldBindingRevision').val() == auth.token.brd.oldBindingRevision && !newData.child('answerKey').exists() && !newData.child('pdfAuthority').exists() && !newData.child('currentGrade').exists()"
+    }
+  ]
+}
