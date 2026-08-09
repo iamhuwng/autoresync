@@ -1,20 +1,17 @@
-import { createCapacityProbeProviderFromEnv } from './capacity-probe-provider';
-import { readProviderTotalsWorkUnit, type ProviderReconciliationCursor } from './provider-reconciliation';
-import {
-  createTrustedFirebaseRtdbServiceAccountAccessTokenProvider,
-  createTrustedFirebaseSourceUploadRtdbTransaction,
-} from '../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction';
 import {
   getBookSourceUploadProviderTotals,
   SourceUploadRtdbRepository,
   validateBookSourceUploadAccountState,
 } from '../../../src/services/book-source-delivery/sourceUpload.rtdbRepository';
-import {
-  reconcileProviderTotals,
-} from './provider-reconciliation';
 import type { ProviderReconciliationSnapshot } from './capacity-ledger';
+import type { ProviderReconciliationCursor } from './provider-reconciliation';
+import type { CapacityProbeEnvironment } from './capacity-probe-env';
+import { evaluateLocalBaselineDemand } from './capacity-probe-local-baseline';
 
 const PATH = '/internal/book-source-capacity/reconciliation-page';
+const LOCAL_BASELINE_MODE = 'local-baseline';
+const REMOTE_RECONCILIATION_MODE = 'remote-reconciliation';
+const LOCAL_BASELINE_ENVIRONMENT = 'local';
 const MAX_BODY_BYTES = 64 * 1_024;
 const MAX_LEDGER_RESPONSE_BYTES = 32 * 1024 * 1024;
 const BODY_READ_TIMEOUT_MS = 5_000;
@@ -23,6 +20,19 @@ const TOKEN_TTL_MS = 10 * 60 * 1_000;
 const TOKEN_VERSION = 'book-source-capacity-v1';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const LOCAL_BASELINE_ALLOWED_ENV_KEYS = [
+  'BOOK_SOURCE_CAPACITY_PROBE_STATE',
+  'BOOK_SOURCE_CAPACITY_ENVIRONMENT',
+  'BOOK_SOURCE_CAPACITY_PROBE_MODE',
+] as const;
+const LOCAL_BASELINE_CREDENTIAL_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+  'set-cookie',
+  'x-api-key',
+  'x-auth-token',
+]);
 
 interface ExpectedTotals {
   readonly totalBytes: number;
@@ -48,7 +58,7 @@ export const getCanonicalCapacityExpectedTotals = (state: unknown): ExpectedTota
   });
 };
 
-const noStore = (status: number, value: Record<string, string>): Response => new Response(JSON.stringify(value), {
+const noStore = (status: number, value: Record<string, unknown>): Response => new Response(JSON.stringify(value), {
   status, headers: { 'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8' },
 });
 const unavailable = (status: number): Response => noStore(status, { code: 'unavailable' });
@@ -129,6 +139,8 @@ const createTimeoutFetch = (
 const createDefaultExpectedTotalsReader = (
   fetchImpl: typeof fetch,
 ): ExpectedTotalsReader => async (env) => {
+  const { createTrustedFirebaseRtdbServiceAccountAccessTokenProvider } =
+    await import('../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction');
   const databaseUrl = new URL(required(env, 'FIREBASE_DATABASE_URL'));
   if (databaseUrl.protocol !== 'https:'
     || databaseUrl.search
@@ -160,6 +172,10 @@ const createDefaultExpectedTotalsReader = (
 const createDefaultReconciliationSnapshotWriter = (
   fetchImpl: typeof fetch,
 ): ReconciliationSnapshotWriter => async (env, input) => {
+  const {
+    createTrustedFirebaseRtdbServiceAccountAccessTokenProvider,
+    createTrustedFirebaseSourceUploadRtdbTransaction,
+  } = await import('../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction');
   const accessTokenProvider = createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
     serviceAccountEmail: required(env, 'BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL'),
     serviceAccountPrivateKey: required(env, 'BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY'),
@@ -306,6 +322,25 @@ const readJson = async (
   try { return record(JSON.parse(decoder.decode(bytes))); } catch { return null; }
 };
 
+const localBaselineEnvironmentSafe = (env: CapacityProbeEnvironment): boolean => {
+  const keys = Reflect.ownKeys(env);
+  if (keys.length !== LOCAL_BASELINE_ALLOWED_ENV_KEYS.length
+    || keys.some((key) => typeof key !== 'string'
+      || !LOCAL_BASELINE_ALLOWED_ENV_KEYS.includes(key as typeof LOCAL_BASELINE_ALLOWED_ENV_KEYS[number]))) {
+    return false;
+  }
+  return env.BOOK_SOURCE_CAPACITY_PROBE_STATE === 'enabled'
+    && env.BOOK_SOURCE_CAPACITY_ENVIRONMENT === LOCAL_BASELINE_ENVIRONMENT
+    && env.BOOK_SOURCE_CAPACITY_PROBE_MODE === LOCAL_BASELINE_MODE;
+};
+
+const localBaselineRequestSafe = (request: Request): boolean => {
+  for (const [name] of request.headers) {
+    if (LOCAL_BASELINE_CREDENTIAL_HEADERS.has(name.toLowerCase())) return false;
+  }
+  return true;
+};
+
 export interface CapacityProbeWorkerOptions {
   readonly now?: () => number;
   readonly bodyReadTimeoutMs?: number;
@@ -324,13 +359,31 @@ export const createCapacityProbeWorker = (
   const writeReconciliationSnapshot = options.writeReconciliationSnapshot
     ?? createDefaultReconciliationSnapshotWriter(options.fetchImpl ?? fetch);
   return {
-  async fetch(request: Request, env: Record<string, unknown>): Promise<Response> {
+  async fetch(request: Request, env: CapacityProbeEnvironment): Promise<Response> {
     try {
       // State is a secret: absence never activates this internal probe.
       if (env.BOOK_SOURCE_CAPACITY_PROBE_STATE !== 'enabled') return unavailable(503);
-      if (env.BOOK_SOURCE_CAPACITY_ENVIRONMENT !== 'staging') return unavailable(503);
+      const mode = env.BOOK_SOURCE_CAPACITY_PROBE_MODE;
+      if (mode !== undefined && mode !== REMOTE_RECONCILIATION_MODE && mode !== LOCAL_BASELINE_MODE) {
+        return unavailable(503);
+      }
       const url = new URL(request.url);
       if (request.method !== 'POST' || url.pathname !== PATH || url.search) return unavailable(404);
+      if (mode === LOCAL_BASELINE_MODE) {
+        if (!localBaselineEnvironmentSafe(env) || !localBaselineRequestSafe(request)) return unavailable(503);
+        const body = await readJson(request, options.bodyReadTimeoutMs ?? BODY_READ_TIMEOUT_MS);
+        if (!body || !exactKeys(body, ['demand'])) return unavailable(503);
+        const evaluation = evaluateLocalBaselineDemand(body.demand);
+        if (evaluation.status === 'refused') {
+          return unavailable(503);
+        }
+        return noStore(200, {
+          state: 'complete',
+          mode: LOCAL_BASELINE_MODE,
+          demand: evaluation.demand,
+        });
+      }
+      if (env.BOOK_SOURCE_CAPACITY_ENVIRONMENT !== 'staging') return unavailable(503);
       const bearer = required(env, 'BOOK_SOURCE_CAPACITY_PROBE_TOKEN');
       if (!await constantTimeBearer(request, bearer)) return unavailable(401);
       const body = await readJson(
@@ -348,8 +401,13 @@ export const createCapacityProbeWorker = (
         const continuation = await unseal(cursorSecret, body.continuationToken, now); if (!continuation) return unavailable(400);
         expected = continuation.expected; cursor = continuation.cursor;
       } else return unavailable(400);
+      // Keep provider/reconciliation code out of the local baseline module path.
+      const [{ createCapacityProbeProviderFromEnv }, { readProviderTotalsWorkUnit, reconcileProviderTotals }] = await Promise.all([
+        import('./capacity-probe-provider'),
+        import('./provider-reconciliation'),
+      ]);
       const work = await readProviderTotalsWorkUnit({
-        provider: createCapacityProbeProviderFromEnv(env),
+        provider: createCapacityProbeProviderFromEnv(env, { fetch: options.fetchImpl }),
         cursor,
         maxPages: configuredMaxPages(env),
       });
