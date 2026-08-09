@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "kind": "prd0062-106-canonical-fork-writer",
+  "recordedAt": "2026-08-09",
+  "branch": "codex/prd0062-106-canonical-fork-writer",
+  "baseHead": "c25cc1ca64aab637d86026fd939e9617586729e1",
+  "verifiedRemote": "origin/codex/prd0062b-implementation",
+  "verifiedRemoteHead": "c25cc1ca64aab637d86026fd939e9617586729e1",
+  "status": "ACCEPTED",
+  "contract": {
+    "path": "documentation/tasks/PRD0062/106-canonical-fork-writer-contract-2026-08-09.md",
+    "sha256": "c81dd7238a23dae7465cf73236ae28deba5dc94688a143d5259dcdff8af774f8",
+    "trustBoundaryAmendment": "documentation/tasks/PRD0062/106-canonical-fork-writer-trust-boundary-amendment-2026-08-09.md"
+  },
+  "implementedContract": [
+    "Creates a new deterministic Activity ID and immutable canonical Activity version 1 while leaving the source Activity unchanged.",
+    "Pins exact source Book, manifest, publication revision, Activity version, placement set, placement, selection, page, page-group, and optional context provenance.",
+    "Regenerates the student-safe projection from the new canonical Activity and keeps answer-bearing canonical data out of public projections.",
+    "Uses the authenticated Worker actor as ownership authority; caller identity and server-held Firebase capability pins cannot select another owner.",
+    "Commits canonical version, student-safe projection, target Book placement, indexes, summaries, and receipt in one root multi-location PATCH.",
+    "Uses deterministic IDs plus an exact durable receipt for replay, lost acknowledgement, and concurrent duplicate handling without a second physical write.",
+    "Normalizes Firebase's omission of a null context fingerprint on read while retaining strict receipt-key and non-null fingerprint validation.",
+    "Keeps the fork endpoint fail-closed before service construction while the default-off enablement gates remain disabled."
+  ],
+  "trustBoundary": {
+    "authority": "The Worker is the sole exact composite-plan authority; a short-lived server-held capability exposes only scalar path, actor, operation, source, destination, target, semantic append order, zero-based target ref index, deadline, and CAS pins to RTDB Rules.",
+    "rulesLimit": "RTDB Rules do not claim recursive equality or exact authorization for arbitrary maps and arrays. Seven active emulator characterizations document this boundary.",
+    "tokenTransport": "Unchanged. Transport remains a risk-assessment item; no transport rewrite was made without demonstrated exposure or Firebase compatibility evidence.",
+    "atomicity": "One root multi-location PATCH; no locks, reservations, partial prewrites, Admin bypass, or compatibility persistence."
+  },
+  "verification": {
+    "rootContractTests": {
+      "result": "6 files, 59 tests passed"
+    },
+    "providerNeutralWorkerTests": {
+      "runner": "C:/Temp/codex-prd0062-run-fork-provider-neutral-20260809.mjs",
+      "result": "3 files, 29 tests passed; 14 emulator-only tests skipped outside the emulator"
+    },
+    "firebaseRtdbEmulator": {
+      "project": "demo-prd-0062-canonical-fork-rules",
+      "result": "1 file, 14 tests passed",
+      "coverage": "Complete 13-path atomic PATCH, one-based semantic order with a separately pinned zero-based ref index, a Book metadata revision newer than the target node timestamp, wrong-ref-index denial, an RTDB-omitted empty test-type snapshot from a null-task-profile Activity, legitimate writes, scalar/private-data denials, deadline denial, sibling/ancestor/retarget/delete/claim mismatch denials, and seven active server-held capability trust-boundary characterizations."
+    },
+    "eslint": "All 21 changed TypeScript/TSX files passed.",
+    "typescript": "The full repository TypeScript baseline remains non-green in unrelated existing surfaces; filtered output contains no changed-file diagnostics.",
+    "jsonAndRuleHygiene": "Changed rule fragments parse as JSON; retired fork persistence/type patterns are absent.",
+    "diffCheck": "git diff --check passed.",
+    "reviewCorrections": "The replay P1 is cleared. A subsequent Sol FIX_FIRST review identified three normal-production P1s; the writer now binds page-group context to authoritative placement groups, Book CAS no longer incorrectly couples to the node timestamp, and semantic append order is separated from the zero-based target ref index. A fresh Luna/max focused review returned PASS on those corrections. A second Sol FIX_FIRST review found two additional normal seams: production repository reads now normalize RTDB-omitted/null empty materialRefs to [] while rejecting malformed values, and Rules now accept the RTDB-omitted empty testTypeIdsSnapshot produced by a valid null-task-profile Activity. Provider-neutral and emulator regressions cover both. Fresh Sol final acceptance returned SHIP with no remaining P0/P1."
+  },
+  "rolloutBoundary": {
+    "forkGates": "Default off",
+    "generatedActiveRules": false,
+    "deployed": false,
+    "remoteProbe": false,
+    "browserAcceptance": false
+  },
+  "notClaimed": [
+    "generated-active-rules",
+    "deployment",
+    "activation",
+    "canary",
+    "pilot",
+    "authenticated-browser-proof",
+    "PRD0062-108",
+    "PRD0062-118"
+  ],
+  "nextGate": "Publish the accepted isolated branch and open a pull request; keep rollout gates default-off and do not start #108 or #118."
+}

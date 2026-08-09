@@ -4,6 +4,7 @@ import { projectStudentActivity } from '../book-activity/activityProjection.serv
 import {
   assertCanonicalPublishedActivityVersion,
   createCanonicalActivityVersionFingerprint,
+  createCanonicalPublicBookForkPlacementSetFingerprint,
   validateCanonicalPublishedActivityVersion,
   type CanonicalPublishedActivityVersionRecord,
 } from './canonicalActivityVersion.service';
@@ -103,6 +104,59 @@ const revisionRecord = (): CanonicalPublishedActivityVersionRecord => {
   });
 };
 
+const publicForkRecord = (): CanonicalPublishedActivityVersionRecord => {
+  const activity = normalizedActivity();
+  const sourcePlacementIds = ['source-placement-1', 'source-placement-2'] as const;
+  return withFingerprint({
+    ...withoutFingerprint(initialRecord()),
+    activityId: 'fork-activity-1',
+    activityVersionId: 'fork-activity-1-v1',
+    activityVersion: 1,
+    ownerId: 'teacher-target',
+    activity,
+    projection: projectStudentActivity(activity),
+    placementIds: ['target-placement-1'],
+    sourceContextFingerprint: null,
+    createdByOperationId: 'operation-fork-1',
+    provenance: {
+      kind: 'public-book-fork',
+      sourceBookId: 'public-book-1',
+      sourceOwnerId: 'teacher-source',
+      sourceManifestVersionId: 'manifest-public-v1',
+      sourcePublicationId: 'publication-public-1',
+      sourcePublicationRevision: 3,
+      sourceVersionId: 'source-version-1',
+      sourcePublicationBinding: {
+        manifestVersionId: 'manifest-public-v1',
+        publicationId: 'publication-public-1',
+        publicationRevision: 3,
+      },
+      sourceActivityId: 'activity-1',
+      sourceActivityVersionId: 'activity-1-v3',
+      sourceActivityVersion: 3,
+      sourcePayloadFingerprint: initialRecord().payloadFingerprint,
+      sourcePlacementIds,
+      sourcePlacementSetFingerprint: createCanonicalPublicBookForkPlacementSetFingerprint(sourcePlacementIds),
+      sourceNodeKey: 'node-unit-1',
+      sourcePlacementId: 'source-placement-1',
+      sourceUnitKey: 'unit-1',
+      sourceActivityKey: 'unit-1/activity-1',
+      selectionKind: 'activity',
+      selectionPath: ['unit-1', 'activity-1'],
+      selectionOrder: 0,
+      sourcePages: [sourcePage],
+      sourcePageGroupKeys: ['page-group-1'],
+      sourceContextFingerprint: null,
+      targetBookId: 'book-target-1',
+      targetOwnerId: 'teacher-target',
+      targetOriginalNodeId: 'node-target-1',
+      targetPlacementId: 'target-placement-1',
+      targetAppendOrder: 4,
+      targetBookUpdatedAt: '2026-08-09T00:00:00.000Z',
+    },
+  });
+};
+
 const resultErrors = (value: unknown): readonly string[] => {
   const result = validateCanonicalPublishedActivityVersion(value);
   expect(result.valid).toBe(false);
@@ -127,12 +181,108 @@ describe('canonicalActivityVersion.service', () => {
     if (result.valid) expect(result.value.provenance.kind).toBe('activity-revision');
   });
 
+  it('accepts a version-1 public Book fork provenance snapshot', () => {
+    const result = validateCanonicalPublishedActivityVersion(publicForkRecord());
+
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(result.value.activityVersion).toBe(1);
+    expect(result.value.provenance).toMatchObject({
+      kind: 'public-book-fork',
+      sourceActivityId: 'activity-1',
+      targetPlacementId: 'target-placement-1',
+    });
+    expect(result.value.activity.interactions[0]?.answerKey).toEqual({
+      family: 'choice',
+      acceptedOptionItemIds: ['id-1'],
+    });
+    expect(result.value.projection).toEqual(projectStudentActivity(result.value.activity));
+  });
+
+  it('accepts the canonical SHA-256 source-context fingerprint and rejects context drift', () => {
+    const record = publicForkRecord();
+    if (record.provenance.kind !== 'public-book-fork') throw new Error('test fixture provenance mismatch');
+    const sourceContextFingerprint = 'sha256:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq';
+    const withoutFingerprintRecord = {
+      ...withoutFingerprint(record),
+      sourceContextFingerprint,
+      provenance: {
+        ...record.provenance,
+        sourceContextFingerprint,
+      },
+    };
+    const result = validateCanonicalPublishedActivityVersion({
+      ...withoutFingerprintRecord,
+      payloadFingerprint: createCanonicalActivityVersionFingerprint(withoutFingerprintRecord),
+    });
+
+    expect(result.valid).toBe(true);
+    expect(resultErrors({
+      ...record,
+      sourceContextFingerprint,
+    })).toEqual(expect.arrayContaining([expect.stringContaining('context-mismatch')]));
+  });
+
+  it('rejects public fork provenance outside version 1 or with a predecessor', () => {
+    const record = publicForkRecord();
+    expect(resultErrors({
+      ...record,
+      activityVersion: 2,
+      predecessorActivityVersionId: 'activity-1-v1',
+    })).toEqual(expect.arrayContaining([expect.stringContaining('cross-family-mismatch')]));
+    expect(resultErrors({
+      ...record,
+      predecessorActivityVersionId: 'activity-1-v1',
+    })).toEqual(expect.arrayContaining([expect.stringContaining('cross-family-mismatch')]));
+  });
+
+  it('rejects public fork provenance when source pins or destination identity drift', () => {
+    const record = publicForkRecord();
+    if (record.provenance.kind !== 'public-book-fork') throw new Error('test fixture provenance mismatch');
+    const provenance = record.provenance;
+    expect(resultErrors({
+      ...record,
+      activityId: 'activity-1',
+    })).toEqual(expect.arrayContaining([expect.stringContaining('cross-family-mismatch')]));
+    expect(resultErrors({
+      ...record,
+      provenance: {
+        ...provenance,
+        sourcePlacementIds: ['source-placement-2', 'source-placement-1'],
+      },
+    })).toEqual(expect.arrayContaining([expect.stringContaining('not-sorted')]));
+    expect(resultErrors({
+      ...record,
+      provenance: {
+        ...provenance,
+        sourcePlacementSetFingerprint: 'fnv1a64:0000000000000000',
+      },
+    })).toEqual(expect.arrayContaining([expect.stringContaining('fingerprint-mismatch')]));
+    expect(resultErrors({
+      ...record,
+      provenance: {
+        ...provenance,
+        sourcePublicationBinding: {
+          ...provenance.sourcePublicationBinding,
+          publicationRevision: 4,
+        },
+      },
+    })).toEqual(expect.arrayContaining([expect.stringContaining('binding-mismatch')]));
+    expect(resultErrors({
+      ...record,
+      provenance: {
+        ...provenance,
+        forkedFromMaterialId: 'legacy-material-1',
+      },
+    })).toEqual(expect.arrayContaining([expect.stringContaining('unknown-field')]));
+  });
+
   it('rejects payload tampering and a changed projection', () => {
-    const tampered = structuredClone(initialRecord()) as Record<string, unknown>;
+    const tampered = structuredClone(initialRecord()) as unknown as Record<string, unknown>;
     tampered.activity = { ...(tampered.activity as object), title: 'Tampered title' };
     expect(resultErrors(tampered).some((error) => error.includes('fingerprint-mismatch'))).toBe(true);
 
-    const projectionTampered = structuredClone(initialRecord()) as Record<string, unknown>;
+    const projectionTampered = structuredClone(initialRecord()) as unknown as Record<string, unknown>;
     projectionTampered.projection = {
       ...(projectionTampered.projection as object),
       title: 'Tampered projection',

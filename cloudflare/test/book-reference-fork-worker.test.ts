@@ -4,7 +4,10 @@ import { projectStudentActivity } from '../../src/services/book-activity/activit
 import { createInMemoryPublicBookReferenceForkStore } from '../../src/services/materialCatalog/publicBookReferenceFork.repository';
 import { createPublicBookReferenceForkService } from '../../src/services/materialCatalog/publicBookReferenceFork.service';
 import type { EditableActivity } from '../../src/types/bookActivity.types';
-import type { PublicBookSelectionSnapshot } from '../../src/services/materialCatalog/publicBookReferenceFork.types';
+import type {
+  PublicBookReferenceForkStore,
+  PublicBookSelectionSnapshot,
+} from '../../src/services/materialCatalog/publicBookReferenceFork.types';
 import { FirebaseRestPublicBookReferenceForkRepository } from '../src/upload-worker/public-book-reference-fork/repository';
 import { createPublicBookReferenceForkWorkerHandlers } from '../src/upload-worker/public-book-reference-fork/worker';
 
@@ -248,6 +251,7 @@ describe('public Book reference/fork Worker boundary', () => {
     const handlers = createPublicBookReferenceForkWorkerHandlers(options);
     const fork = await call(handlers, {
       action: 'fork',
+      operationId: 'fork-operation-1',
       target,
       selection,
     }, 'teacher-1', 'teacher');
@@ -267,6 +271,55 @@ describe('public Book reference/fork Worker boundary', () => {
     }, 'teacher-1', 'teacher');
     expect(forged.init.status).toBe(400);
     expect(forged.body).toEqual({ code: 'request-invalid' });
+  });
+
+  it('rejects path-unsafe fork IDs before writer or store access', async () => {
+    let storeCalls = 0;
+    let writerCalls = 0;
+    let roleLookups = 0;
+    const store: PublicBookReferenceForkStore = {
+      readPublicBook: async () => { storeCalls += 1; return null; },
+      readTargetBook: async () => { storeCalls += 1; return null; },
+      readEntitlement: async () => { storeCalls += 1; return null; },
+      readCurrentReference: async () => { storeCalls += 1; return null; },
+      readReferenceRevision: async () => { storeCalls += 1; return null; },
+      writeReferenceMutation: async () => { storeCalls += 1; },
+    };
+    const service = createPublicBookReferenceForkService({
+      store,
+      canonicalForkEnabled: true,
+      canonicalForkMutationsEnabled: true,
+      canonicalForkWriter: {
+        fork: async () => {
+          writerCalls += 1;
+          throw new Error('canonical writer must not be called');
+        },
+      },
+    });
+    const handlers = createPublicBookReferenceForkWorkerHandlers({
+      service,
+      enabled: true,
+      canonicalForkEnabled: true,
+      canonicalForkMutationsEnabled: true,
+      resolveCanonicalForkRole: async () => {
+        roleLookups += 1;
+        return 'teacher';
+      },
+    });
+
+    for (const unsafeId of ['target.book', 'target:book']) {
+      const result = await call(handlers, {
+        action: 'fork',
+        operationId: '00000000-0000-4000-8000-000000000001',
+        target: { ...target, bookId: unsafeId },
+        selection,
+      }, 'teacher-1', 'teacher');
+      expect(result.init.status).toBe(400);
+      expect(result.body).toEqual({ code: 'request-invalid' });
+    }
+    expect(storeCalls).toBe(0);
+    expect(writerCalls).toBe(0);
+    expect(roleLookups).toBe(0);
   });
 
   it('routes explicit migration and blocks new writes during deny-only rollback', async () => {

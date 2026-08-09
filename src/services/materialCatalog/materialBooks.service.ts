@@ -388,6 +388,80 @@ const buildBookWithIndexesUpdate = (
   ),
 });
 
+export interface MaterialBookTreeUpdatePlan {
+  readonly metadata: MaterialBookMetadata;
+  readonly nodes: readonly MaterialBookNode[];
+  readonly updates: Readonly<Record<string, unknown | null>>;
+}
+
+export interface MaterialBookTreeUpdatePlanInput {
+  readonly current: MaterialBookMetadata;
+  readonly previousNodes: readonly MaterialBookNode[];
+  readonly nextNodes: readonly MaterialBookNode[];
+  /**
+   * When supplied, only these existing nodes are emitted and timestamped.
+   * Validation and status derivation still use the complete next node set.
+   */
+  readonly touchedNodeIds?: readonly MaterialBookNode['nodeId'][];
+  readonly expectedUpdatedAt?: string;
+  readonly now: string;
+  readonly context: MaterialBookValidationContext;
+}
+
+/**
+ * Pure, mirror-complete Book update planning shared by normal tree saves and
+ * server-side canonical Activity forks. It performs no repository I/O.
+ */
+export const planMaterialBookTreeUpdate = (
+  input: MaterialBookTreeUpdatePlanInput,
+): MaterialBookTreeUpdatePlan => {
+  if (input.expectedUpdatedAt && input.current.updatedAt !== input.expectedUpdatedAt) {
+    throw new Error('Material Book changed since it was loaded; reload before saving.');
+  }
+
+  const nextNodeIds = new Set(input.nextNodes.map((entry) => entry.nodeId));
+  const touchedNodeIds = new Set(input.touchedNodeIds ?? input.nextNodes.map((entry) => entry.nodeId));
+  if (touchedNodeIds.size === 0 && input.nextNodes.length > 0) {
+    throw new Error('Material Book tree planning requires a touched node.');
+  }
+  if ([...touchedNodeIds].some((nodeId) => !nextNodeIds.has(nodeId))) {
+    throw new Error('Material Book tree planning touched an unknown node.');
+  }
+  if (input.touchedNodeIds !== undefined) {
+    const previousNodeIds = new Set(input.previousNodes.map((entry) => entry.nodeId));
+    if (previousNodeIds.size !== nextNodeIds.size
+      || [...previousNodeIds].some((nodeId) => !nextNodeIds.has(nodeId))) {
+      throw new Error('Scoped Material Book tree planning cannot remove or replace nodes.');
+    }
+  }
+  const nodes = input.nextNodes.map((entry) => touchedNodeIds.has(entry.nodeId)
+    ? { ...entry, updatedAt: input.now }
+    : entry);
+  const metadata: MaterialBookMetadata = {
+    ...input.current,
+    status: deriveMaterialBookStatus(nodes, input.current.status === 'archived'),
+    updatedAt: input.now,
+    updatedBy: input.context.actorId,
+  };
+
+  assertValid(validateMaterialBook({ metadata, nodes, context: input.context }));
+
+  const updates: Record<string, unknown | null> = {
+    ...Object.fromEntries(
+      input.previousNodes
+        .filter((previous) => !nextNodeIds.has(previous.nodeId))
+        .map((previous) => [materialCatalogPaths.bookNodes(metadata.bookId, previous.nodeId), null]),
+    ),
+    ...Object.fromEntries(nodes.filter((entry) => touchedNodeIds.has(entry.nodeId)).map((entry) => [
+      materialCatalogPaths.bookNodes(metadata.bookId, entry.nodeId),
+      entry,
+    ])),
+    ...buildBookWithIndexesUpdate(metadata, input.current),
+  };
+
+  return { metadata, nodes, updates };
+};
+
 const requireBook = async (
   repository: MaterialBooksRepository,
   bookId: string,
@@ -514,40 +588,18 @@ export const updateBookTree = async (
   context: MaterialBookValidationContext,
 ): Promise<{ readonly metadata: MaterialBookMetadata; readonly nodes: readonly MaterialBookNode[] }> => {
   const current = await requireBook(repository, bookId);
-
-  if (options.expectedUpdatedAt && current.updatedAt !== options.expectedUpdatedAt) {
-    throw new Error('Material Book changed since it was loaded; reload before saving.');
-  }
-
-  const now = contextNow(context);
-  const nextMetadata: MaterialBookMetadata = {
-    ...current,
-    status: deriveMaterialBookStatus(nodes, current.status === 'archived'),
-    updatedAt: now,
-    updatedBy: context.actorId,
-  };
-
-  assertValid(validateMaterialBook({ metadata: nextMetadata, nodes, context }));
-
   const previousNodes = await repository.listBookNodes(bookId);
-  const nextNodeIds = new Set(nodes.map((entry) => entry.nodeId));
-
-  await commitMaterialBookUpdate(repository, {
-    ...Object.fromEntries(
-      previousNodes
-        .filter((previous) => !nextNodeIds.has(previous.nodeId))
-        .map((previous) => [materialCatalogPaths.bookNodes(bookId, previous.nodeId), null]),
-    ),
-    ...Object.fromEntries(nodes.map((entry) => [
-      materialCatalogPaths.bookNodes(bookId, entry.nodeId),
-      {
-        ...entry,
-        updatedAt: now,
-      },
-    ])),
-    ...buildBookWithIndexesUpdate(nextMetadata, current),
+  const plan = planMaterialBookTreeUpdate({
+    current,
+    previousNodes,
+    nextNodes: nodes,
+    expectedUpdatedAt: options.expectedUpdatedAt,
+    now: contextNow(context),
+    context,
   });
-  return { metadata: nextMetadata, nodes };
+
+  await commitMaterialBookUpdate(repository, plan.updates);
+  return { metadata: plan.metadata, nodes: plan.nodes };
 };
 
 const requireSuperAdmin = (context: MaterialBookValidationContext): void => {

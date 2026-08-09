@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { normalizeActivity } from '../book-activity/activityCanonical.service';
 import { projectStudentActivity } from '../book-activity/activityProjection.service';
 import { createInMemoryPublicBookReferenceForkStore } from './publicBookReferenceFork.repository';
@@ -405,5 +405,85 @@ describe('public Book reference/fork vertical', () => {
       statusCode: 503,
     });
     expect(storeReadsOrWrites).toBe(0);
+  });
+
+  it('rejects fork path IDs before any store or writer access', async () => {
+    let storeReadsOrWrites = 0;
+    const store: PublicBookReferenceForkStore = {
+      readPublicBook: async () => { storeReadsOrWrites += 1; return null; },
+      readTargetBook: async () => { storeReadsOrWrites += 1; return null; },
+      readEntitlement: async () => { storeReadsOrWrites += 1; return null; },
+      readCurrentReference: async () => { storeReadsOrWrites += 1; return null; },
+      readReferenceRevision: async () => { storeReadsOrWrites += 1; return null; },
+      writeReferenceMutation: async () => { storeReadsOrWrites += 1; },
+    };
+    const writer = { fork: vi.fn(async () => { throw new Error('writer must not be called'); }) };
+    const service = createPublicBookReferenceForkService({
+      store,
+      canonicalForkEnabled: true,
+      canonicalForkMutationsEnabled: true,
+      canonicalForkWriter: writer,
+    });
+
+    for (const unsafeId of ['target.book', 'target:book']) {
+      await expect(service.fork({
+        ...mutationInput(),
+        operationId: '00000000-0000-4000-8000-000000000001',
+        target: { ...mutationInput().target, bookId: unsafeId },
+      })).rejects.toMatchObject({ code: 'request-invalid', statusCode: 400 });
+    }
+    expect(storeReadsOrWrites).toBe(0);
+    expect(writer.fork).not.toHaveBeenCalled();
+  });
+
+  it('delegates canonical authorization to the receipt-first writer', async () => {
+    const { store } = setup();
+    const writer = {
+      fork: vi.fn(async (input) => {
+        if (input.actorId === 'teacher-2') {
+          throw new PublicBookReferenceForkError('target-owner-denied', 'Target Book ownership is invalid.', 403);
+        }
+        return {
+          status: 'created' as const,
+          operationId: input.operationId,
+          activityId: 'fork-activity',
+          activityVersionId: 'fork-version',
+          activityVersion: 1 as const,
+          placement: {
+            state: 'present' as const,
+            bookId: input.target.bookId,
+            originalNodeId: input.target.nodeId,
+            refId: input.target.placementId,
+          },
+        };
+      }),
+    };
+    const service = createPublicBookReferenceForkService({
+      store,
+      mutationsEnabled: true,
+      canonicalForkEnabled: true,
+      canonicalForkMutationsEnabled: true,
+      canonicalForkWriter: writer,
+    });
+
+    await expect(service.fork({
+      ...mutationInput(),
+      operationId: '00000000-0000-4000-8000-000000000001',
+    })).resolves.toMatchObject({
+      status: 'created',
+      activityVersion: 1,
+    });
+    expect(writer.fork).toHaveBeenCalledWith(expect.objectContaining({
+      actorId: 'teacher-1',
+      operationId: '00000000-0000-4000-8000-000000000001',
+      context: { mode: 'none' },
+    }));
+
+    await expect(service.fork({
+      ...mutationInput(),
+      actorId: 'teacher-2',
+      operationId: '00000000-0000-4000-8000-000000000002',
+    })).rejects.toMatchObject({ code: 'target-owner-denied' });
+    expect(writer.fork).toHaveBeenCalledTimes(2);
   });
 });

@@ -26,6 +26,8 @@ export const CANONICAL_ACTIVITY_VERSION_LIMITS = {
   maxSourcePages: 256,
   maxMappedBookPageRefs: 256,
   maxProvenanceEvidenceRefs: 128,
+  maxSelectionPath: 32,
+  maxSourcePageGroupKeys: 128,
 } as const;
 
 const ACTIVITY_FAMILIES = [
@@ -40,9 +42,12 @@ const CONTEXT_MODES = ['none', 'optional', 'required'] as const;
 const NORMALIZATIONS = ['exact', 'trim-case-and-spacing'] as const;
 const FEEDBACK_VISIBILITIES = ['none', 'after-submit', 'after-review'] as const;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
-const PATH_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
+// Destination fork identities are SHA-256/base64url and therefore may contain
+// `_`; RTDB path validation must accept the complete base64url alphabet.
+const PATH_ID = /^[A-Za-z0-9][A-Za-z0-9._:@_-]{0,159}$/u;
 const EVIDENCE_REF = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/u;
 const FINGERPRINT = /^fnv1a64:[0-9a-f]{16}$/u;
+const SOURCE_CONTEXT_FINGERPRINT = /^(?:fnv1a64:[0-9a-f]{16}|sha256:[A-Za-z0-9_-]{43})$/u;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u;
 
 export interface CanonicalInitialBookPublicationProvenance {
@@ -75,9 +80,49 @@ export interface CanonicalActivityRevisionProvenance {
   readonly sourceContext?: CanonicalActivityRevisionContext | null;
 }
 
+export interface CanonicalPublicBookForkPublicationBinding {
+  readonly manifestVersionId: string;
+  readonly publicationId: string;
+  readonly publicationRevision: number;
+}
+
+export interface CanonicalPublicBookForkProvenance {
+  readonly kind: 'public-book-fork';
+  readonly sourceBookId: string;
+  readonly sourceOwnerId: string;
+  readonly sourceManifestVersionId: string;
+  readonly sourcePublicationId: string;
+  readonly sourcePublicationRevision: number;
+  readonly sourceVersionId: string;
+  readonly sourcePublicationBinding: CanonicalPublicBookForkPublicationBinding;
+  readonly sourceActivityId: string;
+  readonly sourceActivityVersionId: string;
+  readonly sourceActivityVersion: number;
+  readonly sourcePayloadFingerprint: string;
+  readonly sourcePlacementIds: readonly string[];
+  readonly sourcePlacementSetFingerprint: string;
+  readonly sourceNodeKey: string;
+  readonly sourcePlacementId: string;
+  readonly sourceUnitKey: string;
+  readonly sourceActivityKey: string;
+  readonly selectionKind: 'activity';
+  readonly selectionPath: readonly string[];
+  readonly selectionOrder: number;
+  readonly sourcePages: readonly SourceQualifiedPageIdentity[];
+  readonly sourcePageGroupKeys: readonly string[];
+  readonly sourceContextFingerprint: string | null;
+  readonly targetBookId: string;
+  readonly targetOwnerId: string;
+  readonly targetOriginalNodeId: string;
+  readonly targetPlacementId: string;
+  readonly targetAppendOrder: number;
+  readonly targetBookUpdatedAt: string;
+}
+
 export type CanonicalPublishedActivityVersionProvenance =
   | CanonicalInitialBookPublicationProvenance
-  | CanonicalActivityRevisionProvenance;
+  | CanonicalActivityRevisionProvenance
+  | CanonicalPublicBookForkProvenance;
 
 export interface CanonicalPublishedActivityVersionRecord {
   readonly schemaVersion: 1;
@@ -197,6 +242,14 @@ const validEvidenceRef = (value: unknown, path: string, errors: ValidationErrors
 const validPositiveInteger = (value: unknown, path: string, errors: ValidationErrors): value is number => {
   if (!Number.isSafeInteger(value) || (value as number) <= 0) {
     add(errors, path, 'invalid-positive-integer');
+    return false;
+  }
+  return true;
+};
+
+const validNonNegativeInteger = (value: unknown, path: string, errors: ValidationErrors): value is number => {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    add(errors, path, 'invalid-non-negative-integer');
     return false;
   }
   return true;
@@ -673,6 +726,10 @@ const validateProvenance = (
   path: string,
   activityVersion: number,
   hasPredecessor: boolean,
+  activityId: string,
+  ownerId: string,
+  placementIds: readonly string[],
+  recordSourceContextFingerprint: string | null,
   errors: ValidationErrors,
 ): CanonicalPublishedActivityVersionProvenance | null => {
   if (!isPlainRecord(value)) {
@@ -699,6 +756,165 @@ const validateProvenance = (
       unitKey: value.unitKey as string,
       activityKey: value.activityKey as string,
       sourcePages,
+    };
+  }
+  if (value.kind === 'public-book-fork') {
+    const keys = [
+      'kind', 'sourceBookId', 'sourceOwnerId', 'sourceManifestVersionId', 'sourcePublicationId',
+      'sourcePublicationRevision', 'sourceVersionId', 'sourcePublicationBinding', 'sourceActivityId',
+      'sourceActivityVersionId', 'sourceActivityVersion', 'sourcePayloadFingerprint',
+      'sourcePlacementIds', 'sourcePlacementSetFingerprint', 'sourceNodeKey', 'sourcePlacementId',
+      'sourceUnitKey', 'sourceActivityKey', 'selectionKind', 'selectionPath', 'selectionOrder',
+      'sourcePages', 'sourcePageGroupKeys', 'sourceContextFingerprint', 'targetBookId',
+      'targetOwnerId', 'targetOriginalNodeId', 'targetPlacementId', 'targetAppendOrder',
+      'targetBookUpdatedAt',
+    ] as const;
+    if (!exactRecord(value, keys, [...keys], path, errors)) return null;
+
+    validPathId(value.sourceBookId, `${path}.sourceBookId`, errors);
+    validId(value.sourceOwnerId, `${path}.sourceOwnerId`, errors);
+    validPathId(value.sourceManifestVersionId, `${path}.sourceManifestVersionId`, errors);
+    validPathId(value.sourcePublicationId, `${path}.sourcePublicationId`, errors);
+    validPositiveInteger(value.sourcePublicationRevision, `${path}.sourcePublicationRevision`, errors);
+    validId(value.sourceVersionId, `${path}.sourceVersionId`, errors);
+
+    let sourcePublicationBinding: CanonicalPublicBookForkPublicationBinding | null = null;
+    if (exactRecord(
+      value.sourcePublicationBinding,
+      ['manifestVersionId', 'publicationId', 'publicationRevision'],
+      ['manifestVersionId', 'publicationId', 'publicationRevision'],
+      `${path}.sourcePublicationBinding`,
+      errors,
+    )) {
+      const binding = value.sourcePublicationBinding as PlainRecord;
+      validPathId(binding.manifestVersionId, `${path}.sourcePublicationBinding.manifestVersionId`, errors);
+      validPathId(binding.publicationId, `${path}.sourcePublicationBinding.publicationId`, errors);
+      validPositiveInteger(binding.publicationRevision, `${path}.sourcePublicationBinding.publicationRevision`, errors);
+      sourcePublicationBinding = {
+        manifestVersionId: binding.manifestVersionId as string,
+        publicationId: binding.publicationId as string,
+        publicationRevision: binding.publicationRevision as number,
+      };
+    }
+
+    validPathId(value.sourceActivityId, `${path}.sourceActivityId`, errors);
+    validPathId(value.sourceActivityVersionId, `${path}.sourceActivityVersionId`, errors);
+    validPositiveInteger(value.sourceActivityVersion, `${path}.sourceActivityVersion`, errors);
+    if (typeof value.sourcePayloadFingerprint !== 'string' || !FINGERPRINT.test(value.sourcePayloadFingerprint)) {
+      add(errors, `${path}.sourcePayloadFingerprint`, 'invalid-fingerprint');
+    }
+    const sourcePlacementIds = validateStringArray(
+      value.sourcePlacementIds,
+      `${path}.sourcePlacementIds`,
+      errors,
+      CANONICAL_ACTIVITY_VERSION_LIMITS.maxPlacementIds,
+      'id',
+      1,
+    );
+    const sortedSourcePlacementIds = [...sourcePlacementIds].sort();
+    if (sourcePlacementIds.some((id, index) => id !== sortedSourcePlacementIds[index])) {
+      add(errors, `${path}.sourcePlacementIds`, 'not-sorted');
+    }
+    if (typeof value.sourcePlacementSetFingerprint !== 'string' || !FINGERPRINT.test(value.sourcePlacementSetFingerprint)) {
+      add(errors, `${path}.sourcePlacementSetFingerprint`, 'invalid-fingerprint');
+    } else if (value.sourcePlacementSetFingerprint !== createCanonicalPublicBookForkPlacementSetFingerprint(sourcePlacementIds)) {
+      add(errors, `${path}.sourcePlacementSetFingerprint`, 'fingerprint-mismatch');
+    }
+    validId(value.sourceNodeKey, `${path}.sourceNodeKey`, errors);
+    const sourcePlacementIdValid = validId(value.sourcePlacementId, `${path}.sourcePlacementId`, errors);
+    if (sourcePlacementIdValid && !sourcePlacementIds.includes(value.sourcePlacementId as string)) {
+      add(errors, `${path}.sourcePlacementId`, 'placement-set-mismatch');
+    }
+    validId(value.sourceUnitKey, `${path}.sourceUnitKey`, errors);
+    validId(value.sourceActivityKey, `${path}.sourceActivityKey`, errors);
+    if (value.selectionKind !== 'activity') add(errors, `${path}.selectionKind`, 'invalid-enum');
+    const selectionPath = validateStringArray(
+      value.selectionPath,
+      `${path}.selectionPath`,
+      errors,
+      CANONICAL_ACTIVITY_VERSION_LIMITS.maxSelectionPath,
+      'id',
+      1,
+    );
+    validNonNegativeInteger(value.selectionOrder, `${path}.selectionOrder`, errors);
+    const sourcePages = validateSourcePages(value.sourcePages, `${path}.sourcePages`, errors);
+    const sourcePageGroupKeys = validateStringArray(
+      value.sourcePageGroupKeys,
+      `${path}.sourcePageGroupKeys`,
+      errors,
+      CANONICAL_ACTIVITY_VERSION_LIMITS.maxSourcePageGroupKeys,
+      'id',
+    );
+    if (value.sourceContextFingerprint !== null
+      && (typeof value.sourceContextFingerprint !== 'string' || !SOURCE_CONTEXT_FINGERPRINT.test(value.sourceContextFingerprint))) {
+      add(errors, `${path}.sourceContextFingerprint`, 'invalid-fingerprint');
+    }
+    validPathId(value.targetBookId, `${path}.targetBookId`, errors);
+    validId(value.targetOwnerId, `${path}.targetOwnerId`, errors);
+    validPathId(value.targetOriginalNodeId, `${path}.targetOriginalNodeId`, errors);
+    const targetPlacementIdValid = validPathId(value.targetPlacementId, `${path}.targetPlacementId`, errors);
+    validNonNegativeInteger(value.targetAppendOrder, `${path}.targetAppendOrder`, errors);
+    if (typeof value.targetBookUpdatedAt !== 'string'
+      || !ISO_DATE.test(value.targetBookUpdatedAt)
+      || Number.isNaN(Date.parse(value.targetBookUpdatedAt))) {
+      add(errors, `${path}.targetBookUpdatedAt`, 'invalid-iso-date');
+    }
+
+    if (activityVersion !== 1 || hasPredecessor) add(errors, path, 'cross-family-mismatch');
+    if (value.sourceActivityId === activityId) add(errors, `${path}.sourceActivityId`, 'cross-family-mismatch');
+    if (value.targetOwnerId !== ownerId) add(errors, `${path}.targetOwnerId`, 'owner-mismatch');
+    if (targetPlacementIdValid && (placementIds.length !== 1 || placementIds[0] !== value.targetPlacementId)) {
+      add(errors, `${path}.targetPlacementId`, 'placement-mismatch');
+    }
+    if (sourcePublicationBinding !== null && (
+      sourcePublicationBinding.manifestVersionId !== value.sourceManifestVersionId
+      || sourcePublicationBinding.publicationId !== value.sourcePublicationId
+      || sourcePublicationBinding.publicationRevision !== value.sourcePublicationRevision
+    )) {
+      add(errors, `${path}.sourcePublicationBinding`, 'binding-mismatch');
+    }
+    if (value.sourceContextFingerprint !== recordSourceContextFingerprint) {
+      add(errors, `${path}.sourceContextFingerprint`, 'context-mismatch');
+    }
+    const bindingValue = isPlainRecord(value.sourcePublicationBinding)
+      ? value.sourcePublicationBinding
+      : {};
+
+    return {
+      kind: 'public-book-fork',
+      sourceBookId: value.sourceBookId as string,
+      sourceOwnerId: value.sourceOwnerId as string,
+      sourceManifestVersionId: value.sourceManifestVersionId as string,
+      sourcePublicationId: value.sourcePublicationId as string,
+      sourcePublicationRevision: value.sourcePublicationRevision as number,
+      sourceVersionId: value.sourceVersionId as string,
+      sourcePublicationBinding: sourcePublicationBinding ?? {
+        manifestVersionId: bindingValue.manifestVersionId as string,
+        publicationId: bindingValue.publicationId as string,
+        publicationRevision: bindingValue.publicationRevision as number,
+      },
+      sourceActivityId: value.sourceActivityId as string,
+      sourceActivityVersionId: value.sourceActivityVersionId as string,
+      sourceActivityVersion: value.sourceActivityVersion as number,
+      sourcePayloadFingerprint: value.sourcePayloadFingerprint as string,
+      sourcePlacementIds,
+      sourcePlacementSetFingerprint: value.sourcePlacementSetFingerprint as string,
+      sourceNodeKey: value.sourceNodeKey as string,
+      sourcePlacementId: value.sourcePlacementId as string,
+      sourceUnitKey: value.sourceUnitKey as string,
+      sourceActivityKey: value.sourceActivityKey as string,
+      selectionKind: 'activity',
+      selectionPath,
+      selectionOrder: value.selectionOrder as number,
+      sourcePages,
+      sourcePageGroupKeys,
+      sourceContextFingerprint: value.sourceContextFingerprint as string | null,
+      targetBookId: value.targetBookId as string,
+      targetOwnerId: value.targetOwnerId as string,
+      targetOriginalNodeId: value.targetOriginalNodeId as string,
+      targetPlacementId: value.targetPlacementId as string,
+      targetAppendOrder: value.targetAppendOrder as number,
+      targetBookUpdatedAt: value.targetBookUpdatedAt as string,
     };
   }
   if (value.kind === 'activity-revision') {
@@ -749,6 +965,10 @@ const fnv1a64 = (value: string): string => {
 export const createCanonicalActivityVersionFingerprint = (
   recordWithoutPayloadFingerprint: CanonicalPublishedActivityVersionRecordWithoutPayloadFingerprint,
 ): string => fnv1a64(stable(recordWithoutPayloadFingerprint));
+
+export const createCanonicalPublicBookForkPlacementSetFingerprint = (
+  placementIds: readonly string[],
+): string => fnv1a64(stable([...placementIds].sort()));
 
 const deepFreeze = <T>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -804,7 +1024,17 @@ export const validateCanonicalPublishedActivityVersion = (
   if (typeof value.publishedAt !== 'string' || !ISO_DATE.test(value.publishedAt) || Number.isNaN(Date.parse(value.publishedAt))) add(errors, '$.publishedAt', 'invalid-iso-date');
   const provenance = validActivityVersion === null
     ? null
-    : validateProvenance(value.provenance, '$.provenance', validActivityVersion, value.predecessorActivityVersionId !== undefined, errors);
+    : validateProvenance(
+      value.provenance,
+      '$.provenance',
+      validActivityVersion,
+      value.predecessorActivityVersionId !== undefined,
+      value.activityId as string,
+      value.ownerId as string,
+      placementIds,
+      value.sourceContextFingerprint as string | null,
+      errors,
+    );
 
   if (activity && projection) {
     let expectedProjection: StudentActivityProjection | null = null;
@@ -856,6 +1086,6 @@ export const assertCanonicalPublishedActivityVersion = (
   value: unknown,
 ): CanonicalPublishedActivityVersionRecord => {
   const result = validateCanonicalPublishedActivityVersion(value);
-  if (!result.valid) throw new Error(`invalid_canonical_activity_version:${result.errors[0] ?? 'invalid-record'}`);
+  if (result.valid === false) throw new Error(`invalid_canonical_activity_version:${result.errors[0] ?? 'invalid-record'}`);
   return result.value;
 };

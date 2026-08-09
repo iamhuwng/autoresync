@@ -2,6 +2,7 @@ import {
   PUBLIC_BOOK_REFERENCE_FORK_SCHEMA_VERSION,
   PUBLIC_BOOK_SELECTION_KINDS,
   type PublicBookActivitySelectionSnapshot,
+  type PublicBookCanonicalForkResult,
   type PublicBookCatalogView,
   type PublicBookDocumentIssuer,
   type PublicBookEntitlementSnapshot,
@@ -24,6 +25,8 @@ import {
 } from './publicBookReferenceFork.types';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9:_-]{0,159}$/u;
+const FORK_PATH_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/u;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const MAX_SELECTION_ITEMS = 200;
 const MAX_PATH_ITEMS = 32;
 
@@ -107,6 +110,86 @@ const assertContext = (context: PublicBookSourceContextChoice): void => {
 
 const contextFor = (context: PublicBookSourceContextChoice | undefined): PublicBookSourceContextChoice =>
   context ?? { mode: 'none' };
+
+const assertForkPathId = (value: unknown, field: string): string => {
+  if (typeof value !== 'string' || !FORK_PATH_ID.test(value)) {
+    throw new PublicBookReferenceForkError('request-invalid', field + ' is invalid.', 400);
+  }
+  return value;
+};
+
+const assertForkPath = (value: unknown, field: string): readonly string[] => {
+  if (!Array.isArray(value) || value.length > MAX_PATH_ITEMS
+    || value.some((part) => typeof part !== 'string' || !FORK_PATH_ID.test(part))) {
+    throw new PublicBookReferenceForkError('request-invalid', field + ' is invalid.', 400);
+  }
+  return value as string[];
+};
+
+/**
+ * Validates only the canonical fork request grammar. This must stay pure: the
+ * canonical Worker writer owns receipt-first replay and all source/target
+ * authorization reads after this boundary.
+ */
+export function validatePublicBookCanonicalForkRequest(
+  input: PublicBookReferenceForkMutationInput,
+): asserts input is PublicBookReferenceForkMutationInput & { readonly operationId: string } {
+  assertForkPathId(input.actorId, 'actorId');
+  if (typeof input.operationId !== 'string' || !UUID.test(input.operationId)) {
+    throw new PublicBookReferenceForkError(
+      'invalid-operation-id',
+      'Canonical Book Activity forks require a UUID operationId.',
+      400,
+    );
+  }
+  if (!input.target || typeof input.target !== 'object') {
+    throw new PublicBookReferenceForkError('request-invalid', 'target is invalid.', 400);
+  }
+  assertForkPathId(input.target.bookId, 'target.bookId');
+  assertForkPathId(input.target.nodeId, 'target.nodeId');
+  assertForkPathId(input.target.placementId, 'target.placementId');
+
+  const selection = input.selection;
+  if (!selection || typeof selection !== 'object' || selection.kind !== 'activity'
+    || !Array.isArray(selection.activities) || selection.activities.length !== 1) {
+    throw new PublicBookReferenceForkError(
+      'invalid-selection',
+      'Canonical Book Activity forks require exactly one Activity selection.',
+      400,
+    );
+  }
+  assertForkPathId(selection.sourceBookId, 'selection.sourceBookId');
+  assertForkPathId(selection.publicationId, 'selection.publicationId');
+  if (!Number.isSafeInteger(selection.publicationRevision) || selection.publicationRevision < 1) {
+    throw new PublicBookReferenceForkError('invalid-selection', 'selection.publicationRevision is invalid.', 400);
+  }
+  assertForkPath(selection.selectionPath, 'selection.selectionPath');
+  const activity = selection.activities[0];
+  if (!activity || typeof activity !== 'object') {
+    throw new PublicBookReferenceForkError('invalid-selection', 'selection Activity is invalid.', 400);
+  }
+  assertForkPathId(activity.activityId, 'selection.activityId');
+  assertForkPathId(activity.activityVersionId, 'selection.activityVersionId');
+  if (!Number.isSafeInteger(activity.order) || activity.order < 0) {
+    throw new PublicBookReferenceForkError('invalid-selection', 'selection.order is invalid.', 400);
+  }
+
+  if (input.context !== undefined && (input.context === null || typeof input.context !== 'object')) {
+    throw new PublicBookReferenceForkError('request-invalid', 'context is invalid.', 400);
+  }
+  const context = contextFor(input.context);
+  if (context.mode === 'none') return;
+  if (context.mode !== 'book-source-reference') {
+    throw new PublicBookReferenceForkError('request-invalid', 'context.mode is invalid.', 400);
+  }
+  assertForkPathId(context.sourceBookId, 'context.sourceBookId');
+  assertForkPathId(context.sourceVersionId, 'context.sourceVersionId');
+  assertForkPath(context.selectionPath, 'context.selectionPath');
+  if (!Array.isArray(context.pageGroupIds) || context.pageGroupIds.length === 0
+    || context.pageGroupIds.some((id) => typeof id !== 'string' || !FORK_PATH_ID.test(id))) {
+    throw new PublicBookReferenceForkError('request-invalid', 'context.pageGroupIds is invalid.', 400);
+  }
+};
 
 const sourceIsReady = (source: PublicBookSelectionSnapshot): boolean =>
   source.source.lifecycleState === 'ready'
@@ -328,6 +411,9 @@ export const createPublicBookReferenceForkService = (
   const createId = options.createId ?? defaultCreateId;
   const mutationsEnabled = options.mutationsEnabled === true;
   const rollbackEnabled = options.rollbackEnabled === true;
+  const canonicalForkEnabled = options.canonicalForkEnabled === true;
+  const canonicalForkMutationsEnabled = options.canonicalForkMutationsEnabled === true;
+  const canonicalForkWriter = options.canonicalForkWriter;
 
   const loadSelection = async (selection: PublicBookSelectionRequest) => {
     assertSelectionRequest(selection);
@@ -370,11 +456,11 @@ export const createPublicBookReferenceForkService = (
     return { source, activities, entitlement, context, publicState };
   };
 
-  const requireMutationEnabled = (): void => {
-    if (!mutationsEnabled) {
+  const requireMutationGate = (enabled: boolean, message: string): void => {
+    if (!enabled) {
       throw new PublicBookReferenceForkError(
         'feature-disabled',
-        'Public Book reference/fork mutations are disabled.',
+        message,
         503,
       );
     }
@@ -387,8 +473,19 @@ export const createPublicBookReferenceForkService = (
     }
   };
 
-  const requireMutationInputs = async (input: PublicBookReferenceForkMutationInput) => {
-    requireMutationEnabled();
+  const requireMutationEnabled = (): void => {
+    requireMutationGate(mutationsEnabled, 'Public Book reference/fork mutations are disabled.');
+  };
+
+  const requireCanonicalForkMutationEnabled = (): void => {
+    requireMutationGate(canonicalForkMutationsEnabled, 'Public Book canonical forks are disabled.');
+  };
+
+  const requireMutationInputs = async (
+    input: PublicBookReferenceForkMutationInput,
+    requireEnabled: () => void = requireMutationEnabled,
+  ) => {
+    requireEnabled();
     assertId(input.actorId, 'actorId');
     assertId(input.target.bookId, 'target.bookId');
     assertId(input.target.nodeId, 'target.nodeId');
@@ -519,14 +616,32 @@ export const createPublicBookReferenceForkService = (
     };
   };
 
-  const fork = async (_input: PublicBookReferenceForkMutationInput): Promise<never> => {
-    // This must precede all input/source/target/store work. A canonical writer
-    // is deliberately out of scope for this compatibility seam.
-    throw new PublicBookReferenceForkError(
-      'fork-disabled',
-      'Public Book Activity forks are disabled pending a canonical writer.',
-      503,
-    );
+  const fork = async (
+    input: PublicBookReferenceForkMutationInput,
+  ): Promise<PublicBookCanonicalForkResult> => {
+    if (!canonicalForkEnabled || !canonicalForkWriter) {
+      // This must precede all input/source/target/store work. The canonical
+      // writer gate is deliberately independent from compatibility mutations.
+      throw new PublicBookReferenceForkError(
+        'fork-disabled',
+        'Public Book Activity forks are disabled pending the canonical writer gate.',
+        503,
+      );
+    }
+    requireCanonicalForkMutationEnabled();
+    validatePublicBookCanonicalForkRequest(input);
+    const context = contextFor(input.context);
+    return canonicalForkWriter.fork({
+      actorId: input.actorId,
+      operationId: input.operationId,
+      target: { ...input.target },
+      selection: {
+        ...input.selection,
+        selectionPath: [...input.selection.selectionPath],
+        activities: input.selection.activities.map((activity) => ({ ...activity })),
+      },
+      context,
+    });
   };
 
   const readReferenceForOwner = async (
