@@ -9,6 +9,7 @@ import {
   type BookRemovalExclusionProjectionPort,
   type BookRemovalHistoricalProjectionPort,
   type BookRemovalPhaseReceiptRepository,
+  type BookRemovalUpdateFinalizer,
   type BookRemovalUpdateOperation,
   type BookRemovalUpdatePlan,
   type BookRemovalUpdateResolver,
@@ -144,14 +145,23 @@ const executorFor = (
   allOperations = [...operations];
   const actions = new MemoryActions(actionFor(operations));
   const base = ports(overrides.receipts ?? new InMemoryBookRemovalPhaseReceiptRepository());
-  const merged = { ...base, ...overrides };
+  const finalizer: BookRemovalUpdateFinalizer = {
+    finalize: vi.fn(async () => ({
+      status: 'completed' as const,
+      action: actions.action,
+      emitted: 0,
+      replayed: 0,
+    })),
+  };
+  const merged = { ...base, ...overrides, finalizer };
   const executor = createBookRemovalUpdateExecutor({
     actions, resolver: merged.resolver, receipts: merged.receipts,
     history: merged.history, exclusions: merged.exclusions,
     completion: merged.completion, audit: merged.audit,
+    finalizer: merged.finalizer,
     now: () => new Date(at),
   });
-  return { actions, executor, merged };
+  return { actions, executor, merged, finalizer };
 };
 
 describe('#113 removal update executor', () => {
@@ -201,7 +211,7 @@ describe('#113 removal update executor', () => {
     }))?.phases.audit.status).toBe('succeeded');
   });
 
-  it('does not reopen completed work and keeps the post-commit finalizer outside this executor', async () => {
+  it('does not reopen completed work or reapply removal phases for a committed action', async () => {
     const alreadyCommitted = actionFor([operation('homework', 'completed', 1)], 'committed');
     const actions = new MemoryActions(alreadyCommitted);
     const history = { apply: vi.fn() } as unknown as BookRemovalHistoricalProjectionPort;
@@ -213,6 +223,7 @@ describe('#113 removal update executor', () => {
       exclusions: { apply: vi.fn() },
       completion: { recalculate: vi.fn() },
       audit: { record: vi.fn() },
+      finalizer: { finalize: vi.fn() },
       now: () => new Date(at),
     });
     await expect(executor.execute({ ownerId: 'teacher-1', actionId: 'action-1' }))
@@ -220,19 +231,49 @@ describe('#113 removal update executor', () => {
     expect(history.apply).not.toHaveBeenCalled();
   });
 
+  it('blocks finalization before commit and delegates only after commit', async () => {
+    const current = executorFor([operation('homework', 'submitted', 1)]);
+    await expect(current.executor.finalize({ ownerId: 'teacher-1', actionId: 'action-1' }))
+      .resolves.toEqual({ status: 'blocked', code: 'action-not-committed' });
+    expect(current.finalizer.finalize).not.toHaveBeenCalled();
+
+    await expect(current.executor.execute({ ownerId: 'teacher-1', actionId: 'action-1' }))
+      .resolves.toMatchObject({ status: 'committed' });
+    await expect(current.executor.finalize({ ownerId: 'teacher-1', actionId: 'action-1' }))
+      .resolves.toMatchObject({ status: 'completed' });
+    expect(current.finalizer.finalize).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a stable blocked result when the finalizer gate read is unavailable', async () => {
+    const current = executorFor([operation('homework', 'submitted', 1)]);
+    vi.spyOn(current.actions, 'read').mockRejectedValue(new Error('temporary read failure'));
+    await expect(current.executor.finalize({ ownerId: 'teacher-1', actionId: 'action-1' }))
+      .resolves.toEqual({ status: 'blocked', code: 'action-unavailable' });
+    expect(current.finalizer.finalize).not.toHaveBeenCalled();
+  });
+
   it('rejects slash-bearing identities before action or receipt repository access', async () => {
     const actions = new MemoryActions(actionFor([operation('homework', 'submitted', 1)]));
     const read = vi.spyOn(actions, 'read');
+    const finalizer = { finalize: vi.fn() };
     const executor = createBookRemovalUpdateExecutor({
       actions,
       resolver: { resolve: vi.fn() },
       receipts: new InMemoryBookRemovalPhaseReceiptRepository(),
       history: { apply: vi.fn() }, exclusions: { apply: vi.fn() },
       completion: { recalculate: vi.fn() }, audit: { record: vi.fn() },
+      finalizer,
     });
     await expect(executor.execute({ ownerId: 'teacher/other', actionId: 'action-1' }))
       .resolves.toEqual({ status: 'blocked', code: 'invalid-identity' });
     expect(read).not.toHaveBeenCalled();
+
+    const beforeFinalizerReads = read.mock.calls.length;
+    const removalExecutor = (executor as { finalize: (input: { ownerId: string; actionId: string }) => Promise<unknown> });
+    await expect(removalExecutor.finalize({ ownerId: 'teacher-1', actionId: 'action/other' }))
+      .resolves.toEqual({ status: 'blocked', code: 'invalid-identity' });
+    expect(read).toHaveBeenCalledTimes(beforeFinalizerReads);
+    expect(finalizer.finalize).not.toHaveBeenCalled();
 
     let fetches = 0;
     const repository = new FirebaseRestBookRemovalPhaseReceiptRepository({
@@ -275,6 +316,7 @@ describe('#113 removal update executor', () => {
     const executor = createBookRemovalUpdateExecutor({
       actions, resolver: { resolve: vi.fn() }, receipts: new InMemoryBookRemovalPhaseReceiptRepository(),
       history, exclusions: { apply: vi.fn() }, completion: { recalculate: vi.fn() }, audit: { record: vi.fn() },
+      finalizer: { finalize: vi.fn() },
     });
     await expect(executor.execute({ ownerId: 'teacher-1', actionId: 'action-1' }))
       .resolves.toMatchObject({ status: 'pending', code: 'delegate-other-update-case' });

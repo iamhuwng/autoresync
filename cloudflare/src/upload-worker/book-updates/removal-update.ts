@@ -1,6 +1,10 @@
 import type { BookUpdateActionRecord } from '../../../../src/services/book-delivery/bookUpdateAction.types.ts';
 import { advanceBookUpdateAction, type BookUpdateActionRepository } from './update-action.ts';
 import {
+  createBookUpdateFinalizer,
+  type BookUpdateFinalizationResult,
+} from './update-finalizer.ts';
+import {
   projectBookRemovalHistoricalProjection,
   type BookRemovalHistoricalProjection,
   type BookRemovalHistoricalProjectionInput,
@@ -59,6 +63,9 @@ export type BookRemovalPlanResolution =
 export interface BookRemovalUpdateResolver {
   resolve(action: BookUpdateActionRecord): Promise<BookRemovalPlanResolution>;
 }
+
+/** The shared #110 notification boundary; removal itself never emits. */
+export type BookRemovalUpdateFinalizer = ReturnType<typeof createBookUpdateFinalizer>;
 
 export interface BookRemovalReceiptIdentity {
   readonly ownerId: string;
@@ -757,6 +764,7 @@ interface BookRemovalUpdateExecutorOptions {
   readonly exclusions: BookRemovalExclusionProjectionPort;
   readonly completion: BookRemovalCompletionProjectionPort;
   readonly audit: BookRemovalAuditPort;
+  readonly finalizer: BookRemovalUpdateFinalizer;
   readonly now?: () => Date;
 }
 
@@ -865,6 +873,28 @@ export const createBookRemovalUpdateExecutor = (options: BookRemovalUpdateExecut
     return fresh && (fresh.state === 'committed' || fresh.state === 'notification-pending' || fresh.state === 'completed')
       ? { status: 'replayed', action: fresh }
       : { status: 'pending', action: fresh ?? action, code: 'commit-transition-conflict', completedStudentCount };
+  },
+
+  /**
+   * Expose #110 only as a post-commit boundary.  The action read is repeated
+   * here so a caller cannot reach notifications from an accepted/applying
+   * action, and an unavailable read has a stable retryable result.
+   */
+  async finalize(input: { readonly ownerId: string; readonly actionId: string }): Promise<BookUpdateFinalizationResult> {
+    if (!input || !validId(input.ownerId) || !validId(input.actionId)) {
+      return { status: 'blocked', code: 'invalid-identity' };
+    }
+    let action: BookUpdateActionRecord | null;
+    try {
+      action = await options.actions.read(input.ownerId, input.actionId);
+    } catch {
+      return { status: 'blocked', code: 'action-unavailable' };
+    }
+    if (!action || action.ownerId !== input.ownerId) return { status: 'blocked', code: 'action-missing' };
+    if (action.state !== 'committed' && action.state !== 'notification-pending' && action.state !== 'completed') {
+      return { status: 'blocked', code: 'action-not-committed' };
+    }
+    return options.finalizer.finalize(input);
   },
 });
 
