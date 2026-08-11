@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "47",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "47",
+    "issue": 119,
+    "serviceIdentity": "book_retired_byte_deletion_service",
+    "generatedRuleLocations": [
+      "book_retired_byte_deletions/.read",
+      "book_retired_byte_deletions/.write",
+      "book_retired_byte_deletions/records/$ownerId/$deletionId/.read",
+      "book_retired_byte_deletions/records/$ownerId/$deletionId/.write",
+      "book_retired_byte_deletions/by_idempotency/$ownerId/$bookId/$idempotencyKey/.read",
+      "book_retired_byte_deletions/by_idempotency/$ownerId/$bookId/$idempotencyKey/.write"
+    ],
+    "leastPrivilegePaths": [
+      "book_retired_byte_deletions/records/$ownerId/$deletionId",
+      "book_retired_byte_deletions/by_idempotency/$ownerId/$bookId/$idempotencyKey"
+    ],
+    "backupInventory": "include-metadata",
+    "recoveryLedgerRoot": "book_retired_byte_deletion_recovery"
+  },
+  "operations": [
+    {
+      "path": "book_retired_byte_deletions",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_retired_byte_deletions",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_retired_byte_deletions/records/$ownerId/$deletionId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.d == $deletionId && auth.token.brd.dl >= now"
+    },
+    {
+      "path": "book_retired_byte_deletions/records/$ownerId/$deletionId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.d == $deletionId && auth.token.brd.dl >= now && newData.exists() && newData.child('schemaVersion').val() == 1 && newData.child('ownerId').val() == $ownerId && newData.child('deletionId').val() == $deletionId && newData.child('deleteIdentity/serviceIdentity').val() == 'book_retired_byte_deletion_service' && newData.child('deleteIdentity/capability').val() == 'delete-exact-provider-file-version' && !newData.child('bytes').exists() && !newData.child('backupBytes').exists()"
+    },
+    {
+      "path": "book_retired_byte_deletions/by_idempotency/$ownerId/$bookId/$idempotencyKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_retired_byte_deletions/by_idempotency/$ownerId/$bookId/$idempotencyKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.b == $bookId && auth.token.brd.k == $idempotencyKey && auth.token.brd.dl >= now && newData.exists() && !data.exists() && newData.child('deletionId').isString() && newData.child('ownerId').val() == $ownerId && newData.child('bookId').val() == $bookId && newData.child('requestFingerprint').isString()"
+    }
+  ]
+}
