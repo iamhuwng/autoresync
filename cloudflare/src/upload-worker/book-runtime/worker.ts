@@ -34,6 +34,7 @@ import type {
   BookRuntimeCommandResult,
   BookRuntimeScore,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import { isBookRuntimeRecoveryHold } from '../../../../src/services/book-activity/bookRuntime.recovery.ts';
 
 export interface BookRuntimeWorkerEnv {
   readonly [key: string]: unknown;
@@ -155,6 +156,25 @@ const draftMatchesContext = (
   && draft.activityVersion === context.activityVersion
   && draft.interactionId === context.interactionId);
 
+const assertNoRuntimeRecoveryHold = async (input: {
+  readonly repository: BookRuntimeRepository;
+  readonly recipientId: string;
+  readonly contextId: string;
+}): Promise<void> => {
+  const hold = await input.repository.readRecoveryHold?.({
+    recipientId: input.recipientId,
+    contextId: input.contextId,
+  });
+  if (hold !== null && hold !== undefined) {
+    if (!isBookRuntimeRecoveryHold(hold)
+      || hold.recipientId !== input.recipientId
+      || hold.contextId !== input.contextId) {
+      throw new BookRuntimeWorkerError('book_runtime_recovery_hold_invalid', 503);
+    }
+    throw new BookRuntimeWorkerError('book_runtime_recovery_hold', 409);
+  }
+};
+
 export const createBookRuntimeWorkerHandlers = (
   options: BookRuntimeWorkerHandlersOptions = {},
 ) => {
@@ -233,6 +253,11 @@ export const createBookRuntimeWorkerHandlers = (
           env: input.env,
         }),
       ]);
+      await assertNoRuntimeRecoveryHold({
+        repository: options.repository,
+        recipientId: input.uid,
+        contextId: payload.contextId,
+      });
       if (payload.commandKind === 'submit'
         && options.repository.replayCommand
         && actor.uid
@@ -447,6 +472,11 @@ export const createBookRuntimeWorkerHandlers = (
           env: input.env,
         }),
       ]);
+      await assertNoRuntimeRecoveryHold({
+        repository: options.repository,
+        recipientId: input.uid,
+        contextId: input.contextId,
+      });
       const context = await authorizeRuntimeDraftRead(
         actor,
         readInput,

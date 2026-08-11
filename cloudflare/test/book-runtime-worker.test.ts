@@ -142,6 +142,42 @@ const normalizedActivity = () => ({
 });
 
 describe('Ticket 28A runtime Worker boundary', () => {
+  it('denies commands and draft reads while the operator recovery hold is present', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const readRecoveryHold = vi.fn(async () => ({
+      kind: 'book-runtime-recovery-hold' as const,
+      schemaVersion: 1 as const,
+      recoveryOperationId: 'recovery-123',
+      recipientId: 'student-1',
+      contextId: 'context-1',
+      deliveryState: 'unavailable' as const,
+      readDenied: true as const,
+      activation: 'held-for-reconciliation' as const,
+    }));
+    (repository as unknown as { readRecoveryHold: typeof readRecoveryHold }).readRecoveryHold = readRecoveryHold;
+    const schedulePolicy = { authorize: vi.fn(() => ({ outcome: 'allowed' as const })) };
+    const applyCommand = vi.spyOn(repository, 'applyCommand');
+    const readDraft = vi.spyOn(repository, 'readDraft');
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedActivity(),
+      schedulePolicy,
+    });
+
+    await expect(parse(await handlers.command({
+      request: request(body()), env: {}, uid: 'student-1',
+    }))).resolves.toEqual({ status: 409, body: { code: 'book_runtime_recovery_hold' } });
+    await expect(parse(await handlers.readDraft({
+      request: new Request('https://worker.test/book-runtime/drafts'),
+      env: {}, uid: 'student-1', bindingId: 'binding-1', bindingRevision: '1', contextId: 'context-1',
+      placementId: 'placement-1', activityId: 'activity-1', activityVersion: '1', interactionId: 'interaction-1',
+    }))).resolves.toEqual({ status: 409, body: { code: 'book_runtime_recovery_hold' } });
+    expect(schedulePolicy.authorize).not.toHaveBeenCalled();
+    expect(applyCommand).not.toHaveBeenCalled();
+    expect(readDraft).not.toHaveBeenCalled();
+  });
+
   it('revalidates binding, writes through repository, and returns privacy-safe receipt only', async () => {
     const repository = new InMemoryBookRuntimeRepository();
     const resolveBinding = vi.fn(async () => binding());

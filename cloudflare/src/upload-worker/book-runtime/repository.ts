@@ -14,9 +14,18 @@ import type {
   BookRuntimeScore,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import {
+  isBookRuntimeRecoveryHold,
+  type BookRuntimeRecoveryHold,
+} from '../../../../src/services/book-activity/bookRuntime.recovery.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 
 export interface BookRuntimeRepository {
+  /** Recovery hold is an internal denial gate; it never returns runtime rows. */
+  readRecoveryHold?(input: {
+    readonly recipientId: string;
+    readonly contextId: string;
+  }): Promise<BookRuntimeRecoveryHold | null>;
   replayCommand?(input: {
     readonly command: BookRuntimeCommandPayload;
     readonly actorUid: string;
@@ -764,6 +773,15 @@ const durableScopePath = (
   ...(interactionId === undefined ? [] : [durablePathId(interactionId, 'interaction')]),
 ].join('/');
 
+const durableRecoveryHoldPath = (recipientId: string, contextId: string): string => [
+  BOOK_RUNTIME_ROOT,
+  'scopes',
+  durablePathId(recipientId, 'recipient'),
+  durablePathId(contextId, 'context'),
+  'recovery',
+  'hold',
+].join('/');
+
 const durableEncodedBytes = (value: unknown): number => {
   const encoded = JSON.stringify(value);
   if (encoded === undefined) throw new BookRuntimeRepositoryError('runtime_scope_unserializable');
@@ -994,6 +1012,20 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
         throw new BookRuntimeRepositoryError('runtime_service_identity_mismatch');
       }
     }
+  }
+
+  async readRecoveryHold(input: {
+    readonly recipientId: string;
+    readonly contextId: string;
+  }): Promise<BookRuntimeRecoveryHold | null> {
+    const value = await this.rtdb.readValue(durableRecoveryHoldPath(input.recipientId, input.contextId));
+    if (value === null) return null;
+    if (!isBookRuntimeRecoveryHold(value)
+      || value.recipientId !== input.recipientId
+      || value.contextId !== input.contextId) {
+      throw new BookRuntimeRepositoryError('invalid_runtime_recovery_hold');
+    }
+    return durableClone(value);
   }
 
   private async claimOperation(input: {
