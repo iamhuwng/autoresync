@@ -196,7 +196,11 @@ export async function generateRestorePreview(
                 etag: root.etag,
                 revision: root.revision,
             })),
-            { ...options, expectedFirebaseProject: env.FIREBASE_PROJECT_ID },
+            {
+                ...options,
+                expectedFirebaseProject: env.FIREBASE_PROJECT_ID,
+                requireExternalSourceVersionProof: true,
+            },
         );
         if (!bookMetadata.allowed) warnings.push('Book metadata restore is fail-closed until every canonical root, Source Version reference, and ETag fence validates.');
     }

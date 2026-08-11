@@ -91,6 +91,7 @@ export const BOOK_METADATA_CANONICAL_ROOTS = Object.freeze([
   'material_catalog/books',
   'material_catalog/material_summary_indexes/v1',
   'material_catalog/public_book_projections',
+  'notifications',
 ] as const);
 
 export const BOOK_METADATA_REQUIRED_ROOTS = BOOK_METADATA_CANONICAL_ROOTS;
@@ -109,6 +110,11 @@ export const BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS = Object.freeze([
       .filter((root) => root.startsWith('book_') || root === 'class_book_authority' || root === 'course_book_authority'),
   ),
 ]);
+
+/** Shared notifications are captured and fenced, but #120 never restores them. */
+export const BOOK_METADATA_DELEGATED_TOP_LEVEL_ROOTS = Object.freeze(['notifications'] as const);
+const BOOK_METADATA_DELEGATED_ROOT = 'notifications' as const;
+const BOOK_METADATA_DELEGATED_OWNER = '#124' as const;
 
 const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const SAFE_ROOT_PATH = /^[a-z][a-z0-9_-]*(?:\/[a-z][a-z0-9_-]*)*$/u;
@@ -196,6 +202,8 @@ export interface BookMetadataValidationOptions {
   readonly availableSourceVersionIds?: Iterable<string>;
   readonly sourceVersionAvailability?: Readonly<Record<string, boolean>>;
   readonly expectedFirebaseProject?: string;
+  /** Backup capture may defer provider proof; preview/execute always require it. */
+  readonly requireExternalSourceVersionProof?: boolean;
 }
 
 export interface BookMetadataValidationResult {
@@ -208,6 +216,7 @@ export interface BookMetadataValidationResult {
 export interface BookMetadataRestorePlan {
   readonly inventory: BookMetadataBackupInventory;
   readonly inventoryFingerprint: string;
+  readonly delegatedRoots: readonly string[];
   readonly orderedWrites: readonly {
     readonly path: string;
     readonly data: Record<string, unknown>;
@@ -379,6 +388,12 @@ export function createBookMetadataBackupInventory(input: {
       required: true as const,
       schemaVersion: BOOK_METADATA_SCHEMA_VERSION,
       present: capture.present,
+      restoreDisposition: path === BOOK_METADATA_DELEGATED_ROOT
+        ? 'delegated-validation-only' as const
+        : 'restore' as const,
+      delegatedOwner: path === BOOK_METADATA_DELEGATED_ROOT
+        ? BOOK_METADATA_DELEGATED_OWNER
+        : null,
       data: clone(data),
       entityCount: capture.present ? countEntities(data) : 0,
       contentFingerprint: fingerprintBookMetadata(data),
@@ -408,7 +423,7 @@ export function createBookMetadataBackupInventory(input: {
     },
   };
 
-  assertBookMetadataBackupInventory(inventory);
+  assertBookMetadataBackupInventory(inventory, { requireExternalSourceVersionProof: false });
   return inventory;
 }
 
@@ -664,7 +679,10 @@ export function validateBookMetadataBackupInventory(
     if (!SAFE_ROOT_PATH.test(path) || path.includes('$') || path.includes('*')) addDiagnostic(diagnostics, 'invalid-root-path', `$.roots[${index}].path`, 'Root path must be an explicit safe path without wildcards.');
     if (!isPlainRecord(root)) continue;
     for (const key of Object.keys(root)) {
-      if (!new Set(['path', 'order', 'required', 'schemaVersion', 'present', 'data', 'entityCount', 'contentFingerprint']).has(key)) {
+      if (!new Set([
+        'path', 'order', 'required', 'schemaVersion', 'present',
+        'restoreDisposition', 'delegatedOwner', 'data', 'entityCount', 'contentFingerprint',
+      ]).has(key)) {
         addDiagnostic(diagnostics, 'invalid-schema', `$.roots[${index}].${key}`, 'Root contains an unsupported field.');
       }
     }
@@ -672,6 +690,17 @@ export function validateBookMetadataBackupInventory(
     if (root.required !== true) addDiagnostic(diagnostics, 'missing-required-root', `$.roots[${index}].required`, 'Every canonical Book root must be marked required.');
     if (root.schemaVersion !== BOOK_METADATA_SCHEMA_VERSION) addDiagnostic(diagnostics, 'invalid-version', `$.roots[${index}].schemaVersion`, 'Root schema version is invalid.');
     if (typeof root.present !== 'boolean') addDiagnostic(diagnostics, 'invalid-schema', `$.roots[${index}].present`, 'Root presence marker is required.');
+    const delegated = path === BOOK_METADATA_DELEGATED_ROOT;
+    if (root.restoreDisposition !== (delegated ? 'delegated-validation-only' : 'restore')) {
+      addDiagnostic(diagnostics, 'invalid-schema', `$.roots[${index}].restoreDisposition`, delegated
+        ? 'The shared notifications root must be delegated to #124 reconciliation.'
+        : 'Only the shared notifications root may be delegated.');
+    }
+    if (root.delegatedOwner !== (delegated ? BOOK_METADATA_DELEGATED_OWNER : null)) {
+      addDiagnostic(diagnostics, 'invalid-schema', `$.roots[${index}].delegatedOwner`, delegated
+        ? 'The shared notifications root must identify #124 as its reconciliation owner.'
+        : 'Non-delegated roots must not identify a delegated owner.');
+    }
     if (!isPlainRecord(root.data)) addDiagnostic(diagnostics, 'invalid-schema', `$.roots[${index}].data`, 'Root data must be a plain metadata object.');
     if (!nonNegativeSafeInteger(root.entityCount)) addDiagnostic(diagnostics, 'invalid-schema', `$.roots[${index}].entityCount`, 'Root entityCount must be a non-negative safe integer.');
     if (isPlainRecord(root.data)) {
@@ -734,12 +763,6 @@ export function validateBookMetadataBackupInventory(
       addDiagnostic(diagnostics, 'invalid-reference', reference.path, `${reference.field} does not resolve to an inventoried canonical identity.`);
     }
   }
-  const availability = options.sourceVersionAvailability;
-  const available = options.availableSourceVersionIds ? new Set(options.availableSourceVersionIds) : null;
-  for (const sourceVersionId of refs) {
-    if (availability && availability[sourceVersionId] !== true) missingSourceVersionIds.add(sourceVersionId);
-    if (available && !available.has(sourceVersionId)) missingSourceVersionIds.add(sourceVersionId);
-  }
   const listedRefs = Array.isArray(inventory.sourceVersionIds)
     ? inventory.sourceVersionIds.filter((entry): entry is string => {
       if (!safeIdentifier(entry)) {
@@ -749,6 +772,24 @@ export function validateBookMetadataBackupInventory(
       return true;
     })
     : [];
+  const availability = options.sourceVersionAvailability;
+  const available = options.availableSourceVersionIds ? new Set(options.availableSourceVersionIds) : null;
+  const hasAvailabilityProof = availability !== undefined || available !== null;
+  if (listedRefs.length > 0 && options.requireExternalSourceVersionProof !== false && !hasAvailabilityProof) {
+    for (const sourceVersionId of listedRefs) {
+      missingSourceVersionIds.add(sourceVersionId);
+      addDiagnostic(
+        diagnostics,
+        'availability-proof-missing',
+        `$.sourceVersionIds[${sourceVersionId}]`,
+        `Explicit external availability proof is required for Source Version ${sourceVersionId}; provider state was not read by this metadata-only flow.`,
+      );
+    }
+  }
+  for (const sourceVersionId of refs) {
+    if (availability && availability[sourceVersionId] !== true) missingSourceVersionIds.add(sourceVersionId);
+    if (available && !available.has(sourceVersionId)) missingSourceVersionIds.add(sourceVersionId);
+  }
   const normalizedRefs = [...refs].sort();
   if (JSON.stringify(listedRefs) !== JSON.stringify(normalizedRefs)) addDiagnostic(diagnostics, 'invalid-reference', '$.sourceVersionIds', 'sourceVersionIds must exactly match cross-root Source Version references in order.');
   for (const sourceVersionId of missingSourceVersionIds) addDiagnostic(diagnostics, 'source-version-missing', `$.sourceVersionIds[${sourceVersionId}]`, `External or canonical Source Version ${sourceVersionId} is unavailable; restore cannot guess or revive it.`);
@@ -780,13 +821,19 @@ export function prepareBookSourceRestore(
   const options = isPlainRecord(input) && Object.prototype.hasOwnProperty.call(input, 'snapshot')
     ? input as BookMetadataRestoreInput
     : {};
-  assertBookMetadataBackupInventory(rawSnapshot, options);
+  assertBookMetadataBackupInventory(rawSnapshot, {
+    ...options,
+    requireExternalSourceVersionProof: true,
+  });
   const inventory = rawSnapshot as BookMetadataBackupInventory;
   return {
     inventory: clone(inventory),
     inventoryFingerprint: fingerprintBookMetadata(inventory),
+    delegatedRoots: inventory.roots
+      .filter((root) => root.restoreDisposition === 'delegated-validation-only')
+      .map((root) => root.path),
     orderedWrites: inventory.roots
-      .filter((root) => root.present)
+      .filter((root) => root.present && root.restoreDisposition === 'restore')
       .map((root) => ({ path: root.path, data: clone(root.data) })),
     sourceVersionIds: [...inventory.sourceVersionIds],
     missingSourceVersionIds: [],
@@ -806,7 +853,10 @@ export function buildBookMetadataRestorePreview(
   currentRoots: readonly BookMetadataPreviewCurrentRoot[],
   options: BookMetadataValidationOptions = {},
 ): BookMetadataRestorePreview {
-  const validation = validateBookMetadataBackupInventory(inventoryValue, options);
+  const validation = validateBookMetadataBackupInventory(inventoryValue, {
+    ...options,
+    requireExternalSourceVersionProof: true,
+  });
   const inventory = validation.inventory;
   const diagnostics = [...validation.diagnostics];
   const rootFences: Record<string, BookMetadataRootFence> = {};
@@ -838,6 +888,9 @@ export function buildBookMetadataRestorePreview(
     sourceVersionIds: [],
   };
   const allSourceIds = inventory?.sourceVersionIds ?? [];
+  const delegatedRoots = inventory?.roots
+    .filter((root) => root.restoreDisposition === 'delegated-validation-only')
+    .map((root) => root.path) ?? [];
   return {
     backupId,
     inventoryVersion: BOOK_METADATA_INVENTORY_VERSION,
@@ -846,6 +899,7 @@ export function buildBookMetadataRestorePreview(
     allowed: validation.valid && diagnostics.length === 0,
     rootCount: safeInventory.rootCount,
     orderedRoots: [...BOOK_METADATA_CANONICAL_ROOTS],
+    delegatedRoots,
     rootFences,
     sourceVersionIds: [...allSourceIds],
     missingSourceVersionIds: [...validation.missingSourceVersionIds],
@@ -921,7 +975,8 @@ export async function restoreBookMetadataRoots(
   rootFences: Readonly<Record<string, BookMetadataRootFence>>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ readonly restoredRoots: number; readonly skippedRoots: number; readonly failedRoots: number }> {
-  if (!isPlainRecord(plan) || !Array.isArray(plan.orderedWrites)) {
+  if (!isPlainRecord(plan) || !Array.isArray(plan.orderedWrites)
+    || !Array.isArray(plan.delegatedRoots) || !Array.isArray(plan.missingSourceVersionIds)) {
     throw new BookMetadataRestoreValidationError({
       code: 'invalid-schema',
       path: '$.plan',
@@ -942,6 +997,17 @@ export async function restoreBookMetadataRoots(
       });
     }
     seenWrites.add(write.path);
+  }
+  const expectedDelegatedRoots = plan.inventory?.roots
+    ?.filter((root) => root.restoreDisposition === 'delegated-validation-only')
+    .map((root) => root.path) ?? [];
+  if (JSON.stringify(plan.delegatedRoots) !== JSON.stringify(expectedDelegatedRoots)
+    || plan.delegatedRoots.some((path) => seenWrites.has(path))) {
+    throw new BookMetadataRestoreValidationError({
+      code: 'invalid-schema',
+      path: '$.plan.delegatedRoots',
+      message: 'Delegated canonical roots must be explicit and omitted from restore writes.',
+    });
   }
   if (plan.missingSourceVersionIds.length > 0) {
     throw new BookMetadataRestoreValidationError({ code: 'source-version-missing', path: '$.sourceVersionIds', message: 'Source Version availability is incomplete.' });

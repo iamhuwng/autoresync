@@ -25,6 +25,7 @@ import { buildBackupManifest, buildMediaManifest } from '../utils/manifest';
 import { filterGdprEntities } from './gdpr-filter';
 import {
     BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS,
+    BOOK_METADATA_DELEGATED_TOP_LEVEL_ROOTS,
     BOOK_METADATA_INVENTORY_NODE,
     BOOK_METADATA_CANONICAL_ROOTS,
     buildBookMetadataRestorePreview,
@@ -185,6 +186,7 @@ export async function executeRestore(
                 snapshot: inventory,
                 ...options,
                 expectedFirebaseProject: env.FIREBASE_PROJECT_ID,
+                requireExternalSourceVersionProof: true,
             });
             const currentRoots = await readBookMetadataRoots(
                 env.FIREBASE_DB_URL,
@@ -200,7 +202,11 @@ export async function executeRestore(
                     etag: root.etag,
                     revision: root.revision,
                 })),
-                { ...options, expectedFirebaseProject: env.FIREBASE_PROJECT_ID },
+                {
+                    ...options,
+                    expectedFirebaseProject: env.FIREBASE_PROJECT_ID,
+                    requireExternalSourceVersionProof: true,
+                },
             );
             const sameFences = BOOK_METADATA_CANONICAL_ROOTS.every((path) => {
                 const expected = preview.rootFences[path];
@@ -212,6 +218,7 @@ export async function executeRestore(
                 && preview.inventoryVersion === recalculatedPreview.inventoryVersion
                 && preview.rootCount === recalculatedPreview.rootCount
                 && JSON.stringify(preview.orderedRoots) === JSON.stringify(recalculatedPreview.orderedRoots)
+                && JSON.stringify(preview.delegatedRoots) === JSON.stringify(recalculatedPreview.delegatedRoots)
                 && JSON.stringify(preview.sourceVersionIds) === JSON.stringify(recalculatedPreview.sourceVersionIds)
                 && Array.isArray(preview.missingSourceVersionIds)
                 && preview.missingSourceVersionIds.length === 0
@@ -306,7 +313,10 @@ export async function executeRestore(
         const allBackupNodes = Object.keys(extracted.rtdb).filter((nodeName) => (
             nodeName !== BOOK_METADATA_INVENTORY_NODE
             && (!bookMetadataPreflight
-                || !BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS.includes(nodeName as typeof BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS[number]))
+                || (
+                    !BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS.includes(nodeName as typeof BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS[number])
+                    && !BOOK_METADATA_DELEGATED_TOP_LEVEL_ROOTS.includes(nodeName as typeof BOOK_METADATA_DELEGATED_TOP_LEVEL_ROOTS[number])
+                ))
         ));
         const knownNodes = RTDB_RESTORE_ORDER.filter(n => allBackupNodes.includes(n));
         const unknownNodes = allBackupNodes.filter(

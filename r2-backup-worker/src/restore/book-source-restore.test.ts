@@ -7,6 +7,7 @@ import {
   createBookMetadataBackupInventory,
   fingerprintBookMetadata,
   prepareBookSourceRestore,
+  restoreBookMetadataRoots,
   validateBookMetadataBackupInventory,
 } from './book-source-restore';
 
@@ -26,6 +27,94 @@ const makeInventory = (presentPath?: string, data: Record<string, unknown> = {})
     roots: emptyCaptures(presentPath, data),
   })
 );
+
+const makeVerifiedSourceInventory = () => createBookMetadataBackupInventory({
+  backupId: 'BK-120-source-proof',
+  firebaseProject: 'project-120',
+  generatedAt: '2026-08-11T00:00:00.000Z',
+  roots: BOOK_METADATA_CANONICAL_ROOTS.map((path) => {
+    if (path === 'book_delivery/current') {
+      return {
+        path,
+        present: true,
+        data: {
+          'binding-1': {
+            bindingId: 'binding-1',
+            bookId: 'book-1',
+            ownerId: 'teacher-1',
+            sourceVersionId: 'source-1',
+            revision: 1,
+          },
+        },
+      };
+    }
+    if (path === 'material_catalog/books') {
+      return {
+        path,
+        present: true,
+        data: {
+          'book-1': { bookId: 'book-1', ownerId: 'teacher-1', revision: 1 },
+        },
+      };
+    }
+    if (path === 'book_source_upload_accounts') {
+      const storage = {
+        bookId: 'book-1',
+        sourceVersionId: 'source-1',
+        storageLocationId: 'location-1',
+        providerKind: 'b2',
+        privateBucketId: 'bucket-1',
+        providerObjectKey: 'private/book-1/source-1.pdf',
+        providerFileId: 'file-1',
+        providerFileVersionId: 'version-1',
+        checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+        byteSize: 10,
+      };
+      return {
+        path,
+        present: true,
+        data: {
+          'account-1': {
+            revision: 1,
+            capacity: {
+              trackedAccountBytes: 10,
+              temporaryBytes: 0,
+              providerReconciliation: {
+                status: 'healthy',
+                totalBytes: 10,
+                objectCount: 1,
+                completedAt: '2026-08-11T00:01:00.000Z',
+              },
+            },
+            operations: {
+              'reservation-1': {
+                reservationId: 'reservation-1',
+                bookId: 'book-1',
+                sourceVersionId: 'source-1',
+                sourceKey: 'unit-1',
+                ownerId: 'teacher-1',
+                storageLocationId: 'location-1',
+                providerKind: 'b2',
+                privateBucketId: 'bucket-1',
+                providerObjectKey: 'private/book-1/source-1.pdf',
+                kind: 'initial',
+                byteSize: 10,
+                originalFilename: 'lesson.pdf',
+                expectedChecksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+                createdAt: '2026-08-11T00:00:00.000Z',
+                expiresAt: '2026-08-11T00:05:00.000Z',
+                status: 'verified_completed',
+                verifiedStorage: storage,
+                completedAt: '2026-08-11T00:01:00.000Z',
+              },
+            },
+          },
+        },
+      };
+    }
+    return { path, present: false, data: {} };
+  }),
+});
 
 describe('Book metadata backup/restore inventory', () => {
   it('is explicit, ordered, exhaustive, and metadata-only', () => {
@@ -84,6 +173,111 @@ describe('Book metadata backup/restore inventory', () => {
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'source-version-missing', path: expect.stringContaining('source-1') }),
     ]));
+  });
+
+  it('requires explicit external Source Version proof and accepts complete true proof only', () => {
+    const inventory = makeVerifiedSourceInventory();
+    const currentRoots = BOOK_METADATA_CANONICAL_ROOTS.map((path) => ({
+      path,
+      etag: `etag:${path}`,
+      revision: 1,
+    }));
+
+    const noProof = validateBookMetadataBackupInventory(inventory);
+    expect(noProof.valid).toBe(false);
+    expect(noProof.missingSourceVersionIds).toEqual(['source-1']);
+    expect(noProof.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'availability-proof-missing', path: expect.stringContaining('source-1') }),
+    ]));
+    expect(buildBookMetadataRestorePreview(inventory, 'BK-120-source-proof', currentRoots).allowed).toBe(false);
+    expect(buildBookMetadataRestorePreview(inventory, 'BK-120-source-proof', currentRoots, {
+      requireExternalSourceVersionProof: false,
+    }).allowed).toBe(false);
+
+    const partialProof = validateBookMetadataBackupInventory(inventory, {
+      sourceVersionAvailability: { 'other-source': true },
+    });
+    expect(partialProof.valid).toBe(false);
+    expect(partialProof.missingSourceVersionIds).toEqual(['source-1']);
+    expect(partialProof.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-version-missing', path: expect.stringContaining('source-1') }),
+    ]));
+
+    const falseProof = validateBookMetadataBackupInventory(inventory, {
+      sourceVersionAvailability: { 'source-1': false },
+    });
+    expect(falseProof.valid).toBe(false);
+    expect(falseProof.missingSourceVersionIds).toEqual(['source-1']);
+
+    const completeProof = validateBookMetadataBackupInventory(inventory, {
+      sourceVersionAvailability: { 'source-1': true },
+    });
+    expect(completeProof.valid).toBe(true);
+    expect(buildBookMetadataRestorePreview(inventory, 'BK-120-source-proof', currentRoots, {
+      sourceVersionAvailability: { 'source-1': true },
+    }).allowed).toBe(true);
+  });
+
+  it('captures and fences shared notifications but never includes them in restore writes', async () => {
+    const inventory = createBookMetadataBackupInventory({
+      backupId: 'BK-120-notifications',
+      firebaseProject: 'project-120',
+      generatedAt: '2026-08-11T00:00:00.000Z',
+      roots: BOOK_METADATA_CANONICAL_ROOTS.map((path) => ({
+        path,
+        present: path === 'notifications',
+        data: path === 'notifications' ? {
+          'recipient-1': {
+            'operation-1': {
+              id: 'operation-1',
+              type: 'info',
+              title: 'Book update',
+              message: 'A Book update is available.',
+              read: false,
+              createdAt: 1,
+              metadata: {
+                schemaVersion: 1,
+                kind: 'book',
+                contextType: 'book',
+                contextId: 'book-1',
+                updateActionId: 'action-1',
+                checkpointAvailable: true,
+                deadlineClass: 'none',
+                actionClass: 'open',
+              },
+            },
+          },
+        } : {},
+      })),
+    });
+    const plan = prepareBookSourceRestore({ snapshot: inventory });
+    expect(inventory.roots.find((root) => root.path === 'notifications')).toMatchObject({
+      restoreDisposition: 'delegated-validation-only',
+      delegatedOwner: '#124',
+    });
+    expect(plan.delegatedRoots).toEqual(['notifications']);
+    expect(plan.orderedWrites).toEqual([]);
+
+    const preview = buildBookMetadataRestorePreview(
+      inventory,
+      'BK-120-notifications',
+      BOOK_METADATA_CANONICAL_ROOTS.map((path) => ({ path, etag: `etag:${path}`, revision: 1 })),
+    );
+    expect(preview.delegatedRoots).toEqual(['notifications']);
+    expect(preview.rootFences.notifications).toEqual({ etag: 'etag:notifications', revision: 1 });
+    const writes: string[] = [];
+    const result = await restoreBookMetadataRoots(
+      'https://db.example.test',
+      'token',
+      plan,
+      preview.rootFences,
+      async (input) => {
+        writes.push(new URL(String(input)).pathname);
+        return new Response('{}', { status: 200 });
+      },
+    );
+    expect(writes).toEqual([]);
+    expect(result.restoredRoots).toBe(0);
   });
 
   it('builds deterministic ETag fences without touching a provider or reading a body', () => {

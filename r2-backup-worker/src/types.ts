@@ -149,6 +149,9 @@ export interface BookMetadataInventoryRoot {
     readonly required: true;
     readonly schemaVersion: 1;
     readonly present: boolean;
+    /** Shared notifications are validated/fenced here and reconciled by #124. */
+    readonly restoreDisposition: 'restore' | 'delegated-validation-only';
+    readonly delegatedOwner: '#124' | null;
     readonly data: Record<string, unknown>;
     readonly entityCount: number;
     /** Deterministic metadata fingerprint; it never represents PDF bytes. */
@@ -197,6 +200,7 @@ export interface BookMetadataRestorePreview {
     readonly allowed: boolean;
     readonly rootCount: number;
     readonly orderedRoots: readonly string[];
+    readonly delegatedRoots: readonly string[];
     readonly rootFences: Readonly<Record<string, BookMetadataRootFence>>;
     readonly sourceVersionIds: readonly string[];
     readonly missingSourceVersionIds: readonly string[];
