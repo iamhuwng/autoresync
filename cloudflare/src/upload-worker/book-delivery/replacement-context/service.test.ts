@@ -356,5 +356,10 @@ describe('#117 ReplacementSagaContextOwner', () => {
     await expect(owner.resolveContext({ saga: fixture.saga, item: fixture.item, operationId: fixture.item.operationId })).resolves.toEqual({ status: 'blocked', code: 'replacement_context_disabled' });
     const fragment = JSON.parse(readFileSync(new URL('../../book-rules/fragments/46B.json', import.meta.url), 'utf8')) as unknown;
     expect(validateGeneratedBookRuleFragment(fragment)).toMatchObject({ ticketId: '46B' });
+    const writeRule = (fragment as { operations: Array<{ rule: string; expression: string }> }).operations
+      .find((operation) => operation.rule === '.write' && operation.expression !== 'false');
+    expect(writeRule?.expression).toContain("contextRevision').val() == data.child('authority/contextRevision').val() + 1");
+    expect(writeRule?.expression).toContain("immutableActivityWorkFingerprint').val() == data.child('authority/immutableActivityWorkFingerprint').val()");
+    expect(writeRule?.expression).toContain("newData.child('decision').val() == data.child('decision').val()");
   });
 });
