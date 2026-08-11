@@ -35,7 +35,7 @@ import type {
   BookRedoCheckpointApplyResult,
 } from './redo-checkpoint-apply.ts';
 
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 export interface BookRedoBindingPort {
@@ -137,6 +137,9 @@ const selectedPlacementIds = (plan: BookRedoStudentPlan): readonly string[] => (
 
 const validatePlan = (action: BookUpdateActionRecord, plan: BookRedoStudentPlan): boolean => {
   if (plan.schemaVersion !== 1
+    || !validId(plan.actionId)
+    || !validId(plan.ownerId)
+    || !validId(plan.bookId)
     || plan.actionId !== action.actionId
     || plan.ownerId !== action.ownerId
     || plan.bookId !== action.bookId

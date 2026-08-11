@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertBookRedoBindingRevision,
   bookRedoBindingId,
+  buildBookRedoBinding,
   projectBookRedoBinding,
 } from './bookRedoBindingProjection.adapter';
 import type { BookDeliveryBinding } from './bookDelivery.types';
@@ -98,5 +99,37 @@ describe('book redo binding projection', () => {
       actionId: 'action-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
       current, next, selectedPlacementIds: ['placement-1'], now: next.createdAt,
     })).toEqual({ status: 'invalid', code: 'binding-projection-invalid' });
+  });
+
+  it('rejects slash path segments before binding persistence', () => {
+    const current = binding();
+    const next = binding({
+      bindingId: bookRedoBindingId('action-1', 'homework:1', 'student-1'),
+      revision: 4,
+      createdAt: '2026-08-10T09:01:00.000Z',
+      placements: current.placements.map((placement) => placement.placementId === 'placement-1'
+        ? { ...placement, activityVersionId: 'new-version-1', activityVersion: 2 }
+        : placement),
+    });
+    const base = {
+      actionId: 'action-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      current, next, selectedPlacementIds: ['placement-1'], now: next.createdAt,
+    };
+    expect(projectBookRedoBinding({ ...base, actionId: 'action/1' }).status).toBe('invalid');
+    expect(projectBookRedoBinding({ ...base, contextKey: 'homework/1' }).status).toBe('invalid');
+    expect(projectBookRedoBinding({ ...base, contextId: 'homework/1' }).status).toBe('invalid');
+    expect(projectBookRedoBinding({ ...base, studentId: 'student/1' }).status).toBe('invalid');
+    expect(projectBookRedoBinding({ ...base, current: binding({ bindingId: 'binding/old' }) }).status).toBe('invalid');
+    expect(projectBookRedoBinding({ ...base, next: binding({
+      bindingId: 'binding/new',
+      revision: 4,
+      createdAt: next.createdAt,
+      placements: next.placements,
+    }) }).status).toBe('invalid');
+    expect(buildBookRedoBinding({
+      actionId: 'action/1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1', current,
+      replacements: [{ placementId: 'placement-1', activityVersionId: 'new-version-1', activityVersion: 2 }], now: next.createdAt,
+    })).toEqual({ status: 'invalid', code: 'binding-input-invalid' });
+    expect(projectBookRedoBinding(base).status).toBe('projected');
   });
 });

@@ -4,7 +4,7 @@ import {
   type BookRedoCompletionProjection,
 } from './bookRedoCompletionProjection.service';
 
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 
 export interface BookRedoCurrentActivityProjection {
   readonly placementId: string;

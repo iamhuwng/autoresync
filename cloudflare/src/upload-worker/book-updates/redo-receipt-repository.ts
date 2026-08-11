@@ -10,7 +10,7 @@ export const BOOK_REDO_PHASES = Object.freeze([
 ] as const);
 export type BookRedoPhase = typeof BOOK_REDO_PHASES[number];
 
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const MAX_FINGERPRINT_LENGTH = 4096;
 
 export interface BookRedoReceiptIdentity {
@@ -70,6 +70,15 @@ const stable = (value: unknown): string => {
 
 const validId = (value: unknown): value is string => typeof value === 'string' && ID.test(value);
 
+const validIdentity = (identity: BookRedoReceiptIdentity): boolean => (
+  validId(identity.ownerId)
+  && validId(identity.actionId)
+  && validId(identity.bookId)
+  && validId(identity.contextKey)
+  && validId(identity.contextId)
+  && validId(identity.studentId)
+);
+
 const phaseTemplate = (): Readonly<Record<BookRedoPhase, BookRedoPhaseReceipt>> => (
   Object.freeze(Object.fromEntries(BOOK_REDO_PHASES.map((phase) => [phase, {
     status: 'pending' as const,
@@ -109,6 +118,7 @@ const validReceipt = (value: unknown, identity: BookRedoReceiptIdentity): value 
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const receipt = value as Record<string, unknown>;
   if (receipt.schemaVersion !== 1
+    || !validIdentity(identity)
     || !sameIdentity(receipt as unknown as BookRedoReceiptIdentity, identity)
     || !Number.isSafeInteger(receipt.revision)
     || (receipt.revision as number) < 0
@@ -136,12 +146,7 @@ export const recordBookRedoPhaseSuccess = async (input: {
   readonly at: string;
 }): Promise<BookRedoPhaseAdvanceResult> => {
   if (!BOOK_REDO_PHASES.includes(input.phase)
-    || !validId(input.identity.ownerId)
-    || !validId(input.identity.actionId)
-    || !validId(input.identity.bookId)
-    || !validId(input.identity.contextKey)
-    || !validId(input.identity.contextId)
-    || !validId(input.identity.studentId)
+    || !validIdentity(input.identity)
     || input.fingerprint.length === 0
     || input.fingerprint.length > MAX_FINGERPRINT_LENGTH
     || !Number.isFinite(Date.parse(input.at))) {
@@ -213,6 +218,7 @@ export class InMemoryBookRedoPhaseReceiptRepository implements BookRedoPhaseRece
   private readonly records = new Map<string, BookRedoRecipientReceipt>();
 
   async read(identity: BookRedoReceiptIdentity): Promise<BookRedoRecipientReceipt | null> {
+    if (!validIdentity(identity)) return null;
     return clone(this.records.get(this.key(identity)) ?? null);
   }
 
@@ -221,7 +227,8 @@ export class InMemoryBookRedoPhaseReceiptRepository implements BookRedoPhaseRece
     readonly expectedRevision: number | null;
     readonly receipt: BookRedoRecipientReceipt;
   }): Promise<{ readonly status: 'advanced' | 'conflict'; readonly receipt?: BookRedoRecipientReceipt }> {
-    if (!validReceipt(input.receipt, input.identity)
+    if (!validIdentity(input.identity)
+      || !validReceipt(input.receipt, input.identity)
       || input.receipt.revision !== (input.expectedRevision === null ? 1 : input.expectedRevision + 1)) {
       return { status: 'conflict' };
     }
@@ -290,6 +297,7 @@ export class FirebaseRestBookRedoPhaseReceiptRepository implements BookRedoPhase
   }
 
   async read(identity: BookRedoReceiptIdentity): Promise<BookRedoRecipientReceipt | null> {
+    if (!validIdentity(identity)) return null;
     const value = await this.rtdb.readValue(this.receiptPath(identity));
     return validReceipt(value, identity) ? clone(value) : null;
   }
@@ -299,7 +307,7 @@ export class FirebaseRestBookRedoPhaseReceiptRepository implements BookRedoPhase
     readonly expectedRevision: number | null;
     readonly receipt: BookRedoRecipientReceipt;
   }): Promise<{ readonly status: 'advanced' | 'conflict'; readonly receipt?: BookRedoRecipientReceipt }> {
-    if (!validReceipt(input.receipt, input.identity)) return { status: 'conflict' };
+    if (!validIdentity(input.identity) || !validReceipt(input.receipt, input.identity)) return { status: 'conflict' };
     const maxRetries = this.options.maxRetries ?? 5;
     for (let attempt = 0; attempt < maxRetries; attempt += 1) {
       const current = await this.rtdb.readWithEtag<unknown>(BOOK_REDO_PHASE_RECEIPTS_ROOT);

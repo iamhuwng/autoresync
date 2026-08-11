@@ -4,7 +4,7 @@ import type {
 } from './bookDelivery.types';
 import type { BookDeliveryRepository } from './bookDelivery.entitlement';
 
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 export interface BookRedoBindingProjectionInput {
@@ -150,6 +150,13 @@ export const buildBookRedoBinding = (input: {
   readonly replacements: readonly BookRedoBindingPlacementReplacement[];
   readonly now: string;
 }): BookRedoBindingProjectionResult => {
+  if (!validId(input.actionId)
+    || !validId(input.contextKey)
+    || !validId(input.contextId)
+    || !validId(input.studentId)
+    || !validIso(input.now)) {
+    return { status: 'invalid', code: 'binding-input-invalid' };
+  }
   const replacements = new Map(input.replacements.map((replacement) => [replacement.placementId, replacement]));
   if (replacements.size !== input.replacements.length || replacements.size === 0) {
     return { status: 'invalid', code: 'binding-replacement-invalid' };

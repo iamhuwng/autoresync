@@ -6,10 +6,14 @@ import {
 } from '../src/upload-worker/book-updates/redo-update.ts';
 import {
   createBookRedoCheckpointApplier,
+  FirebaseRestBookRedoCheckpointRepository,
   type BookRedoCheckpointRepository,
 } from '../src/upload-worker/book-updates/redo-checkpoint-apply.ts';
 import {
+  FirebaseRestBookRedoPhaseReceiptRepository,
   InMemoryBookRedoPhaseReceiptRepository,
+  recordBookRedoPhaseSuccess,
+  type BookRedoPhaseReceiptRepository,
 } from '../src/upload-worker/book-updates/redo-receipt-repository.ts';
 import {
   transitionBookUpdateActionRecord,
@@ -24,7 +28,10 @@ import {
   createBookRedoCurrentProjectionAdapter,
   type BookRedoCurrentProjection,
 } from '../../src/services/book-delivery/bookRedoCurrentProjection.adapter';
-import type { BookRedoCheckpoint } from '../../src/services/book-activity/bookRedoCheckpointProjection.service';
+import type {
+  BookRedoCheckpoint,
+  BookRedoCheckpointInput,
+} from '../../src/services/book-activity/bookRedoCheckpointProjection.service';
 import type { BookUpdateActionRecord } from '../../src/services/book-delivery/bookUpdateAction.types';
 import fragment from '../src/upload-worker/book-rules/fragments/40B.json';
 
@@ -286,6 +293,111 @@ describe('book redo update executor', () => {
     expect(result).toMatchObject({ status: 'pending', code: 'binding-revision-stale' });
     expect(current.actions.record.state).toBe('applying');
     expect(current.finalizerCalls.value).toBe(0);
+  });
+
+  it('rejects slash path segments before checkpoint, receipt, or current repository effects', async () => {
+    let storageFetches = 0;
+    const storageOptions = {
+      env: {
+        FIREBASE_DB_URL: 'https://example.test',
+        BOOK_REDO_SERVICE_IDENTITY: 'book_update_redo_service',
+        BOOK_REDO_GOOGLE_SA_KEY: JSON.stringify({ client_email: 'book_update_redo_service' }),
+      },
+      fetchImpl: async () => {
+        storageFetches += 1;
+        throw new Error('unexpected-storage-fetch');
+      },
+    };
+    const checkpointStorage = new FirebaseRestBookRedoCheckpointRepository(storageOptions);
+    await expect(checkpointStorage.read({ ownerId: 'owner-1', checkpointId: 'checkpoint/1' })).resolves.toBeNull();
+    const receiptStorage = new FirebaseRestBookRedoPhaseReceiptRepository(storageOptions);
+    await expect(receiptStorage.read({
+      ownerId: 'owner/1', actionId: 'action-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+    })).resolves.toBeNull();
+    expect(storageFetches).toBe(0);
+
+    let checkpointReads = 0;
+    let checkpointWrites = 0;
+    const checkpointRepository: BookRedoCheckpointRepository = {
+      async read() {
+        checkpointReads += 1;
+        return null;
+      },
+      async create(checkpoint) {
+        checkpointWrites += 1;
+        return { status: 'created' as const, checkpoint };
+      },
+    };
+    const checkpoints = createBookRedoCheckpointApplier({ repository: checkpointRepository });
+    const checkpointInput: BookRedoCheckpointInput = {
+      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      oldBindingId: 'binding-old', oldBindingRevision: 3, reason: 'Replace the activity', createdAt: NOW,
+      activities: [{
+        contextKey: 'homework:1', placementId: 'placement-1', activityId: 'activity-1', oldActivityVersionId: 'old-version-1',
+        oldSourceVersionIds: ['source-version-1'], lifecycle: 'in-progress', priorAnswer: { answer: 'old' },
+        feedbackRelease: 'hidden', changed: true,
+      }],
+    };
+    for (const update of [
+      { actionId: 'action/1' },
+      { ownerId: 'owner/1' },
+      { contextKey: 'homework/1' },
+      { contextId: 'homework/1' },
+      { studentId: 'student/1' },
+      { oldBindingId: 'binding/old' },
+    ]) {
+      await expect(checkpoints.apply({ ...checkpointInput, ...update })).resolves.toMatchObject({
+        status: 'conflict',
+        code: 'checkpoint-input-invalid',
+      });
+    }
+    expect(checkpointReads).toBe(0);
+    expect(checkpointWrites).toBe(0);
+
+    let receiptReads = 0;
+    let receiptWrites = 0;
+    const receiptRepository: BookRedoPhaseReceiptRepository = {
+      async read() {
+        receiptReads += 1;
+        return null;
+      },
+      async compareAndSet(input) {
+        receiptWrites += 1;
+        return { status: 'advanced' as const, receipt: input.receipt };
+      },
+    };
+    const receipt = await recordBookRedoPhaseSuccess({
+      repository: receiptRepository,
+      identity: {
+        ownerId: 'owner/1', actionId: 'action-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      },
+      phase: 'checkpoint', fingerprint: 'safe-fingerprint', at: NOW,
+    });
+    expect(receipt).toEqual({ status: 'conflict', code: 'redo-phase-input-invalid' });
+    expect(receiptReads).toBe(0);
+    expect(receiptWrites).toBe(0);
+
+    let currentReads = 0;
+    let currentWrites = 0;
+    const currentAdapter = createBookRedoCurrentProjectionAdapter({
+      async read() {
+        currentReads += 1;
+        return null;
+      },
+      async commit() {
+        currentWrites += 1;
+        return { status: 'conflict' as const };
+      },
+    });
+    await expect(currentAdapter.apply({
+      operationId: 'action-1:redo:homework:1:homework-1:student-1:redo-exclusion',
+      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      bindingId: 'redo/action-1', bindingRevision: 4,
+      previousBindingId: 'binding-old', previousBindingRevision: 3,
+      selectedPlacementIds: ['placement-1'], nextActivityVersionIds: { 'placement-1': 'new-version-1' },
+    })).resolves.toMatchObject({ status: 'conflict', code: 'current-projection-input-invalid' });
+    expect(currentReads).toBe(0);
+    expect(currentWrites).toBe(0);
   });
 
   it('sets new action provenance and preserves it across safe replay', async () => {

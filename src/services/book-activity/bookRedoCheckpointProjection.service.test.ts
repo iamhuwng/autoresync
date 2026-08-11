@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bookRedoCheckpointId,
   createBookRedoCheckpointProjection,
+  isBookRedoCheckpoint,
   type BookRedoCheckpointActivityInput,
 } from './bookRedoCheckpointProjection.service';
 
@@ -117,5 +118,24 @@ describe('book redo checkpoint projection', () => {
     expect(createBookRedoCheckpointProjection(input([
       activity({ contextKey: 'course:1' }),
     ])).status).toBe('invalid');
+  });
+
+  it('rejects slash path segments while retaining colon-delimited context keys', () => {
+    const base = input([activity()]);
+    expect(createBookRedoCheckpointProjection({ ...base, actionId: 'action/1' }).status).toBe('invalid');
+    expect(createBookRedoCheckpointProjection({ ...base, ownerId: 'owner/1' }).status).toBe('invalid');
+    expect(createBookRedoCheckpointProjection({
+      ...base,
+      contextKey: 'homework/1',
+      activities: [activity({ contextKey: 'homework/1' })],
+    }).status).toBe('invalid');
+    expect(createBookRedoCheckpointProjection({ ...base, contextId: 'homework/1' }).status).toBe('invalid');
+    expect(createBookRedoCheckpointProjection({ ...base, studentId: 'student/1' }).status).toBe('invalid');
+    expect(createBookRedoCheckpointProjection({ ...base, oldBindingId: 'binding/old' }).status).toBe('invalid');
+
+    const valid = createBookRedoCheckpointProjection(base);
+    expect(valid.status).toBe('checkpoint');
+    if (valid.status !== 'checkpoint') return;
+    expect(isBookRedoCheckpoint({ ...valid.checkpoint, checkpointId: 'action-1/checkpoint' })).toBe(false);
   });
 });

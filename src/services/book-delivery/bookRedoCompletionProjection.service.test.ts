@@ -60,4 +60,15 @@ describe('book redo completion projection', () => {
       code: 'completion-duplicate-placement',
     });
   });
+
+  it('rejects slash path segments before completion persistence', () => {
+    const base = input([activity()]);
+    expect(projectBookRedoCompletion({ ...base, actionId: 'action/1' }).status).toBe('invalid');
+    expect(projectBookRedoCompletion({ ...base, ownerId: 'owner/1' }).status).toBe('invalid');
+    expect(projectBookRedoCompletion({ ...base, contextKey: 'homework/1' }).status).toBe('invalid');
+    expect(projectBookRedoCompletion({ ...base, contextId: 'homework/1' }).status).toBe('invalid');
+    expect(projectBookRedoCompletion({ ...base, studentId: 'student/1' }).status).toBe('invalid');
+    expect(projectBookRedoCompletion({ ...base, bindingId: 'binding/new' }).status).toBe('invalid');
+    expect(projectBookRedoCompletion(base).status).toBe('projected');
+  });
 });

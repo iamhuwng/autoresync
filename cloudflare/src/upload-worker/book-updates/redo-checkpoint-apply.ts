@@ -7,7 +7,7 @@ import {
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 
 export const BOOK_REDO_CHECKPOINT_ROOT = 'book_update_checkpoints';
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 
 export interface BookRedoCheckpointRepository {
   read(input: { readonly ownerId: string; readonly checkpointId: string }): Promise<BookRedoCheckpoint | null>;
