@@ -74,6 +74,8 @@ describe('Ticket 21 Book Delivery projection rules fragment', () => {
     expect(scopeWrite?.expression).toContain("!newData.child('providerAuthority').exists()");
     expect(scopeWrite?.expression).toContain("!newData.child('credentials').exists()");
     expect(scopeWrite?.expression).toContain("!newData.child('privateObjectKey').exists()");
+    expect(scopeWrite?.expression).toContain("!data.child('recovery').exists()");
+    expect(scopeWrite?.expression).toContain("!newData.child('recovery').exists()");
     expect(recordRead?.expression).toContain('auth.token.book_delivery_service == true');
     expect(recordRead?.expression).not.toContain('auth.uid');
   });

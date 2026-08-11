@@ -136,6 +136,12 @@ const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const SAFE_ROOT_PATH = /^[a-z][a-z0-9_-]*(?:\/[a-z][a-z0-9_-]*)*$/u;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const FORBIDDEN_BODY_KEY = /^(?:pdf(?:bytes|body|content|data)|(?:body|byte|document|payload)bytes|bytepayload|buffer|stream)$/iu;
+const FORBIDDEN_RECOVERY_CHILD_KEY = new Set([
+  'pdfBytes', 'pdfBody', 'pdfContent', 'providerObject', 'providerAuthority',
+  'providerObjectKey', 'providerFileId', 'providerFileVersionId', 'privateBucketId',
+  'storageLocationId', 'objectKey', 'privateObjectKey', 'url', 'viewerLink',
+  'entitlement', 'credentials', 'token', 'secret', 'signed',
+]);
 const ID_FIELDS = new Set([
   'accountId',
   'activityId',
@@ -584,6 +590,11 @@ const inspectMetadata = (
     const childPath = `${path}.${key}`;
     if (FORBIDDEN_BODY_KEY.test(key)) {
       addDiagnostic(diagnostics, 'pdf-body-field', childPath, 'Book PDF body or byte payload fields are not restorable metadata.');
+    }
+    if (rootPath === 'book_delivery'
+      && /(?:^|\.)recovery(?:\.|\[)/u.test(path)
+      && FORBIDDEN_RECOVERY_CHILD_KEY.has(key)) {
+      addDiagnostic(diagnostics, 'pdf-body-field', childPath, 'Delivery recovery children may contain only unavailable metadata; provider, viewer, entitlement, and body fields are forbidden.');
     }
     if (ID_FIELDS.has(key) && child !== null && child !== undefined && !safeIdentifier(child)) {
       addDiagnostic(diagnostics, 'invalid-reference', childPath, `${key} must be a safe identifier.`);

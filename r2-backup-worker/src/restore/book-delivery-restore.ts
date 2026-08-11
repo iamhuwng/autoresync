@@ -1,6 +1,8 @@
 import type { BookMetadataBackupInventory } from '../types';
 import {
+  createBookDeliveryRecoveryAdapter,
   rebuildBookDeliveryRecoveryProjections,
+  type BookDeliveryRecoveryAdapter,
   type BookDeliveryRecoveryProjection,
   type BookDeliveryRecoveryDiagnostic,
 } from '../../../src/services/book-delivery/bookDelivery.recovery';
@@ -13,6 +15,10 @@ const SAFE_RECOVERY_OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 export interface BookDeliveryRestorePlan {
   readonly recoveryOperationId: string;
   readonly inventoryFingerprint: string;
+  readonly scopes: Readonly<Record<string, unknown>>;
+  readonly bindingIndexes: Readonly<Record<string, unknown>>;
+  readonly sourceAuthorities: ReadonlyMap<string, BookSourceRecoveryAuthority>;
+  readonly expectedOwnerId?: string;
   readonly projections: readonly BookDeliveryRecoveryProjection[];
   readonly diagnostics: readonly BookDeliveryRecoveryDiagnostic[];
   readonly report: {
@@ -23,8 +29,10 @@ export interface BookDeliveryRestorePlan {
     readonly retryable: number;
     readonly terminal: number;
   };
-  /** This ticket has no Delivery production writes; #125/#126 own exposure. */
+  /** No live Delivery/current or entitlement write is authorized by #122. */
   readonly productionWrites: 0;
+  /** Durable metadata-only recovery children written by the explicit adapter. */
+  readonly recoveryWrites: number;
 }
 
 export class BookDeliveryRestoreValidationError extends Error {
@@ -49,6 +57,11 @@ const rootData = (
   if (!root || !root.present || !isRecord(root.data)) return {};
   return root.data;
 };
+
+const rootPresent = (
+  inventory: BookMetadataBackupInventory,
+  path: string,
+): boolean => inventory.roots.some((candidate) => candidate.path === path && candidate.present === true);
 
 /**
  * Build only an internal, unavailable Delivery projection. It does not read
@@ -79,9 +92,19 @@ export const prepareBookDeliveryRestore = (input: {
     }]);
   }
   const inventory = input.inventory as unknown as BookMetadataBackupInventory;
+  const legacyFlatRoots = ['book_delivery/records', 'book_delivery/current'];
+  if (legacyFlatRoots.some((path) => rootPresent(inventory, path))) {
+    throw new BookDeliveryRestoreValidationError([{
+      code: 'invalid-scope',
+      path: 'book_delivery',
+      message: 'Delivery recovery rejects legacy flat roots; production authority is book_delivery/scopes plus indexes/bindings.',
+    }]);
+  }
+  const scopes = rootData(inventory, 'book_delivery/scopes');
+  const bindingIndexes = rootData(inventory, 'book_delivery/indexes/bindings');
   const rebuilt = rebuildBookDeliveryRecoveryProjections({
-    records: rootData(inventory, 'book_delivery/records'),
-    current: rootData(inventory, 'book_delivery/current'),
+    scopes,
+    bindingIndexes,
     sourceAuthorities: input.sourceAuthorities,
     recoveryContext: {
       recoveryOperationId: input.recoveryOperationId,
@@ -93,17 +116,22 @@ export const prepareBookDeliveryRestore = (input: {
   return Object.freeze({
     recoveryOperationId: input.recoveryOperationId,
     inventoryFingerprint: input.inventoryFingerprint,
+    scopes,
+    bindingIndexes,
+    sourceAuthorities: input.sourceAuthorities,
+    expectedOwnerId: input.expectedOwnerId,
     projections: rebuilt.projections,
     diagnostics: rebuilt.diagnostics,
     report: rebuilt.report,
     productionWrites: 0,
+    recoveryWrites: 0,
   });
 };
 
 /**
- * Explicit phase adapter for callers that persist staged projections through
- * their own recovery ledger. This function intentionally has no default
- * writer, so an implicit restore listener cannot expose Delivery.
+ * Filter a staged plan against already completed deterministic projections.
+ * This remains write-free; use persistBookDeliveryRecovery for the explicit
+ * rebuilding phase and an injected durable adapter.
  */
 export const rebuildBookDeliveryProjections = (input: {
   readonly plan: BookDeliveryRestorePlan;
@@ -129,3 +157,30 @@ export const rebuildBookDeliveryProjections = (input: {
     }),
   });
 };
+
+/**
+ * Explicit #121 rebuilding-phase bridge to the durable recovery adapter.
+ * The adapter writes only metadata-only recovery hold/projection children;
+ * activation, entitlement, viewer links, and provider actions remain absent.
+ */
+export const persistBookDeliveryRecovery = async (input: {
+  readonly plan: BookDeliveryRestorePlan;
+  readonly adapter: BookDeliveryRecoveryAdapter;
+}): Promise<BookDeliveryRestorePlan> => {
+  const result = await input.adapter.rebuild({
+    scopes: input.plan.scopes,
+    bindingIndexes: input.plan.bindingIndexes,
+    sourceAuthorities: input.plan.sourceAuthorities,
+    expectedOwnerId: input.plan.expectedOwnerId,
+  });
+  return Object.freeze({
+    ...input.plan,
+    projections: result.projections,
+    diagnostics: result.diagnostics,
+    report: result.report,
+    recoveryWrites: result.report.rebuilt,
+  });
+};
+
+/** Explicit factory for the Worker/ledger rebuilding phase. */
+export { createBookDeliveryRecoveryAdapter };

@@ -77,6 +77,19 @@ const current = {
   updatedAt: now,
 };
 
+const scopes = {
+  'student-1': {
+    'solo-binding-1': {
+      current,
+      records: { 'binding-1': record },
+    },
+  },
+};
+
+const bindingIndexes = {
+  'binding-1': { recipientId: 'student-1', contextId: 'solo-binding-1' },
+};
+
 const authority = (available = true): BookSourceRecoveryAuthority => ({
   accountId: 'account-1',
   reservationId: 'reservation-1',
@@ -109,8 +122,8 @@ const mapFor = (value: BookSourceRecoveryAuthority | undefined) => {
 describe('Book Delivery recovery projection', () => {
   it('rebuilds an unavailable, read-denied projection without URL or entitlement fields', () => {
     const result = rebuildBookDeliveryRecoveryProjections({
-      records: { 'binding-1': record },
-      current: { 'student-1/solo-binding-1': current },
+      scopes,
+      bindingIndexes,
       sourceAuthorities: mapFor(authority()),
       recoveryContext,
     });
@@ -129,8 +142,8 @@ describe('Book Delivery recovery projection', () => {
 
   it('stages unavailable for missing or deleted Source authority and rejects owner/current mismatches', () => {
     const missing = rebuildBookDeliveryRecoveryProjections({
-      records: { 'binding-1': record },
-      current: { 'student-1/solo-binding-1': current },
+      scopes,
+      bindingIndexes,
       sourceAuthorities: new Map(),
       recoveryContext,
     });
@@ -198,21 +211,40 @@ describe('Book Delivery recovery projection', () => {
     expect(wrongCurrent.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'current-binding-mismatch' }),
     ]));
+
+    const orphanCurrent = rebuildBookDeliveryRecoveryProjections({
+      scopes: {
+        'student-1': {
+          'solo-binding-1': { current },
+        },
+      },
+      bindingIndexes: {},
+      sourceAuthorities: mapFor(authority()),
+      recoveryContext,
+    });
+    expect(orphanCurrent.projections).toEqual([]);
+    expect(orphanCurrent.report.invalid).toBeGreaterThan(0);
+    expect(orphanCurrent.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'current-binding-mismatch' }),
+      expect.objectContaining({ code: 'source-binding-mismatch' }),
+    ]));
   });
 
   it('uses durable projection keys for replay and conflicts, and gates the adapter phase', async () => {
     const store = new InMemoryBookDeliveryRecoveryProjectionStore();
     const adapter = createBookDeliveryRecoveryAdapter({ context: recoveryContext, store });
     const input = {
-      records: { 'binding-1': record },
-      current: { 'student-1/solo-binding-1': current },
+      scopes,
+      bindingIndexes,
       sourceAuthorities: mapFor(authority()),
       expectedOwnerId: 'teacher-1',
     };
     expect((await adapter.rebuild(input)).report.rebuilt).toBe(1);
     expect((await adapter.rebuild(input)).report.skippedIdempotent).toBe(1);
-    const projectionKey = 'recovery-122:binding-1:1';
+    const projectionKey = 'recovery-122-binding-1-1';
     expect(store.read(projectionKey)).toMatchObject({ readDenied: true, deliveryState: 'unavailable' });
+    await expect(store.readHold({ recipientId: 'student-1', contextId: 'solo-binding-1' }))
+      .resolves.toMatchObject({ recoveryOperationId: 'recovery-122', readDenied: true });
     await expect(store.putIfAbsent({
       projectionKey,
       projection: { ...store.read(projectionKey)!, recordRevision: 2 },

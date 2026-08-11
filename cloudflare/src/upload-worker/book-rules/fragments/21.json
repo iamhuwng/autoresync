@@ -49,14 +49,14 @@
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId"
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && !data.child('recovery').exists()"
     },
     {
       "path": "book_delivery/scopes/$recipientId/$contextId",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && !newData.child('answerKey').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && !data.child('recovery').exists() && !newData.child('recovery').exists() && !newData.child('answerKey').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
     },
     {
       "path": "book_delivery/scopes/$recipientId/$contextId/current",
@@ -70,7 +70,7 @@
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('status').val() == 'active'"
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && !root.child('book_delivery').child('scopes').child($recipientId).child($contextId).child('recovery').exists() && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('status').val() == 'active'"
     },
     {
       "path": "book_delivery/scopes/$recipientId/$contextId/current",
@@ -91,7 +91,7 @@
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && newData.child('binding/bindingId').val() == $bindingId && newData.child('binding/schemaVersion').val() == 3 && newData.child('binding/recipient/recipientId').val() == $recipientId && newData.child('binding/context/contextId').val() == $contextId && newData.child('binding/outline').hasChildren() && newData.child('binding/placements').hasChildren() && !newData.child('binding/answerKey').exists() && !newData.child('binding/providerAuthority').exists() && !newData.child('binding/credentials').exists() && !newData.child('binding/privateObjectKey').exists()"
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && !root.child('book_delivery').child('scopes').child($recipientId).child($contextId).child('recovery').exists() && newData.child('binding/bindingId').val() == $bindingId && newData.child('binding/schemaVersion').val() == 3 && newData.child('binding/recipient/recipientId').val() == $recipientId && newData.child('binding/context/contextId').val() == $contextId && newData.child('binding/outline').hasChildren() && newData.child('binding/placements').hasChildren() && !newData.child('binding/answerKey').exists() && !newData.child('binding/providerAuthority').exists() && !newData.child('binding/credentials').exists() && !newData.child('binding/privateObjectKey').exists()"
     },
     {
       "path": "book_delivery/scopes/$recipientId/$contextId/records/$bindingId",
@@ -112,7 +112,7 @@
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && newData.child('result/receipt/operationId').val() == $operationId && !newData.child('answerKey').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+      "expression": "auth != null && auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId && !root.child('book_delivery').child('scopes').child($recipientId).child($contextId).child('recovery').exists() && newData.child('result/receipt/operationId').val() == $operationId && !newData.child('answerKey').exists() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
     },
     {
       "path": "book_delivery/scopes/$recipientId/$contextId/operations/$operationId",

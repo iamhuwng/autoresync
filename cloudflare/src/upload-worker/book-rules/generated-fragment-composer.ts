@@ -18,7 +18,7 @@ export const FINAL_BOOK_RULE_FRAGMENT_IDS = Object.freeze([
   '04', '08B', '12C', '13A', '16', '16A', '17', '18', '19', '20A',
   '20C', '21', '28A', '29', '33C', '35', '36', '37A', '37B', '38B5',
   '39B', '39C', '40A', '40B', '41B', '41C', '42A', '42B', '43', '44',
-  '45', '46A', '46B', '47', '49A',
+  '45', '46A', '46B', '47', '49A', '49B',
 ] as const);
 
 type OperationRef = Readonly<{
@@ -259,7 +259,8 @@ const validateFragmentMetadata = (fragment: GeneratedBookRuleFragment): void => 
       status: fragment.status,
     });
   }
-  if (fragment.status === 'inactive' && fragment.activation !== 'deny-only-until-118-composition') {
+  if (fragment.status === 'inactive'
+    && !['deny-only-until-118-composition', 'deny-only-until-125-reconciliation', 'deny-only-until-126-activation'].includes(fragment.activation ?? '')) {
     fail('malformed-fragment', `Fragment ${fragment.ticketId} has an unsafe activation marker.`, {
       fragmentId: fragment.ticketId,
       activation: fragment.activation,

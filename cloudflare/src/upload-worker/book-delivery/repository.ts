@@ -9,6 +9,13 @@ import type {
   BookDeliveryRepository,
   BookDeliveryResolvedEntitlement,
 } from '../../../../src/services/book-delivery/bookDelivery.entitlement.ts';
+import {
+  isBookDeliveryRecoveryHold,
+  isBookDeliveryRecoveryProjection,
+  type BookDeliveryRecoveryHold,
+  type BookDeliveryRecoveryProjection,
+  type BookDeliveryRecoveryProjectionStore,
+} from '../../../../src/services/book-delivery/bookDelivery.recovery.ts';
 
 export const BOOK_DELIVERY_ROOT = 'book_delivery';
 const MAX_RETRIES = 5;
@@ -20,6 +27,7 @@ const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 export interface BookDeliveryRepositoryEnv extends RepositoryEnv {
   BOOK_DELIVERY_SERVICE_IDENTITY?: string;
+  BOOK_RECOVERY_SERVICE_IDENTITY?: string;
   BOOK_DELIVERY_GOOGLE_SA_KEY?: string;
 }
 
@@ -37,9 +45,16 @@ interface DeliveryScope {
   records?: Record<string, BookDeliveryRecord>;
   current?: BookDeliveryCurrentPointer;
   operations?: Record<string, PersistedOperation>;
+  recovery?: {
+    readonly hold: BookDeliveryRecoveryHold;
+    readonly projections: Readonly<Record<string, BookDeliveryRecoveryProjection>>;
+  };
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+);
 const rootPath = (...parts: string[]): string => [BOOK_DELIVERY_ROOT, ...parts].join('/');
 const scopePath = (recipientId: string, contextId: string): string =>
   rootPath('scopes', recipientId, contextId);
@@ -48,6 +63,10 @@ const recordPath = (index: BindingIndex, bindingId: string): string =>
   `${scopePath(index.recipientId, index.contextId)}/records/${bindingId}`;
 const currentPath = (recipientId: string, contextId: string): string =>
   `${scopePath(recipientId, contextId)}/current`;
+const recoveryHoldPath = (recipientId: string, contextId: string): string =>
+  `${scopePath(recipientId, contextId)}/recovery/hold`;
+const recoveryProjectionPath = (recipientId: string, contextId: string, projectionKey: string): string =>
+  `${scopePath(recipientId, contextId)}/recovery/projections/${projectionKey}`;
 const assertId = (value: string, label: string): void => {
   if (!ID.test(value)) throw new Error(`invalid_book_delivery_${label}`);
 };
@@ -147,7 +166,7 @@ const parseScope = (value: unknown): DeliveryScope => {
   if (value === null || value === undefined) return {};
   if (typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_book_delivery_scope');
   const source = value as Record<string, unknown>;
-  if (Object.keys(source).some((key) => !['current', 'operations', 'records'].includes(key))
+  if (Object.keys(source).some((key) => !['current', 'operations', 'records', 'recovery'].includes(key))
     || encodedBytes(source) > MAX_SCOPE_BYTES) throw new Error('invalid_book_delivery_scope');
   const records: Record<string, BookDeliveryRecord> = {};
   if (source.records !== undefined) {
@@ -178,12 +197,58 @@ const parseScope = (value: unknown): DeliveryScope => {
   if (source.current !== undefined && !validPointer(source.current)) {
     throw new Error('invalid_book_delivery_current_pointer');
   }
+  let recovery: DeliveryScope['recovery'];
+  if (source.recovery !== undefined) {
+    if (!isRecord(source.recovery)
+      || !isBookDeliveryRecoveryHold(source.recovery.hold)
+      || !isRecord(source.recovery.projections)
+      || Object.entries(source.recovery.projections).some(([key, value]) => (
+        !ID.test(key)
+        || !isBookDeliveryRecoveryProjection(value)
+        || value.projectionKey !== key
+      ))) {
+      throw new Error('invalid_book_delivery_recovery');
+    }
+    recovery = {
+      hold: clone(source.recovery.hold),
+      projections: clone(source.recovery.projections) as Readonly<Record<string, BookDeliveryRecoveryProjection>>,
+    };
+  }
   return {
     records: Object.keys(records).length ? records : undefined,
     current: source.current === undefined ? undefined : clone(source.current as BookDeliveryCurrentPointer),
     operations: Object.keys(operations).length ? operations : undefined,
+    recovery,
   };
 };
+
+const createRtdb = (options: {
+  readonly env: BookDeliveryRepositoryEnv;
+  readonly identity: string | undefined;
+  readonly keyJson?: string;
+  readonly fetchImpl?: typeof fetch;
+  readonly getAccessToken?: () => Promise<string>;
+}, errorPrefix: string): FirebaseRtdbRestClient => {
+  const identity = options.identity?.trim();
+  if (!identity) throw new Error(`missing_${errorPrefix}_service_identity`);
+  const keyJson = (options.keyJson ?? options.env.GOOGLE_SA_KEY)?.trim();
+  if (!keyJson && !options.getAccessToken) throw new Error(`missing_${errorPrefix}_google_sa_key`);
+  if (keyJson) {
+    let clientEmail: unknown;
+    try { clientEmail = (JSON.parse(keyJson) as Record<string, unknown>).client_email; } catch {
+      throw new Error(`invalid_${errorPrefix}_google_sa_key`);
+    }
+    if (clientEmail !== identity) throw new Error(`${errorPrefix}_service_identity_mismatch`);
+  }
+  return new FirebaseRtdbRestClient({
+    env: { ...options.env, GOOGLE_SA_KEY: keyJson },
+    fetchImpl: options.fetchImpl ?? globalThis.fetch,
+    getAccessToken: options.getAccessToken,
+    firebaseAuthToken: Boolean(options.getAccessToken),
+  });
+};
+
+const equalDeterministic = (left: unknown, right: unknown): boolean => stable(left) === stable(right);
 
 const receipt = (
   operationId: string,
@@ -271,23 +336,13 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     getAccessToken?: () => Promise<string>;
     maxRetries?: number;
   }) {
-    const identity = options.env.BOOK_DELIVERY_SERVICE_IDENTITY?.trim();
-    if (!identity) throw new Error('missing_book_delivery_service_identity');
-    const keyJson = options.env.BOOK_DELIVERY_GOOGLE_SA_KEY?.trim();
-    if (!keyJson && !options.getAccessToken) throw new Error('missing_book_delivery_google_sa_key');
-    if (keyJson) {
-      let clientEmail: unknown;
-      try { clientEmail = (JSON.parse(keyJson) as Record<string, unknown>).client_email; } catch {
-        throw new Error('invalid_book_delivery_google_sa_key');
-      }
-      if (clientEmail !== identity) throw new Error('book_delivery_service_identity_mismatch');
-    }
-    this.rtdb = new FirebaseRtdbRestClient({
-      env: { ...options.env, GOOGLE_SA_KEY: keyJson },
-      fetchImpl: options.fetchImpl ?? globalThis.fetch,
+    this.rtdb = createRtdb({
+      env: options.env,
+      identity: options.env.BOOK_DELIVERY_SERVICE_IDENTITY,
+      keyJson: options.env.BOOK_DELIVERY_GOOGLE_SA_KEY,
+      fetchImpl: options.fetchImpl,
       getAccessToken: options.getAccessToken,
-      firebaseAuthToken: Boolean(options.getAccessToken),
-    });
+    }, 'book_delivery');
   }
 
   async readBinding(bindingId: string): Promise<BookDeliveryRecord | null> {
@@ -302,7 +357,9 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     assertId(recipientId, 'recipient_id');
     assertId(contextId, 'context_id');
     const value = await this.rtdb.readValue(currentPath(recipientId, contextId));
-    return validPointer(value) ? clone(value) : null;
+    if (!validPointer(value)) return null;
+    if (await this.readActiveRecoveryHold(recipientId, contextId)) return null;
+    return clone(value);
   }
 
   async resolveCurrent(recipientId: string, contextId: string): Promise<BookDeliveryResolvedEntitlement | null> {
@@ -314,7 +371,19 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     if (!validRecord(value, pointer.bindingId)
       || value.status !== 'active'
       || value.binding.revision !== pointer.bindingRevision) return null;
+    if (await this.readActiveRecoveryHold(recipientId, contextId)) return null;
     return { record: clone(value), pointer };
+  }
+
+  private async readActiveRecoveryHold(recipientId: string, contextId: string): Promise<BookDeliveryRecoveryHold | null> {
+    const value = await this.rtdb.readValue(recoveryHoldPath(recipientId, contextId));
+    if (value === null) return null;
+    if (!isBookDeliveryRecoveryHold(value)
+      || value.recipientId !== recipientId
+      || value.contextId !== contextId) {
+      throw new Error('invalid_book_delivery_recovery_hold');
+    }
+    return clone(value);
   }
 
   async createDraft(input: {
@@ -470,7 +539,7 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
     operationId: string,
     fingerprint: string,
     now: string,
-    mutate: (scope: { records?: Record<string, BookDeliveryRecord>; current?: BookDeliveryCurrentPointer; operations?: Record<string, PersistedOperation> }) => BookDeliveryMutationResult,
+    mutate: (scope: DeliveryScope) => BookDeliveryMutationResult,
   ): Promise<BookDeliveryMutationResult> {
     for (let attempt = 0; attempt < (this.options.maxRetries ?? MAX_RETRIES); attempt += 1) {
       const current = await this.rtdb.readWithEtag<unknown>(
@@ -492,5 +561,110 @@ export class FirebaseRestBookDeliveryRepository implements BookDeliveryRepositor
       )) return output;
     }
     throw new Error('book_delivery_scope_cas_retries_exhausted');
+  }
+}
+
+/**
+ * Production recovery projection store. It writes only the exact recovery
+ * children under an existing Delivery scope, using child ETag/CAS puts. It
+ * never clears a hold and never writes live current, records, entitlement, or
+ * provider data.
+ */
+export class FirebaseRestBookDeliveryRecoveryProjectionStore implements BookDeliveryRecoveryProjectionStore {
+  private readonly rtdb: FirebaseRtdbRestClient;
+
+  constructor(private readonly options: {
+    env: BookDeliveryRepositoryEnv;
+    fetchImpl?: typeof fetch;
+    getAccessToken?: () => Promise<string>;
+    maxRetries?: number;
+  }) {
+    this.rtdb = createRtdb({
+      env: options.env,
+      identity: options.env.BOOK_RECOVERY_SERVICE_IDENTITY,
+      fetchImpl: options.fetchImpl,
+      getAccessToken: options.getAccessToken,
+    }, 'book_recovery');
+  }
+
+  async readHold(input: { readonly recipientId: string; readonly contextId: string }): Promise<BookDeliveryRecoveryHold | null> {
+    assertId(input.recipientId, 'recovery_recipient_id');
+    assertId(input.contextId, 'recovery_context_id');
+    const value = await this.rtdb.readValue(recoveryHoldPath(input.recipientId, input.contextId));
+    if (value === null) return null;
+    if (!isBookDeliveryRecoveryHold(value)
+      || value.recipientId !== input.recipientId
+      || value.contextId !== input.contextId) {
+      throw new Error('invalid_book_delivery_recovery_hold');
+    }
+    return clone(value);
+  }
+
+  async putIfAbsent(input: {
+    readonly projectionKey: string;
+    readonly projection: BookDeliveryRecoveryProjection;
+  }): Promise<'created' | 'replayed' | 'conflict'> {
+    const projection = input.projection;
+    if (!ID.test(input.projectionKey)
+      || !isBookDeliveryRecoveryProjection(projection)
+      || projection.projectionKey !== input.projectionKey) {
+      throw new Error('invalid_book_delivery_recovery_projection');
+    }
+    const recipientId = projection.recipientId;
+    const contextId = projection.contextId;
+    const hold = {
+      kind: 'book-delivery-recovery-hold' as const,
+      schemaVersion: 1 as const,
+      recoveryOperationId: projection.recoveryOperationId,
+      recipientId,
+      contextId,
+      deliveryState: 'unavailable' as const,
+      readDenied: true as const,
+      activation: 'held-for-reconciliation' as const,
+    } satisfies BookDeliveryRecoveryHold;
+    const projectionPath = recoveryProjectionPath(recipientId, contextId, input.projectionKey);
+    const existingProjection = await this.rtdb.readWithEtag<unknown>(projectionPath);
+    if (existingProjection.data !== null) {
+      if (!isBookDeliveryRecoveryProjection(existingProjection.data)) {
+        throw new Error('invalid_book_delivery_recovery_projection');
+      }
+      if (!equalDeterministic(existingProjection.data, projection)) return 'conflict';
+      const holdResult = await this.putChildIfAbsent(
+        recoveryHoldPath(recipientId, contextId),
+        hold,
+        isBookDeliveryRecoveryHold,
+      );
+      return holdResult === 'conflict' ? 'conflict' : 'replayed';
+    }
+
+    const holdResult = await this.putChildIfAbsent(
+      recoveryHoldPath(recipientId, contextId),
+      hold,
+      isBookDeliveryRecoveryHold,
+    );
+    if (holdResult === 'conflict') return 'conflict';
+    const projectionResult = await this.putChildIfAbsent(
+      projectionPath,
+      projection,
+      isBookDeliveryRecoveryProjection,
+    );
+    if (projectionResult === 'conflict') return 'conflict';
+    return projectionResult === 'created' ? 'created' : 'replayed';
+  }
+
+  private async putChildIfAbsent<T>(
+    path: string,
+    expected: T,
+    validate: (value: unknown) => boolean,
+  ): Promise<'created' | 'replayed' | 'conflict'> {
+    for (let attempt = 0; attempt < (this.options.maxRetries ?? MAX_RETRIES); attempt += 1) {
+      const current = await this.rtdb.readWithEtag<unknown>(path);
+      if (current.data !== null) {
+        if (!validate(current.data)) throw new Error('invalid_book_delivery_recovery_child');
+        return equalDeterministic(current.data, expected) ? 'replayed' : 'conflict';
+      }
+      if (await this.rtdb.writeIfMatch(path, expected, current.etag)) return 'created';
+    }
+    throw new Error('book_delivery_recovery_child_cas_retries_exhausted');
   }
 }

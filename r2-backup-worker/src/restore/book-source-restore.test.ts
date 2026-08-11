@@ -187,6 +187,29 @@ describe('Book metadata backup/restore inventory', () => {
     expect(bodyResult.diagnostics.some((entry) => entry.code === 'pdf-body-field')).toBe(true);
   });
 
+  it('denies provider, viewer, entitlement, and body fields inside the canonical Delivery recovery child', () => {
+    const inventory = JSON.parse(JSON.stringify(makeInventory('book_delivery/scopes'))) as {
+      roots: Array<{ path: string; data: Record<string, unknown>; contentFingerprint: string }>;
+    };
+    const scopesRoot = inventory.roots.find((root) => root.path === 'book_delivery/scopes')!;
+    scopesRoot.data = {
+      'student-1': {
+        'context-1': {
+          recovery: {
+            hold: {
+              viewerLink: 'must-not-be-inventory-authority',
+              providerObject: 'must-not-be-inventory-authority',
+              entitlement: 'must-not-be-inventory-authority',
+            },
+          },
+        },
+      },
+    };
+    const result = validateBookMetadataBackupInventory(inventory);
+    expect(result.valid).toBe(false);
+    expect(result.diagnostics.filter((entry) => entry.code === 'pdf-body-field').length).toBeGreaterThanOrEqual(3);
+  });
+
   it('reports an unavailable external Source Version exactly and remains write-free', () => {
     const inventory = JSON.parse(JSON.stringify(makeInventory())) as {
       roots: Array<{ path: string; data: Record<string, unknown>; contentFingerprint: string }>;

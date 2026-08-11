@@ -10,7 +10,7 @@ import type {
   BookSourceRecoveryAuthority,
 } from '../book-source-delivery/sourceRecovery.adapter';
 
-const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/u;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 export type BookDeliveryRecoveryPhase =
@@ -26,6 +26,7 @@ export interface BookDeliveryRecoveryContext {
 
 export type BookDeliveryRecoveryErrorCode =
   | 'invalid-record'
+  | 'invalid-scope'
   | 'invalid-current-pointer'
   | 'unauthorized-owner'
   | 'unpublished'
@@ -65,6 +66,22 @@ export interface BookDeliveryRecoveryProjection {
   readonly sourceStatuses: readonly BookDeliveryRecoverySourceStatus[];
 }
 
+export interface BookDeliveryRecoveryHold {
+  readonly kind: 'book-delivery-recovery-hold';
+  readonly schemaVersion: 1;
+  readonly recoveryOperationId: string;
+  readonly recipientId: string;
+  readonly contextId: string;
+  readonly deliveryState: 'unavailable';
+  readonly readDenied: true;
+  readonly activation: 'held-for-reconciliation';
+}
+
+export interface BookDeliveryRecoveryScopeData {
+  readonly hold: BookDeliveryRecoveryHold;
+  readonly projections: Readonly<Record<string, BookDeliveryRecoveryProjection>>;
+}
+
 export interface BookDeliveryRecoveryValidationResult {
   readonly valid: boolean;
   readonly sourceAvailable: boolean;
@@ -90,12 +107,18 @@ export interface BookDeliveryRecoveryProjectionStore {
     readonly projectionKey: string;
     readonly projection: BookDeliveryRecoveryProjection;
   }): Promise<'created' | 'replayed' | 'conflict'>;
+  readHold(input: {
+    readonly recipientId: string;
+    readonly contextId: string;
+  }): Promise<BookDeliveryRecoveryHold | null>;
 }
 
 export interface BookDeliveryRecoveryAdapter {
   rebuild(input: {
-    readonly records: Readonly<Record<string, unknown>>;
-    readonly current: Readonly<Record<string, unknown>>;
+    /** Canonical production data at book_delivery/scopes. */
+    readonly scopes: Readonly<Record<string, unknown>>;
+    /** Canonical production binding index at book_delivery/indexes/bindings. */
+    readonly bindingIndexes: Readonly<Record<string, unknown>>;
     readonly sourceAuthorities: ReadonlyMap<string, BookSourceRecoveryAuthority>;
     readonly expectedOwnerId?: string;
   }): Promise<BookDeliveryRecoveryRebuildResult>;
@@ -117,8 +140,102 @@ const add = (
 };
 
 const projectionKey = (context: BookDeliveryRecoveryContext, binding: BookDeliveryBinding): string => (
-  `${context.recoveryOperationId}:${binding.bindingId}:${binding.revision}`
+  `${context.recoveryOperationId}-${binding.bindingId}-${binding.revision}`
 );
+
+export const createBookDeliveryRecoveryHold = (
+  projection: BookDeliveryRecoveryProjection,
+): BookDeliveryRecoveryHold => Object.freeze({
+  kind: 'book-delivery-recovery-hold',
+  schemaVersion: 1,
+  recoveryOperationId: projection.recoveryOperationId,
+  recipientId: projection.recipientId,
+  contextId: projection.contextId,
+  deliveryState: 'unavailable',
+  readDenied: true,
+  activation: 'held-for-reconciliation',
+});
+
+const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean => (
+  Object.keys(value).sort().join('\u0000') === [...keys].sort().join('\u0000')
+);
+
+export const isBookDeliveryRecoveryHold = (
+  value: unknown,
+): value is BookDeliveryRecoveryHold => (
+  isRecord(value)
+  && exactKeys(value, [
+    'kind', 'schemaVersion', 'recoveryOperationId', 'recipientId', 'contextId',
+    'deliveryState', 'readDenied', 'activation',
+  ])
+  && value.kind === 'book-delivery-recovery-hold'
+  && value.schemaVersion === 1
+  && typeof value.recoveryOperationId === 'string'
+  && SAFE_ID.test(value.recoveryOperationId)
+  && typeof value.recipientId === 'string'
+  && SAFE_ID.test(value.recipientId)
+  && typeof value.contextId === 'string'
+  && SAFE_ID.test(value.contextId)
+  && value.deliveryState === 'unavailable'
+  && value.readDenied === true
+  && value.activation === 'held-for-reconciliation'
+);
+
+export const isBookDeliveryRecoveryProjection = (
+  value: unknown,
+): value is BookDeliveryRecoveryProjection => {
+  if (!isRecord(value) || !exactKeys(value, [
+    'kind', 'schemaVersion', 'projectionKey', 'recoveryOperationId', 'bindingId',
+    'bindingRevision', 'recordRevision', 'recipientId', 'contextId', 'ownerId',
+    'publicationStatus', 'deliveryState', 'readDenied', 'activation', 'sourceStatuses',
+  ])) return false;
+  if (value.kind !== 'book-delivery-recovery-projection'
+    || value.schemaVersion !== 1
+    || typeof value.projectionKey !== 'string'
+    || !SAFE_ID.test(value.projectionKey)
+    || typeof value.recoveryOperationId !== 'string'
+    || !SAFE_ID.test(value.recoveryOperationId)
+    || typeof value.bindingId !== 'string'
+    || !SAFE_ID.test(value.bindingId)
+    || !Number.isSafeInteger(value.bindingRevision)
+    || Number(value.bindingRevision) < 0
+    || !Number.isSafeInteger(value.recordRevision)
+    || Number(value.recordRevision) < 0
+    || typeof value.recipientId !== 'string'
+    || !SAFE_ID.test(value.recipientId)
+    || typeof value.contextId !== 'string'
+    || !SAFE_ID.test(value.contextId)
+    || typeof value.ownerId !== 'string'
+    || !SAFE_ID.test(value.ownerId)
+    || (value.publicationStatus !== 'published' && value.publicationStatus !== 'unpublished')
+    || value.deliveryState !== 'unavailable'
+    || value.readDenied !== true
+    || value.activation !== 'held-for-reconciliation'
+    || !Array.isArray(value.sourceStatuses)) return false;
+  return value.sourceStatuses.every((source) => (
+    isRecord(source)
+    && exactKeys(source, ['sourceKey', 'sourceVersionId', 'available', 'reason'])
+    && typeof source.sourceKey === 'string'
+    && SAFE_ID.test(source.sourceKey)
+    && typeof source.sourceVersionId === 'string'
+    && SAFE_ID.test(source.sourceVersionId)
+    && typeof source.available === 'boolean'
+    && ['available', 'missing', 'deleted', 'mismatched', 'unauthorized'].includes(String(source.reason))
+  ));
+};
+
+export const isBookDeliveryRecoveryScopeData = (
+  value: unknown,
+): value is BookDeliveryRecoveryScopeData => {
+  if (!isRecord(value)
+    || !exactKeys(value, ['hold', 'projections'])
+    || !isBookDeliveryRecoveryHold(value.hold)
+    || !isRecord(value.projections)) return false;
+  if (value.hold.recipientId === '' || value.hold.contextId === '') return false;
+  return Object.entries(value.projections).every(([key, projection]) => (
+    SAFE_ID.test(key) && isBookDeliveryRecoveryProjection(projection)
+  ));
+};
 
 const validDate = (value: unknown): value is string => (
   typeof value === 'string' && ISO_DATE.test(value) && Number.isFinite(Date.parse(value))
@@ -286,8 +403,10 @@ export const validateBookDeliveryRecoveryRecord = (input: {
 };
 
 export const rebuildBookDeliveryRecoveryProjections = (input: {
-  readonly records: Readonly<Record<string, unknown>>;
-  readonly current: Readonly<Record<string, unknown>>;
+  /** Canonical production shape: scopes/{recipientId}/{contextId}. */
+  readonly scopes: Readonly<Record<string, unknown>>;
+  /** Canonical binding index used to locate and authorize each record. */
+  readonly bindingIndexes: Readonly<Record<string, unknown>>;
   readonly sourceAuthorities: ReadonlyMap<string, BookSourceRecoveryAuthority>;
   readonly recoveryContext: BookDeliveryRecoveryContext;
   readonly expectedOwnerId?: string;
@@ -298,37 +417,133 @@ export const rebuildBookDeliveryRecoveryProjections = (input: {
   let skippedIdempotent = 0;
   let invalid = 0;
   let externallyMissing = 0;
-  for (const [bindingId, candidate] of Object.entries(input.records).sort(([left], [right]) => left.localeCompare(right))) {
-    const record = isRecord(candidate) ? candidate : null;
-    const binding = record && isRecord(record.binding) ? record.binding : null;
-    const recipient = binding && isRecord(binding.recipient) ? binding.recipient : null;
-    const context = binding && isRecord(binding.context) ? binding.context : null;
-    const current = recipient && context
-      ? input.current[`${String(recipient.recipientId)}/${String(context.contextId)}`]
-      : undefined;
-    const result = validateBookDeliveryRecoveryRecord({
-      record: candidate,
-      current,
-      sourceAuthorities: input.sourceAuthorities,
-      recoveryContext: input.recoveryContext,
-      expectedOwnerId: input.expectedOwnerId,
+  const rawInput = input as unknown as Record<string, unknown>;
+  if (Object.hasOwn(rawInput, 'records') || Object.hasOwn(rawInput, 'current')) {
+    diagnostics.push({
+      code: 'invalid-scope',
+      path: 'book_delivery',
+      message: 'Recovery rebuild accepts only canonical book_delivery/scopes data; flat Delivery roots are unsupported.',
     });
-    diagnostics.push(...result.diagnostics.map((entry) => ({ ...entry, path: `book_delivery/records/${bindingId}/${entry.path}` })));
-    if (!result.projection) {
+    return Object.freeze({
+      projections: Object.freeze([]),
+      diagnostics: Object.freeze(diagnostics),
+      report: Object.freeze({ rebuilt: 0, skippedIdempotent: 0, invalid: 1, externallyMissing: 0, retryable: 0, terminal: 0 }),
+    });
+  }
+
+  const addScopedDiagnostic = (
+    recipientId: string,
+    contextId: string,
+    path: string,
+    message: string,
+    code: BookDeliveryRecoveryErrorCode = 'invalid-scope',
+  ): void => {
+    diagnostics.push({
+      code,
+      path: `book_delivery/scopes/${recipientId}/${contextId}/${path}`,
+      message,
+    });
+  };
+
+  for (const [recipientId, recipientValue] of Object.entries(input.scopes).sort(([left], [right]) => left.localeCompare(right))) {
+    if (!SAFE_ID.test(recipientId) || !isRecord(recipientValue)) {
       invalid += 1;
+      diagnostics.push({ code: 'invalid-scope', path: `book_delivery/scopes/${recipientId}`, message: 'Recipient scope must be a safe-keyed object.' });
       continue;
     }
-    if (result.projection.bindingId !== bindingId) {
-      invalid += 1;
-      diagnostics.push({ code: 'invalid-record', path: `book_delivery/records/${bindingId}/bindingId`, message: 'Delivery record key must equal bindingId.' });
-      continue;
+    for (const [contextId, scopeValue] of Object.entries(recipientValue).sort(([left], [right]) => left.localeCompare(right))) {
+      const scopePath = `book_delivery/scopes/${recipientId}/${contextId}`;
+      if (!SAFE_ID.test(contextId) || !isRecord(scopeValue)) {
+        invalid += 1;
+        diagnostics.push({ code: 'invalid-scope', path: scopePath, message: 'Context scope must be a safe-keyed object.' });
+        continue;
+      }
+      if (Object.keys(scopeValue).some((key) => !['current', 'operations', 'records', 'recovery'].includes(key))) {
+        invalid += 1;
+        diagnostics.push({ code: 'invalid-scope', path: scopePath, message: 'Production scope contains an unsupported field.' });
+        continue;
+      }
+      if (scopeValue.recovery !== undefined && !isBookDeliveryRecoveryScopeData(scopeValue.recovery)) {
+        invalid += 1;
+        diagnostics.push({ code: 'invalid-scope', path: `${scopePath}/recovery`, message: 'Recovery child contains an invalid or unsafe projection/hold shape.' });
+        continue;
+      }
+      const records = scopeValue.records === undefined ? {} : scopeValue.records;
+      if (!isRecord(records)) {
+        invalid += 1;
+        diagnostics.push({ code: 'invalid-scope', path: `${scopePath}/records`, message: 'Scope records must be an object.' });
+        continue;
+      }
+      const current = scopeValue.current;
+      if (current !== undefined && isRecord(current)
+        && (current.recipientId !== recipientId || current.contextId !== contextId)) {
+        addScopedDiagnostic(recipientId, contextId, 'current', 'Current pointer identity does not match its scope key.', 'current-binding-mismatch');
+        invalid += 1;
+      }
+      if (current !== undefined) {
+        const validCurrent = validatePointerShape(current, `${scopePath}/current`, diagnostics);
+        if (!validCurrent) invalid += 1;
+        if (validCurrent) {
+          const currentRecord = records[current.bindingId];
+          const currentIndex = input.bindingIndexes[current.bindingId];
+          const authorizedCurrentIndex = isRecord(currentIndex)
+            && exactKeys(currentIndex, ['recipientId', 'contextId'])
+            && currentIndex.recipientId === recipientId
+            && currentIndex.contextId === contextId
+            && SAFE_ID.test(String(currentIndex.recipientId))
+            && SAFE_ID.test(String(currentIndex.contextId));
+          if (!currentRecord) {
+            addScopedDiagnostic(recipientId, contextId, 'current', 'Current pointer does not reference a canonical scope record.', 'current-binding-mismatch');
+            invalid += 1;
+          }
+          if (!authorizedCurrentIndex) {
+            addScopedDiagnostic(recipientId, contextId, 'current', 'Current pointer binding is not authorized by the canonical binding index.', 'source-binding-mismatch');
+            invalid += 1;
+          }
+        }
+      }
+      for (const [bindingId, candidate] of Object.entries(records).sort(([left], [right]) => left.localeCompare(right))) {
+        const index = input.bindingIndexes[bindingId];
+        if (!isRecord(index)
+          || !exactKeys(index, ['recipientId', 'contextId'])
+          || index.recipientId !== recipientId
+          || index.contextId !== contextId
+          || !SAFE_ID.test(String(index.recipientId))
+          || !SAFE_ID.test(String(index.contextId))) {
+          invalid += 1;
+          addScopedDiagnostic(recipientId, contextId, `records/${bindingId}`, 'Binding index does not authorize this canonical scope record.', 'source-binding-mismatch');
+          continue;
+        }
+        const result = validateBookDeliveryRecoveryRecord({
+          record: candidate,
+          current,
+          sourceAuthorities: input.sourceAuthorities,
+          recoveryContext: input.recoveryContext,
+          expectedOwnerId: input.expectedOwnerId,
+        });
+        diagnostics.push(...result.diagnostics.map((entry) => ({
+          ...entry,
+          path: `${scopePath}/records/${bindingId}/${entry.path}`,
+        })));
+        if (!result.projection) {
+          invalid += 1;
+          continue;
+        }
+        if (result.projection.bindingId !== bindingId
+          || result.projection.recipientId !== recipientId
+          || result.projection.contextId !== contextId) {
+          invalid += 1;
+          addScopedDiagnostic(recipientId, contextId, `records/${bindingId}`, 'Delivery record identity does not match its canonical scope key.');
+          continue;
+        }
+        if (!result.sourceAvailable) externallyMissing += 1;
+        if (input.completedProjectionKeys?.has(result.projection.projectionKey)) {
+          skippedIdempotent += 1;
+          continue;
+        }
+        projections.push(result.projection);
+      }
     }
-    if (!result.sourceAvailable) externallyMissing += 1;
-    if (input.completedProjectionKeys?.has(result.projection.projectionKey)) {
-      skippedIdempotent += 1;
-      continue;
-    }
-    projections.push(result.projection);
   }
   return Object.freeze({
     projections: Object.freeze(projections),
@@ -377,14 +592,25 @@ export const createBookDeliveryRecoveryAdapter = (input: {
 
 export class InMemoryBookDeliveryRecoveryProjectionStore implements BookDeliveryRecoveryProjectionStore {
   private readonly projections = new Map<string, BookDeliveryRecoveryProjection>();
+  private readonly holds = new Map<string, BookDeliveryRecoveryHold>();
 
   async putIfAbsent(input: { readonly projectionKey: string; readonly projection: BookDeliveryRecoveryProjection }): Promise<'created' | 'replayed' | 'conflict'> {
+    const scopeKey = `${input.projection.recipientId}/${input.projection.contextId}`;
+    const hold = createBookDeliveryRecoveryHold(input.projection);
+    const existingHold = this.holds.get(scopeKey);
+    if (existingHold && JSON.stringify(existingHold) !== JSON.stringify(hold)) return 'conflict';
     const existing = this.projections.get(input.projectionKey);
+    if (existing && JSON.stringify(existing) !== JSON.stringify(input.projection)) return 'conflict';
     if (!existing) {
+      this.holds.set(scopeKey, clone(hold));
       this.projections.set(input.projectionKey, clone(input.projection));
       return 'created';
     }
     return JSON.stringify(existing) === JSON.stringify(input.projection) ? 'replayed' : 'conflict';
+  }
+
+  async readHold(input: { readonly recipientId: string; readonly contextId: string }): Promise<BookDeliveryRecoveryHold | null> {
+    return clone(this.holds.get(`${input.recipientId}/${input.contextId}`) ?? null);
   }
 
   read(projectionKey: string): BookDeliveryRecoveryProjection | null {
