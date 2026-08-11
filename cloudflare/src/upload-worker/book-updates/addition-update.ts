@@ -547,7 +547,15 @@ export const createBookAdditionUpdateExecutor = (options: BookAdditionUpdateExec
 
   /** Finalization is callable only after every recipient addition receipt converges. */
   async finalize(input: { readonly ownerId: string; readonly actionId: string }): Promise<BookUpdateFinalizationResult> {
-    const action = await options.actions.read(input.ownerId, input.actionId);
+    if (!validId(input.ownerId) || !validId(input.actionId)) {
+      return { status: 'blocked', code: 'invalid-action-identity' };
+    }
+    let action: BookUpdateActionRecord | null;
+    try {
+      action = await options.actions.read(input.ownerId, input.actionId);
+    } catch {
+      return { status: 'blocked', code: 'action-unavailable' };
+    }
     if (!action || action.ownerId !== input.ownerId) return { status: 'blocked', code: 'action-missing' };
     if (action.state !== 'committed' && action.state !== 'notification-pending' && action.state !== 'completed') {
       return { status: 'blocked', code: 'action-not-committed' };

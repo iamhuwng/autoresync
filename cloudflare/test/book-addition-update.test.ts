@@ -10,7 +10,7 @@ import type { BookRedoCurrentProjection } from '../../src/services/book-delivery
 import type { BookAdditionDeadlineResolution } from '../../src/services/book-homework/bookAdditionDeadline.service.ts';
 import type { BookUpdateActionRecord } from '../../src/services/book-delivery/bookUpdateAction.types.ts';
 import { createBookUpdateFinalizer } from '../src/upload-worker/book-updates/update-finalizer.ts';
-import { createBookAdditionUpdateExecutor, type BookAdditionStudentPlan } from '../src/upload-worker/book-updates/addition-update.ts';
+import { createBookAdditionUpdateExecutor, type BookAdditionStudentPlan, type BookAdditionUpdateFinalizer } from '../src/upload-worker/book-updates/addition-update.ts';
 import { InMemoryBookAdditionPhaseReceiptRepository } from '../src/upload-worker/book-updates/addition-receipt-repository.ts';
 import type { BookUpdateActionRepository } from '../src/upload-worker/book-updates/update-action.ts';
 
@@ -82,6 +82,7 @@ const setup = (choice: BookUpdateActionRecord['selections'][number]['choice'] = 
   const projectionInput = { actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextId: 'hw-1', studentId: 'student-1', currentBinding: current, nextBinding: next, currentProjection: currentProjection(current), additions: [{ placement: added, feedbackRelease: 'hidden' as const }], now };
   let state: { binding: BookDeliveryBinding; projection: BookRedoCurrentProjection } = { binding: current, projection: projectionInput.currentProjection };
   let commits = 0;
+  let reads = 0;
   const repository: BookAdditionProjectionRepository = {
     async read() { return structuredClone(state); },
     async commit(input) { commits += 1; state = { binding: structuredClone(input.binding), projection: structuredClone(input.projection) }; return { status: 'applied' }; },
@@ -89,7 +90,7 @@ const setup = (choice: BookUpdateActionRecord['selections'][number]['choice'] = 
   const projection = createBookAdditionProjectionAdapter(repository);
   let actionRecord = action(choice);
   const actions = {
-    async read() { return structuredClone(actionRecord); },
+    async read() { reads += 1; return structuredClone(actionRecord); },
     async findByIdempotency() { return null; },
     async accept() { return { status: 'accepted' as const, action: actionRecord }; },
     async transition(input: Parameters<BookUpdateActionRepository['transition']>[0]) {
@@ -98,10 +99,17 @@ const setup = (choice: BookUpdateActionRecord['selections'][number]['choice'] = 
       return { status: 'advanced' as const, action: structuredClone(actionRecord) };
     },
   };
-  const finalizer = createBookUpdateFinalizer({ actions, plans: { async resolve() { return []; } }, emitter: { async emit() { return { status: 'empty' as const, created: 0, replayed: 0 }; } } });
+  const baseFinalizer = createBookUpdateFinalizer({ actions, plans: { async resolve() { return []; } }, emitter: { async emit() { return { status: 'empty' as const, created: 0, replayed: 0 }; } } });
+  let finalizerCalls = 0;
+  const finalizer: BookAdditionUpdateFinalizer = {
+    async finalize(input) {
+      finalizerCalls += 1;
+      return baseFinalizer.finalize(input);
+    },
+  };
   const plan: BookAdditionStudentPlan = { schemaVersion: 1, actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextKind: 'homework', contextId: 'hw-1', studentId: 'student-1', currentBinding: current, nextBinding: next, currentProjection: projectionInput.currentProjection, additions: [{ ...projectionInput.additions[0], deadline: deadline() }], reason: actionRecord.reason, createdAt: now };
   const executor = createBookAdditionUpdateExecutor({ actions, resolver: { async resolve() { return { status: 'ready', students: [plan] }; } }, receipts: new InMemoryBookAdditionPhaseReceiptRepository(), projection, audit: { async record() { return { status: 'recorded' as const }; } }, finalizer });
-  return { executor, get commits() { return commits; }, get action() { return actionRecord; } };
+  return { executor, get commits() { return commits; }, get reads() { return reads; }, get finalizerCalls() { return finalizerCalls; }, get action() { return actionRecord; } };
 };
 
 describe('Book required-addition executor', () => {
@@ -124,7 +132,7 @@ describe('Book required-addition executor', () => {
     expect(original.audit.checkpointCount).toBe(0);
     // The executor only accepts the explicit addition case; redo/removal policy
     // remains owned by their existing case workers.
-    expect(original.selections[0].choice).toBe('include-required');
+    expect(original.selections[0].choice).toBe('apply-with-redo');
   });
 
   it('keeps 41C deny-only and protects the real ancestor boundary', () => {
@@ -140,5 +148,20 @@ describe('Book required-addition executor', () => {
   it('rejects slash-bearing receipt identities before repository access', async () => {
     const repository = new InMemoryBookAdditionPhaseReceiptRepository();
     await expect(repository.read({ ownerId: 'owner-1', actionId: 'action-1', bookId: 'book-1', contextKey: 'homework:hw/1', contextId: 'hw/1', studentId: 'student-1' })).resolves.toBeNull();
+  });
+
+  it('rejects slash-bearing finalize IDs before action or finalizer access', async () => {
+    const fixture = setup();
+    for (const input of [
+      { ownerId: 'owner/1', actionId: 'action-1' },
+      { ownerId: 'owner-1', actionId: 'action/1' },
+    ]) {
+      await expect(fixture.executor.finalize(input)).resolves.toEqual({
+        status: 'blocked',
+        code: 'invalid-action-identity',
+      });
+    }
+    expect(fixture.reads).toBe(0);
+    expect(fixture.finalizerCalls).toBe(0);
   });
 });
