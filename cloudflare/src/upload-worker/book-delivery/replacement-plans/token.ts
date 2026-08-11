@@ -55,7 +55,6 @@ export const createReplacementConfirmationToken = async (input: {
   readonly bookId: string;
   readonly plan: ReplacementPlanRecord;
   readonly review: ReplacementPlanReviewRecord;
-  readonly current: ReplacementCurrentPlanPointer | null;
   readonly adapterFingerprint: string;
   readonly now: string;
   readonly ttlMs?: number;
@@ -123,6 +122,7 @@ export const validateReplacementConfirmationToken = async (input: {
   readonly bookId: string;
   readonly plan: ReplacementPlanRecord;
   readonly review: ReplacementPlanReviewRecord;
+  readonly current: ReplacementCurrentPlanPointer | null;
   readonly stored: ReplacementTokenRecord | null;
   readonly currentRevisionVector: Readonly<Record<string, number>>;
   readonly adapterFingerprint: string;
