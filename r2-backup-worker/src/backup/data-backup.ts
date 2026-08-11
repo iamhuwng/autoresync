@@ -24,6 +24,13 @@ import { checkFirestoreBudget, updateFirestoreReads } from './firestore-budget';
 import { buildBackupManifest, buildMediaManifest } from '../utils/manifest';
 import { createBackupZip } from '../utils/zip';
 import { pruneBackupHistory } from './retention';
+import {
+    BOOK_METADATA_DISCOVERY_ROOTS,
+    BOOK_METADATA_INVENTORY_NODE,
+    createBookMetadataBackupInventory,
+    readBookMetadataRoots,
+} from '../restore/book-source-restore';
+import type { BookMetadataBackupInventory } from '../types';
 
 // ─── Constants ─────────────────────────────────────────────────────────
 
@@ -58,6 +65,42 @@ interface StepMeta {
     firestoreSkipReason: string | null;
     firestoreCollectionsIncluded: string[];
     firestoreDocsRead: number;
+}
+
+/**
+ * Capture the explicit Book metadata inventory. This is intentionally a
+ * separate read path from the legacy top-level RTDB backup: every canonical
+ * Book root is named in BOOK_METADATA_CANONICAL_ROOTS and no provider or PDF
+ * body operation is reachable from this function.
+ */
+export async function readBookMetadataInventory(
+    env: WorkerEnv,
+    backupId: string,
+    generatedAt: string,
+    getToken: () => Promise<string>,
+    fetchImpl: typeof fetch = fetch,
+): Promise<{ readonly inventory: BookMetadataBackupInventory; readonly bytesRead: number }> {
+    const roots = [...await readBookMetadataRoots(
+        env.FIREBASE_DB_URL,
+        await getToken(),
+        fetchImpl,
+        false,
+    )];
+    const inventory = createBookMetadataBackupInventory({
+        backupId,
+        firebaseProject: env.FIREBASE_PROJECT_ID,
+        generatedAt,
+        roots: roots.map((root) => ({
+            path: root.path,
+            present: root.present,
+            data: root.data,
+            bytes: root.bytes,
+        })),
+    });
+    return {
+        inventory,
+        bytesRead: roots.reduce((total, root) => total + root.bytes, 0),
+    };
 }
 
 // ─── Step 1: RTDB Backup ───────────────────────────────────────────────
@@ -128,6 +171,22 @@ export async function executeStep1_RTDB(
                 entityCounts[r.nodeName] = r.count;
                 rtdbBytesRead += r.bytes;
             }
+        }
+
+        // The legacy discovery/read path remains unchanged for non-Book data.
+        // Once a final Book marker exists, add the exhaustive exact-path
+        // inventory as a separate metadata-only RTDB entry.
+        if (discoveredNodes.some((node) => BOOK_METADATA_DISCOVERY_ROOTS.includes(node))) {
+            await tracker.update('reading_book_metadata', 31, 'Reading canonical Book metadata roots...');
+            const captured = await readBookMetadataInventory(
+                env,
+                backupId,
+                createdAt,
+                () => tokenCache.getToken(),
+            );
+            rtdbData[BOOK_METADATA_INVENTORY_NODE] = captured.inventory;
+            entityCounts[BOOK_METADATA_INVENTORY_NODE] = captured.inventory.rootCount;
+            rtdbBytesRead += captured.bytesRead;
         }
 
         // Save RTDB data to R2

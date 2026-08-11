@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkerEnv } from '../types';
 import { StatusTracker } from './status-tracker';
-import { executeStep1_RTDB } from './data-backup';
+import { executeStep1_RTDB, readBookMetadataInventory } from './data-backup';
+import { BOOK_METADATA_CANONICAL_ROOTS } from '../restore/book-source-restore';
 
 vi.mock('../auth/google-oauth', () => ({
   TokenCache: class {
@@ -382,5 +383,39 @@ describe('data backup RTDB step', () => {
     expect(savedMeta?.entityCounts.rtdb).toMatchObject({
       book_activity: 2,
     });
+  });
+
+  it('captures each final Book metadata root exactly once without a broad scan', async () => {
+    const requestedPaths: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
+      requestedPaths.push(path);
+      if (!BOOK_METADATA_CANONICAL_ROOTS.includes(path as typeof BOOK_METADATA_CANONICAL_ROOTS[number])) {
+        throw new Error(`Unexpected non-canonical Book path ${path}`);
+      }
+      if (path === 'book_delivery/current' || path === 'material_catalog/books') {
+        return json({ 'book-1': { bookId: 'book-1', ownerId: 'teacher-1', revision: 1 } });
+      }
+      return json({});
+    });
+
+    const result = await readBookMetadataInventory(
+      {
+        FIREBASE_PROJECT_ID: 'project-120',
+        FIREBASE_DB_URL: 'https://db.example.test',
+      } as WorkerEnv,
+      'BK-120',
+      '2026-08-11T00:00:00.000Z',
+      async () => 'google-token',
+      fetchMock,
+    );
+
+    expect(result.inventory.roots.map((root) => root.path)).toEqual([...BOOK_METADATA_CANONICAL_ROOTS]);
+    expect(requestedPaths).toEqual([...BOOK_METADATA_CANONICAL_ROOTS]);
+    expect(new Set(requestedPaths).size).toBe(requestedPaths.length);
+    expect(requestedPaths.some((path) => path.includes('*') || path.includes('$') || path === '')).toBe(false);
+    expect(result.inventory.pdfBodyReads).toBe(0);
+    expect(result.inventory.pdfBodyWrites).toBe(0);
   });
 });

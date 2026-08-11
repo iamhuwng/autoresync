@@ -140,6 +140,74 @@ export interface RestoreProgress {
     error?: string;
 }
 
+// ── Book metadata backup/restore inventory (PRD0062 48B) ────────────────
+
+/** One explicit, non-overlapping canonical Book metadata root. */
+export interface BookMetadataInventoryRoot {
+    readonly path: string;
+    readonly order: number;
+    readonly required: true;
+    readonly schemaVersion: 1;
+    readonly present: boolean;
+    readonly data: Record<string, unknown>;
+    readonly entityCount: number;
+    /** Deterministic metadata fingerprint; it never represents PDF bytes. */
+    readonly contentFingerprint: string;
+}
+
+/** Versioned, exhaustive Book metadata-only backup payload. */
+export interface BookMetadataBackupInventory {
+    readonly kind: 'book-metadata-inventory';
+    readonly inventoryVersion: 'prd0062-48b-v1';
+    readonly schemaVersion: 1;
+    readonly backupId: string;
+    readonly firebaseProject: string;
+    readonly generatedAt: string;
+    readonly bytePolicy: 'metadata-only';
+    readonly pdfBodyReads: 0;
+    readonly pdfBodyWrites: 0;
+    readonly pdfBodyBytes: 0;
+    readonly rootCount: number;
+    readonly roots: readonly BookMetadataInventoryRoot[];
+    /** References are sorted and deduplicated at capture time. */
+    readonly sourceVersionIds: readonly string[];
+    readonly audit: {
+        readonly bounded: true;
+        readonly provenance: readonly string[];
+    };
+}
+
+export interface BookMetadataRootFence {
+    readonly etag: string;
+    readonly revision: number | null;
+}
+
+export interface BookMetadataRestoreDiagnostic {
+    readonly code: string;
+    readonly path: string;
+    readonly message: string;
+}
+
+/** Deterministic preview proof consumed by Book metadata execute. */
+export interface BookMetadataRestorePreview {
+    readonly backupId: string;
+    readonly inventoryVersion: 'prd0062-48b-v1';
+    readonly inventoryFingerprint: string;
+    readonly valid: boolean;
+    readonly allowed: boolean;
+    readonly rootCount: number;
+    readonly orderedRoots: readonly string[];
+    readonly rootFences: Readonly<Record<string, BookMetadataRootFence>>;
+    readonly sourceVersionIds: readonly string[];
+    readonly missingSourceVersionIds: readonly string[];
+    readonly diagnostics: readonly BookMetadataRestoreDiagnostic[];
+    readonly zeroByteProof: {
+        readonly pdfBodyReads: 0;
+        readonly pdfBodyWrites: 0;
+        readonly providerOperations: 0;
+    };
+}
+
 // ─── Restore Preview ───────────────────────────────────────────────────
 export interface RestorePreview {
     backupId: string;
@@ -153,6 +221,7 @@ export interface RestorePreview {
     };
     gdprExcludedCount: number;
     warnings: string[];
+    bookMetadata?: BookMetadataRestorePreview;
 }
 
 export interface RestorePreviewCategory {
@@ -175,6 +244,11 @@ export interface RestoreResult {
         skipped: number;
         failed: number;
     }>;
+    bookMetadata?: {
+        readonly restoredRoots: number;
+        readonly skippedRoots: number;
+        readonly failedRoots: number;
+    };
 }
 
 // ─── Status Tracker (in-memory + persisted to R2) ──────────────────────

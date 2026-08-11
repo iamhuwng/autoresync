@@ -15,6 +15,14 @@ import { extractBackupZip } from '../utils/zip';
 import { findClosestFirestoreBackup } from './firestore-merge';
 import { filterGdprEntities } from './gdpr-filter';
 import { TokenCache } from '../auth/google-oauth';
+import {
+    BOOK_METADATA_INVENTORY_NODE,
+    buildBookMetadataRestorePreview,
+    readBookMetadataRoots,
+} from './book-source-restore';
+import type { BookMetadataValidationOptions } from './book-source-restore';
+
+export interface RestorePreviewOptions extends BookMetadataValidationOptions {}
 
 /**
  * Generate a restore preview showing the diff between backup and live data.
@@ -22,7 +30,8 @@ import { TokenCache } from '../auth/google-oauth';
 export async function generateRestorePreview(
     env: WorkerEnv,
     backupId: string,
-    r2: BackupR2Client
+    r2: BackupR2Client,
+    options: RestorePreviewOptions = {},
 ): Promise<RestorePreview> {
     // 1. Download and parse the backup ZIP
     const zipData = await r2.getObject(`backups/${backupId}.zip`);
@@ -163,6 +172,35 @@ export async function generateRestorePreview(
         warnings.push('No Firestore backup available. Homework assignments, submissions, and streaks will NOT be restored.');
     }
 
+    let bookMetadata: RestorePreview['bookMetadata'];
+    const inventory = extracted.rtdb[BOOK_METADATA_INVENTORY_NODE];
+    if (inventory !== undefined) {
+        let currentRoots: Awaited<ReturnType<typeof readBookMetadataRoots>> = [];
+        try {
+            currentRoots = await readBookMetadataRoots(
+                env.FIREBASE_DB_URL,
+                await tokenCache.getToken(),
+                fetch,
+                true,
+            );
+        } catch (error) {
+            warnings.push(error instanceof Error
+                ? `Book metadata preview is denied: ${error.message}`
+                : 'Book metadata preview is denied: canonical root fences could not be read.');
+        }
+        bookMetadata = buildBookMetadataRestorePreview(
+            inventory,
+            backupId,
+            currentRoots.map((root) => ({
+                path: root.path,
+                etag: root.etag,
+                revision: root.revision,
+            })),
+            { ...options, expectedFirebaseProject: env.FIREBASE_PROJECT_ID },
+        );
+        if (!bookMetadata.allowed) warnings.push('Book metadata restore is fail-closed until every canonical root, Source Version reference, and ETag fence validates.');
+    }
+
     return {
         backupId,
         backupDate: manifest.createdAt,
@@ -171,5 +209,6 @@ export async function generateRestorePreview(
         firestoreMergeAvailable,
         gdprExcludedCount,
         warnings,
+        ...(bookMetadata ? { bookMetadata } : {}),
     };
 }

@@ -5,6 +5,11 @@ import { StatusTracker } from '../backup/status-tracker';
 import { buildBackupManifest, buildMediaManifest } from '../utils/manifest';
 import { createBackupZip, extractBackupZip } from '../utils/zip';
 import { executeRestore } from './restore-execute';
+import {
+  BOOK_METADATA_CANONICAL_ROOTS,
+  createBookMetadataBackupInventory,
+  buildBookMetadataRestorePreview,
+} from './book-source-restore';
 
 vi.mock('../auth/google-oauth', () => ({
   TokenCache: class {
@@ -39,6 +44,65 @@ const json = (body: unknown, status = 200): Response =>
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+
+const makeBookInventory = (
+  backupId = 'BK-book-metadata',
+  presentPath?: string,
+  data: Record<string, unknown> = {},
+) => {
+  const bookId = typeof data.bookId === 'string' ? data.bookId : null;
+  return createBookMetadataBackupInventory({
+    backupId,
+    firebaseProject: 'project-120',
+    generatedAt: '2026-08-11T00:00:00.000Z',
+    roots: BOOK_METADATA_CANONICAL_ROOTS.map((path) => {
+      if (path === presentPath) {
+        return { path, present: true, data };
+      }
+      if (path === 'material_catalog/books' && bookId) {
+        return {
+          path,
+          present: true,
+          data: { [bookId]: data },
+        };
+      }
+      return { path, present: false, data: {} };
+    }),
+  });
+};
+
+const putBookBackup = async (
+  r2: FakeR2Client,
+  backupId: string,
+  inventory: ReturnType<typeof makeBookInventory>,
+): Promise<void> => {
+  const backupRtdb = { book_metadata_inventory: inventory };
+  const manifest = buildBackupManifest({
+    backupId,
+    trigger: 'manual',
+    createdAt: '2026-08-11T00:00:00.000Z',
+    completedAt: '2026-08-11T00:01:00.000Z',
+    durationMs: 60_000,
+    status: 'complete',
+    includesFirestore: false,
+    firestoreSkipReason: null,
+    firestoreCollectionsIncluded: [],
+    firebaseProject: 'project-120',
+    rtdbBytesRead: JSON.stringify(backupRtdb).length,
+    firestoreDocsRead: 0,
+    entityCounts: { rtdb: { book_metadata_inventory: inventory.rootCount }, firestore: {} },
+    totalSizeBytes: 0,
+    checksums: {},
+    previousBackupId: null,
+  });
+  const { zipData } = await createBackupZip({
+    rtdb: backupRtdb,
+    firestore: null,
+    manifest,
+    mediaManifest: buildMediaManifest([], backupId),
+  });
+  await r2.putObject(`backups/${backupId}.zip`, zipData);
+};
 
 describe('registry restore drill', () => {
   beforeEach(() => {
@@ -595,5 +659,126 @@ describe('registry restore drill', () => {
         },
       },
     });
+  });
+
+  it('restores only canonical Book metadata with preview ETag fencing', async () => {
+    const backupId = 'BK-book-metadata';
+    const inventory = makeBookInventory(backupId, 'book_delivery/current', {
+      bookId: 'book-1',
+      ownerId: 'teacher-1',
+      revision: 2,
+    });
+    const r2 = new FakeR2Client();
+    await putBookBackup(r2, backupId, inventory);
+
+    const liveRoots = new Map(BOOK_METADATA_CANONICAL_ROOTS.map((path) => [path, {} as unknown]));
+    const etags = new Map(BOOK_METADATA_CANONICAL_ROOTS.map((path) => [path, `etag:${path}`]));
+    const metadataPuts: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? 'GET';
+      const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
+      if (path === 'system_flags/restore_in_progress' && method === 'PUT') return json({ ok: true });
+      if (method === 'GET' && path === '' && url.searchParams.get('shallow') === 'true') return json({});
+      if (BOOK_METADATA_CANONICAL_ROOTS.includes(path as typeof BOOK_METADATA_CANONICAL_ROOTS[number])) {
+        const canonicalPath = path as typeof BOOK_METADATA_CANONICAL_ROOTS[number];
+        if (method === 'GET') {
+          return new Response(JSON.stringify(liveRoots.get(canonicalPath) ?? {}), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ETag: etags.get(canonicalPath)! },
+          });
+        }
+        if (method === 'PUT') {
+          const headers = new Headers(init?.headers);
+          if (headers.get('If-Match') !== etags.get(canonicalPath)) return json({ error: 'stale' }, 412);
+          liveRoots.set(canonicalPath, JSON.parse(String(init?.body ?? '{}')));
+          metadataPuts.push(path);
+          return json({ ok: true });
+        }
+      }
+      if (method === 'GET') return json({});
+      throw new Error(`Unexpected fetch ${method} ${url.toString()}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const preview = buildBookMetadataRestorePreview(
+      inventory,
+      backupId,
+      BOOK_METADATA_CANONICAL_ROOTS.map((path) => ({
+        path,
+        etag: etags.get(path)!,
+        revision: null,
+      })),
+    );
+    expect(preview.allowed).toBe(true);
+
+    const result = await executeRestore({
+      FIREBASE_PROJECT_ID: 'project-120',
+      FIREBASE_DB_URL: 'https://db.example.test',
+      GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, r2 as never, backupId, {
+      scope: ['book_metadata'],
+      mode: 'smart_auto',
+      bookMetadataPreview: preview,
+    }, new StatusTracker('restore'));
+
+    expect(result.status).toBe('complete');
+    expect(result.bookMetadata).toEqual({
+      restoredRoots: 2,
+      skippedRoots: BOOK_METADATA_CANONICAL_ROOTS.length - 2,
+      failedRoots: 0,
+    });
+    expect(metadataPuts).toEqual(['book_delivery/current', 'material_catalog/books']);
+    expect(liveRoots.get('book_delivery/current')).toEqual({
+      bookId: 'book-1',
+      ownerId: 'teacher-1',
+      revision: 2,
+    });
+    expect(fetchMock.mock.calls.some(([input, init]) => (
+      JSON.stringify(init?.body ?? '').toLowerCase().includes('pdfbytes')
+    ))).toBe(false);
+  });
+
+  it('rejects a stale Book ETag before setting the restore flag or writing state', async () => {
+    const backupId = 'BK-book-metadata-stale';
+    const inventory = makeBookInventory(backupId);
+    const r2 = new FakeR2Client();
+    await putBookBackup(r2, backupId, inventory);
+    const preview = buildBookMetadataRestorePreview(
+      inventory,
+      backupId,
+      BOOK_METADATA_CANONICAL_ROOTS.map((path) => ({
+        path,
+        etag: `preview:${path}`,
+        revision: 1,
+      })),
+    );
+    const writes: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? 'GET';
+      const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
+      if (method === 'PUT') writes.push(path);
+      if (method === 'GET' && BOOK_METADATA_CANONICAL_ROOTS.includes(path as typeof BOOK_METADATA_CANONICAL_ROOTS[number])) {
+        return new Response('{}', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ETag: `live:${path}` },
+        });
+      }
+      if (method === 'GET') return json({});
+      return json({ ok: true });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(executeRestore({
+      FIREBASE_PROJECT_ID: 'project-120',
+      FIREBASE_DB_URL: 'https://db.example.test',
+      GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, r2 as never, backupId, {
+      scope: ['book_metadata'],
+      mode: 'smart_auto',
+      bookMetadataPreview: preview,
+    }, new StatusTracker('restore'))).rejects.toThrow(/drift|ETag/i);
+    expect(writes).toEqual([]);
   });
 });

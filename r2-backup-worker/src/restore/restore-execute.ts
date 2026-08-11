@@ -13,6 +13,8 @@
 import type {
     WorkerEnv,
     RestoreResult,
+    RestorePreview,
+    BookMetadataRestorePreview,
 } from '../types';
 import type { BackupR2Client } from '../utils/r2-client';
 import type { StatusTracker } from '../backup/status-tracker';
@@ -21,6 +23,17 @@ import { extractBackupZip } from '../utils/zip';
 import { createBackupZip } from '../utils/zip';
 import { buildBackupManifest, buildMediaManifest } from '../utils/manifest';
 import { filterGdprEntities } from './gdpr-filter';
+import {
+    BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS,
+    BOOK_METADATA_INVENTORY_NODE,
+    BOOK_METADATA_CANONICAL_ROOTS,
+    buildBookMetadataRestorePreview,
+    prepareBookSourceRestore,
+    readBookMetadataRoots,
+    restoreBookMetadataRoots,
+} from './book-source-restore';
+import { BookMetadataRestoreValidationError } from './book-source-restore';
+import type { BookMetadataValidationOptions, BookMetadataRestorePlan } from './book-source-restore';
 
 // ─── Constants ─────────────────────────────────────────────────────────
 
@@ -40,12 +53,72 @@ const RTDB_REQUIRED_SNAPSHOT_NODES = ['listening_authoring', 'book_activity'];
 /** Nodes excluded from restore by default (prevent spam) */
 const RTDB_SKIP_ON_RESTORE = ['notifications'];
 
-interface RestoreOptions {
+export interface RestoreOptions extends BookMetadataValidationOptions {
     scope: string[];
     mode: 'smart_auto' | 'per_entity';
     perEntityDecisions?: Record<string, 'skip' | 'overwrite' | 'duplicate'>;
     mergeFirestoreFromBackupId?: string;
+    bookMetadataPreview?: BookMetadataRestorePreview;
+    /** Compatibility alias for callers that pass the complete preview object. */
+    preview?: RestorePreview;
 }
+
+const scopeIncludesBookMetadata = (scope: readonly string[]): boolean => (
+    scope.includes('all')
+    || scope.includes('book')
+    || scope.includes('book_metadata')
+    || scope.includes(BOOK_METADATA_INVENTORY_NODE)
+    || scope.some((entry) => BOOK_METADATA_CANONICAL_ROOTS.includes(entry as typeof BOOK_METADATA_CANONICAL_ROOTS[number]))
+);
+
+const inventoryFromPreview = (options: RestoreOptions): BookMetadataRestorePreview | undefined => (
+    options.bookMetadataPreview ?? options.preview?.bookMetadata
+);
+
+const BOOK_METADATA_MIXED_TOP_LEVEL_ROOTS = new Set(['classes', 'material_catalog']);
+const BOOK_METADATA_MATERIAL_CHILDREN = new Set([
+    'book_indexes',
+    'book_nodes',
+    'book_successor_operations',
+    'books',
+    'public_book_projections',
+]);
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> => (
+    value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+);
+
+/** Keep mixed legacy nodes useful for non-Book state without re-writing fenced Book paths. */
+const stripBookMetadataFromLegacyNode = (
+    nodeName: string,
+    value: unknown,
+): Record<string, unknown> => {
+    if (!BOOK_METADATA_MIXED_TOP_LEVEL_ROOTS.has(nodeName) || !isPlainRecord(value)) {
+        return (isPlainRecord(value) ? value : {}) as Record<string, unknown>;
+    }
+    if (nodeName === 'material_catalog') {
+        const filtered = { ...value };
+        for (const child of BOOK_METADATA_MATERIAL_CHILDREN) delete filtered[child];
+        if (isPlainRecord(filtered.material_summary_indexes)) {
+            const summaryIndexes = { ...filtered.material_summary_indexes };
+            delete summaryIndexes.v1;
+            if (Object.keys(summaryIndexes).length === 0) delete filtered.material_summary_indexes;
+            else filtered.material_summary_indexes = summaryIndexes;
+        }
+        return filtered;
+    }
+    const filtered = { ...value };
+    for (const [classId, classValue] of Object.entries(filtered)) {
+        if (!isPlainRecord(classValue) || !Object.prototype.hasOwnProperty.call(classValue, 'book_locks')) continue;
+        const classMetadata = { ...classValue };
+        delete classMetadata.book_locks;
+        filtered[classId] = classMetadata;
+    }
+    return filtered;
+};
 
 /**
  * Execute a full restore operation.
@@ -64,6 +137,99 @@ export async function executeRestore(
     let entitiesRestored = 0;
     let entitiesSkipped = 0;
     let entitiesFailed = 0;
+    let bookMetadataResult: RestoreResult['bookMetadata'];
+
+    // Book metadata is preflighted before the legacy restore flag, snapshot,
+    // or any product write. Malformed inventory and stale/missing ETag cases
+    // therefore fail atomically at the affected Book scope.
+    let bookMetadataPreflight: {
+        readonly plan: BookMetadataRestorePlan;
+        readonly preview: BookMetadataRestorePreview;
+    } | null = null;
+    if (scopeIncludesBookMetadata(options.scope)) {
+        const zipData = await r2.getObject(`backups/${backupId}.zip`);
+        if (!zipData) throw new Error(`Backup not found: ${backupId}`);
+        const candidate = extractBackupZip(zipData);
+        const inventory = candidate.rtdb[BOOK_METADATA_INVENTORY_NODE];
+        if (inventory === undefined) {
+            const explicitBookScope = options.scope.some((entry) => (
+                entry === 'book'
+                || entry === 'book_metadata'
+                || entry === BOOK_METADATA_INVENTORY_NODE
+                || (BOOK_METADATA_CANONICAL_ROOTS as readonly string[]).includes(entry)
+            ));
+            if (explicitBookScope) {
+                throw new BookMetadataRestoreValidationError({
+                    code: 'missing-required-root',
+                    path: `rtdb.${BOOK_METADATA_INVENTORY_NODE}`,
+                    message: 'Book metadata restore requires the versioned exhaustive inventory.',
+                });
+            }
+        } else {
+            const preview = inventoryFromPreview(options);
+            if (!preview) {
+                throw new BookMetadataRestoreValidationError({
+                    code: 'missing-etag',
+                    path: '$.bookMetadataPreview',
+                    message: 'Book metadata execute requires a write-free preview with current ETag fences.',
+                });
+            }
+            if (preview.backupId !== backupId || preview.allowed !== true) {
+                throw new BookMetadataRestoreValidationError({
+                    code: 'preview-drift',
+                    path: '$.bookMetadataPreview',
+                    message: 'Book metadata preview does not authorize this backup and scope.',
+                });
+            }
+            const plan = prepareBookSourceRestore({
+                snapshot: inventory,
+                ...options,
+                expectedFirebaseProject: env.FIREBASE_PROJECT_ID,
+            });
+            const currentRoots = await readBookMetadataRoots(
+                env.FIREBASE_DB_URL,
+                await tokenCache.getToken(),
+                fetch,
+                true,
+            );
+            const recalculatedPreview = buildBookMetadataRestorePreview(
+                inventory,
+                backupId,
+                currentRoots.map((root) => ({
+                    path: root.path,
+                    etag: root.etag,
+                    revision: root.revision,
+                })),
+                { ...options, expectedFirebaseProject: env.FIREBASE_PROJECT_ID },
+            );
+            const sameFences = BOOK_METADATA_CANONICAL_ROOTS.every((path) => {
+                const expected = preview.rootFences[path];
+                const actual = recalculatedPreview.rootFences[path];
+                return expected?.etag === actual?.etag && expected?.revision === actual?.revision;
+            });
+            const previewZeroByteProof = preview.zeroByteProof;
+            const samePreviewShape = preview.valid === true
+                && preview.inventoryVersion === recalculatedPreview.inventoryVersion
+                && preview.rootCount === recalculatedPreview.rootCount
+                && JSON.stringify(preview.orderedRoots) === JSON.stringify(recalculatedPreview.orderedRoots)
+                && JSON.stringify(preview.sourceVersionIds) === JSON.stringify(recalculatedPreview.sourceVersionIds)
+                && Array.isArray(preview.missingSourceVersionIds)
+                && preview.missingSourceVersionIds.length === 0
+                && Array.isArray(preview.diagnostics)
+                && preview.diagnostics.length === 0
+                && previewZeroByteProof?.pdfBodyReads === 0
+                && previewZeroByteProof?.pdfBodyWrites === 0
+                && previewZeroByteProof?.providerOperations === 0;
+            if (!recalculatedPreview.allowed || preview.inventoryFingerprint !== recalculatedPreview.inventoryFingerprint || !sameFences || !samePreviewShape) {
+                throw new BookMetadataRestoreValidationError({
+                    code: 'preview-drift',
+                    path: '$.bookMetadataPreview',
+                    message: recalculatedPreview.diagnostics.map((entry) => entry.message).join('; ') || 'Current Book metadata roots drifted from the preview fences.',
+                });
+            }
+            bookMetadataPreflight = { plan, preview };
+        }
+    }
 
     try {
         // ── Step 1: Set RTDB restore flag ───────────────────────────
@@ -117,7 +283,31 @@ export async function executeRestore(
 
         // ── Step 5: Restore RTDB ────────────────────────────────────
         // Build final restore order: known first, unknown last
-        const allBackupNodes = Object.keys(extracted.rtdb);
+        if (bookMetadataPreflight) {
+            await tracker.update('restoring_book_metadata', 24, 'Restoring canonical Book metadata...');
+            const currentToken = await tokenCache.getToken();
+            bookMetadataResult = await restoreBookMetadataRoots(
+                env.FIREBASE_DB_URL,
+                currentToken,
+                bookMetadataPreflight.plan,
+                bookMetadataPreflight.preview.rootFences,
+                fetch,
+            );
+            entitiesRestored += bookMetadataResult.restoredRoots;
+            entitiesSkipped += bookMetadataResult.skippedRoots;
+            entitiesFailed += bookMetadataResult.failedRoots;
+            details.book_metadata = {
+                restored: bookMetadataResult.restoredRoots,
+                skipped: bookMetadataResult.skippedRoots,
+                failed: bookMetadataResult.failedRoots,
+            };
+        }
+
+        const allBackupNodes = Object.keys(extracted.rtdb).filter((nodeName) => (
+            nodeName !== BOOK_METADATA_INVENTORY_NODE
+            && (!bookMetadataPreflight
+                || !BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS.includes(nodeName as typeof BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS[number]))
+        ));
         const knownNodes = RTDB_RESTORE_ORDER.filter(n => allBackupNodes.includes(n));
         const unknownNodes = allBackupNodes.filter(
             n => !RTDB_RESTORE_ORDER.includes(n) && !RTDB_SKIP_ON_RESTORE.includes(n)
@@ -142,7 +332,9 @@ export async function executeRestore(
                 `Restoring ${nodeName}... (${currentIndex}/${totalEntities})`
             );
 
-            const nodeData = extracted.rtdb[nodeName];
+            const nodeData = bookMetadataPreflight
+                ? stripBookMetadataFromLegacyNode(nodeName, extracted.rtdb[nodeName])
+                : extracted.rtdb[nodeName];
             if (!nodeData || typeof nodeData !== 'object') {
                 entitiesSkipped++;
                 details[nodeName] = { restored: 0, skipped: 1, failed: 0 };
@@ -242,6 +434,7 @@ export async function executeRestore(
             entitiesFailed,
             notificationsSkipped: true,
             details,
+            ...(bookMetadataResult ? { bookMetadata: bookMetadataResult } : {}),
         };
     } finally {
         // ── Step 8: Clear RTDB flag (ALWAYS, even on failure) ───────
