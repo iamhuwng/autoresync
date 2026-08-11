@@ -586,6 +586,40 @@ describe('source upload reconciliation', () => {
       cleanup: { lastErrorCode: 'provider_drift' },
     });
   });
+
+  it('suppresses cleanup and provider actions in recovery context', async () => {
+    const memory = await reservedState();
+    const provider = { deleteExactVersion: vi.fn(async () => undefined) };
+    const repositoryRequestCleanup = vi.spyOn(memory.repository, 'requestCleanup');
+    const reconciler = createSourceUploadReconciler({
+      accountId: 'account-1',
+      readAccountState: memory.read,
+      authorizeOwner: () => true,
+      repository: memory.repository,
+      provider,
+      resolveExactVersion: vi.fn(async () => null),
+      versionReconciliation: {
+        reconcileOperationVersions: vi.fn(async () => 'provider_absent' as const),
+      },
+      clock: () => new Date('2026-07-23T00:01:00.000Z'),
+      leaseOwner: 'reconciler-1',
+      recoveryContext: { recoveryOperationId: 'recovery-122', phase: 'rebuilding' },
+    });
+
+    await expect(reconciler.requestCleanup({
+      actorId: 'teacher-1',
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+      reason: 'cancel_requested',
+    })).rejects.toMatchObject({ code: 'recovery_suppressed' });
+    await expect(reconciler.reconcile({
+      actorId: 'teacher-1',
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+    })).rejects.toMatchObject({ code: 'recovery_suppressed' });
+    expect(repositoryRequestCleanup).not.toHaveBeenCalled();
+    expect(provider.deleteExactVersion).not.toHaveBeenCalled();
+  });
 });
 
 const sequenceClock = (...values: string[]) => {

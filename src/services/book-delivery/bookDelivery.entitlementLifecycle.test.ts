@@ -120,4 +120,19 @@ describe('Book Delivery entitlement lifecycle', () => {
     expect((await lifecycle.createDraft(value, operation(12), '2026-07-25T00:00:00.000Z')).status)
       .toBe('conflict');
   });
+
+  it('fails closed for every entitlement effect while recovery is active', async () => {
+    const repository = new InMemoryBookDeliveryRepository();
+    const lifecycle = new BookDeliveryEntitlementLifecycle({
+      repository,
+      authorizeIssuer: () => true,
+      recoveryContext: { recoveryOperationId: 'recovery-122', phase: 'rebuilding' },
+    });
+
+    await expect(lifecycle.createDraft(binding(), operation(13), '2026-07-25T00:00:00.000Z'))
+      .rejects.toMatchObject({ code: 'recovery-side-effect-suppressed' });
+    await expect(lifecycle.resolve('student-1', 'solo-binding-1'))
+      .rejects.toMatchObject({ code: 'recovery-side-effect-suppressed' });
+    expect(await repository.readBinding('binding-1')).toBeNull();
+  });
 });

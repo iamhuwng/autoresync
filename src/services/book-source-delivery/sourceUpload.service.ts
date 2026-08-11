@@ -15,6 +15,7 @@ import {
 } from './sourceUpload.rtdbRepository';
 import type { SourceUploadInspectionClaim } from './sourceUpload.protocol';
 import { createBookSourceVersionStorageIdentity } from './sourceVersion.service';
+import type { BookSourceRecoveryContext } from './sourceRecovery.adapter';
 
 const SOURCE_UPLOAD_PROVIDER_FAILURE_CODES = [
   'aborted',
@@ -100,6 +101,7 @@ export type SourceUploadControlErrorCode =
   | 'provider_identity_mismatch'
   | 'provider_metadata_mismatch'
   | 'provider_not_pdf'
+  | 'recovery_suppressed'
   | 'provider_failed'
   | `provider_${ProviderCode}`;
 
@@ -159,6 +161,8 @@ export interface SourceUploadControlDependencies {
   readonly authorizationCache?: Map<string, SourceUploadBeginResult>;
   readonly clock?: SourceUploadClock | (() => Date);
   readonly reservationTtlMs?: number;
+  /** Canonical recovery never creates a new upload or verifies provider bytes. */
+  readonly recoveryContext?: BookSourceRecoveryContext;
 }
 
 export interface BeginSourceUploadInput {
@@ -605,6 +609,7 @@ const completeRepositoryError = (error: unknown): SourceUploadControlError => {
 const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadControlDependencies): Promise<SourceUploadBeginResult> => {
   assertBeginInput(input);
   const resolved = resolveDependencies(dependencies);
+  if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
   await authorizeBook(resolved.authority, input.actorId, input.bookId);
   await assertUploadGate(resolved.rolloutGate);
   const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
@@ -725,6 +730,7 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
 const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUploadControlDependencies): Promise<SourceUploadVerifiedOperation> => {
   assertCompleteInput(input);
   const resolved = resolveDependencies(dependencies);
+  if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
   await authorizeBook(resolved.authority, input.actorId, input.bookId);
   const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
   const operation = state.operations[input.reservationId];

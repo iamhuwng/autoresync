@@ -8,6 +8,7 @@ import type {
   BookDeliveryRepository,
   BookDeliveryResolvedEntitlement,
 } from './bookDelivery.entitlement';
+import type { BookDeliveryRecoveryContext } from './bookDelivery.recovery';
 
 const operationPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/u;
@@ -81,6 +82,8 @@ export interface BookDeliveryLifecycleOptions {
   readonly authorizeIssuer: (binding: BookDeliveryBinding) => Promise<boolean> | boolean;
   readonly authorizeRecipient?: (recipientId: string, contextId: string) => Promise<boolean> | boolean;
   readonly adapterContexts?: readonly BookDeliveryContextKind[];
+  /** Recovery rebuilds only staged unavailable projections; it never mutates entitlements. */
+  readonly recoveryContext?: BookDeliveryRecoveryContext;
 }
 
 export class BookDeliveryEntitlementLifecycle {
@@ -91,6 +94,7 @@ export class BookDeliveryEntitlementLifecycle {
   }
 
   async createDraft(binding: BookDeliveryBinding, operationId: string, now: string): Promise<BookDeliveryMutationResult> {
+    this.assertRecoveryEffectsSuppressed();
     assertBindingForLifecycle(binding);
     assertOperation(operationId);
     assertNow(now);
@@ -101,6 +105,7 @@ export class BookDeliveryEntitlementLifecycle {
   }
 
   async activate(bindingId: string, expectedRecordRevision: number, operationId: string, now: string): Promise<BookDeliveryMutationResult> {
+    this.assertRecoveryEffectsSuppressed();
     assertId(bindingId, 'binding-id');
     assertRevision(expectedRecordRevision);
     assertOperation(operationId);
@@ -120,6 +125,7 @@ export class BookDeliveryEntitlementLifecycle {
   }
 
   async supersede(binding: BookDeliveryBinding, expectedCurrentBindingId: string, operationId: string, now: string): Promise<BookDeliveryMutationResult> {
+    this.assertRecoveryEffectsSuppressed();
     assertBindingForLifecycle(binding);
     assertId(expectedCurrentBindingId, 'current-binding-id');
     assertOperation(operationId);
@@ -143,6 +149,7 @@ export class BookDeliveryEntitlementLifecycle {
     operationId: string,
     now: string,
   ): Promise<BookDeliveryMutationResult> {
+    this.assertRecoveryEffectsSuppressed();
     assertId(bindingId, 'binding-id');
     assertRevision(expectedRecordRevision);
     assertId(expectedCurrentBindingId, 'current-binding-id');
@@ -163,6 +170,7 @@ export class BookDeliveryEntitlementLifecycle {
   }
 
   async resolve(recipientId: string, contextId: string): Promise<BookDeliveryResolvedEntitlement | null> {
+    this.assertRecoveryEffectsSuppressed();
     assertId(recipientId, 'recipient-id');
     assertId(contextId, 'context-id');
     if (this.options.authorizeRecipient && !await this.options.authorizeRecipient(recipientId, contextId)) {
@@ -177,6 +185,12 @@ export class BookDeliveryEntitlementLifecycle {
     }
     // Force the registry contract to remain the single declaration boundary.
     createBookContextAdapterRegistry([]);
+  }
+
+  private assertRecoveryEffectsSuppressed(): void {
+    if (this.options.recoveryContext) {
+      throw new BookDeliveryLifecycleError('recovery-side-effect-suppressed', 409);
+    }
   }
 
   private notFound(operationId: string, now: string): BookDeliveryMutationResult {

@@ -250,6 +250,14 @@ describe('Book metadata backup/restore inventory', () => {
     expect(buildBookMetadataRestorePreview(inventory, 'BK-120-source-proof', currentRoots, {
       sourceVersionAvailability: { 'source-1': true },
     }).allowed).toBe(true);
+
+    const recoveryPlan = prepareBookSourceRestore({
+      snapshot: inventory,
+      sourceVersionAvailability: { 'source-1': true },
+      recoveryOperationId: 'recovery-122',
+    });
+    expect(recoveryPlan.orderedWrites.map((write) => write.path)).not.toContain('book_delivery/current');
+    expect(recoveryPlan.orderedWrites.map((write) => write.path)).not.toContain('book_delivery/records');
   });
 
   it('captures and fences shared notifications but never includes them in restore writes', async () => {

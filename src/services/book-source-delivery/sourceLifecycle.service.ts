@@ -13,6 +13,7 @@ import type {
 import type {
   SourceUploadRtdbRepository,
 } from './sourceUpload.rtdbRepository';
+import type { BookSourceRecoveryContext } from './sourceRecovery.adapter';
 
 /** Exact-version provider primitive used after lifecycle decisions are made. */
 export interface SourceLifecycleProviderPort {
@@ -70,6 +71,8 @@ export interface SourceUploadReconciliationDependencies {
   readonly leaseOwner: string;
   readonly leaseMs?: number;
   readonly emit?: (event: SourceUploadReconciliationEvent) => void | Promise<void>;
+  /** Recovery must not request cleanup, claim cleanup, or call a provider. */
+  readonly recoveryContext?: BookSourceRecoveryContext;
 }
 
 export interface SourceUploadReconciliationEvent {
@@ -96,7 +99,8 @@ export class SourceUploadReconciliationError extends Error {
     | 'invalid_deployment'
     | 'operation_not_found'
     | 'operation_not_eligible'
-    | 'cleanup_pending') {
+    | 'cleanup_pending'
+    | 'recovery_suppressed') {
     super(`source_upload_reconciliation_${code}`);
     this.name = 'SourceUploadReconciliationError';
   }
@@ -200,6 +204,7 @@ export const createSourceUploadReconciler = (dependencies: SourceUploadReconcili
       readonly providerFileId?: string;
       readonly providerFileVersionId?: string;
     }) {
+      if (dependencies.recoveryContext) throw new SourceUploadReconciliationError('recovery_suppressed');
       const { state, operation } = await readOwned(input.actorId, input.bookId, input.reservationId);
       const requestedAt = now(dependencies.clock).toISOString();
       const next = await dependencies.repository.requestCleanup({
@@ -218,6 +223,7 @@ export const createSourceUploadReconciler = (dependencies: SourceUploadReconcili
     },
 
     async reconcile(input: { readonly actorId: string; readonly bookId: string; readonly reservationId: string }) {
+      if (dependencies.recoveryContext) throw new SourceUploadReconciliationError('recovery_suppressed');
       let { state, operation } = await readOwned(input.actorId, input.bookId, input.reservationId);
       const startedAt = now(dependencies.clock);
       if (operation.status === 'verified_completed') {

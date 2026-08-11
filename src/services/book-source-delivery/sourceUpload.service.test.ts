@@ -6,6 +6,7 @@ import type {
 } from '../../types/bookSource.types';
 import { BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
 import type { SourceUploadInspectionClaim } from './sourceUpload.protocol';
+import type { BookSourceRecoveryContext } from './sourceRecovery.adapter';
 import {
   createSourceUploadControl,
   SourceUploadControlError,
@@ -55,6 +56,7 @@ const createHarness = (options: {
   readonly reserveError?: string;
   readonly staleCompletion?: boolean;
   readonly crashAfterCompletion?: boolean;
+  readonly recoveryContext?: BookSourceRecoveryContext;
 } = {}) => {
   let gateAllowed = options.gate ?? true;
   let state: BookSourceUploadAccountState = {
@@ -137,6 +139,7 @@ const createHarness = (options: {
     repository: { reserve, completeVerified },
     provider,
     clock: { now: () => new Date(NOW) },
+    recoveryContext: options.recoveryContext,
   };
   return {
     control: createSourceUploadControl(dependencies),
@@ -199,6 +202,19 @@ describe('provider-neutral Source Upload control domain', () => {
     await expectCode(harness.control.complete(completionInput(begin.reservationId)), 'cleanup_pending');
     expect(harness.authorizeUpload).toHaveBeenCalledTimes(1);
     expect(harness.verifyCompletedObject).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before provider authorization or verification in recovery context', async () => {
+    const harness = createHarness({
+      recoveryContext: { recoveryOperationId: 'recovery-122', phase: 'restoring_canonical_authority' },
+    });
+
+    await expectCode(harness.control.begin(BEGIN_INPUT), 'recovery_suppressed');
+    await expectCode(harness.control.complete(completionInput('reservation-1')), 'recovery_suppressed');
+    expect(harness.authorizeUpload).not.toHaveBeenCalled();
+    expect(harness.verifyCompletedObject).not.toHaveBeenCalled();
+    expect(harness.reserve).not.toHaveBeenCalled();
+    expect(harness.completeVerified).not.toHaveBeenCalled();
   });
 
   it('requires current management authority and the begin-only rollout gate', async () => {
