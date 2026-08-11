@@ -10,9 +10,11 @@ import type {
 } from '../types';
 import {
   assertRecoveryEnvelopeScope,
+  RECOVERY_CANONICAL_ROOTS,
   type RecoveryEnvelopeIntegrityVerifier,
   type RecoveryRuntimeIdentity,
 } from './recovery-envelope';
+import { BOOK_METADATA_INVENTORY_VERSION } from './book-source-restore';
 
 export type { RecoveryOperationRecord } from '../types';
 
@@ -160,6 +162,25 @@ const assertSafeOperationId = (operationId: string): void => {
   if (!SAFE_IDENTIFIER.test(operationId)) throw new RecoveryLedgerError('invalid-operation-id', 'Operation ID is unsafe.');
 };
 
+const assertSafeSnapshotIdentity = (snapshot: RecoverySnapshotIdentity): void => {
+  if (!isPlainRecord(snapshot)) throw new RecoveryLedgerError('invalid-operation-identity', 'Recovery snapshot identity is not a plain record.');
+  for (const field of ['backupId', 'snapshotId', 'firebaseProject', 'tenantId', 'ownerId', 'inventoryVersion', 'inventoryFingerprint'] as const) {
+    const value = snapshot[field];
+    if (typeof value !== 'string' || value.length === 0 || value.length > 512 || !SAFE_IDENTIFIER.test(value)) {
+      throw new RecoveryLedgerError('invalid-operation-identity', `Recovery snapshot ${field} is unsafe or unbounded.`);
+    }
+  }
+  if (snapshot.backupId !== snapshot.snapshotId) throw new RecoveryLedgerError('invalid-operation-identity', 'Recovery snapshot backupId and snapshotId must match.');
+  if (snapshot.inventoryVersion !== BOOK_METADATA_INVENTORY_VERSION) throw new RecoveryLedgerError('invalid-operation-identity', 'Recovery snapshot inventory version is incomplete for #121.');
+  if (!Array.isArray(snapshot.allowedRoots) || snapshot.allowedRoots.length === 0 || new Set(snapshot.allowedRoots).size !== snapshot.allowedRoots.length) {
+    throw new RecoveryLedgerError('invalid-operation-identity', 'Recovery snapshot root scope is missing or duplicated.');
+  }
+  const rootIndexes = snapshot.allowedRoots.map((root) => RECOVERY_CANONICAL_ROOTS.indexOf(root));
+  if (rootIndexes.some((index, position) => index < 0 || (position > 0 && index <= rootIndexes[position - 1]))) {
+    throw new RecoveryLedgerError('invalid-operation-identity', 'Recovery snapshot root scope is not canonical and ordered.');
+  }
+};
+
 const isKnownPhase = (phase: unknown): phase is RecoveryWorkPhase => (
   typeof phase === 'string' && RECOVERY_WORK_PHASES.includes(phase as RecoveryWorkPhase)
 );
@@ -173,14 +194,22 @@ const boundedErrorMessage = (message: string): string => (
 const assertRecord = (record: RecoveryOperationRecord): void => {
   if (!isPlainRecord(record) || record.kind !== 'book-recovery-operation' || record.schemaVersion !== 'prd0062-49a-v1') throw new RecoveryLedgerError('invalid-operation-record', 'Recovery operation record schema is invalid.');
   assertSafeOperationId(record.operationId);
+  assertSafeSnapshotIdentity(record.snapshot);
+  if (typeof record.idempotencyKey !== 'string' || !SAFE_IDENTIFIER.test(record.idempotencyKey)) throw new RecoveryLedgerError('invalid-operation-identity', 'Recovery idempotency key is unsafe or unbounded.');
+  if (record.operationId !== buildRecoveryOperationId({ snapshot: record.snapshot, idempotencyKey: record.idempotencyKey })) throw new RecoveryLedgerError('invalid-operation-identity', 'Recovery operation ID is not bound to its snapshot and idempotency identity.');
+  if (record.requestFingerprint !== recoveryOperationFingerprint(record.snapshot, record.idempotencyKey)) throw new RecoveryLedgerError('invalid-operation-identity', 'Recovery operation fingerprint is not bound to its snapshot and idempotency identity.');
   if (!OPERATION_STATES.has(record.state)) throw new RecoveryLedgerError('invalid-operation-record', 'Recovery operation state is invalid.');
   if (!Number.isSafeInteger(record.stateRevision) || record.stateRevision < 0) throw new RecoveryLedgerError('invalid-operation-record', 'Recovery operation revision is invalid.');
   if (!isPlainRecord(record.suppression) || record.suppression.mode !== 'fail-closed' || !Array.isArray(record.suppression.families) || !Array.isArray(record.suppression.releasedFamilies)) throw new RecoveryLedgerError('suppression-fail-closed', 'Recovery operation suppression state is invalid.');
-  if (!RECOVERY_SUPPRESSION_FAMILIES.every((family) => record.suppression.families.includes(family))) throw new RecoveryLedgerError('suppression-fail-closed', 'Recovery operation suppression family inventory is incomplete.');
+  if (record.suppression.families.length !== RECOVERY_SUPPRESSION_FAMILIES.length || record.suppression.families.some((family, index) => family !== RECOVERY_SUPPRESSION_FAMILIES[index]) || new Set(record.suppression.families).size !== record.suppression.families.length) throw new RecoveryLedgerError('suppression-fail-closed', 'Recovery operation suppression family inventory is incomplete or duplicated.');
   if (record.suppression.families.some((family) => !RECOVERY_SUPPRESSION_FAMILIES.includes(family))) throw new RecoveryLedgerError('suppression-fail-closed', 'Unknown suppression family cannot be inventoried.');
-  if (record.suppression.releasedFamilies.some((family) => !RECOVERY_SUPPRESSION_FAMILIES.includes(family))) throw new RecoveryLedgerError('suppression-fail-closed', 'Unknown suppression family cannot be released.');
+  if (new Set(record.suppression.releasedFamilies).size !== record.suppression.releasedFamilies.length || record.suppression.releasedFamilies.some((family) => !RECOVERY_SUPPRESSION_FAMILIES.includes(family))) throw new RecoveryLedgerError('suppression-fail-closed', 'Unknown or duplicated suppression family cannot be released.');
   if (record.suppression.finalReconciliation !== 'approved' && record.suppression.releasedFamilies.length > 0) throw new RecoveryLedgerError('suppression-fail-closed', 'Side effects cannot release before final reconciliation.');
   if (!Array.isArray(record.errors) || !Array.isArray(record.audit) || record.errors.length > MAX_ERRORS || record.audit.length > MAX_AUDIT_EVENTS) throw new RecoveryLedgerError('invalid-operation-record', 'Recovery operation metadata exceeds its bound.');
+  const statePhase = RECOVERY_WORK_PHASES.includes(record.state as RecoveryWorkPhase) ? record.state as RecoveryWorkPhase : null;
+  if (statePhase !== null && record.resumePhase !== statePhase) throw new RecoveryLedgerError('invalid-operation-record', 'Work state must resume its own phase.');
+  if (record.state === 'failed_retryable' && !isKnownPhase(record.resumePhase)) throw new RecoveryLedgerError('invalid-operation-record', 'Retryable failure must name an unfinished work phase.');
+  if (record.state !== 'failed_retryable' && statePhase === null && record.resumePhase !== null) throw new RecoveryLedgerError('invalid-operation-record', 'Non-work operation states cannot carry a resume phase.');
   for (const phase of RECOVERY_WORK_PHASES) {
     const attempt = (record.attempts as Partial<Record<RecoveryWorkPhase, unknown>> | undefined)?.[phase];
     if (!Number.isSafeInteger(attempt) || (attempt as number) < 0 || (attempt as number) > MAX_ATTEMPTS) throw new RecoveryLedgerError('invalid-operation-record', 'Recovery operation attempt metadata is invalid.');

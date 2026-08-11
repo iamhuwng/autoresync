@@ -74,7 +74,7 @@
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "false"
+      "expression": "auth != null && auth.token.bkr.s == true && auth.token.bkr.si == 'book_recovery_service' && auth.token.bkr.i == $snapshotId && auth.token.bkr.k == $idempotencyKey && auth.token.bkr.dl >= now"
     },
     {
       "path": "book_recovery/indexes/by_snapshot_idempotency/$snapshotId/$idempotencyKey",

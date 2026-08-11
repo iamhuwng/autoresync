@@ -2616,7 +2616,7 @@
         "by_snapshot_idempotency": {
           "$snapshotId": {
             "$idempotencyKey": {
-              ".read": "false",
+              ".read": "auth != null && auth.token.bkr.s == true && auth.token.bkr.si == 'book_recovery_service' && auth.token.bkr.i == $snapshotId && auth.token.bkr.k == $idempotencyKey && auth.token.bkr.dl >= now",
               ".write": "auth != null && auth.token.bkr.s == true && auth.token.bkr.i == $snapshotId && auth.token.bkr.k == $idempotencyKey && auth.token.bkr.dl >= now && newData.exists() && !data.exists() && newData.child('operationId').isString() && newData.child('snapshotId').val() == $snapshotId && newData.child('idempotencyKey').val() == $idempotencyKey && newData.child('requestFingerprint').isString() && !newData.child('pdfBytes').exists() && !newData.child('providerObjectBody').exists()"
             }
           }

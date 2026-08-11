@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RecoveryWorkPhase } from '../types';
+import type { RecoveryOperationRecord, RecoveryWorkPhase } from '../types';
 
 import { BOOK_METADATA_CANONICAL_ROOTS } from './book-source-restore';
 import { issueRecoveryEnvelope } from './recovery-envelope';
@@ -9,6 +9,7 @@ import {
   InMemoryRecoveryOperationStore,
   RecoveryLedgerError,
   RecoveryOperationLedger,
+  type RecoveryOperationStore,
 } from './recovery-operation-ledger';
 import { isRecoveryEffectSuppressed } from './recovery-suppression';
 
@@ -20,7 +21,7 @@ const snapshot = {
   firebaseProject: 'project-121',
   tenantId: 'tenant-1',
   ownerId: 'teacher-1',
-  inventoryVersion: 'prd0062-48b-v1',
+  inventoryVersion: 'prd0062-48b-v2',
   inventoryFingerprint: 'fnv1a64:inventory',
   allowedRoots: [BOOK_METADATA_CANONICAL_ROOTS[0], BOOK_METADATA_CANONICAL_ROOTS[1]],
 };
@@ -36,6 +37,22 @@ const makeEnvelope = async (phase: 'dry-run' | 'execute', idempotencyKey = 'ledg
 }, { sign: () => 'signed' }, new Date(now));
 
 const verifier = { verify: (_payload: string, integrity: { value: string }) => integrity.value === 'signed' };
+
+class FixedRecordStore implements RecoveryOperationStore {
+  constructor(private readonly record: RecoveryOperationRecord) {}
+
+  async get(): Promise<RecoveryOperationRecord> {
+    return structuredClone(this.record);
+  }
+
+  async putIfAbsent(): Promise<{ readonly created: boolean; readonly record: RecoveryOperationRecord }> {
+    return { created: false, record: structuredClone(this.record) };
+  }
+
+  async compareAndSet(input: { readonly operationId: string; readonly expectedRevision: number; readonly next: RecoveryOperationRecord }): Promise<RecoveryOperationRecord> {
+    return structuredClone(input.next);
+  }
+}
 
 describe('PRD0062 49A recovery operation ledger', () => {
   it('uses one deterministic operation for duplicate snapshot and idempotency identity', async () => {
@@ -81,6 +98,51 @@ describe('PRD0062 49A recovery operation ledger', () => {
       idempotencyKey: 'scope-key',
       now,
     })).rejects.toMatchObject({ code: 'idempotency-conflict' });
+  });
+
+  it('rejects malformed durable identity, suppression, and resume records before CAS', async () => {
+    const sourceLedger = new RecoveryOperationLedger(new InMemoryRecoveryOperationStore(), () => new Date(now));
+    const valid = (await sourceLedger.preview({ snapshot, idempotencyKey: 'malformed-key', now })).operation;
+
+    const tamperedSnapshot = {
+      ...valid,
+      snapshot: { ...valid.snapshot, ownerId: 'teacher-other' },
+    } as RecoveryOperationRecord;
+    await expect(new RecoveryOperationLedger(new FixedRecordStore(tamperedSnapshot)).get(valid.operationId))
+      .rejects.toMatchObject({ code: 'invalid-operation-identity' });
+
+    const tamperedFingerprint = {
+      ...valid,
+      requestFingerprint: 'fnv1a64:tampered',
+    } as RecoveryOperationRecord;
+    await expect(new RecoveryOperationLedger(new FixedRecordStore(tamperedFingerprint)).get(valid.operationId))
+      .rejects.toMatchObject({ code: 'invalid-operation-identity' });
+
+    const duplicateFamilies = {
+      ...valid,
+      suppression: {
+        ...valid.suppression,
+        families: [...valid.suppression.families, valid.suppression.families[0]],
+      },
+    } as RecoveryOperationRecord;
+    await expect(new RecoveryOperationLedger(new FixedRecordStore(duplicateFamilies)).get(valid.operationId))
+      .rejects.toMatchObject({ code: 'suppression-fail-closed' });
+
+    const workWithoutResume = {
+      ...valid,
+      state: 'restoring_canonical_authority',
+      resumePhase: null,
+    } as RecoveryOperationRecord;
+    await expect(new RecoveryOperationLedger(new FixedRecordStore(workWithoutResume)).get(valid.operationId))
+      .rejects.toMatchObject({ code: 'invalid-operation-record' });
+
+    const retryWithoutResume = {
+      ...valid,
+      state: 'failed_retryable',
+      resumePhase: null,
+    } as RecoveryOperationRecord;
+    await expect(new RecoveryOperationLedger(new FixedRecordStore(retryWithoutResume)).get(valid.operationId))
+      .rejects.toMatchObject({ code: 'invalid-operation-record' });
   });
 
   it('requires the preview before execute, fences concurrent CAS, resumes the exact crashed phase, and denies terminal rerun', async () => {

@@ -145,7 +145,7 @@ describe('Book metadata backup/restore inventory', () => {
     const recoveryOperation = inventory.roots.find((root) => root.path === 'book_recovery/operations');
     const recoveryIndex = inventory.roots.find((root) => root.path === 'book_recovery/indexes/by_snapshot_idempotency');
 
-    expect(inventory.inventoryVersion).toBe('prd0062-48b-v1');
+    expect(inventory.inventoryVersion).toBe('prd0062-48b-v2');
     expect(BOOK_METADATA_ROOT_COUNT).toBe(69);
     expect(inventory.rootCount).toBe(BOOK_METADATA_ROOT_COUNT);
     expect(paths.slice(-3)).toEqual([
@@ -160,6 +160,13 @@ describe('Book metadata backup/restore inventory', () => {
       fingerprintBookMetadata(recoveryIndex?.data),
     );
     expect(validateBookMetadataBackupInventory(inventory).valid).toBe(true);
+
+    const incompleteV1 = { ...inventory, inventoryVersion: 'prd0062-48b-v1' };
+    const incompleteResult = validateBookMetadataBackupInventory(incompleteV1);
+    expect(incompleteResult.valid).toBe(false);
+    expect(incompleteResult.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'invalid-version' }),
+    ]));
   });
 
   it('denies an omitted root and a body-payload field before planning writes', () => {

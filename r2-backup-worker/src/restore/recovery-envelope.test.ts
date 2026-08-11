@@ -16,7 +16,7 @@ const snapshot = {
   firebaseProject: 'project-121',
   tenantId: 'tenant-1',
   ownerId: 'teacher-1',
-  inventoryVersion: 'prd0062-48b-v1',
+  inventoryVersion: 'prd0062-48b-v2',
   inventoryFingerprint: 'fnv1a64:inventory',
   allowedRoots: [BOOK_METADATA_CANONICAL_ROOTS[0], BOOK_METADATA_CANONICAL_ROOTS[1]],
 };
@@ -81,6 +81,12 @@ describe('PRD0062 49A recovery envelope', () => {
       verifier,
       now,
     })).rejects.toMatchObject({ code: 'operator-mismatch' });
+
+    const incompleteInventoryVersion = await makeEnvelope({
+      snapshot: { ...snapshot, inventoryVersion: 'prd0062-48b-v1' },
+    });
+    await expect(assertRecoveryEnvelope(incompleteInventoryVersion, { runtime, verifier, now }))
+      .rejects.toMatchObject({ code: 'invalid-inventory-version' });
   });
 
   it('does not allow browser or ordinary service identities to mint or use envelopes', async () => {

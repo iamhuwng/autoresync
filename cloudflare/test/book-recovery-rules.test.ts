@@ -46,8 +46,15 @@ describe('#121 49A Book recovery ledger rules', () => {
     ]);
     expect(operation('book_recovery', '.write')).toBe('false');
     expect(operation('book_recovery/indexes', '.write')).toBe('false');
-    expect(operation('book_recovery/indexes/by_snapshot_idempotency/$snapshotId/$idempotencyKey', '.read'))
-      .toBe('false');
+    const indexRead = operation(
+      'book_recovery/indexes/by_snapshot_idempotency/$snapshotId/$idempotencyKey',
+      '.read',
+    );
+    expect(indexRead).toContain("auth.token.bkr.si == 'book_recovery_service'");
+    expect(indexRead).toContain('auth.token.bkr.i == $snapshotId');
+    expect(indexRead).toContain('auth.token.bkr.k == $idempotencyKey');
+    expect(indexRead).toContain('auth.token.bkr.dl >= now');
+    expect(indexRead).not.toContain('auth.uid');
   });
 
   it('requires the deployment recovery claims for exact operation and index writes', () => {
@@ -79,6 +86,11 @@ describe('#121 49A Book recovery ledger rules', () => {
     expect(candidate.fragmentIds).toContain('49A');
     expect(readRule(candidate.rules, 'book_recovery/.write')).toBe('false');
     expect(readRule(candidate.rules, 'book_recovery/indexes/.write')).toBe('false');
+    expect(readRule(candidate.rules, 'book_recovery/indexes/by_snapshot_idempotency/$snapshotId/$idempotencyKey/.read'))
+      .toBe(operation(
+        'book_recovery/indexes/by_snapshot_idempotency/$snapshotId/$idempotencyKey',
+        '.read',
+      ));
     expect(readRule(candidate.rules, 'book_recovery/operations/$operationId/.write'))
       .toBe(operation('book_recovery/operations/$operationId', '.write'));
     expect(readRule(candidate.rules, 'book_recovery/indexes/by_snapshot_idempotency/$snapshotId/$idempotencyKey/.write'))
@@ -105,6 +117,15 @@ describe('#121 49A Book recovery ledger rules', () => {
     expect(indexWrite).toContain('auth.token.bkr.s == true');
     expect(operationWrite).not.toContain('auth.uid');
     expect(indexWrite).not.toContain('auth.uid');
+    const indexRead = String(readRule(
+      generatedRules.rules,
+      'book_recovery/indexes/by_snapshot_idempotency/$snapshotId/$idempotencyKey/.read',
+    ));
+    expect(indexRead).toContain("auth.token.bkr.si == 'book_recovery_service'");
+    expect(indexRead).toContain('auth.token.bkr.i == $snapshotId');
+    expect(indexRead).toContain('auth.token.bkr.k == $idempotencyKey');
+    expect(indexRead).toContain('auth.token.bkr.dl >= now');
+    expect(indexRead).not.toContain('auth.uid');
     expect(readRule(generatedRules.rules, 'book_recovery/.write')).toBe('false');
     expect(readRule(generatedRules.rules, 'book_recovery/indexes/.write')).toBe('false');
   });

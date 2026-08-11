@@ -161,7 +161,7 @@ export interface BookMetadataInventoryRoot {
 /** Versioned, exhaustive Book metadata-only backup payload. */
 export interface BookMetadataBackupInventory {
     readonly kind: 'book-metadata-inventory';
-    readonly inventoryVersion: 'prd0062-48b-v1';
+    readonly inventoryVersion: 'prd0062-48b-v2';
     readonly schemaVersion: 1;
     readonly backupId: string;
     readonly firebaseProject: string;
@@ -194,7 +194,7 @@ export interface BookMetadataRestoreDiagnostic {
 /** Deterministic preview proof consumed by Book metadata execute. */
 export interface BookMetadataRestorePreview {
     readonly backupId: string;
-    readonly inventoryVersion: 'prd0062-48b-v1';
+    readonly inventoryVersion: 'prd0062-48b-v2';
     readonly inventoryFingerprint: string;
     readonly valid: boolean;
     readonly allowed: boolean;

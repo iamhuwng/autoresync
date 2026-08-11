@@ -28,7 +28,7 @@ const snapshot = {
   firebaseProject: 'project-121',
   tenantId: 'tenant-1',
   ownerId: 'teacher-1',
-  inventoryVersion: 'prd0062-48b-v1',
+  inventoryVersion: 'prd0062-48b-v2',
   inventoryFingerprint: fingerprintBookMetadata(inventory),
   allowedRoots: [...BOOK_METADATA_CANONICAL_ROOTS],
 };

@@ -14,7 +14,7 @@ import {
 
 /** The ZIP entry name is deliberately not a provider or PDF storage path. */
 export const BOOK_METADATA_INVENTORY_NODE = 'book_metadata_inventory';
-export const BOOK_METADATA_INVENTORY_VERSION = 'prd0062-48b-v1' as const;
+export const BOOK_METADATA_INVENTORY_VERSION = 'prd0062-48b-v2' as const;
 export const BOOK_METADATA_SCHEMA_VERSION = 1 as const;
 
 /**
@@ -656,7 +656,7 @@ export function validateBookMetadataBackupInventory(
     if (!inventoryKeys.has(key)) addDiagnostic(diagnostics, 'invalid-schema', `$.${key}`, 'Inventory contains an unsupported field.');
   }
   if (inventory.kind !== 'book-metadata-inventory') addDiagnostic(diagnostics, 'invalid-schema', '$.kind', 'Inventory kind is invalid.');
-  if (inventory.inventoryVersion !== BOOK_METADATA_INVENTORY_VERSION) addDiagnostic(diagnostics, 'invalid-version', '$.inventoryVersion', 'Inventory version is not the accepted PRD0062 48B version.');
+  if (inventory.inventoryVersion !== BOOK_METADATA_INVENTORY_VERSION) addDiagnostic(diagnostics, 'invalid-version', '$.inventoryVersion', 'Inventory version is not the accepted PRD0062 48B v2 version.');
   if (inventory.schemaVersion !== BOOK_METADATA_SCHEMA_VERSION) addDiagnostic(diagnostics, 'invalid-version', '$.schemaVersion', 'Inventory schema version is invalid.');
   if (typeof inventory.backupId !== 'string' || !SAFE_IDENTIFIER.test(inventory.backupId)) addDiagnostic(diagnostics, 'invalid-schema', '$.backupId', 'backupId must be a safe identifier.');
   if (typeof inventory.firebaseProject !== 'string' || inventory.firebaseProject.length === 0 || inventory.firebaseProject.length > 200) addDiagnostic(diagnostics, 'invalid-owner', '$.firebaseProject', 'firebaseProject must be bounded metadata.');

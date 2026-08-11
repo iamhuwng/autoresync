@@ -7,6 +7,7 @@ import type {
 } from '../types';
 import {
   BOOK_METADATA_CANONICAL_ROOTS,
+  BOOK_METADATA_INVENTORY_VERSION,
 } from './book-source-restore';
 
 export type { RecoveryEnvelope } from '../types';
@@ -178,7 +179,7 @@ const validateShape = (
     if (snapshot.backupId !== snapshot.snapshotId) add(diagnostics, 'snapshot-identity-mismatch', '$.snapshot', 'backupId and snapshotId must match.');
     if (typeof snapshot.backupId === 'string' && !SAFE_IDENTIFIER.test(snapshot.backupId)) add(diagnostics, 'invalid-snapshot', '$.snapshot.backupId', 'Snapshot identifier is unsafe.');
     if (typeof snapshot.snapshotId === 'string' && !SAFE_IDENTIFIER.test(snapshot.snapshotId)) add(diagnostics, 'invalid-snapshot', '$.snapshot.snapshotId', 'Snapshot identifier is unsafe.');
-    if (snapshot.inventoryVersion !== 'prd0062-48b-v1') add(diagnostics, 'invalid-inventory-version', '$.snapshot.inventoryVersion', 'Recovery envelope does not accept this metadata inventory version.');
+    if (snapshot.inventoryVersion !== BOOK_METADATA_INVENTORY_VERSION) add(diagnostics, 'invalid-inventory-version', '$.snapshot.inventoryVersion', 'Recovery envelope does not accept this metadata inventory version.');
     if (typeof snapshot.allowedRoots !== 'object' || !Array.isArray(snapshot.allowedRoots) || snapshot.allowedRoots.length === 0) {
       add(diagnostics, 'invalid-root-scope', '$.snapshot.allowedRoots', 'At least one canonical root must be explicitly allowed.');
     } else {
