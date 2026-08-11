@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "45",
+  "issue": 115,
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "45",
+    "issue": 115,
+    "serviceIdentity": "book_replacement_plan_service",
+    "generatedRuleLocations": [
+      "book_replacement_plans/.read",
+      "book_replacement_plans/.write",
+      "book_replacement_plans/plans/$ownerId/$planId/.read",
+      "book_replacement_plans/plans/$ownerId/$planId/.write",
+      "book_replacement_plans/current/$ownerId/$bookId/.read",
+      "book_replacement_plans/current/$ownerId/$bookId/.write",
+      "book_replacement_plans/reviews/$ownerId/$planId/$reviewId/.read",
+      "book_replacement_plans/reviews/$ownerId/$planId/$reviewId/.write",
+      "book_replacement_plans/tokens/$ownerId/$planId/$reviewId/.read",
+      "book_replacement_plans/tokens/$ownerId/$planId/$reviewId/.write",
+      "book_replacement_plans/operations/$ownerId/$bookId/$operationId/.read",
+      "book_replacement_plans/operations/$ownerId/$bookId/$operationId/.write"
+    ],
+    "leastPrivilegePaths": [
+      "book_replacement_plans/plans/$ownerId/$planId",
+      "book_replacement_plans/current/$ownerId/$bookId",
+      "book_replacement_plans/reviews/$ownerId/$planId/$reviewId",
+      "book_replacement_plans/tokens/$ownerId/$planId/$reviewId",
+      "book_replacement_plans/operations/$ownerId/$bookId/$operationId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_replacement_plans",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_plans",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_plans/plans/$ownerId/$planId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now"
+    },
+    {
+      "path": "book_replacement_plans/plans/$ownerId/$planId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('planId').val() == $planId && newData.child('schemaVersion').val() == 1 && !data.exists()"
+    },
+    {
+      "path": "book_replacement_plans/current/$ownerId/$bookId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.b == $bookId && auth.token.bis.dl >= now"
+    },
+    {
+      "path": "book_replacement_plans/current/$ownerId/$bookId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.b == $bookId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('bookId').val() == $bookId && newData.child('planId').isString() && newData.child('planFingerprint').isString()"
+    },
+    {
+      "path": "book_replacement_plans/reviews/$ownerId/$planId/$reviewId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now"
+    },
+    {
+      "path": "book_replacement_plans/reviews/$ownerId/$planId/$reviewId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('planId').val() == $planId && newData.child('reviewId').val() == $reviewId && !data.exists()"
+    },
+    {
+      "path": "book_replacement_plans/tokens/$ownerId/$planId/$reviewId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_plans/tokens/$ownerId/$planId/$reviewId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('planId').val() == $planId && newData.child('reviewId').val() == $reviewId && newData.child('tokenHash').isString()"
+    },
+    {
+      "path": "book_replacement_plans/operations/$ownerId/$bookId/$operationId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_plans/operations/$ownerId/$bookId/$operationId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.b == $bookId && auth.token.bis.dl >= now && newData.child('fingerprint').isString() && newData.child('receipt').isString() == false"
+    }
+  ]
+}

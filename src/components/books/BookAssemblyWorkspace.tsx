@@ -36,6 +36,12 @@ import BookAssemblyUnitPreview from './assembly/BookAssemblyUnitPreview';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import UnitActivityImportControls from './assembly/UnitActivityImportControls';
 import BookAssemblyStrategyMigrationPanel from './assembly/BookAssemblyStrategyMigrationPanel';
+import BookReplacementPlanPanel from './BookReplacementPlanPanel';
+import type {
+  ReplacementConfirmationHandoff,
+  ReplacementPlanClient,
+  ReplacementPlanClientCreateRequest,
+} from '../../services/book-source-delivery/replacementPlan.types';
 import './BookAssemblyWorkspace.css';
 
 export interface BookAssemblyWorkspaceProps {
@@ -56,6 +62,10 @@ export interface BookAssemblyWorkspaceProps {
   readonly candidateRuntimePreview?: CandidateUnitPreviewProjection | null;
   readonly onAction?: (action: string, metadata?: Record<string, unknown>) => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
+  /** Optional #115 composition input; planning stays absent until trusted facts are supplied. */
+  readonly replacementPlanClient?: ReplacementPlanClient | null;
+  readonly replacementPlanRequest?: ReplacementPlanClientCreateRequest | null;
+  readonly onReplacementConfirmationHandoff?: (handoff: ReplacementConfirmationHandoff) => void;
 }
 
 type DraftNode = BookAssemblyManifestCandidate['nodes'][number];
@@ -235,6 +245,9 @@ const BookAssemblyWorkspace = ({
   candidateRuntimePreview,
   onAction,
   onDirtyChange,
+  replacementPlanClient,
+  replacementPlanRequest,
+  onReplacementConfirmationHandoff,
 }: BookAssemblyWorkspaceProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
   const initial: AssemblyEditorDraft = initialCandidate?.manifest ?? emptyManifest(bookId);
@@ -1013,6 +1026,16 @@ const BookAssemblyWorkspace = ({
           }}
           onClosed={() => setMigrationRequestedStrategy(null)}
           onAction={emit}
+        />
+      )}
+
+      {replacementPlanClient && replacementPlanRequest && (
+        <BookReplacementPlanPanel
+          bookTitle={bookTitle}
+          client={replacementPlanClient}
+          request={replacementPlanRequest}
+          onConfirmationHandoff={onReplacementConfirmationHandoff}
+          onAction={onAction}
         />
       )}
 
