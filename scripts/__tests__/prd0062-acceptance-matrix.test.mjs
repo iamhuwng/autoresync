@@ -75,7 +75,7 @@ test('rejects 51C2 suite drift from student mobile localhost quick-login contrac
   assert.match(errors, /AC-AD-001: wrong browser suite command/);
   assert.match(errors, /AC-AD-001: must use F-VOCAB-65/);
   assert.match(errors, /AC-AD-001: artifact path must be case-scoped/);
-  assert.equal(STUDENT_ACCESSIBILITY_DEVICE_COMMAND, 'npx playwright test --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-mobile e2e/prd0062-student-accessibility-device.spec.ts');
+  assert.equal(STUDENT_ACCESSIBILITY_DEVICE_COMMAND, 'node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-mobile e2e/prd0062-student-accessibility-device.spec.ts');
 });
 
 test('rejects 51C1 suite drift from student localhost quick-login contract', () => {

@@ -8,6 +8,7 @@ import {
 } from './prd0062-reading-listening-coverage.mjs';
 
 export const ACCEPTANCE_MATRIX_PATH = 'documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json';
+export const FIXTURE_MANIFEST_PATH = 'scripts/fixtures/prd0062-51a-acceptance-fixture-manifest.json';
 const SOURCE_CONFORMANCE_EVIDENCE_PATH = 'documentation/tasks/PRD0062/evidence/51A-source-conformance-2026-08-04.json';
 const ACCEPTED_TIMER_COMMIT = 'ba8b2d59d9ccaae2b6cc7a74a34b55b32e1b1c70';
 const TIMER_INVARIANTS = [
@@ -22,10 +23,11 @@ const TIMER_INVARIANTS = [
   'no-completion-effect',
 ];
 export const OWNER_TICKETS = new Set(['51B1', '51B2', '51C1', '51C2', '51D1', '51D2', '51E']);
-const TEACHER_AUTHORING_ASSIGNMENT_COMMAND = 'npx playwright test --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium e2e/prd0062-teacher-authoring-assignment.spec.ts';
-const TEACHER_UPDATES_REPLACEMENT_RESULTS_COMMAND = 'npx playwright test --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium e2e/prd0062-teacher-updates-replacement-results.spec.ts';
-export const STUDENT_ACCESSIBILITY_DEVICE_COMMAND = 'npx playwright test --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-mobile e2e/prd0062-student-accessibility-device.spec.ts';
-const STUDENT_RUNTIME_PERSISTENCE_COMMAND = 'npx playwright test --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-desktop e2e/prd0062-student-runtime-persistence.spec.ts';
+export const PLAYWRIGHT_HARNESS_COMMAND = 'node scripts/harness/run-tool.mjs playwright . test';
+const TEACHER_AUTHORING_ASSIGNMENT_COMMAND = `${PLAYWRIGHT_HARNESS_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium e2e/prd0062-teacher-authoring-assignment.spec.ts`;
+const TEACHER_UPDATES_REPLACEMENT_RESULTS_COMMAND = `${PLAYWRIGHT_HARNESS_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium e2e/prd0062-teacher-updates-replacement-results.spec.ts`;
+export const STUDENT_ACCESSIBILITY_DEVICE_COMMAND = `${PLAYWRIGHT_HARNESS_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-mobile e2e/prd0062-student-accessibility-device.spec.ts`;
+const STUDENT_RUNTIME_PERSISTENCE_COMMAND = `${PLAYWRIGHT_HARNESS_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-desktop e2e/prd0062-student-runtime-persistence.spec.ts`;
 export const LEGACY_BACKUP_RECOVERY_COMMAND = 'npm run test:prd0062:legacy-backup-recovery';
 const REQUIRED_METRIC_FIELDS = ['fixtureId', 'command', 'timestamp', 'artifact', 'failureRetry', 'approvedExceptionRef'];
 const CANONICAL_SOURCES = [
@@ -62,9 +64,24 @@ const required = (errors, value, label) => {
 
 export const validatePrd0062AcceptanceMatrix = (matrix, { repoRoot = process.cwd() } = {}) => {
   const errors = [];
-  if (matrix?.schemaVersion !== 1) errors.push('schemaVersion: expected 1.');
+  if (![1, 2].includes(matrix?.schemaVersion)) errors.push('schemaVersion: expected 1 or 2.');
   if (!/^\d{4}-\d{2}-\d{2}\.\d+$/u.test(matrix?.matrixVersion ?? '')) errors.push('matrixVersion: invalid.');
   if (matrix?.executionState !== 'DEFINED_NOT_EXECUTED') errors.push('executionState: must not claim execution.');
+  if (matrix?.schemaVersion === 2) {
+    if (matrix?.kind !== 'prd0062-51a-acceptance-authority') errors.push('kind: expected prd0062-51a-acceptance-authority.');
+    if (matrix?.matrixId !== 'prd0062-v1-acceptance-authority') errors.push('matrixId: expected sole acceptance authority.');
+    if (matrix?.authority?.soleMatrixAuthority !== ACCEPTANCE_MATRIX_PATH) errors.push('authority: matrix must identify its sole authority path.');
+    if (matrix?.authority?.supersedesAbsentFilename !== '51a-acceptance.matrix.json') errors.push('authority: absent closure filename supersession missing.');
+    if (matrix?.authority?.noExecutionClaim !== true) errors.push('authority: execution claim must remain false.');
+    if (matrix?.fixtureManifest?.path !== FIXTURE_MANIFEST_PATH) errors.push('fixtureManifest: unexpected manifest path.');
+    if (!/^[a-f0-9]{64}$/u.test(matrix?.fixtureManifest?.sha256 ?? '')) errors.push('fixtureManifest: SHA-256 hash required.');
+    if (matrix?.fixtureManifest?.cleanupRoot !== 'prd0062_acceptance/') errors.push('fixtureManifest: cleanup root must be scoped.');
+    if (!Array.isArray(matrix?.capabilityRows) || matrix.capabilityRows.length !== 32) errors.push('capabilityRows: expected exactly 32 accepted profiled registrations.');
+    if (!matrix?.registryConformance?.materialCapabilityRegistry?.path) errors.push('registryConformance: material capability registry path required.');
+    if (!matrix?.registryConformance?.featureRegistry?.path) errors.push('registryConformance: feature registry path required.');
+    if (!matrix?.activityCoverage?.matrixPath) errors.push('activityCoverage: canonical matrix path required.');
+    if (matrix?.authority?.semanticValidator !== 'node scripts/validate-prd0062-acceptance-matrix.mjs --semantic') errors.push('authority: semantic validator command drift.');
+  }
   if (!matrix?.harness?.cleanupRoot?.startsWith('prd0062_acceptance/')) errors.push('harness.cleanupRoot: must be scoped.');
   if (/manual spot check|\b\d+\s*(?:tests|pass)\b/iu.test(JSON.stringify(matrix))) errors.push('matrix: forbidden manual spot check or copied evidence count.');
   const conformance = matrix?.sourceConformance;
@@ -73,6 +90,12 @@ export const validatePrd0062AcceptanceMatrix = (matrix, { repoRoot = process.cwd
   if (conformance?.supersedes !== '51a-acceptance.matrix.json') errors.push('sourceConformance: must record absent closure-referenced filename supersession.');
   if (conformance?.status !== 'PASS') errors.push('sourceConformance: must be PASS for accepted-source definition conformance.');
   if (conformance?.executionState !== 'DEFINED_NOT_EXECUTED') errors.push('sourceConformance: must remain definition-only.');
+  if (matrix?.schemaVersion === 2) {
+    if (conformance?.acceptedAdapterManifest !== 'src/services/book-activity/runtime/activityRendererManifest.json') errors.push('sourceConformance: accepted adapter manifest path drift.');
+    if (!/^[a-f0-9]{64}$/u.test(conformance?.acceptedAdapterManifestSha256 ?? '')) errors.push('sourceConformance: accepted adapter manifest hash required.');
+    if (conformance?.acceptedTimerSource !== 'src/components/book-runtime/PersonalTimer.tsx') errors.push('sourceConformance: accepted timer source path drift.');
+    if (!/^[a-f0-9]{64}$/u.test(conformance?.acceptedTimerSourceSha256 ?? '')) errors.push('sourceConformance: accepted timer source hash required.');
+  }
   if (conformance?.personalTimer?.status !== 'accepted-ui-only') errors.push('personal timer trace: must remain accepted-ui-only.');
   const timerInvariants = conformance?.personalTimer?.invariants;
   if (!Array.isArray(timerInvariants) || TIMER_INVARIANTS.some((invariant) => !timerInvariants.includes(invariant))) errors.push('personal timer trace: missing UI-only invariant.');

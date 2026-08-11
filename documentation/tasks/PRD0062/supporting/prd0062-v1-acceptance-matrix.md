@@ -1,27 +1,42 @@
 # PRD0062 Full-V1 Acceptance Matrix
 
-Matrix version: `2026-07-22.1`
+Matrix version: `2026-08-12.1`
 State: `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED`
 
-Current machine candidate: [prd0062-v1-acceptance-matrix.json](prd0062-v1-acceptance-matrix.json). Validator: `node scripts/validate-prd0062-acceptance-matrix.mjs`.
+The machine-readable [acceptance authority](prd0062-v1-acceptance-matrix.json)
+is the sole Full-V1 definition. It supersedes the absent closure-referenced
+`51a-acceptance.matrix.json`; no second acceptance matrix is created.
 
-`prd0062-v1-acceptance-matrix.json` is the sole authoritative Full-V1
-definition. It supersedes the absent closure-referenced
-`51a-acceptance.matrix.json`; no second authority is created. #127/51A's
-semantic checks read accepted Git object `a7522986` and confirm the 16 Reading
-and 12 Listening researched types against registered runtime profiles. The
-accepted UI-only PersonalTimer from `ba8b2d59` is explicitly traced with no
-teacher enforcement or visibility and no effect on telemetry, grades,
-deadlines, submission, attempts, autosave, integrity, or completion.
+The authority reconciles 32 profiled registrations from accepted Listening and
+Reading source lineage, the canonical 32-row Activity coverage matrix, the
+material capability and feature registries, and 33 deterministic fixture
+entries (32 activity fixtures plus the accepted UI-only PersonalTimer).
+Listening rows use their accepted registered/source-assisted states; the old
+unregistered Listening classification is stale artifact data.
 
-This record reports no browser journey, deployment, canary, secret, remote
-mutation, or pass result. #128–#134 must not consume it as frozen authority
-until #127's correction is reviewed and accepted.
+Semantic validation executes the accepted adapters against deterministic
+inputs, checks source registration keys and source hashes, verifies registry
+and Activity coverage correspondence, validates fixture schemas and scoped
+cleanup commands, rejects direct `npx`, `vite`, `vitest`, and `wrangler`
+command drift, and checks the PersonalTimer UI-only invariants. Every
+Playwright execution and metric command uses the repository harness prefix
+`node scripts/harness/run-tool.mjs playwright . test`:
 
-That historical caveat is superseded by the deterministic #127 source
-conformance record: it is `PASS` for accepted-source definition conformance,
-while browser, deployment, and product execution remain
-`DEFINED_NOT_EXECUTED`.
+```text
+node scripts/validate-prd0062-acceptance-matrix.mjs
+node scripts/validate-prd0062-acceptance-matrix.mjs --schema
+node scripts/validate-prd0062-acceptance-matrix.mjs --semantic
+```
+
+The frozen deterministic fixture manifest SHA-256 is recorded in the JSON
+authority and the #127 evidence record. The matrix SHA-256 and source hashes
+are recorded in
+`documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-12.json`.
+
+This is a definition and source-conformance artifact only. It reports no
+browser journey, deployment, canary, secret, remote mutation, or product
+execution result. Consumer tickets #128–#134 execute the named cases after
+this authority is accepted.
 
 | Matrix lane | Cases | Consumer ticket |
 | --- | --- | --- |
@@ -33,11 +48,7 @@ while browser, deployment, and product execution remain
 | Legacy, backup, recovery | `AC-LR-001` | `51D2` |
 | Canary/deployed decision prerequisites | `AC-RO-001` | `51E` |
 
-Canonical source evidence preserves all three named sources. It explicitly
-records Listening note-completion plus Reading matching and Yes/No/Not Given
-inspection. `taskTypeProfiles` inventories all 16 researched Reading and 12
-researched Listening types. The current candidate's Listening release-blocker
-classification is stale artifact data, not evidence that accepted Listening
-support is missing.
-
-Fixtures use deterministic IDs/checksums from a seed and may clean only under `prd0062_acceptance/`. Artifacts use `<timestamp>` placeholders until a consumer ticket executes a case. Names-only canary validation checks required configuration/secret names and scoped identity; it performs no remote action.
+Fixtures use deterministic IDs/checksums from a seed and may clean only under
+`prd0062_acceptance/`. Artifacts use `<timestamp>` placeholders until a
+consumer ticket executes a case. Names-only canary validation checks required
+configuration/secret names and scoped identity; it performs no remote action.
