@@ -135,6 +135,33 @@ describe('Book metadata backup/restore inventory', () => {
     expect(validateBookMetadataBackupInventory(inventory).valid).toBe(true);
   });
 
+  it('inventories the #121 recovery ledger roots with stable count and fingerprints', () => {
+    const inventory = makeInventory('book_recovery/operations', {
+      operationId: 'operation-121',
+      state: 'previewed',
+      stateRevision: 0,
+    });
+    const paths = inventory.roots.map((root) => root.path);
+    const recoveryOperation = inventory.roots.find((root) => root.path === 'book_recovery/operations');
+    const recoveryIndex = inventory.roots.find((root) => root.path === 'book_recovery/indexes/by_snapshot_idempotency');
+
+    expect(inventory.inventoryVersion).toBe('prd0062-48b-v1');
+    expect(BOOK_METADATA_ROOT_COUNT).toBe(69);
+    expect(inventory.rootCount).toBe(BOOK_METADATA_ROOT_COUNT);
+    expect(paths.slice(-3)).toEqual([
+      'book_recovery/operations',
+      'book_recovery/indexes/by_snapshot_idempotency',
+      'notifications',
+    ]);
+    expect(recoveryOperation?.contentFingerprint).toBe(
+      fingerprintBookMetadata(recoveryOperation?.data),
+    );
+    expect(recoveryIndex?.contentFingerprint).toBe(
+      fingerprintBookMetadata(recoveryIndex?.data),
+    );
+    expect(validateBookMetadataBackupInventory(inventory).valid).toBe(true);
+  });
+
   it('denies an omitted root and a body-payload field before planning writes', () => {
     const inventory = makeInventory();
     const omitted = JSON.parse(JSON.stringify(inventory)) as { roots: unknown[]; rootCount: number };

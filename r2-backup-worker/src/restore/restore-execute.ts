@@ -35,6 +35,88 @@ import {
 } from './book-source-restore';
 import { BookMetadataRestoreValidationError } from './book-source-restore';
 import type { BookMetadataValidationOptions, BookMetadataRestorePlan } from './book-source-restore';
+import {
+    RecoveryOperationLedger,
+    type RecoveryOperationRecord,
+} from './recovery-operation-ledger';
+import type { RecoverySuppressionContext } from './recovery-suppression';
+import {
+    assertRecoveryEnvelope,
+    type RecoveryEnvelopeIntegrityVerifier,
+    type RecoveryRuntimeIdentity,
+} from './recovery-envelope';
+
+export interface RecoveryPhaseRunnerInput {
+    readonly operationId: string;
+    readonly phase: 'restoring_canonical_authority' | 'rebuilding' | 'reconciling';
+    /** Adapters must pass this context to every external-effect boundary. */
+    readonly suppression: RecoverySuppressionContext;
+}
+
+export type RecoveryPhaseRunner = (input: RecoveryPhaseRunnerInput) => Promise<void>;
+
+/**
+ * Execute one deterministic control-plane operation. When phase runners are
+ * supplied, only the unfinished phase is invoked and a crash is converted to
+ * a retryable record that resumes at that same phase. This function does not
+ * release any side-effect family; #125 owns that final gate.
+ */
+export async function executeRecovery(input: {
+    readonly envelope: unknown;
+    readonly runtime: RecoveryRuntimeIdentity;
+    readonly verifier: RecoveryEnvelopeIntegrityVerifier;
+    readonly ledger: RecoveryOperationLedger;
+    readonly runners?: Partial<Record<RecoveryPhaseRunnerInput['phase'], RecoveryPhaseRunner>>;
+    readonly now?: string;
+}): Promise<RecoveryOperationRecord> {
+    const envelope = await assertRecoveryEnvelope(input.envelope, {
+        expectedPhase: 'execute',
+        runtime: input.runtime,
+        verifier: input.verifier,
+        now: input.now,
+    });
+    let current = (await input.ledger.authorizeExecute({
+        envelope,
+        runtime: input.runtime,
+        verifier: input.verifier,
+        now: input.now,
+    })).operation;
+    if (current.state === 'completed' || current.state === 'failed_terminal') return current;
+
+    while (current.state !== 'completed' && current.state !== 'failed_terminal') {
+        const started = await input.ledger.beginNextPhase(current.operationId, input.now);
+        const phase = started.state as RecoveryPhaseRunnerInput['phase'];
+        const runner = input.runners?.[phase];
+        if (!runner) return started;
+        try {
+            await runner({
+                operationId: started.operationId,
+                phase,
+                suppression: { recoveryOperationId: started.operationId, operation: started },
+            });
+            current = await input.ledger.completePhase({
+                operationId: started.operationId,
+                expectedState: started.state,
+                expectedRevision: started.stateRevision,
+                phase,
+                now: input.now,
+            });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Recovery phase failed.';
+            return input.ledger.failRetryable({
+                operationId: started.operationId,
+                expectedState: started.state,
+                expectedRevision: started.stateRevision,
+                code: 'phase-failed',
+                message,
+                now: input.now,
+            });
+        }
+    }
+    return current;
+}
+
+export const executeRecoveryOperation = executeRecovery;
 
 // ─── Constants ─────────────────────────────────────────────────────────
 
@@ -62,6 +144,8 @@ export interface RestoreOptions extends BookMetadataValidationOptions {
     bookMetadataPreview?: BookMetadataRestorePreview;
     /** Compatibility alias for callers that pass the complete preview object. */
     preview?: RestorePreview;
+    /** #121 recovery identity is transport metadata, never product payload data. */
+    recoveryOperationId?: string;
 }
 
 const scopeIncludesBookMetadata = (scope: readonly string[]): boolean => (
@@ -299,6 +383,9 @@ export async function executeRestore(
                 bookMetadataPreflight.plan,
                 bookMetadataPreflight.preview.rootFences,
                 fetch,
+                options.recoveryOperationId
+                    ? { recoveryOperationId: options.recoveryOperationId, phase: 'restoring_canonical_authority' }
+                    : undefined,
             );
             entitiesRestored += bookMetadataResult.restoredRoots;
             entitiesSkipped += bookMetadataResult.skippedRoots;

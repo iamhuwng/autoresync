@@ -2600,6 +2600,28 @@
           }
         }
       }
+    },
+    "book_recovery": {
+      ".read": "false",
+      ".write": "false",
+      "operations": {
+        "$operationId": {
+          ".read": "auth != null && auth.token.bkr.s == true && auth.token.bkr.o == $operationId && auth.token.bkr.dl >= now",
+          ".write": "auth != null && auth.token.bkr.s == true && auth.token.bkr.o == $operationId && auth.token.bkr.dl >= now && newData.exists() && newData.child('schemaVersion').val() == 'prd0062-49a-v1' && newData.child('kind').val() == 'book-recovery-operation' && newData.child('operationId').val() == $operationId && (newData.child('state').val() == 'previewed' || newData.child('state').val() == 'authorized' || newData.child('state').val() == 'restoring_canonical_authority' || newData.child('state').val() == 'rebuilding' || newData.child('state').val() == 'reconciling' || newData.child('state').val() == 'completed' || newData.child('state').val() == 'failed_retryable' || newData.child('state').val() == 'failed_terminal') && newData.child('stateRevision').isNumber() && newData.child('snapshot/backupId').isString() && newData.child('snapshot/snapshotId').val() == newData.child('snapshot/backupId').val() && newData.child('idempotencyKey').isString() && newData.child('requestFingerprint').isString() && newData.child('suppression/mode').val() == 'fail-closed' && !newData.child('pdfBytes').exists() && !newData.child('pdfBody').exists() && !newData.child('providerObjectBody').exists() && ((!data.exists() && newData.child('state').val() == 'previewed' && newData.child('stateRevision').val() == 0) || (data.exists() && newData.child('stateRevision').val() == data.child('stateRevision').val() + 1))"
+        }
+      },
+      "indexes": {
+        ".read": "false",
+        ".write": "false",
+        "by_snapshot_idempotency": {
+          "$snapshotId": {
+            "$idempotencyKey": {
+              ".read": "false",
+              ".write": "auth != null && auth.token.bkr.s == true && auth.token.bkr.i == $snapshotId && auth.token.bkr.k == $idempotencyKey && auth.token.bkr.dl >= now && newData.exists() && !data.exists() && newData.child('operationId').isString() && newData.child('snapshotId').val() == $snapshotId && newData.child('idempotencyKey').val() == $idempotencyKey && newData.child('requestFingerprint').isString() && !newData.child('pdfBytes').exists() && !newData.child('providerObjectBody').exists()"
+            }
+          }
+        }
+      }
     }
   }
 }

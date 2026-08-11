@@ -91,6 +91,10 @@ export const BOOK_METADATA_CANONICAL_ROOTS = Object.freeze([
   'material_catalog/books',
   'material_catalog/material_summary_indexes/v1',
   'material_catalog/public_book_projections',
+  // #121 recovery control-plane records are metadata-only and are inventoried
+  // with the Book roots so recovery cannot run against an untracked ledger.
+  'book_recovery/operations',
+  'book_recovery/indexes/by_snapshot_idempotency',
   'notifications',
 ] as const);
 
@@ -223,6 +227,11 @@ export interface BookMetadataRestorePlan {
   }[];
   readonly sourceVersionIds: readonly string[];
   readonly missingSourceVersionIds: readonly string[];
+}
+
+export interface BookMetadataRecoveryWriteContext {
+  readonly recoveryOperationId: string;
+  readonly phase: 'restoring_canonical_authority';
 }
 
 export interface BookMetadataRestoreInput extends BookMetadataValidationOptions {
@@ -974,6 +983,7 @@ export async function restoreBookMetadataRoots(
   plan: BookMetadataRestorePlan,
   rootFences: Readonly<Record<string, BookMetadataRootFence>>,
   fetchImpl: typeof fetch = fetch,
+  writeContext?: BookMetadataRecoveryWriteContext,
 ): Promise<{ readonly restoredRoots: number; readonly skippedRoots: number; readonly failedRoots: number }> {
   if (!isPlainRecord(plan) || !Array.isArray(plan.orderedWrites)
     || !Array.isArray(plan.delegatedRoots) || !Array.isArray(plan.missingSourceVersionIds)) {
@@ -1012,6 +1022,9 @@ export async function restoreBookMetadataRoots(
   if (plan.missingSourceVersionIds.length > 0) {
     throw new BookMetadataRestoreValidationError({ code: 'source-version-missing', path: '$.sourceVersionIds', message: 'Source Version availability is incomplete.' });
   }
+  if (writeContext && !SAFE_IDENTIFIER.test(writeContext.recoveryOperationId)) {
+    throw new BookMetadataRestoreValidationError({ code: 'invalid-operation-id', path: '$.recoveryOperationId', message: 'Recovery writes require a bounded recovery operation ID.' });
+  }
   const missingFence = BOOK_METADATA_CANONICAL_ROOTS.find((path) => !rootFences[path] || typeof rootFences[path].etag !== 'string' || rootFences[path].etag.length === 0);
   if (missingFence) throw new BookMetadataRestoreValidationError({ code: 'missing-etag', path: `$.rootFences.${missingFence}`, message: 'Every Book root write requires a current ETag fence.' });
 
@@ -1023,6 +1036,10 @@ export async function restoreBookMetadataRoots(
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         'If-Match': rootFences[write.path].etag,
+        ...(writeContext ? {
+          'X-Recovery-Operation-Id': writeContext.recoveryOperationId,
+          'X-Recovery-Phase': writeContext.phase,
+        } : {}),
       },
       body: JSON.stringify(write.data),
     });

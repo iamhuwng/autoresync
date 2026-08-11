@@ -9,6 +9,7 @@ import type {
     WorkerEnv,
     RestorePreview,
     RestorePreviewCategory,
+    BookMetadataRestoreDiagnostic,
 } from '../types';
 import type { BackupR2Client } from '../utils/r2-client';
 import { extractBackupZip } from '../utils/zip';
@@ -18,11 +19,142 @@ import { TokenCache } from '../auth/google-oauth';
 import {
     BOOK_METADATA_INVENTORY_NODE,
     buildBookMetadataRestorePreview,
+    fingerprintBookMetadata,
     readBookMetadataRoots,
+    validateBookMetadataBackupInventory,
 } from './book-source-restore';
+import {
+    assertRecoveryEnvelope,
+    type RecoveryEnvelopeIntegrityVerifier,
+    type RecoveryRuntimeIdentity,
+} from './recovery-envelope';
+import {
+    RecoveryOperationLedger,
+    type RecoveryOperationRecord,
+} from './recovery-operation-ledger';
 import type { BookMetadataValidationOptions } from './book-source-restore';
 
 export interface RestorePreviewOptions extends BookMetadataValidationOptions {}
+
+export interface RecoveryPreviewResult {
+    readonly dryRun: true;
+    readonly productionWrites: 0;
+    readonly operation: RecoveryOperationRecord;
+    readonly validation: {
+        readonly valid: boolean;
+        readonly diagnostics: readonly BookMetadataRestoreDiagnostic[];
+        readonly missingSourceVersionIds: readonly string[];
+    };
+}
+
+export class RecoveryPreviewValidationError extends Error {
+    readonly name = 'RecoveryPreviewValidationError';
+    readonly code = 'invalid-preview';
+
+    constructor(
+        readonly validation: RecoveryPreviewResult['validation'],
+    ) {
+        super('Recovery preview validation failed; no production operation was created.');
+    }
+}
+
+/**
+ * #121 deployment-only dry-run seam. The ledger write is the only durable
+ * write; no Firebase product root or provider operation is touched.
+ */
+export async function generateRecoveryPreview(input: {
+    readonly envelope: unknown;
+    readonly runtime: RecoveryRuntimeIdentity;
+    readonly verifier: RecoveryEnvelopeIntegrityVerifier;
+    readonly ledger: RecoveryOperationLedger;
+    readonly inventory: unknown;
+    readonly expectedFirebaseProject?: string;
+    readonly availableSourceVersionIds?: Iterable<string>;
+    readonly sourceVersionAvailability?: Readonly<Record<string, boolean>>;
+    readonly now?: string | number | Date;
+}): Promise<RecoveryPreviewResult> {
+    const envelope = await assertRecoveryEnvelope(input.envelope, {
+        expectedPhase: 'dry-run',
+        runtime: input.runtime,
+        verifier: input.verifier,
+        now: input.now,
+    });
+    const inventoryValidation = validateBookMetadataBackupInventory(input.inventory, {
+        expectedFirebaseProject: input.expectedFirebaseProject ?? envelope.snapshot.firebaseProject,
+        availableSourceVersionIds: input.availableSourceVersionIds,
+        sourceVersionAvailability: input.sourceVersionAvailability,
+        requireExternalSourceVersionProof: true,
+    });
+    const identityDiagnostics: BookMetadataRestoreDiagnostic[] = [];
+    const candidate = input.inventory !== null
+        && typeof input.inventory === 'object'
+        && !Array.isArray(input.inventory)
+        ? input.inventory as Partial<{
+            readonly backupId: string;
+            readonly firebaseProject: string;
+            readonly inventoryVersion: string;
+        }>
+        : {};
+    if (candidate.backupId !== envelope.snapshot.backupId) {
+        identityDiagnostics.push({
+            code: 'snapshot-mismatch',
+            path: '$.backupId',
+            message: 'Recovery inventory backupId does not match the envelope snapshot.',
+        });
+    }
+    if (candidate.firebaseProject !== envelope.snapshot.firebaseProject) {
+        identityDiagnostics.push({
+            code: 'snapshot-mismatch',
+            path: '$.firebaseProject',
+            message: 'Recovery inventory firebaseProject does not match the envelope scope.',
+        });
+    }
+    if (candidate.inventoryVersion !== envelope.snapshot.inventoryVersion) {
+        identityDiagnostics.push({
+            code: 'snapshot-mismatch',
+            path: '$.inventoryVersion',
+            message: 'Recovery inventory version does not match the envelope scope.',
+        });
+    }
+    try {
+        if (fingerprintBookMetadata(input.inventory) !== envelope.snapshot.inventoryFingerprint) {
+            identityDiagnostics.push({
+                code: 'snapshot-mismatch',
+                path: '$.inventoryFingerprint',
+                message: 'Recovery inventory fingerprint does not match the envelope scope.',
+            });
+        }
+    } catch {
+        identityDiagnostics.push({
+            code: 'snapshot-mismatch',
+            path: '$.inventoryFingerprint',
+            message: 'Recovery inventory fingerprint could not be deterministically verified.',
+        });
+    }
+    const validation: RecoveryPreviewResult['validation'] = {
+        valid: inventoryValidation.valid && identityDiagnostics.length === 0,
+        diagnostics: [...inventoryValidation.diagnostics, ...identityDiagnostics],
+        missingSourceVersionIds: inventoryValidation.missingSourceVersionIds,
+    };
+    if (!validation.valid) throw new RecoveryPreviewValidationError(validation);
+    const created = await input.ledger.preview({
+        snapshot: envelope.snapshot,
+        idempotencyKey: envelope.idempotencyKey,
+        now: typeof input.now === 'string' ? input.now : undefined,
+    });
+    return {
+        dryRun: true,
+        productionWrites: 0,
+        operation: created.operation,
+        validation: {
+            valid: validation.valid,
+            diagnostics: validation.diagnostics,
+            missingSourceVersionIds: validation.missingSourceVersionIds,
+        },
+    };
+}
+
+export const previewRecovery = generateRecoveryPreview;
 
 /**
  * Generate a restore preview showing the diff between backup and live data.

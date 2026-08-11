@@ -212,6 +212,106 @@ export interface BookMetadataRestorePreview {
     };
 }
 
+// ── PRD0062 49A recovery control plane ─────────────────────────────────
+
+export const RECOVERY_ENVELOPE_SCHEMA_VERSION = 'prd0062-49a-v1' as const;
+export const RECOVERY_OPERATION_SCHEMA_VERSION = 'prd0062-49a-v1' as const;
+
+export type RecoveryEnvelopePhase = 'dry-run' | 'execute';
+
+export type RecoveryOperationState =
+    | 'previewed'
+    | 'authorized'
+    | 'restoring_canonical_authority'
+    | 'rebuilding'
+    | 'reconciling'
+    | 'completed'
+    | 'failed_retryable'
+    | 'failed_terminal';
+
+export type RecoveryWorkPhase =
+    | 'restoring_canonical_authority'
+    | 'rebuilding'
+    | 'reconciling';
+
+export type RecoverySuppressionFamily =
+    | 'source-cleanup-provider-delete'
+    | 'submission-result-scoring'
+    | 'completion'
+    | 'checkpoint'
+    | 'notification'
+    | 'update-replacement-revocation'
+    | 'audit-fan-out';
+
+export interface RecoverySnapshotIdentity {
+    readonly backupId: string;
+    readonly snapshotId: string;
+    readonly firebaseProject: string;
+    readonly tenantId: string;
+    readonly ownerId: string;
+    readonly inventoryVersion: string;
+    readonly inventoryFingerprint: string;
+    readonly allowedRoots: readonly string[];
+}
+
+export interface RecoveryEnvelopeAuthorization {
+    readonly kind: 'deployment-operator' | 'deployment-service';
+    readonly identity: string;
+}
+
+export interface RecoveryEnvelopeIntegrity {
+    readonly algorithm: 'injected-signature';
+    readonly value: string;
+}
+
+export interface RecoveryEnvelope {
+    readonly kind: 'book-recovery-envelope';
+    readonly schemaVersion: typeof RECOVERY_ENVELOPE_SCHEMA_VERSION;
+    readonly snapshot: RecoverySnapshotIdentity;
+    readonly phase: RecoveryEnvelopePhase;
+    readonly idempotencyKey: string;
+    readonly issuedAt: string;
+    readonly expiresAt: string;
+    readonly authorized: RecoveryEnvelopeAuthorization;
+    readonly integrity: RecoveryEnvelopeIntegrity;
+}
+
+export interface RecoveryOperationError {
+    readonly code: string;
+    readonly phase: RecoveryWorkPhase | null;
+    readonly at: string;
+    readonly message: string;
+}
+
+export interface RecoveryOperationAuditEvent {
+    readonly code: string;
+    readonly at: string;
+    readonly phase: RecoveryWorkPhase | null;
+}
+
+export interface RecoveryOperationRecord {
+    readonly kind: 'book-recovery-operation';
+    readonly schemaVersion: typeof RECOVERY_OPERATION_SCHEMA_VERSION;
+    readonly operationId: string;
+    readonly snapshot: RecoverySnapshotIdentity;
+    readonly idempotencyKey: string;
+    readonly requestFingerprint: string;
+    readonly state: RecoveryOperationState;
+    readonly stateRevision: number;
+    readonly resumePhase: RecoveryWorkPhase | null;
+    readonly attempts: Readonly<Record<RecoveryWorkPhase, number>>;
+    readonly errors: readonly RecoveryOperationError[];
+    readonly audit: readonly RecoveryOperationAuditEvent[];
+    readonly suppression: {
+        readonly mode: 'fail-closed';
+        readonly families: readonly RecoverySuppressionFamily[];
+        readonly releasedFamilies: readonly RecoverySuppressionFamily[];
+        readonly finalReconciliation: 'pending' | 'approved';
+    };
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
 // ─── Restore Preview ───────────────────────────────────────────────────
 export interface RestorePreview {
     backupId: string;
