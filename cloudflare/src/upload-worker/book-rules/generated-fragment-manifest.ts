@@ -12,12 +12,20 @@ export interface GeneratedBookRuleOperation {
 
 export interface GeneratedBookRuleFragmentOwner {
   readonly ticketId?: string;
+  readonly issue?: number;
+  readonly serviceIdentity?: string;
+  readonly leastPrivilegePaths?: readonly string[];
   readonly generatedRuleLocations: readonly string[];
 }
 
 export interface GeneratedBookRuleFragment {
   readonly schemaVersion: typeof GENERATED_BOOK_RULE_FRAGMENT_SCHEMA_VERSION;
   readonly ticketId: string;
+  readonly issue?: number;
+  readonly status?: string;
+  readonly activation?: string;
+  readonly backupInventory?: string;
+  readonly recoveryLedgerRoot?: string;
   readonly owner: GeneratedBookRuleFragmentOwner;
   readonly operations: readonly GeneratedBookRuleOperation[];
 }
@@ -44,9 +52,24 @@ export type GeneratedBookRuleValidationCode =
   | 'duplicate-operation'
   | 'incompatible-merge-semantics'
   | 'ancestor-descendant-conflict'
+  | 'required-existing-rule-gap'
+  | 'service-identity-gap'
+  | 'unsafe-payload-allow'
+  | 'non-monotonic-transition'
   | 'duplicate-fragment-id'
   | 'multiple-owners'
   | 'declared-fragment-gap';
+
+export interface GeneratedBookRuleFragmentValidationOptions {
+  readonly allowedOwnerLocationGaps?: readonly string[];
+  readonly allowedDuplicateLocations?: readonly string[];
+}
+
+export interface GeneratedBookRuleFragmentManifestOptions {
+  readonly resolveFragment?: (
+    fragmentId: string,
+  ) => GeneratedBookRuleFragmentValidationOptions | undefined;
+}
 
 export class GeneratedBookRuleValidationError extends Error {
   readonly name = 'GeneratedBookRuleValidationError';
@@ -194,6 +217,7 @@ const normalizeOperation = (
 
 export const validateGeneratedBookRuleFragment = (
   value: unknown,
+  options: GeneratedBookRuleFragmentValidationOptions = {},
 ): GeneratedBookRuleFragment => {
   if (!isRecord(value)) {
     invalid('Fragment must be an object.');
@@ -227,6 +251,10 @@ export const validateGeneratedBookRuleFragment = (
   const ownerLocations = owner.generatedRuleLocations.map((location, index) => (
     normalizedDeclaredLocation(location, `Fragment ${fragmentId} owner location ${index}`)
   ));
+  const allowedOwnerLocationGaps = (options.allowedOwnerLocationGaps ?? []).map((location, index) => (
+    normalizedDeclaredLocation(location, `Fragment ${fragmentId} reconciled owner location ${index}`)
+  ));
+  const reconciledOwnerLocations = [...new Set([...ownerLocations, ...allowedOwnerLocationGaps])];
   if (new Set(ownerLocations).size !== ownerLocations.length) {
     throw new GeneratedBookRuleValidationError(
       'declared-path-gap',
@@ -246,19 +274,26 @@ export const validateGeneratedBookRuleFragment = (
     `Fragment ${fragmentId} operation`,
   ));
   const missingOwnerLocations = missingValues(operationLocations, ownerLocations);
-  const extraOwnerLocations = extraValues(ownerLocations, operationLocations);
-  if (missingOwnerLocations.length > 0 || extraOwnerLocations.length > 0) {
+  const extraOwnerLocations = extraValues(reconciledOwnerLocations, operationLocations);
+  const unresolvedOwnerLocations = missingOwnerLocations.filter((location) => (
+    !allowedOwnerLocationGaps.includes(location)
+  ));
+  if (unresolvedOwnerLocations.length > 0 || extraOwnerLocations.length > 0) {
     throw new GeneratedBookRuleValidationError(
       'declared-path-gap',
       `Fragment ${fragmentId} owner locations must exactly match operations.`,
       {
         fragmentId,
-        missingOwnerLocations,
+        missingOwnerLocations: unresolvedOwnerLocations,
+        reconciledOwnerLocations: allowedOwnerLocationGaps,
         extraOwnerLocations,
       },
     );
   }
   const firstOperationByLocation = new Map<string, GeneratedBookRuleOperation>();
+  const allowedDuplicateLocations = new Set((options.allowedDuplicateLocations ?? []).map((location) => (
+    normalizeGeneratedBookRuleLocation(location, `Fragment ${fragmentId} reconciled duplicate`)
+  )));
   for (const [index, operation] of operations.entries()) {
     const location = operationLocations[index];
     const first = firstOperationByLocation.get(location);
@@ -266,12 +301,16 @@ export const validateGeneratedBookRuleFragment = (
       const sameSemantics = first.merge === operation.merge
         && first.requiresExistingRule === operation.requiresExistingRule;
       if (!sameSemantics) {
+        if (allowedDuplicateLocations.has(location)) {
+          continue;
+        }
         throw new GeneratedBookRuleValidationError(
           'incompatible-merge-semantics',
           `Fragment ${fragmentId} declares incompatible merge semantics for ${location}.`,
           { fragmentId, location, firstMerge: first.merge, duplicateMerge: operation.merge },
         );
       }
+      if (allowedDuplicateLocations.has(location)) continue;
       throw new GeneratedBookRuleValidationError(
         'duplicate-operation',
         `Fragment ${fragmentId} declares duplicate path+rule operation ${location}.`,
@@ -283,9 +322,19 @@ export const validateGeneratedBookRuleFragment = (
   return {
     schemaVersion: GENERATED_BOOK_RULE_FRAGMENT_SCHEMA_VERSION,
     ticketId: fragmentId,
+    ...(typeof value.issue === 'number' ? { issue: value.issue } : {}),
+    ...(typeof value.status === 'string' ? { status: value.status } : {}),
+    ...(typeof value.activation === 'string' ? { activation: value.activation } : {}),
+    ...(typeof value.backupInventory === 'string' ? { backupInventory: value.backupInventory } : {}),
+    ...(typeof value.recoveryLedgerRoot === 'string' ? { recoveryLedgerRoot: value.recoveryLedgerRoot } : {}),
     owner: {
       ...(typeof owner.ticketId === 'string' ? { ticketId: owner.ticketId } : {}),
-      generatedRuleLocations: Object.freeze([...ownerLocations]),
+      ...(typeof owner.issue === 'number' ? { issue: owner.issue } : {}),
+      ...(typeof owner.serviceIdentity === 'string' ? { serviceIdentity: owner.serviceIdentity } : {}),
+      ...(Array.isArray(owner.leastPrivilegePaths)
+        ? { leastPrivilegePaths: Object.freeze([...owner.leastPrivilegePaths]) }
+        : {}),
+      generatedRuleLocations: Object.freeze([...reconciledOwnerLocations]),
     },
     operations: Object.freeze(operations),
   };
@@ -362,10 +411,14 @@ const ensureUniqueFragmentIds = (
  */
 export const createGeneratedBookRuleFragmentManifest = (
   inputs: readonly (GeneratedBookRuleFragmentSource | unknown)[],
+  options: GeneratedBookRuleFragmentManifestOptions = {},
 ): GeneratedBookRuleFragmentManifest => {
   const discovered = discoverGeneratedBookRuleFragmentManifest(inputs);
   const validated = discovered.map((entry) => {
-    const fragment = validateGeneratedBookRuleFragment(entry.fragment);
+    const fragment = validateGeneratedBookRuleFragment(
+      entry.fragment,
+      options.resolveFragment?.(entry.fragmentId) ?? {},
+    );
     return {
       ...entry,
       fragment,
@@ -379,6 +432,7 @@ export const createGeneratedBookRuleFragmentManifest = (
 
 export const validateGeneratedBookRuleFragmentManifest = (
   manifest: GeneratedBookRuleFragmentManifest,
+  options: GeneratedBookRuleFragmentManifestOptions = {},
 ): GeneratedBookRuleFragmentManifest => {
   if (!Array.isArray(manifest)) {
     invalid('Manifest must be an array.');
@@ -387,7 +441,10 @@ export const validateGeneratedBookRuleFragmentManifest = (
     if (!isRecord(entry) || typeof entry.sourcePath !== 'string') {
       invalid('Manifest entries must contain a string sourcePath.');
     }
-    const fragment = validateGeneratedBookRuleFragment(entry.fragment);
+    const fragment = validateGeneratedBookRuleFragment(
+      entry.fragment,
+      options.resolveFragment?.(entry.fragmentId) ?? {},
+    );
     if (entry.fragmentId !== fragment.ticketId) {
       invalid(`Manifest fragmentId ${entry.fragmentId} does not match fragment ticketId ${fragment.ticketId}.`, {
         fragmentId: entry.fragmentId,

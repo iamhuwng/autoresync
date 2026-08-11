@@ -1,0 +1,87 @@
+{
+  "task": "PRD0062 #118 / 09E",
+  "preparedCommit": "171e36ca726bad012000fc973de6b367b2b942b4",
+  "producerTip": "6955c7b4dbdb5433550f969489a2407d6125d8d1",
+  "fragmentCount": 34,
+  "fragmentCountNote": "The checkpoint named 33; the live final fragments directory contains 34 files, and all 34 were included.",
+  "fragmentLocations": [
+    "cloudflare/src/upload-worker/book-rules/fragments/04.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/08B.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/12C.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/13A.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/16.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/16A.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/17.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/18.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/19.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/20A.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/20C.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/21.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/28A.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/29.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/33C.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/35.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/36.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/37A.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/37B.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/38B5.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/39B.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/39C.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/40A.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/40B.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/41B.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/41C.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/42A.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/42B.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/43.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/44.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/45.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/46A.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/46B.json",
+    "cloudflare/src/upload-worker/book-rules/fragments/47.json"
+  ],
+  "rawOperationCount": 340,
+  "composedLocationCount": 336,
+  "approvedConflictResolutions": {
+    "exactDuplicateGroups": 1,
+    "authorizationAlternativeGroups": 3,
+    "locations": [
+      "book_activity/versions/$activityId/$versionId/.write",
+      "book_activity/student_safe_projections/$activityId/$versionId/.write",
+      "material_catalog/books/.write",
+      "material_catalog/books/$bookId/.write"
+    ]
+  },
+  "securityGates": [
+    "ancestor/descendant protected-boundary validation",
+    "service-identity and least-privilege metadata validation",
+    "monotonic stateRevision transition validation",
+    "raw token and retired-byte payload denial validation",
+    "legacy base-rule preservation"
+  ],
+  "generatedArtifact": {
+    "path": "database.rules.json",
+    "sha256": "BBAE83950B6859B09236812A067F414F15EB955273D70F4F3DFFE7EDE4CBE3CB"
+  },
+  "rollbackArtifact": {
+    "path": "firebase.prd0062-118-rules.rollback.json",
+    "sha256": "9B54CAF2F5F0B17F98171E92CB2334CF6F9C77696B6C9D5850997FC2D8AA8674"
+  },
+  "localProof": {
+    "host": "Windows ARM64",
+    "runner": "bundled x64 Vitest harness; no native vitest/vite/wrangler invocation",
+    "discoveredTests": 13,
+    "executedTests": 12,
+    "passedTests": 12,
+    "failedTests": 0
+  },
+  "emulatorProof": {
+    "status": "not-run",
+    "boundary": "The repository emulator suite exists, but this worktree has no local node_modules/@firebase/rules-unit-testing or Firebase emulator package; no dependency installation was performed."
+  },
+  "remoteProof": {
+    "deployed": false,
+    "activeReadbackVerified": false,
+    "boundary": "No deploy, push, PR, or remote readback was performed; the generated file is a local candidate only."
+  }
+}
