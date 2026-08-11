@@ -1,87 +1,186 @@
 {
   "task": "PRD0062 #118 / 09E",
-  "preparedCommit": "171e36ca726bad012000fc973de6b367b2b942b4",
-  "producerTip": "6955c7b4dbdb5433550f969489a2407d6125d8d1",
-  "fragmentCount": 34,
-  "fragmentCountNote": "The checkpoint named 33; the live final fragments directory contains 34 files, and all 34 were included.",
-  "fragmentLocations": [
-    "cloudflare/src/upload-worker/book-rules/fragments/04.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/08B.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/12C.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/13A.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/16.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/16A.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/17.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/18.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/19.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/20A.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/20C.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/21.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/28A.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/29.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/33C.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/35.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/36.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/37A.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/37B.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/38B5.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/39B.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/39C.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/40A.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/40B.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/41B.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/41C.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/42A.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/42B.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/43.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/44.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/45.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/46A.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/46B.json",
-    "cloudflare/src/upload-worker/book-rules/fragments/47.json"
-  ],
-  "rawOperationCount": 340,
-  "composedLocationCount": 336,
-  "approvedConflictResolutions": {
-    "exactDuplicateGroups": 1,
-    "authorizationAlternativeGroups": 3,
-    "locations": [
-      "book_activity/versions/$activityId/$versionId/.write",
-      "book_activity/student_safe_projections/$activityId/$versionId/.write",
-      "material_catalog/books/.write",
-      "material_catalog/books/$bookId/.write"
+  "status": "accepted-no-new-regressions",
+  "generatedAt": "2026-08-12",
+  "proofClass": "local composition plus RTDB emulator/security proof",
+  "sourceCommit": { "commit": "a4df415751965e05b12ec9148ceea0ea2b5237d8", "path": "." },
+  "identities": {
+    "fragmentManifest": { "path": "documentation/tasks/PRD0062/evidence/118-final-fragment-manifest-2026-08-12.json", "sha256": "9f720df1bce39e88d169749e491a28e1bc3fec89902508ca2d24a2ec81b5b831" },
+    "baseRules": { "path": "firebase.prd0062-118-rules.rollback.json", "sha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a" },
+    "composer": { "path": "cloudflare/src/upload-worker/book-rules/generated-fragment-composer.ts", "sha256": "61fb5d0b1bc00e0ff40d00b9d602e41948a00985d71cc3e77dba4029262a3d10" },
+    "composerVersion": { "path": "cloudflare/src/upload-worker/book-rules/generated-fragment-composer.ts", "value": "prd0062-118-composer-v2" },
+    "generatedRules": { "path": "database.rules.json", "sha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3" },
+    "emulatorSuite": { "path": "scripts/prd0062-118-assembled-rules-matrix.mjs", "sha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff", "version": "prd0062-118-assembled-rules-matrix-v4" },
+    "rollbackArtifact": { "path": "firebase.prd0062-118-rules.rollback.json", "sha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a" }
+  },
+  "fragmentComposition": {
+    "manifestPath": "documentation/tasks/PRD0062/evidence/118-final-fragment-manifest-2026-08-12.json",
+    "fragmentCount": 38,
+    "rawOperationCount": 373,
+    "composedLocationCount": 368,
+    "fragmentOrderIncludes": ["04", "08B", "12C", "13A", "16", "16A", "17", "18", "19", "20A", "20C", "21", "28A", "29", "33C", "35", "36", "37A", "37B", "38B5", "39B", "39C", "40A", "40B", "41B", "41C", "42A", "42B", "43", "44", "45", "46A", "46B", "47", "49A", "49B", "49C", "49D"],
+    "approvedConflictGroups": 4,
+    "explicitMaterialCatalogRemediations": ["20A:1 inverse-gate ordinary branch replaced with false", "44:0-8 inverse gates removed while allow-lists remain", "44:9-13 preserve existing base boolean false", "44:19 excluded because the base v1 ancestor location is absent"],
+    "explicitProducerOperationAliases": ["42A:1 enrollment wildcard", "38B5:2-5 notification wildcard"],
+    "explicitProducerOperationRemediations": ["49D:9 exact trailing-parenthesis fix", "37A/37B exact numChildren removals"],
+    "capacityAuthority": { "ruleLimitation": "RTDB rules cannot independently count arbitrary children because RuleDataSnapshot has no numChildren method.", "trustedWriter": "cloudflare/src/upload-worker/book-activity-integrity/ticket91-preview-rtdb.ts", "trustedWriterChecks": ["events <= 64", "sessions <= 4"], "trustedReportService": "src/services/book-activity/bookIntegrityReport.service.ts", "trustedReportChecks": ["highRiskSignals bounds and exact signal parsing", "eventRefs exact totalEventCount parsing and <= 64 bound"] },
+    "deterministicRegenerationByteMatch": true,
+    "manifestScope": "Producer fragment manifest plus final composed-location count after explicit composer exclusions; producer fragment bytes and hashes remain immutable.",
+    "manifestHashChange": { "previousSha256": "c16bb7da16ec0c45bad24261d4ff9e110b3ebdb6cb51afdeef1dea60a036de11", "currentSha256": "9f720df1bce39e88d169749e491a28e1bc3fec89902508ca2d24a2ec81b5b831", "reason": "The canonical artifact records composedLocationCount, which changed from 369 to 368 when absent fragment 44:19 was excluded; producer fragment hashes are unchanged." },
+    "v4ToV5StructuralDiff": {
+      "beforePath": "tmp/prd0062-118-v4-database.rules.snapshot.json",
+      "beforeSha256": "6e55aef0222b55e748af360cc7ed2b9fe3c0e1c9b5444a8c51a5511c1203944b",
+      "changedLocationCount": 6,
+      "changedLocations": [
+        "material_catalog/material_summary_indexes/v1/.write",
+        "material_catalog/material_summary_indexes/v1/by_id/$materialId/$other/.validate",
+        "material_catalog/material_summary_indexes/v1/by_owner/$ownerId/$materialId/$other/.validate",
+        "material_catalog/material_summary_indexes/v1/by_visibility/$visibility/$materialId/$other/.validate",
+        "material_catalog/material_summary_indexes/v1/by_material_kind/$materialKind/$materialId/$other/.validate",
+        "material_catalog/material_summary_indexes/v1/by_test_type/$testTypeId/$materialId/$other/.validate"
+      ],
+      "v4Values": {
+        "ancestorWrite": "false",
+        "summaryOtherLeaves": "string false"
+      },
+      "v5Values": {
+        "ancestorWrite": "absent",
+        "summaryOtherLeaves": "boolean false"
+      },
+      "noOtherRuleChanges": true
+    }
+  },
+  "focusedProof": {
+    "command": "npm.cmd --prefix cloudflare run test -- --config=.codex-prd0062-118-vitest.config.mjs --reporter=verbose",
+    "transientConfigRemoved": true,
+    "discoveredFiles": 1,
+    "executedFiles": 1,
+    "discoveredTests": 13,
+    "executedTests": 13,
+    "passedTests": 13,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "exitCode": 0,
+    "allComposedExpressionsBalanced": true,
+    "noFinalExpressionContainsNumChildren": true,
+    "producer20AUnchanged": true,
+    "producer44Unchanged": true,
+    "producer49DUnchanged": true,
+    "producer37AUnchanged": true,
+    "producer37BUnchanged": true,
+    "readingV2FilesChanged": false,
+    "materialCatalogRegressionAssertions": ["arbitrary $other keys denied", "reviewPayload unsafe write denied", "other teacher book write denied", "universal summary $other validators remain false"]
+  },
+  "legacyPreservation": { "result": "passed", "method": "Every scalar base/generated rule leaf is compared; only manifest-owned operation locations may differ.", "changedOutsideManifestOwnedLocations": 0, "rollbackByteEqualToBase": true, "rollbackBaseAuthority": "5f32a3c2^:database.rules.json" },
+  "rollbackDifferentialDiagnostics": {
+    "preloadPath": "tmp/prd0062-118-baseline-rules-preload.cjs",
+    "preloadSha256": "4dc1ddfa4475a92767059226dd4520160401c1177e0d27d91a651962d09857ac",
+    "baseRulesPath": "firebase.prd0062-118-rules.rollback.json",
+    "baseRulesSha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a",
+    "samePowerShellEnvironment": {
+      "java": "JAVA_HOME=tmp/prd0062-118-java21/runtime/jdk-21.0.12+8-jre with bin prepended; openjdk version 21.0.12",
+      "vitePlaceholders": { "VITE_FIREBASE_API_KEY": "firebase-api-key", "VITE_FIREBASE_AUTH_DOMAIN": "demo.firebaseapp.com", "VITE_FIREBASE_DATABASE_URL": "https://demo.firebaseio.com", "VITE_FIREBASE_PROJECT_ID": "demo-project", "VITE_FIREBASE_STORAGE_BUCKET": "demo.appspot.com", "VITE_FIREBASE_MESSAGING_SENDER_ID": "1234567890", "VITE_FIREBASE_APP_ID": "1:1234567890:web:abc123" },
+      "singleWorker": { "VITEST_FILE_PARALLELISM": "false", "VITEST_MAX_WORKERS": "1" }
+    },
+    "transientEvidence": { "informationalOnly": true, "excludedFromCommit": true, "downstreamConsumable": false, "note": "Preload, rollback diagnostic JSON, final matrix JSON, and task-local Java runtime are transient run evidence. The committed proof embeds canonical counts and title/status mappings." },
+    "verdict": "all three assembled failures are baseline-identical legacy expectations",
+    "diagnostics": [
+      {
+        "command": "$env:NODE_OPTIONS='--require=./tmp/prd0062-118-baseline-rules-preload.cjs'; node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only database \"node node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=json --outputFile=tmp/prd0062-118-material-catalog-baseline-results.json src/__tests__/security/materialCatalogFirebaseRules.test.ts\"",
+        "resultPath": "tmp/prd0062-118-material-catalog-baseline-results.json",
+        "resultSha256": "cf290b91ef2667b9f90117559c57e33c1fdd855bc6ef9324e8cca46261e10a69",
+        "totalTests": 23,
+        "passedTests": 22,
+        "failedTests": 1,
+        "pendingTests": 0,
+        "failureMappings": [
+          { "assembledFile": "src/__tests__/security/materialCatalogFirebaseRules.test.ts", "assembledTitle": "Material Catalog Firebase rule contract defines versioned universal summary ownership, public-read, and schema rules", "assembledStatus": "failed", "rollbackFile": "src/__tests__/security/materialCatalogFirebaseRules.test.ts", "rollbackTitle": "Material Catalog Firebase rule contract defines versioned universal summary ownership, public-read, and schema rules", "rollbackStatus": "failed", "identicalTitle": true, "identicalStatus": true, "message": "TypeError: Cannot read properties of undefined (reading '.validate') at line 380:21" }
+        ]
+      },
+      {
+        "command": "$env:NODE_OPTIONS='--require=./tmp/prd0062-118-baseline-rules-preload.cjs'; node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only database \"node node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=json --outputFile=tmp/prd0062-118-reading-v2-baseline-results.json src/__tests__/security/readingV2FirebaseRules.test.ts\"",
+        "resultPath": "tmp/prd0062-118-reading-v2-baseline-results.json",
+        "resultSha256": "152c923db4c587c71969a35ec3388149687705f38f7f0210f2d96dc356228d7b",
+        "totalTests": 33,
+        "passedTests": 31,
+        "failedTests": 2,
+        "pendingTests": 0,
+        "failureMappings": [
+          { "assembledFile": "src/__tests__/security/readingV2FirebaseRules.test.ts", "assembledTitle": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove Reading V2 masters when material summary cleanup rows are absent", "assembledStatus": "failed", "rollbackFile": "src/__tests__/security/readingV2FirebaseRules.test.ts", "rollbackTitle": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove Reading V2 masters when material summary cleanup rows are absent", "rollbackStatus": "failed", "identicalTitle": true, "identicalStatus": true, "message": "Error: PERMISSION_DENIED: Permission denied" },
+          { "assembledFile": "src/__tests__/security/readingV2FirebaseRules.test.ts", "assembledTitle": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove thin legacy Reading V2 masters without passage refs", "assembledStatus": "failed", "rollbackFile": "src/__tests__/security/readingV2FirebaseRules.test.ts", "rollbackTitle": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove thin legacy Reading V2 masters without passage refs", "rollbackStatus": "failed", "identicalTitle": true, "identicalStatus": true, "message": "Error: PERMISSION_DENIED: Permission denied" }
+        ]
+      }
+    ],
+    "deferredTo": "#133",
+    "productOrTestFilesChanged": false
+  },
+  "emulatorMatrix": {
+    "status": "accepted-no-new-regressions",
+    "suitePath": "scripts/prd0062-118-assembled-rules-matrix.mjs",
+    "suiteVersion": "prd0062-118-assembled-rules-matrix-v4",
+    "generatedRulesIdentity": "v5",
+    "suiteDefinitionIdentity": "unchanged v4",
+    "testFileCount": 7,
+    "configuredTestFiles": ["src/__tests__/security/materialCatalogFirebaseRules.test.ts", "src/__tests__/security/readingV2FirebaseRules.test.ts", "src/__tests__/security/prd0055-live-session-rules.emulator.test.ts", "src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts", "src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts", "src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts", "src/__tests__/security/retired-material-rules.emulator.test.ts"],
+    "command": "node scripts/prd0062-118-assembled-rules-matrix.mjs",
+    "resultPath": "tmp/prd0062-118-assembled-rules-matrix-v4-results.json",
+    "rawResultRetained": false,
+    "rawResultRetentionNote": "The unchanged v4 suite output path was overwritten by the final v5 run; this transient JSON is not a retained immutable artifact.",
+    "identityFrozenBeforeRun": true,
+    "expectedGuard": "Every configured normalized path appears exactly once with status passed and at least one assertion; zero skipped/pending/todo; all assertions pass.",
+    "discoveredResultFiles": 7,
+    "executedResultFiles": 7,
+    "totalSuites": 21,
+    "passedSuites": 17,
+    "failedSuites": 4,
+    "pendingSuites": 0,
+    "discoveredTests": 85,
+    "executedTests": 85,
+    "passedTests": 82,
+    "failedTests": 3,
+    "skippedTests": 0,
+    "pendingTests": 0,
+    "todoTests": 0,
+    "exitCode": 1,
+    "emulatorStarted": true,
+    "testsStarted": true,
+    "javaVersion": "openjdk version \"21.0.12\" 2026-07-21 LTS",
+    "jsonSuccess": false,
+    "failureClass": "legacy-baseline",
+    "proofVerdict": "accepted-no-new-regressions / differential legacy preservation; not all-tests-green",
+    "resultSha256": "acf1aff33fff4ba479ed9807fa85d808c5fc81bc556eca9d534cef4e745de69f",
+    "fileResults": [
+      { "path": "src/__tests__/security/materialCatalogFirebaseRules.test.ts", "status": "failed", "assertions": 23, "message": "TypeError: Cannot read properties of undefined (reading '.validate') at line 380:21; the intentionally absent material_summary_indexes/v1/.write ancestor was dereferenced by the consumer." },
+      { "path": "src/__tests__/security/readingV2FirebaseRules.test.ts", "status": "failed", "assertions": 33, "message": "Two soft-remove cases failed with PERMISSION_DENIED; Reading V2 was not edited." },
+      { "path": "src/__tests__/security/prd0055-live-session-rules.emulator.test.ts", "status": "passed", "assertions": 9 },
+      { "path": "src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts", "status": "passed", "assertions": 2 },
+      { "path": "src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts", "status": "passed", "assertions": 5 },
+      { "path": "src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts", "status": "passed", "assertions": 7 },
+      { "path": "src/__tests__/security/retired-material-rules.emulator.test.ts", "status": "passed", "assertions": 6 }
+    ],
+    "failures": [
+      { "file": "src/__tests__/security/materialCatalogFirebaseRules.test.ts", "title": "Material Catalog Firebase rule contract defines versioned universal summary ownership, public-read, and schema rules", "message": "TypeError: Cannot read properties of undefined (reading '.validate') at materialCatalogFirebaseRules.test.ts:380:21; the intentionally absent material_summary_indexes/v1/.write ancestor was dereferenced by the consumer." },
+      { "file": "src/__tests__/security/readingV2FirebaseRules.test.ts", "title": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove Reading V2 masters when material summary cleanup rows are absent", "message": "Error: PERMISSION_DENIED: Permission denied" },
+      { "file": "src/__tests__/security/readingV2FirebaseRules.test.ts", "title": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove thin legacy Reading V2 masters without passage refs", "message": "Error: PERMISSION_DENIED: Permission denied" }
+    ],
+    "excludedTests": [
+      { "path": "src/__tests__/security/bookActivityFirebaseRules.test.ts", "reason": "Superseded pre-composition Activity consumer; corrected legacy/recovery coverage deferred to #133." },
+      { "path": "src/__tests__/security/prd0062RetiredDataQuarantineFirebaseRules.emulator.test.ts", "reason": "Superseded retired-path consumer; corrected legacy/recovery coverage deferred to #133." },
+      { "path": "src/__tests__/security/prd0040-security.emulator.test.ts", "reason": "Firestore dependency is outside the #118 RTDB tuple; #132 owns the non-duplicated mixed contract case." }
     ]
   },
-  "securityGates": [
-    "ancestor/descendant protected-boundary validation",
-    "service-identity and least-privilege metadata validation",
-    "monotonic stateRevision transition validation",
-    "raw token and retired-byte payload denial validation",
-    "legacy base-rule preservation"
+  "supersededResults": [
+    { "suiteVersion": "prd0062-118-assembled-rules-matrix-v4", "attemptKind": "contemporaneously-recorded-superseded-generated-rules-attempt", "overwrittenResultPath": "tmp/prd0062-118-assembled-rules-matrix-v4-results.json", "rawResultRetained": false, "rawResultRetentionNote": "The shared v4 output path was overwritten by the final v5 run; no immutable v4 raw result is retained.", "resultFiles": 7, "nestedSuites": 21, "tests": 85, "passed": 82, "failed": 3, "skipped": 0, "pending": 0, "todo": 0, "exitCode": 1, "failureClass": "historical-attempt", "fileFailures": [
+      { "path": "src/__tests__/security/materialCatalogFirebaseRules.test.ts", "status": "failed", "assertions": 23, "class": "product", "message": "Expected JSON boolean false but received string 'false' at line 372:42." },
+      { "path": "src/__tests__/security/readingV2FirebaseRules.test.ts", "status": "failed", "assertions": 33, "class": "legacy-baseline", "message": "Two soft-remove cases were initially observed under v4 with PERMISSION_DENIED; rollback diagnostics later showed the same failures under exact base, so 44:19 was not their cause. Reading V2 was not edited." }
+    ], "failures": [
+      { "file": "src/__tests__/security/materialCatalogFirebaseRules.test.ts", "title": "Material Catalog Firebase rule contract defines versioned universal summary ownership, public-read, and schema rules", "message": "AssertionError: expected 'false' to be false at line 372:42; generated summary $other/.validate was a string instead of JSON boolean false." },
+      { "file": "src/__tests__/security/readingV2FirebaseRules.test.ts", "title": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove Reading V2 masters when material summary cleanup rows are absent", "message": "Error: PERMISSION_DENIED: Permission denied; initially observed under v4 and later proven baseline-identical under exact base, not caused by 44:19." },
+      { "file": "src/__tests__/security/readingV2FirebaseRules.test.ts", "title": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove thin legacy Reading V2 masters without passage refs", "message": "Error: PERMISSION_DENIED: Permission denied; initially observed under v4 and later proven baseline-identical under exact base, not caused by 44:19." }
+    ], "reason": "Superseded by final v5 differential evidence. Fragment 44:19 removal remained required for exact legacy-shape preservation, but rollback diagnostics proved it was not the cause of these Reading failures." },
+    { "suiteVersion": "prd0062-118-assembled-rules-matrix-v3", "resultPath": "tmp/prd0062-118-assembled-rules-matrix-v3-results.json", "resultFiles": 7, "nestedSuites": 19, "tests": 52, "passed": 51, "failedAssertions": 1, "skipped": 0, "fileFailures": [{ "path": "src/__tests__/security/materialCatalogFirebaseRules.test.ts", "status": "failed", "assertions": 23, "class": "product", "message": "Universal summary $other/.validate expected literal false at line 372:42." }, { "path": "src/__tests__/security/readingV2FirebaseRules.test.ts", "status": "failed", "assertions": 0, "class": "harness", "message": "[Firebase] Missing web config: apiKey, authDomain, databaseURL, projectId, storageBucket, messagingSenderId, appId." }], "reason": "Superseded by v4 after both required corrections." },
+    { "suiteVersion": "prd0062-118-assembled-rules-matrix-v2", "resultPath": "tmp/prd0062-118-assembled-rules-matrix-v2-results.json", "resultFiles": 9, "nestedSuites": 25, "tests": 56, "passed": 50, "failed": 6, "reason": "Superseded by direct-consumer v3/v4 suites." },
+    { "suiteVersion": "prd0062-118-assembled-rules-matrix-v1", "reason": "Mixed fragment/assembled suite with Firestore dependency; superseded." }
   ],
-  "generatedArtifact": {
-    "path": "database.rules.json",
-    "sha256": "BBAE83950B6859B09236812A067F414F15EB955273D70F4F3DFFE7EDE4CBE3CB"
-  },
-  "rollbackArtifact": {
-    "path": "firebase.prd0062-118-rules.rollback.json",
-    "sha256": "9B54CAF2F5F0B17F98171E92CB2334CF6F9C77696B6C9D5850997FC2D8AA8674"
-  },
-  "localProof": {
-    "host": "Windows ARM64",
-    "runner": "bundled x64 Vitest harness; no native vitest/vite/wrangler invocation",
-    "discoveredTests": 43,
-    "executedTests": 43,
-    "passedTests": 43,
-    "failedTests": 0
-  },
-  "emulatorProof": {
-    "status": "not-run",
-    "boundary": "The repository emulator suite and isolated x64 Firebase packages are available, but neither the Windows host nor its Ubuntu WSL distribution has the Java runtime required by the RTDB emulator. No machine dependency installation was performed."
-  },
-  "remoteProof": {
-    "deployed": false,
-    "activeReadbackVerified": false,
-    "boundary": "No deploy, push, PR, or remote readback was performed; the generated file is a local candidate only."
-  }
+  "remoteProof": { "deployed": false, "remoteReadbackVerified": false, "statement": "No deploy, activation, push, PR, remote mutation, or remote readback was performed." }
 }

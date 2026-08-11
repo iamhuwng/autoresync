@@ -14,6 +14,8 @@ import {
   GeneratedBookRuleValidationError,
 } from './generated-fragment-manifest.ts';
 
+export const GENERATED_BOOK_RULE_COMPOSER_VERSION = 'prd0062-118-composer-v2' as const;
+
 export const FINAL_BOOK_RULE_FRAGMENT_IDS = Object.freeze([
   '04', '08B', '12C', '13A', '16', '16A', '17', '18', '19', '20A',
   '20C', '21', '28A', '29', '33C', '35', '36', '37A', '37B', '38B5',
@@ -25,6 +27,58 @@ type OperationRef = Readonly<{
   readonly fragmentId: string;
   readonly operationIndex: number;
 }>;
+
+type FinalProducerOperationAlias = Readonly<{
+  readonly path: string;
+  readonly expressionVariableReplacements: readonly (readonly [string, string])[];
+}>;
+
+// 42A:1 uses a legacy wildcard spelling that collides with the base rule's
+// canonical enrollment wildcard. Keep this explicit to the accepted producer
+// operation; producer fragments remain byte-immutable.
+const FINAL_PRODUCER_OPERATION_ALIASES: Readonly<Record<string, FinalProducerOperationAlias>> = Object.freeze({
+  '42A:1': Object.freeze({
+    path: 'course_enrollments/$enrollmentId',
+    expressionVariableReplacements: Object.freeze([
+      ['$legacyEnrollmentId', '$enrollmentId'],
+    ] as const),
+  }),
+  '38B5:2': Object.freeze({
+    path: 'notifications/$userId',
+    expressionVariableReplacements: Object.freeze([
+      ['$recipientId', '$userId'],
+    ] as const),
+  }),
+  '38B5:3': Object.freeze({
+    path: 'notifications/$userId',
+    expressionVariableReplacements: Object.freeze([
+      ['$recipientId', '$userId'],
+    ] as const),
+  }),
+  '38B5:4': Object.freeze({
+    path: 'notifications/$userId/$notificationId',
+    expressionVariableReplacements: Object.freeze([
+      ['$recipientId', '$userId'],
+    ] as const),
+  }),
+  '38B5:5': Object.freeze({
+    path: 'notifications/$userId/$notificationId/read',
+    expressionVariableReplacements: Object.freeze([
+      ['$recipientId', '$userId'],
+    ] as const),
+  }),
+});
+
+// Fragment 44:19 is a deny operation at a location intentionally absent from
+// the accepted base rules. Do not synthesize a new ancestor authority there.
+const FINAL_PRODUCER_OPERATION_EXCLUSIONS = Object.freeze(['44:19'] as const);
+
+// These five fragment-44 validators must preserve the base JSON boolean false
+// exactly. The producer operation is retained for provenance, but it may not
+// replace the existing base leaf with a string expression.
+const FINAL_PRODUCER_OPERATION_PRESERVE_EXISTING_FALSE = Object.freeze([
+  '44:9', '44:10', '44:11', '44:12', '44:13',
+] as const);
 
 type ConflictResolution = Readonly<{
   readonly kind: 'exact-duplicate' | 'authorization-alternative';
@@ -138,6 +192,7 @@ export interface ComposedGeneratedBookRuleOperation extends GeneratedBookRuleOpe
 export interface GeneratedBookRulesCandidate {
   readonly kind: 'generated-book-rules-candidate';
   readonly schemaVersion: 1;
+  readonly composerVersion: typeof GENERATED_BOOK_RULE_COMPOSER_VERSION;
   readonly fragmentIds: readonly string[];
   readonly operations: readonly ComposedGeneratedBookRuleOperation[];
   readonly byLocation: Readonly<Record<string, ComposedGeneratedBookRuleOperation>>;
@@ -163,6 +218,199 @@ const fail = (
 ): never => {
   throw new GeneratedBookRuleValidationError(code, message, details);
 };
+
+const parenthesesCount = (expression: string, character: '(' | ')'): number => (
+  [...expression].filter((value) => value === character).length
+);
+
+const hasBalancedParentheses = (expression: string): boolean => {
+  let depth = 0;
+  for (const character of expression) {
+    if (character === '(') depth += 1;
+    if (character === ')') {
+      depth -= 1;
+      if (depth < 0) return false;
+    }
+  }
+  return depth === 0;
+};
+
+const remediateFragment44AllowedKeyValidation = (expression: string, operationIndex: number): string => {
+  const inverseGate = 'auth == null || auth.token.pbcf.s != true || ';
+  if (!expression.startsWith(inverseGate)
+    || expression.split(inverseGate).length !== 2
+    || !expression.slice(inverseGate.length).startsWith('$other == ')) {
+    fail('malformed-fragment', 'The explicit fragment 44 allow-list remediation precondition failed.', {
+      fragmentId: '44', operationIndex, expectedPrefix: inverseGate,
+    });
+  }
+  return expression.slice(inverseGate.length);
+};
+
+const FINAL_PRODUCER_OPERATION_EXPRESSION_REMEDIATIONS: Readonly<Record<string, (expression: string) => string>> = Object.freeze({
+  '20A:1': (expression: string): string => {
+    const expectedPrefix = "(auth == null || auth.token.pbcf.s != true) && (((!data.child('modeSuccessorLineage').exists()";
+    if (!expression.startsWith(expectedPrefix)
+      || !expression.includes('auth.token.material_book_successor_service == true')
+      || !expression.includes("!newData.child('modeSuccessorLineage').exists()")) {
+      fail('malformed-fragment', 'The explicit 20A:1 inverse-gate remediation precondition failed.', {
+        fragmentId: '20A', operationIndex: 1, expectedPrefix,
+      });
+    }
+    return 'false';
+  },
+  '44:0': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 0),
+  '44:1': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 1),
+  '44:2': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 2),
+  '44:3': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 3),
+  '44:4': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 4),
+  '44:5': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 5),
+  '44:6': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 6),
+  '44:7': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 7),
+  '44:8': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 8),
+  '49D:9': (expression: string): string => {
+    const openCount = parenthesesCount(expression, '(');
+    const closeCount = parenthesesCount(expression, ')');
+    const repaired = expression.endsWith(')') ? expression.slice(0, -1) : '';
+    if (openCount !== 28 || closeCount !== 29 || repaired.length === 0 || !hasBalancedParentheses(repaired)) {
+      fail('malformed-fragment', 'The explicit 49D:9 parenthesis remediation precondition failed.', {
+        fragmentId: '49D',
+        operationIndex: 9,
+        openCount,
+        closeCount,
+        endsWithClosingParenthesis: expression.endsWith(')'),
+        repairedExpressionBalanced: repaired.length > 0 && hasBalancedParentheses(repaired),
+      });
+    }
+    return repaired;
+  },
+  '37A:7': (expression: string): string => {
+    const expected = [
+      'newData.numChildren() == 8 && ',
+      "newData.child('events').numChildren() <= 64 && ",
+      "newData.child('sessions').numChildren() <= 4 && ",
+    ];
+    if (expected.some((snippet) => expression.split(snippet).length !== 2)) {
+      fail('malformed-fragment', 'The explicit 37A:7 numChildren remediation precondition failed.', {
+        fragmentId: '37A', operationIndex: 7, expected,
+      });
+    }
+    const repaired = expression
+      .replace(expected[0], '')
+      .replace(expected[1], '')
+      .replace(expected[2], '');
+    if (repaired.includes('numChildren')) {
+      fail('malformed-fragment', 'The explicit 37A:7 remediation left an unsupported method.', {
+        fragmentId: '37A', operationIndex: 7,
+      });
+    }
+    return repaired;
+  },
+  '37A:8': (expression: string): string => {
+    const expected = [
+      'newData.numChildren() == 14 && ',
+      "newData.child('target').numChildren() == 8 && ",
+    ];
+    if (expected.some((snippet) => expression.split(snippet).length !== 2)) {
+      fail('malformed-fragment', 'The explicit 37A:8 numChildren remediation precondition failed.', {
+        fragmentId: '37A', operationIndex: 8, expected,
+      });
+    }
+    const repaired = expression.replace(expected[0], '').replace(expected[1], '');
+    if (repaired.includes('numChildren')) {
+      fail('malformed-fragment', 'The explicit 37A:8 remediation left an unsupported method.', {
+        fragmentId: '37A', operationIndex: 8,
+      });
+    }
+    return repaired;
+  },
+  '37A:9': (expression: string): string => {
+    const expected = ['newData.numChildren() == 2 && '];
+    if (expression.split(expected[0]).length !== 2) {
+      fail('malformed-fragment', 'The explicit 37A:9 numChildren remediation precondition failed.', {
+        fragmentId: '37A', operationIndex: 9, expected,
+      });
+    }
+    const repaired = expression.replace(expected[0], '');
+    if (repaired.includes('numChildren')) {
+      fail('malformed-fragment', 'The explicit 37A:9 remediation left an unsupported method.', {
+        fragmentId: '37A', operationIndex: 9,
+      });
+    }
+    return repaired;
+  },
+  '37A:10': (expression: string): string => {
+    if (expression !== 'newData.numChildren() <= 64') {
+      fail('malformed-fragment', 'The explicit 37A:10 capacity remediation precondition failed.', {
+        fragmentId: '37A', operationIndex: 10, expected: 'newData.numChildren() <= 64',
+      });
+    }
+    return 'true';
+  },
+  '37A:12': (expression: string): string => {
+    const expected = [
+      'newData.numChildren() == 14 && ',
+      "newData.child('target').numChildren() == 8 && ",
+    ];
+    if (expected.some((snippet) => expression.split(snippet).length !== 2)) {
+      fail('malformed-fragment', 'The explicit 37A:12 numChildren remediation precondition failed.', {
+        fragmentId: '37A', operationIndex: 12, expected,
+      });
+    }
+    const repaired = expression.replace(expected[0], '').replace(expected[1], '');
+    if (repaired.includes('numChildren')) {
+      fail('malformed-fragment', 'The explicit 37A:12 remediation left an unsupported method.', {
+        fragmentId: '37A', operationIndex: 12,
+      });
+    }
+    return repaired;
+  },
+  '37B:4': (expression: string): string => {
+    const expected = [
+      'newData.numChildren() == 11 && ',
+      "newData.child('terminal').numChildren() == 20 && ",
+      "newData.child('policy').numChildren() == 6 && ",
+      "newData.child('policy').child('highRiskSignals').numChildren() <= 8 && ",
+      "newData.child('counts').numChildren() == 8 && ",
+      "newData.child('eventRefs').numChildren() == newData.child('totalEventCount').val() && ",
+      "newData.child('eventRefs').numChildren() <= 64 && ",
+    ];
+    if (expected.some((snippet) => expression.split(snippet).length !== 2)) {
+      fail('malformed-fragment', 'The explicit 37B:4 numChildren remediation precondition failed.', {
+        fragmentId: '37B', operationIndex: 4, expected,
+      });
+    }
+    const repaired = expression
+      .replace(expected[0], '')
+      .replace(expected[1], '')
+      .replace(expected[2], '')
+      .replace(expected[3], '')
+      .replace(expected[4], '')
+      .replace(expected[5], '')
+      .replace(expected[6], '');
+    if (repaired.includes('numChildren')) {
+      fail('malformed-fragment', 'The explicit 37B:4 remediation left an unsupported method.', {
+        fragmentId: '37B', operationIndex: 4,
+      });
+    }
+    return repaired;
+  },
+  '37B:9': (expression: string): string => {
+    const expected = ['newData.numChildren() == 5 && '];
+    if (expression.split(expected[0]).length !== 2) {
+      fail('malformed-fragment', 'The explicit 37B:9 numChildren remediation precondition failed.', {
+        fragmentId: '37B', operationIndex: 9, expected,
+      });
+    }
+    const repaired = expression.replace(expected[0], '');
+    if (repaired.includes('numChildren')) {
+      fail('malformed-fragment', 'The explicit 37B:9 remediation left an unsupported method.', {
+        fragmentId: '37B', operationIndex: 9,
+      });
+    }
+    return repaired;
+  },
+});
 
 const isManifestEntry = (value: unknown): value is GeneratedBookRuleFragmentManifestEntry => (
   isRecord(value)
@@ -358,9 +606,31 @@ const composeOperations = (
     );
     validateFragmentMetadata(fragment);
     fragment.operations.forEach((operation, operationIndex) => {
-      const location = generatedBookRuleLocation(operation.path, operation.rule, `Fragment ${fragment.ticketId} operation`);
+      const operationRef = `${fragment.ticketId}:${operationIndex}`;
+      if (FINAL_PRODUCER_OPERATION_EXCLUSIONS.includes(operationRef as typeof FINAL_PRODUCER_OPERATION_EXCLUSIONS[number])) {
+        return;
+      }
+      const alias = FINAL_PRODUCER_OPERATION_ALIASES[`${fragment.ticketId}:${operationIndex}`];
+      const aliasedOperation = alias === undefined
+        ? operation
+        : {
+          ...operation,
+          path: alias.path,
+          expression: alias.expressionVariableReplacements.reduce(
+            (expression, [from, to]) => expression.replaceAll(from, to),
+            operation.expression,
+          ),
+        };
+      const remediation = FINAL_PRODUCER_OPERATION_EXPRESSION_REMEDIATIONS[`${fragment.ticketId}:${operationIndex}`];
+      const remediatedExpression = remediation === undefined
+        ? aliasedOperation.expression
+        : remediation(aliasedOperation.expression);
+      const composedOperation = remediatedExpression === aliasedOperation.expression
+        ? aliasedOperation
+        : { ...aliasedOperation, expression: remediatedExpression };
+      const location = generatedBookRuleLocation(composedOperation.path, composedOperation.rule, `Fragment ${fragment.ticketId} operation`);
       const existing = groups.get(location) ?? [];
-      existing.push({ ...operation, fragmentId: fragment.ticketId, operationIndex, location });
+      existing.push({ ...composedOperation, fragmentId: fragment.ticketId, operationIndex, location });
       groups.set(location, existing);
     });
   }
@@ -443,7 +713,7 @@ const readRule = (
 const assignRule = (
   root: Record<string, unknown>,
   operation: ComposedGeneratedBookRuleOperation,
-  expression: string,
+  expression: string | boolean,
 ): void => {
   let current = root;
   for (const segment of pathSegments(operation.path)) {
@@ -517,7 +787,20 @@ const validateMonotonicTransitions = (
 const mergeExistingRule = (
   existing: unknown,
   operation: ComposedGeneratedBookRuleOperation,
-): string => {
+): string | boolean => {
+  const operationRef = `${operation.fragmentId}:${operation.operationIndex}`;
+  if (FINAL_PRODUCER_OPERATION_PRESERVE_EXISTING_FALSE.includes(
+    operationRef as typeof FINAL_PRODUCER_OPERATION_PRESERVE_EXISTING_FALSE[number],
+  )) {
+    if (existing !== false) {
+      fail('malformed-fragment', `Base rule at ${operation.location} must be the literal boolean false.`, {
+        location: operation.location,
+        operationRef,
+        existing,
+      });
+    }
+    return false;
+  }
   const expression = securityRemediation(operation);
   if (existing === undefined) {
     return expression;
@@ -568,6 +851,7 @@ export const composeGeneratedBookRules = (
   return deepFreeze({
     kind: 'generated-book-rules-candidate' as const,
     schemaVersion: 1 as const,
+    composerVersion: GENERATED_BOOK_RULE_COMPOSER_VERSION,
     fragmentIds: manifest.map((entry) => entry.fragmentId),
     operations,
     byLocation,
