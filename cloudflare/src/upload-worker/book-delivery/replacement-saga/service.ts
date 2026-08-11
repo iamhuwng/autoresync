@@ -1,5 +1,4 @@
 import type {
-  ReplacementCurrentPlanPointer,
   ReplacementPlanRecord,
   ReplacementPlanReviewRecord,
 } from '../../../../../src/services/book-source-delivery/replacementPlan.types.ts';
@@ -187,7 +186,7 @@ const validateFacts = async (
     || plan.sourceVersionRevisions === undefined
     || !same(plan.sourceVersionRevisions, revisionFacts.currentRevisions.sourceVersionRevisions)
     || !HASH.test(revisionFacts.adapterFingerprint)) return { code: 'revision-changed' };
-  const tokenInput = {
+  const token = await validateReplacementConfirmationToken({
     token: input.confirmationToken,
     ownerId: input.ownerId,
     bookId: input.bookId,
@@ -198,8 +197,7 @@ const validateFacts = async (
     currentRevisionVector: revisionFacts.revisionVector.values,
     adapterFingerprint: revisionFacts.adapterFingerprint,
     now,
-  } as Parameters<typeof validateReplacementConfirmationToken>[0] & { readonly current: ReplacementCurrentPlanPointer };
-  const token = await validateReplacementConfirmationToken(tokenInput);
+  });
   if (token.status !== 'valid') return { code: validationCode(token.code) };
   if (plan.contexts.length > REPLACEMENT_SAGA_MAX_ITEMS || plan.contexts.some((context) => !ID.test(context.contextKey))) return { code: 'context-scope-invalid' };
   return { facts: { plan, review, current: current.pointer, token: stored }, adapterFingerprint: revisionFacts.adapterFingerprint };
