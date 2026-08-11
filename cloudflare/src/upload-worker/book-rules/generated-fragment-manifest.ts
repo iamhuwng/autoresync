@@ -349,7 +349,7 @@ const sourceParts = (
       invalid('Fragment sourcePath/id must be a string when provided.');
     }
     return {
-      sourcePath: sourcePath ?? '',
+      sourcePath: typeof sourcePath === 'string' ? sourcePath : '',
       fragment: input.fragment,
     };
   }
@@ -438,8 +438,10 @@ export const validateGeneratedBookRuleFragmentManifest = (
     invalid('Manifest must be an array.');
   }
   const normalized = manifest.map((entry) => {
-    if (!isRecord(entry) || typeof entry.sourcePath !== 'string') {
-      invalid('Manifest entries must contain a string sourcePath.');
+    if (!isRecord(entry)
+      || typeof entry.sourcePath !== 'string'
+      || typeof entry.fragmentId !== 'string') {
+      invalid('Manifest entries must contain string sourcePath and fragmentId values.');
     }
     const fragment = validateGeneratedBookRuleFragment(
       entry.fragment,
