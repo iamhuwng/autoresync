@@ -21,6 +21,10 @@ import type {
   BookHomeworkTrustedSaga,
   BookHomeworkTrustedSagaFactory,
 } from './runtime.ts';
+import {
+  BookPilotScopeDeniedError,
+  enforceBookPilotScopeIfConfigured,
+} from '../../book-pilot-scope.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_FINGERPRINT_BYTES = 128 * 1024;
@@ -297,6 +301,19 @@ export const createBookHomeworkWorkerHandlers = (
         routeId(input.assignmentId, 'assignment_id'),
         input.request.headers.get('idempotency-key'),
       );
+      await enforceBookPilotScopeIfConfigured({
+        env: input.env,
+        uid: input.uid,
+        request: input.request,
+        operation: 'assign-place',
+        actorKind: 'teacher',
+        assignmentId: command.assignmentId,
+        contextKind: 'homework',
+        selectedStudentIds: command.selectedRecipientIds,
+        count: command.selectedRecipientIds.length,
+        requireAssignment: true,
+        requireStudents: true,
+      });
       const saga = await resolveSaga(input.env);
       const notificationEmitter = saga?.readCommittedAssignment
         ? createBookHomeworkNotificationEmitter({
@@ -328,6 +345,9 @@ export const createBookHomeworkWorkerHandlers = (
         },
       });
     } catch (error) {
+      if (error instanceof BookPilotScopeDeniedError) {
+        return { body: { code: error.message, decision: error.decision }, init: { status: error.status } };
+      }
       if (error instanceof BookHomeworkWorkerError) {
         return { body: { code: error.code }, init: { status: error.status } };
       }

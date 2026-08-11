@@ -8,6 +8,18 @@ import {
   type BookRuntimeLaunchProductionDependencies,
 } from '../src/upload-worker/book-runtime-launch/canonical.ts';
 
+const pilotEnv = {
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1', environment: 'test', revision: 'launch-pilot',
+    issuedAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'course-material-1',
+    studentIds: ['student-1'], maxStudents: 30,
+  }),
+} as const;
+
 const safeProjection = (title = 'Practice') => ({
   schemaVersion: 1,
   title,
@@ -136,8 +148,8 @@ const handlersFor = (value = dependencies()) => ({
 describe('Book Runtime launch production composition', () => {
   it('revalidates the current binding, derives immutable provenance, and supports a repeat launch', async () => {
     const { handlers, dependencies: production } = handlersFor();
-    const first = await handlers.launch({ request: request(), env: {}, uid: 'student-1' });
-    const second = await handlers.launch({ request: request(), env: {}, uid: 'student-1' });
+    const first = await handlers.launch({ request: request(), env: pilotEnv, uid: 'student-1' });
+    const second = await handlers.launch({ request: request(), env: pilotEnv, uid: 'student-1' });
 
     expect(first).toMatchObject({ init: { status: 200 }, body: { activities: [{ activityId: 'activity-1' }] } });
     expect(second).toMatchObject({ init: { status: 200 } });
@@ -157,7 +169,7 @@ describe('Book Runtime launch production composition', () => {
     ['wrong pin set', request({ activityPins: [{ activityId: 'activity-1', activityVersionId: 'other-version' }] }), 'student-1'],
   ])('denies %s before any immutable projection read', async (_label, candidate, uid) => {
     const { handlers, dependencies: production } = handlersFor();
-    const result = await handlers.launch({ request: candidate, env: {}, uid });
+    const result = await handlers.launch({ request: candidate, env: pilotEnv, uid });
     expect(result).toMatchObject({ init: { status: 403 } });
     expect(production.publications.readScope).not.toHaveBeenCalled();
     expect(production.exactReader.readExact).not.toHaveBeenCalled();
@@ -166,7 +178,7 @@ describe('Book Runtime launch production composition', () => {
   it.each(['revoked', 'superseded', 'not-current'])('denies a %s delivery binding', async (state) => {
     const production = dependencies({ delivery: { resolveCurrent: vi.fn(async () => null) } });
     const { handlers } = handlersFor(production);
-    const result = await handlers.launch({ request: request(), env: {}, uid: 'student-1' });
+    const result = await handlers.launch({ request: request(), env: pilotEnv, uid: 'student-1' });
     expect(result).toMatchObject({ init: { status: 403 } });
     expect(production.exactReader.readExact).not.toHaveBeenCalled();
     expect(state).toBeTruthy();
@@ -175,7 +187,7 @@ describe('Book Runtime launch production composition', () => {
   it('denies a mismatched exact immutable projection and never returns it', async () => {
     const production = dependencies({ exactReader: { readExact: vi.fn(async () => null) } });
     const { handlers } = handlersFor(production);
-    const result = await handlers.launch({ request: request(), env: {}, uid: 'student-1' });
+    const result = await handlers.launch({ request: request(), env: pilotEnv, uid: 'student-1' });
     expect(result).toMatchObject({ init: { status: 409 }, body: { code: 'projection_mismatch' } });
   });
 
@@ -183,13 +195,13 @@ describe('Book Runtime launch production composition', () => {
     const malformed = scope();
     delete (malformed.activityVersions!['manifest-1:activity-version-1'] as { canonicalPayloadFingerprint?: string }).canonicalPayloadFingerprint;
     const first = handlersFor(dependencies({ publications: { readScope: vi.fn(async () => malformed) } }));
-    expect(await first.handlers.launch({ request: request(), env: {}, uid: 'student-1' }))
+    expect(await first.handlers.launch({ request: request(), env: pilotEnv, uid: 'student-1' }))
       .toMatchObject({ init: { status: 409 } });
 
     const unsafe = handlersFor(dependencies({
       exactReader: { readExact: vi.fn(async () => canonical({ ...safeProjection(), teacherNotes: 'private' })) },
     }));
-    expect(await unsafe.handlers.launch({ request: request(), env: {}, uid: 'student-1' }))
+    expect(await unsafe.handlers.launch({ request: request(), env: pilotEnv, uid: 'student-1' }))
       .toMatchObject({ init: { status: 409 }, body: { code: 'projection_mismatch' } });
   });
 

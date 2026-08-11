@@ -107,6 +107,7 @@ const scope: BookAssemblyPublicationScope = {
       createdByCommandId: predecessor().createdByCommandId,
       createdAt: NOW,
       sourcePages: [{ sourceKey: 'full', sourceVersionId: 'full-v1', physicalPageNumber: 2 }],
+      canonicalPayloadFingerprint: 'fnv1a64:canonical-activity-1',
       payloadFingerprint: 'activity-fingerprint',
     },
   },
@@ -179,6 +180,7 @@ describe('mapping revision publication plan', () => {
       activityVersionId: 'activity-1-v1',
       activityId: 'activity-1',
       activityVersion: 1,
+      canonicalPayloadFingerprint: 'fnv1a64:canonical-activity-1',
     }]);
     expect(result.plan.atomicWrites.placements[0]).toMatchObject({
       placementId: 'placement-18',

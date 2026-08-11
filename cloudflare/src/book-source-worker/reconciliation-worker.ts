@@ -16,6 +16,7 @@ import {
   validateBookSourceUploadAccountState,
 } from '../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
 import { createBookSourceControlHost } from './control-host';
+import { enforceBookPilotScopeIfConfigured } from '../book-pilot-scope.ts';
 import {
   createBackblazeB2ExactVersionCleanupAdapterFromEnv,
   type BackblazeB2ExactVersionCleanupEnv,
@@ -331,6 +332,15 @@ export const createBookSourceReconciliationWorker = (
             ? reconciler.reconcile
             : async () => { throw { code: 'rollout_denied' }; },
         },
+        pilotScope: ({ actorId, bookId, operation, request }) => enforceBookPilotScopeIfConfigured({
+          env,
+          uid: actorId,
+          request,
+          operation,
+          actorKind: 'teacher',
+          bookId,
+          requireBook: true,
+        }),
       }).fetch(request, env);
     } catch (error) {
       console.error('book_source_reconciliation_unavailable', {
@@ -355,6 +365,19 @@ export const createBookSourceReconciliationWorker = (
         const runtime = await createRuntime(env);
         const candidate = scheduledCandidate(await runtime.readAccountState(), at);
         if (candidate) {
+          await enforceBookPilotScopeIfConfigured({
+            env,
+            uid: candidate.ownerId,
+            request: new Request('https://book-source-reconciliation.internal/v1/book-source/reconcile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: '{}',
+            }),
+            operation: 'mutation',
+            actorKind: 'teacher',
+            bookId: candidate.bookId,
+            requireBook: true,
+          });
           await runtime.reconciler.reconcile({
             actorId: candidate.ownerId,
             bookId: candidate.bookId,

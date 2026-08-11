@@ -1,0 +1,89 @@
+{
+  "artifactKind": "prd0062-126-bounded-pilot-scope-template",
+  "schemaVersion": 1,
+  "status": "not-approved-not-activated",
+  "sourceCommit": "f710653948462bcd948d59a7db007bc2a870e987",
+  "lineage": {
+    "accepted104": "a10acf7e94436cc269206a98891cde8c11288899",
+    "post104": "54aceabadc802342788c39f76e611373fbfbc48a",
+    "accepted125": "a4df415751965e05b12ec9148ceea0ea2b5237d8",
+    "immutable118": "f710653948462bcd948d59a7db007bc2a870e987"
+  },
+  "activation": {
+    "approved": false,
+    "activated": false,
+    "remoteReadback": "not-performed",
+    "unresolvedIdentitySlots": ["teacherId", "bookId", "assignmentId", "studentIds"]
+  },
+  "environment": "production",
+  "enforcement": {
+    "BOOK_ROLLOUT_ENVIRONMENT": "production",
+    "BOOK_PILOT_SCOPE_ENFORCEMENT": "enabled",
+    "BOOK_PILOT_SCOPE_ENVIRONMENT": "production",
+    "missingOrDisabledEnforcement": "deny with enforcement_disabled; no mutating handler may run",
+    "missingOrInvalidScopeConfig": "deny",
+    "mandatoryScopeGuard": "canonical router and every trusted adapter independently require exact enabled enforcement and valid scope",
+    "auditPayload": "privacy-safe decision only; no identities"
+  },
+  "routeGates": {
+    "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "disabled",
+    "BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED": "disabled",
+    "BOOK_ASSEMBLY_ROUTES_ENABLED": "disabled",
+    "BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED": "disabled",
+    "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_EVALUATION_HISTORY_ROUTES_ENABLED": "disabled",
+    "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED": "disabled",
+    "BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_HOMEWORK_READ_ROUTES_ENABLED": "disabled",
+    "BOOK_HOMEWORK_ROUTES_ENABLED": "disabled",
+    "BOOK_IMPACT_SNAPSHOT_ROUTES_ENABLED": "disabled",
+    "BOOK_INTEGRITY_ROUTES_ENABLED": "disabled",
+    "BOOK_MAPPING_REVISION_ROUTES_ENABLED": "disabled",
+    "BOOK_NOTIFICATIONS_ROUTES_ENABLED": "disabled",
+    "BOOK_REPLACEMENT_CLEANUP_ROUTES_ENABLED": "disabled",
+    "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED": "disabled",
+    "BOOK_RUNTIME_ROUTES_ENABLED": "disabled",
+    "BOOK_SOURCE_STRATEGY_SUCCESSOR_ROUTES_ENABLED": "disabled",
+    "BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "disabled",
+    "BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_UPDATES_ROUTES_ENABLED": "disabled"
+  },
+  "bookRolloutGateConfig": {
+    "schemaVersion": "v1",
+    "environment": "production",
+    "revision": "pilot-approval-pending-v1",
+    "issuedAt": "2026-08-12T00:00:00.000Z",
+    "expiresAt": "2026-08-12T01:00:00.000Z",
+    "actions": {
+      "create": "deny",
+      "upload": "deny",
+      "publish": "deny",
+      "assign-place": "deny",
+      "launch-delivery": "deny",
+      "mutation": "deny"
+    }
+  },
+  "bookPilotScopeConfig": {
+    "schemaVersion": "v1",
+    "environment": "production",
+    "revision": "pilot-approval-pending-v1",
+    "issuedAt": "2026-08-12T00:00:00.000Z",
+    "expiresAt": "2026-08-12T01:00:00.000Z",
+    "teacherId": null,
+    "bookId": null,
+    "assignmentId": null,
+    "studentIds": [],
+    "maxStudents": 30
+  },
+  "approvalRequirements": {
+    "teacherId": "deployment-authority-must-fill-one-named-teacher",
+    "bookId": "deployment-authority-must-fill-one-named-book",
+    "assignmentId": "deployment-authority-must-fill-one-named-assignment",
+    "studentIds": "deployment-authority-must-fill-one-to-thirty-named-students",
+    "scope": "exactly one teacher, one assignment, one book, no more than 30 named students",
+    "noActivationBeforeApproval": true
+  }
+}

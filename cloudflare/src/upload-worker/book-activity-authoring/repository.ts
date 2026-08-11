@@ -77,6 +77,7 @@ const assertOwnerId = (ownerId: string): void => {
 };
 const assertAllowedReadPath = (path: string): void => {
   if (/^users\/[A-Za-z0-9_-]{1,160}$/u.test(path)) return;
+  if (/^material_catalog\/books\/[A-Za-z0-9_-]{1,160}$/u.test(path)) return;
   const ownerPrefix = `${BOOK_ACTIVITY_AUTHORING_ROOT}/`;
   if (path.startsWith(ownerPrefix) && SAFE_ID.test(path.slice(ownerPrefix.length))) return;
   throw new Error('book_activity_authoring_path_forbidden');
@@ -143,7 +144,7 @@ export class FirebaseRestBookActivityAuthoringRepository {
 
   async transaction<T>(ownerId: string, mutate: (current: BookActivityAuthoringRoot) => {
     outcome: T; next?: BookActivityAuthoringRoot; write: boolean;
-  }, options: { beforeWrite?: () => Promise<void> } = {}): Promise<T> {
+  }, options: { beforeWrite?: (next: BookActivityAuthoringRoot) => Promise<void> } = {}): Promise<T> {
     assertOwnerId(ownerId);
     const path = ownerPath(ownerId);
     const retries = this.options.maxRetries ?? MAX_RETRIES;
@@ -151,8 +152,8 @@ export class FirebaseRestBookActivityAuthoringRepository {
       const current = await this.rtdb.readWithEtag<BookActivityAuthoringRoot | null>(path);
       const mutation = mutate(root(current.data));
       if (!mutation.write) return mutation.outcome;
-      await options.beforeWrite?.();
       const next = root(mutation.next ?? {});
+      await options.beforeWrite?.(next);
       if (await this.rtdb.writeIfMatch(path, next, current.etag)) return mutation.outcome;
     }
     throw new Error('book_activity_authoring_cas_retries_exhausted');

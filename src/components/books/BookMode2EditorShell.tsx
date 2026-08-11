@@ -111,7 +111,7 @@ const getCurrentFirebaseIdToken = async (): Promise<string> => {
   return user.getIdToken(true);
 };
 
-const configuredActivityAuthoring = (): ActivityAuthoringService | null => {
+const configuredActivityAuthoring = (bookId: string): ActivityAuthoringService | null => {
   const baseUrl = import.meta.env.VITE_BOOK_ACTIVITY_AUTHORING_WORKER_URL?.trim()
     || import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim();
   if (!baseUrl) return null;
@@ -122,6 +122,7 @@ const configuredActivityAuthoring = (): ActivityAuthoringService | null => {
         getIdToken: getCurrentFirebaseIdToken,
       }),
     ),
+    { bookId },
   );
 };
 
@@ -166,8 +167,8 @@ const BookMode2EditorShell = ({
     [assemblyMigrationClient],
   );
   const resolvedActivityAuthoring = useMemo(
-    () => activityAuthoring === undefined ? configuredActivityAuthoring() : activityAuthoring,
-    [activityAuthoring],
+    () => activityAuthoring === undefined ? configuredActivityAuthoring(book.bookId) : activityAuthoring,
+    [activityAuthoring, book.bookId],
   );
   const trackInspectionAction = (
     action: BookSourceInspectionAction,

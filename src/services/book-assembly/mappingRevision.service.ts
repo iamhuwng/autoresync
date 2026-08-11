@@ -349,12 +349,16 @@ const createAtomicWrites = (
       newIds.push(ids.projectionId, ids.placementId);
       const activity = predecessorActivity(input.predecessorScope, input.predecessor, unit.unitKey, slot.activityKey);
       if (!activity) throw new MappingRevisionError('activity-reference-missing', `$.predecessorScope.activityVersions.${key}`);
+      if (!activity.canonicalPayloadFingerprint) {
+        throw new MappingRevisionError('activity-reference-missing', `$.predecessorScope.activityVersions.${key}.canonicalPayloadFingerprint`);
+      }
       const oldPlacement = predecessorPlacement(input.predecessorScope, input.predecessor, unit.unitKey, slot.activityKey);
       const sourcePages = pagesForActivity(input.targetManifest, unit.unitKey, slot.activityKey, input.authority.sourceVersionAuthority);
       activityVersionRefs.push({
         activityVersionId: activity.activityVersionId,
         activityId: activity.activityId,
         activityVersion: activity.activityVersion,
+        canonicalPayloadFingerprint: activity.canonicalPayloadFingerprint,
       });
       placementIds.push(ids.placementId);
       activitySafeProjections.push({

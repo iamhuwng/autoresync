@@ -2,6 +2,26 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createBookSourceReconciliationWorker } from '../src/book-source-worker/reconciliation-worker';
 
+const pilotIssuedAt = new Date(Date.now() - 60 * 60_000).toISOString();
+const pilotExpiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
+const pilotEnv = {
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1',
+    environment: 'test',
+    revision: 'source-reconciliation-test-1',
+    issuedAt: pilotIssuedAt,
+    expiresAt: pilotExpiresAt,
+    teacherId: 'teacher-a',
+    bookId: 'book-a',
+    assignmentId: 'assignment-1',
+    studentIds: ['student-1'],
+    maxStudents: 30,
+  }),
+  BOOK_PILOT_SCOPE_AUDIT: vi.fn(),
+};
+
 describe('Book Source reconciliation Worker', () => {
   it('co-locates the bounded capacity work unit without enabling cleanup routes', async () => {
     const fetch = vi.fn(async () => new Response(null, { status: 204 }));
@@ -135,6 +155,7 @@ describe('Book Source reconciliation Worker', () => {
       runtimeFactory,
     );
     const enabled = {
+      ...pilotEnv,
       BOOK_SOURCE_RECONCILIATION_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_ACTION_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE: 'enabled',
@@ -197,6 +218,7 @@ describe('Book Source reconciliation Worker', () => {
     );
 
     await worker.scheduled({} as ScheduledController, {
+      ...pilotEnv,
       BOOK_SOURCE_RECONCILIATION_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_ACTION_STATE: 'disabled',
@@ -274,6 +296,7 @@ describe('Book Source reconciliation Worker', () => {
     );
 
     await worker.scheduled({} as ScheduledController, {
+      ...pilotEnv,
       BOOK_SOURCE_RECONCILIATION_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_ACTION_STATE: 'enabled',
@@ -299,6 +322,7 @@ describe('Book Source reconciliation Worker', () => {
     );
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await worker.scheduled({} as ScheduledController, {
+      ...pilotEnv,
       BOOK_SOURCE_RECONCILIATION_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_ACTION_STATE: 'enabled',
@@ -366,6 +390,7 @@ describe('Book Source reconciliation Worker', () => {
     );
 
     await worker.scheduled({} as ScheduledController, {
+      ...pilotEnv,
       BOOK_SOURCE_RECONCILIATION_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE: 'enabled',
       BOOK_SOURCE_RECONCILIATION_ACTION_STATE: 'enabled',

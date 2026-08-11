@@ -20,6 +20,10 @@ import type {
 } from '../../../../src/types/bookSource.types.ts';
 import { createBookRolloutTrustedSeamGate } from '../../book-rollout-seams.ts';
 import { createBookRolloutWorkerGate } from '../../book-rollout-gate.ts';
+import {
+  BookPilotScopeDeniedError,
+  enforceBookPilotScopeIfConfigured,
+} from '../../book-pilot-scope.ts';
 import { createBookSourceControlHost, type BookSourceUploadControlService } from '../../book-source-worker/control-host.ts';
 import { createBackblazeB2SourceProviderFromEnv } from '../../book-source-worker/backblaze-b2-source-provider.ts';
 import type { BookRouteHandlerInput } from '../book-route-handlers.ts';
@@ -228,7 +232,7 @@ const defaultRuntimeFactory = async (
   const productionControl = createSourceUploadControl({
     ...commonDependencies,
     authorizationCache: BOOK_SOURCE_AUTHORIZATION_CACHE,
-    rolloutGate: { authorizeUpload: productionRollout },
+    rolloutGate: { authorizeUpload: () => ({ decision: productionRollout() }) },
   });
   const begin = (input: Parameters<typeof productionControl.begin>[0]) => {
     if (env.BOOK_SOURCE_TICKET49_PREVIEW_GATE_JSON === undefined) {
@@ -305,6 +309,14 @@ const defaultRuntimeFactory = async (
 const handlerFor = (
   options: BookSourceUploadWorkerOptions,
 ) => async (input: BookRouteHandlerInput): Promise<Response> => {
+  try {
+    await enforceBookPilotScopeIfConfigured(input);
+  } catch (error) {
+    if (error instanceof BookPilotScopeDeniedError) {
+      return Response.json({ code: error.message, decision: error.decision }, { status: error.status });
+    }
+    return Response.json({ code: 'book_pilot_scope_unavailable' }, { status: 503 });
+  }
   const env = input.env as BookSourceUploadWorkerEnv;
   if (typeof env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN !== 'string'
     || !env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
@@ -317,6 +329,15 @@ const handlerFor = (
   const runtime = await (options.runtimeFactory ?? defaultRuntimeFactory)(env);
   return createBookSourceControlHost({
     service: runtime.service,
+    pilotScope: ({ actorId, bookId, operation, request }) => enforceBookPilotScopeIfConfigured({
+      env,
+      uid: actorId,
+      request,
+      operation,
+      actorKind: 'teacher',
+      bookId,
+      requireBook: true,
+    }),
     verifier: {
       verifyAuthorizationHeader: async () => ({ valid: true, uid: input.uid }),
     },

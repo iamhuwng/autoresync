@@ -19,6 +19,10 @@ import {
   BookRolloutDeniedError,
   createBookRolloutTrustedSeamGate,
 } from '../../book-rollout-seams.ts';
+import {
+  BookPilotScopeDeniedError,
+  enforceBookPilotScopeIfConfigured,
+} from '../../book-pilot-scope.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CANDIDATE_RECORD_BYTES = 256 * 1024;
@@ -30,6 +34,10 @@ const MAX_CANDIDATES_PER_OWNER = 128;
 const MAX_ACTIVITIES_PER_OWNER = 128;
 const MAX_OPERATIONS_PER_OWNER = 256;
 const OPERATION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const MATERIAL_BOOK_PATH = (bookId: string): string => `material_catalog/books/${bookId}`;
+const MATERIAL_BOOK_STATUSES = new Set([
+  'draft-empty', 'draft-in-progress', 'ready', 'needs-repair', 'archived',
+]);
 
 interface ActivityRecord {
   activityId: string;
@@ -44,6 +52,8 @@ interface CandidateRecord {
   candidateId: string;
   targetActivityId: string;
   ownerId: string;
+  /** Server-resolved Book binding; absent only on legacy records, which cannot mutate. */
+  bookId?: string;
   targetRevision: number;
   revision: number;
   lifecycle: Lifecycle;
@@ -70,7 +80,7 @@ interface BookActivityAuthoringRepositoryPort {
   transaction<T>(
     ownerId: string,
     mutate: (current: BookActivityAuthoringRoot) => { outcome: T; next?: BookActivityAuthoringRoot; write: boolean },
-    options?: { beforeWrite?: () => Promise<void> },
+    options?: { beforeWrite?: (next: BookActivityAuthoringRoot) => Promise<void> },
   ): Promise<T>;
 }
 
@@ -184,6 +194,33 @@ const validTimestamp = (value: unknown): value is number =>
 const isLifecycle = (value: unknown): value is Lifecycle => (
   value === 'staged' || value === 'validated' || value === 'rejected' || value === 'saved' || value === 'discarded'
 );
+const resolveOwnedPdfBookId = async (
+  repository: BookActivityAuthoringRepositoryPort,
+  ownerId: string,
+  claimedBookId: unknown,
+): Promise<string | undefined> => {
+  if (!validIdValue(claimedBookId)) return undefined;
+  const metadata = plainRecord(await repository.readValue(MATERIAL_BOOK_PATH(claimedBookId)));
+  if (!metadata
+    || metadata.bookId !== claimedBookId
+    || metadata.ownerId !== ownerId
+    || metadata.bookMode !== 'pdf'
+    || typeof metadata.status !== 'string'
+    || !MATERIAL_BOOK_STATUSES.has(metadata.status)
+    || metadata.status === 'archived') {
+    return undefined;
+  }
+  return claimedBookId;
+};
+
+const persistedCandidateBookId = (
+  root: BookActivityAuthoringRoot,
+  candidateId: unknown,
+): string | undefined => {
+  if (!validIdValue(candidateId)) return undefined;
+  return asCandidate(root.candidates?.[candidateId], candidateId)?.bookId;
+};
+
 const asActivity = (value: unknown, expectedActivityId?: string): ActivityRecord | undefined => {
   const record = plainRecord(value);
   if (!record || !validIdValue(record.activityId) || !validIdValue(record.ownerId) ||
@@ -230,6 +267,7 @@ const asCandidate = (value: unknown, expectedCandidateId?: string): CandidateRec
     candidateId: record.candidateId,
     targetActivityId: record.targetActivityId,
     ownerId: record.ownerId,
+    ...(validIdValue(record.bookId) ? { bookId: record.bookId } : {}),
     targetRevision: record.targetRevision,
     revision: record.revision,
     lifecycle: record.lifecycle,
@@ -359,22 +397,90 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       const rolloutGate = createBookRolloutTrustedSeamGate(
         options.rolloutGate ?? createBookRolloutWorkerGate(input.env),
       );
-      // Fail fast, then recheck immediately before every CAS write attempt.
+      const operation = mutation === 'stage' ? 'create' : 'mutation';
+      // Validate deployment enforcement before reading any mutation subject. The
+      // exact Book check follows only after the server resolves the binding.
+      await enforceBookPilotScopeIfConfigured({
+        env: input.env,
+        uid: input.uid,
+        request: input.request,
+        operation,
+        actorKind: 'teacher',
+        bookId: null,
+        requireBook: false,
+      });
       rolloutGate.homeworkMutation();
       const repository = repositoryFor(input.env);
       const body = await readBody(input.request);
-      // Check identity after potentially slow untrusted-body parsing, immediately before CAS mutation.
       await authenticate(input.uid, repository);
+      const bodyRecord = plainRecord(body);
+      const candidateId = mutation === 'stage'
+        ? undefined
+        : (validIdValue(bodyRecord?.candidateId) ? bodyRecord.candidateId : undefined);
+      const initialRoot = mutation === 'stage'
+        ? undefined
+        : await repository.readOwnerRoot(input.uid);
+      if (initialRoot) assertPersistedRoot(initialRoot, input.uid);
+      const claimedBookId = mutation === 'stage'
+        ? bodyRecord?.bookId
+        : persistedCandidateBookId(initialRoot ?? {}, candidateId);
+      const trustedBookId = await resolveOwnedPdfBookId(repository, input.uid, claimedBookId);
+      // The body Book ID is only a claim for stage. For later mutations the
+      // candidate's persisted binding is the sole subject input.
+      await enforceBookPilotScopeIfConfigured({
+        env: input.env,
+        uid: input.uid,
+        request: input.request,
+        operation,
+        actorKind: 'teacher',
+        bookId: trustedBookId,
+        requireBook: true,
+      });
       const output = await repository.transaction(input.uid, (root) => {
         assertPersistedRoot(root, input.uid);
-        if (mutation === 'stage') return stage(root, input.uid, body, now(), createRecordId);
+        if (mutation === 'stage') return stage(root, input.uid, body, now(), createRecordId, trustedBookId!);
         if (mutation === 'validate') return validate(root, input.uid, body, now());
         if (mutation === 'save-draft') return saveDraft(root, input.uid, body, now());
         return discard(root, input.uid, body, now());
       }, {
-        beforeWrite: async () => {
+        beforeWrite: async (next) => {
+          // Recheck deployment enforcement and authenticated ownership on every
+          // CAS attempt, then derive the Book from the post-mutation candidate.
+          await enforceBookPilotScopeIfConfigured({
+            env: input.env,
+            uid: input.uid,
+            request: input.request,
+            operation,
+            actorKind: 'teacher',
+            bookId: null,
+            requireBook: false,
+          });
           rolloutGate.homeworkMutation();
           await authenticate(input.uid, repository);
+          let nextBookId = mutation === 'stage'
+            ? trustedBookId
+            : persistedCandidateBookId(next, candidateId);
+          if (mutation === 'stage' && trustedBookId) {
+            const operationRecord = plainRecord(next.operations?.[bodyRecord?.operationId as string]);
+            const result = plainRecord(operationRecord?.result);
+            if (result?.candidateId !== undefined) {
+              const persisted = asCandidate(next.candidates?.[String(result.candidateId)], String(result.candidateId));
+              if (!persisted || persisted.bookId !== trustedBookId) {
+                throw new AuthoringError('invalid_persisted_candidate', 500);
+              }
+              nextBookId = persisted.bookId;
+            }
+          }
+          const resolvedBookId = await resolveOwnedPdfBookId(repository, input.uid, nextBookId);
+          await enforceBookPilotScopeIfConfigured({
+            env: input.env,
+            uid: input.uid,
+            request: input.request,
+            operation,
+            actorKind: 'teacher',
+            bookId: resolvedBookId,
+            requireBook: true,
+          });
         },
       });
       return { body: output, init: { status: httpStatus(output) } };
@@ -382,6 +488,12 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       if (error instanceof BookRolloutDeniedError) {
         return {
           body: { code: error.code, decision: error.authorization.decision },
+          init: { status: error.status },
+        };
+      }
+      if (error instanceof BookPilotScopeDeniedError) {
+        return {
+          body: { code: error.message, decision: error.decision },
           init: { status: error.status },
         };
       }
@@ -418,16 +530,17 @@ const stage = (
   body: unknown,
   at: number,
   createRecordId: () => string,
+  bookId: string,
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'targetActivityId', 'content', 'evidenceRefs',
-    'sourceEvidenceRefs', 'answerEvidenceRefs',
+    'sourceEvidenceRefs', 'answerEvidenceRefs', 'bookId',
   ]);
   const operationId = operation(input); const expectedRevision = validRevision(input.expectedRevision);
   const requestedTargetActivityId = input.targetActivityId === undefined ? undefined : validId(input.targetActivityId, 'activity_id');
   const refs = evidenceRefGroups(input);
   prune(root, at);
-  const fingerprint = stable({ action: 'stage', expectedRevision, targetActivityId: requestedTargetActivityId ?? null, content: input.content, evidenceRefs: refs });
+  const fingerprint = stable({ action: 'stage', bookId, expectedRevision, targetActivityId: requestedTargetActivityId ?? null, content: input.content, evidenceRefs: refs });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     if (Object.keys(root.candidates ?? {}).length >= MAX_CANDIDATES_PER_OWNER) return { status: 'capacity-exceeded' };
     const targetActivityId = requestedTargetActivityId ?? recordId('activity', createRecordId);
@@ -443,6 +556,7 @@ const stage = (
     if (root.candidates?.[candidateId]) return { status: 'id-collision' };
     const candidate: CandidateRecord = {
       candidateId, targetActivityId, ownerId, targetRevision: currentRevision, revision: 1,
+      bookId,
       lifecycle: checked.validation.valid ? 'staged' : 'rejected', content: clone(input.content),
       validation: checked.validation, diff: checked.diff, evidenceRefs: refs.legacy,
       sourceEvidenceRefs: refs.source, answerEvidenceRefs: refs.answer, updatedAt: at,

@@ -1,4 +1,8 @@
 import type { StudentActivityProjection } from '../../../../src/types/bookActivity.types.ts';
+import {
+  BookPilotScopeDeniedError,
+  enforceBookPilotScopeIfConfigured,
+} from '../../book-pilot-scope.ts';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
 const MAX_BODY_BYTES = 128 * 1024;
@@ -19,6 +23,8 @@ export interface BookRuntimeLaunchRequest {
 }
 
 export interface BookRuntimeLaunchContext extends BookRuntimeLaunchRequest {
+  /** Server-resolved Book identity from the active delivery binding. */
+  readonly bookId: string;
   /** Context resolvers may return the authenticated recipient identity explicitly. */
   readonly recipientId: string;
   /**
@@ -188,6 +194,20 @@ export const createBookRuntimeLaunchWorkerHandlers = (
         || !pinsMatch(request.activityPins, context.activityPins)) {
         throw new BookRuntimeLaunchWorkerError('launch_denied', 403);
       }
+      await enforceBookPilotScopeIfConfigured({
+        env: input.env,
+        uid: input.uid,
+        request: input.request,
+        operation: 'launch-delivery',
+        actorKind: 'student',
+        bookId: context.bookId,
+        assignmentId: context.contextId,
+        studentId: context.recipientId,
+        selectedStudentIds: [context.recipientId],
+        requireBook: true,
+        requireAssignment: true,
+        requireStudents: true,
+      });
       // All reads are exact-key reads and are started as one bounded batch.
       const projections = await Promise.all(request.activityPins.map((pin) => reader.readExact({
         uid: input.uid,
@@ -229,9 +249,15 @@ export const createBookRuntimeLaunchWorkerHandlers = (
       };
     } catch (error) {
       const code = error instanceof Error ? error.message : 'launch_failed';
+      const status = error instanceof BookPilotScopeDeniedError
+        ? error.status
+        : errorStatus(error);
       return {
-        body: { code },
-        init: { status: errorStatus(error), headers: { 'Cache-Control': 'no-store' } },
+        body: {
+          code,
+          ...(error instanceof BookPilotScopeDeniedError ? { decision: error.decision } : {}),
+        },
+        init: { status, headers: { 'Cache-Control': 'no-store' } },
       };
     }
   };

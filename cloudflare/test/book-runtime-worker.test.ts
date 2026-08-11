@@ -14,6 +14,17 @@ import { createBookRuntimeScheduleAuthority } from '../../src/services/book-acti
 import { resolveBookScheduleWindow } from '../../src/services/book-delivery/bookScheduleWindow.service.ts';
 
 const operationId = '00000000-0000-4000-8000-000000000074';
+const pilotEnv = {
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1', environment: 'test', revision: 'runtime-pilot',
+    issuedAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'context-1',
+    studentIds: ['student-1'], maxStudents: 30,
+  }),
+} as const;
 
 const binding = (recipientId = 'student-1'): BookDeliveryBinding => ({
   schemaVersion: BOOK_DELIVERY_SCHEMA_VERSION,
@@ -33,11 +44,11 @@ const binding = (recipientId = 'student-1'): BookDeliveryBinding => ({
   scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
   outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
   context: {
-    kind: 'solo',
+    kind: 'homework',
     contextId: 'context-1',
     recipientId,
     ownerId: 'teacher-1',
-    entitlementBasis: 'solo',
+    entitlementBasis: 'assignment',
   },
   sourceSet: {
     strategy: 'full_pdf',
@@ -59,7 +70,7 @@ const binding = (recipientId = 'student-1'): BookDeliveryBinding => ({
     pageGroupKeys: ['group-1'],
     sourcePageScopes: [{ sourceKey: 'full', pages: [1] }],
   }],
-  schedulePolicy: { policyId: 'solo', policyRevision: 1, basis: 'immutable-reference' },
+  schedulePolicy: { policyId: 'homework', policyRevision: 1, basis: 'immutable-reference' },
   createdAt: '2026-07-27T00:00:00.000Z',
 });
 
@@ -91,6 +102,7 @@ const parse = async (result: Awaited<ReturnType<ReturnType<typeof createBookRunt
 
 const scheduleAuthority = (
   authorityRevision = 1,
+  operation: 'autosave' | 'state' = 'autosave',
 ): BookRuntimeScheduleAuthority => ({
   ...createBookRuntimeScheduleAuthority(resolveBookScheduleWindow({
     assignmentId: 'context-1',
@@ -101,7 +113,7 @@ const scheduleAuthority = (
     activityId: 'activity-1',
     activityVersion: 1,
     nodeKey: 'unit-1',
-    operation: 'autosave',
+    operation,
     schedule: {
       schemaVersion: 1,
       resolverVersion: 1,
@@ -166,11 +178,11 @@ describe('Ticket 28A runtime Worker boundary', () => {
     });
 
     await expect(parse(await handlers.command({
-      request: request(body()), env: {}, uid: 'student-1',
+      request: request(body()), env: pilotEnv, uid: 'student-1',
     }))).resolves.toEqual({ status: 409, body: { code: 'book_runtime_recovery_hold' } });
     await expect(parse(await handlers.readDraft({
       request: new Request('https://worker.test/book-runtime/drafts'),
-      env: {}, uid: 'student-1', bindingId: 'binding-1', bindingRevision: '1', contextId: 'context-1',
+      env: pilotEnv, uid: 'student-1', bindingId: 'binding-1', bindingRevision: '1', contextId: 'context-1',
       placementId: 'placement-1', activityId: 'activity-1', activityVersion: '1', interactionId: 'interaction-1',
     }))).resolves.toEqual({ status: 409, body: { code: 'book_runtime_recovery_hold' } });
     expect(schedulePolicy.authorize).not.toHaveBeenCalled();
@@ -185,13 +197,23 @@ describe('Ticket 28A runtime Worker boundary', () => {
       repository,
       resolveBinding,
       resolveActivity: async () => normalizedActivity(),
+      schedulePolicy: {
+        authorize: vi.fn(() => ({
+          outcome: 'allowed' as const,
+          authority: scheduleAuthority(),
+        })),
+        revalidate: vi.fn(() => ({
+          outcome: 'allowed' as const,
+          authority: scheduleAuthority(),
+        })),
+      },
       now: () => '2026-07-27T00:00:00.000Z',
       allocateAttemptId: () => 'attempt-1',
     });
 
     await expect(parse(await handlers.command({
       request: request(body()),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     }))).resolves.toEqual({
       status: 200,
@@ -223,7 +245,7 @@ describe('Ticket 28A runtime Worker boundary', () => {
     });
     await expect(parse(await handlers.command({
       request: request({ ...body(), extra: true }),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     }))).resolves.toMatchObject({
       status: 400,
@@ -235,7 +257,7 @@ describe('Ticket 28A runtime Worker boundary', () => {
       readActor: async () => ({ uid: 'student-1', disabled: true }),
     }).command({
       request: request(body()),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     }))).resolves.toMatchObject({
       status: 401,
@@ -243,7 +265,7 @@ describe('Ticket 28A runtime Worker boundary', () => {
     });
     await expect(parse(await handlers.command({
       request: request(body()),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     }))).resolves.toMatchObject({
       status: 403,
@@ -255,7 +277,14 @@ describe('Ticket 28A runtime Worker boundary', () => {
   it('reads only the authorized Activity draft through the Worker boundary', async () => {
     const repository = new InMemoryBookRuntimeRepository();
     const schedulePolicy = {
-      authorize: vi.fn(() => ({ outcome: 'allowed' as const })),
+      authorize: vi.fn((input: { readonly operation: 'autosave' | 'state' }) => ({
+        outcome: 'allowed' as const,
+        authority: scheduleAuthority(1, input.operation),
+      })),
+      revalidate: vi.fn((input: { readonly operation: 'autosave' | 'state' }) => ({
+        outcome: 'allowed' as const,
+        authority: scheduleAuthority(1, input.operation),
+      })),
     };
     const handlers = createBookRuntimeWorkerHandlers({
       repository,
@@ -266,13 +295,13 @@ describe('Ticket 28A runtime Worker boundary', () => {
     });
     await handlers.command({
       request: request(body()),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     });
 
     await expect(parse(await handlers.readDraft({
       request: new Request('https://worker.test/book-runtime/drafts/binding-1/1/context-1/placement-1/activity-1/1/interaction-1'),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
       bindingId: 'binding-1',
       bindingRevision: '1',
@@ -341,7 +370,7 @@ describe('Ticket 28A runtime Worker boundary', () => {
 
     await expect(parse(await handlers.command({
       request: request(body()),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     }))).resolves.toEqual({
       status: 409,
@@ -380,7 +409,7 @@ describe('Ticket 28A runtime Worker boundary', () => {
 
     await expect(parse(await handlers.command({
       request: request(body()),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     }))).resolves.toMatchObject({
       status: 404,
@@ -391,7 +420,7 @@ describe('Ticket 28A runtime Worker boundary', () => {
 
     await expect(parse(await handlers.readDraft({
       request: new Request('https://worker.test/book-runtime/drafts'),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
       bindingId: 'binding-1',
       bindingRevision: '1',
@@ -422,7 +451,7 @@ describe('Ticket 28A runtime Worker boundary', () => {
 
     await expect(parse(await handlers.command({
       request: request(body()),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     }))).resolves.toEqual({
       status: 503,
@@ -456,11 +485,21 @@ describe('Ticket 28A runtime Worker boundary', () => {
       repository,
       resolveBinding: async () => binding(),
       resolveActivity: async () => normalizedActivity(),
+      schedulePolicy: {
+        authorize: vi.fn((input: { readonly operation: 'autosave' | 'state' }) => ({
+          outcome: 'allowed' as const,
+          authority: scheduleAuthority(1, input.operation),
+        })),
+        revalidate: vi.fn((input: { readonly operation: 'autosave' | 'state' }) => ({
+          outcome: 'allowed' as const,
+          authority: scheduleAuthority(1, input.operation),
+        })),
+      },
     });
 
     await expect(parse(await handlers.readDraft({
       request: new Request('https://worker.test/book-runtime/drafts'),
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
       bindingId: 'binding-1',
       bindingRevision: '1',

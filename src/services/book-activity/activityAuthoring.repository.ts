@@ -11,6 +11,8 @@ import {
 export interface ActivityAuthoringMutation {
   operationId: string;
   expectedRevision: number;
+  /** Transport hint only; the Worker verifies it against owned Book metadata. */
+  bookId?: string;
   targetActivityId?: string;
   candidateId?: string;
   content?: unknown;
@@ -76,6 +78,7 @@ export interface LoadedActivityCandidate {
   candidateId: string;
   targetActivityId: string;
   ownerId: string;
+  bookId?: string;
   targetRevision: number;
   revision: number;
   lifecycle: ActivityCandidateLifecycle;
@@ -305,13 +308,14 @@ const decodeLoad = (value: unknown): ActivityLoadCandidateResult => {
   const candidate = exact(result.candidate, [
     'candidateId', 'targetActivityId', 'ownerId', 'targetRevision', 'revision',
     'lifecycle', 'content', 'validation', 'diff', 'evidenceRefs', 'updatedAt',
-  ], ['sourceEvidenceRefs', 'answerEvidenceRefs']);
+  ], ['bookId', 'sourceEvidenceRefs', 'answerEvidenceRefs']);
   return {
     status: 'loaded',
     candidate: {
       candidateId: id(candidate.candidateId),
       targetActivityId: id(candidate.targetActivityId),
       ownerId: id(candidate.ownerId),
+      ...(candidate.bookId === undefined ? {} : { bookId: id(candidate.bookId) }),
       targetRevision: revision(candidate.targetRevision),
       revision: revision(candidate.revision),
       lifecycle: lifecycle(candidate.lifecycle),

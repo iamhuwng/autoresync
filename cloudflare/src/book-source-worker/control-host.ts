@@ -84,6 +84,12 @@ interface BookSourceUploadSafeLifecycleStatus {
 export interface BookSourceControlHostOptions {
   readonly service: BookSourceUploadControlService;
   readonly verifier?: ControlHostVerifier;
+  readonly pilotScope?: (input: {
+    readonly actorId: string;
+    readonly bookId: string;
+    readonly operation: 'upload' | 'mutation';
+    readonly request: Request;
+  }) => Promise<void> | void;
 }
 
 class ControlRequestError extends Error {
@@ -262,6 +268,10 @@ const publicFailure = (error: unknown): { readonly code: string; readonly status
       ? candidate
       : undefined;
     if (code) {
+      if (code === 'book_pilot_scope_denied'
+        && isRecord(error) && typeof error.status === 'number') {
+        return { code, status: error.status };
+      }
       if (code === 'authority_denied') return { code, status: 403 };
       if (code === 'invalid_input' || code === 'invalid_claim') return { code, status: 400 };
       if (code === 'rollout_denied' || code === 'invalid_deployment' || code === 'account_state_unavailable') {
@@ -298,6 +308,16 @@ export const createBookSourceControlHost = (options: BookSourceControlHostOption
         .verifyAuthorizationHeader(request.headers.get('authorization'), env);
       if (!authorization.valid || !authorization.uid) {
         return json(request, env, { code: 'unauthorized' }, 401);
+      }
+
+      if (route.action !== 'status') {
+        if (!options.pilotScope) throw new ControlRequestError('book_pilot_scope_unavailable', 503);
+        await options.pilotScope({
+          actorId: authorization.uid,
+          bookId: route.bookId,
+          operation: route.action === 'begin' ? 'upload' : 'mutation',
+          request,
+        });
       }
 
       if (route.action === 'status') {

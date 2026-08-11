@@ -1,6 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBookSourceControlWorker } from '../src/book-source-worker/control-worker';
 
+const pilotIssuedAt = new Date(Date.now() - 60 * 60_000).toISOString();
+const pilotExpiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
+const pilotConfig = JSON.stringify({
+  schemaVersion: 'v1',
+  environment: 'test',
+  revision: 'source-worker-test-1',
+  issuedAt: pilotIssuedAt,
+  expiresAt: pilotExpiresAt,
+  teacherId: 'teacher-1',
+  bookId: 'book-1',
+  assignmentId: 'assignment-1',
+  studentIds: ['student-1'],
+  maxStudents: 30,
+});
+
 describe('book source control worker activation seam', () => {
   it('defaults disabled and stays unavailable without #59 composition', async () => {
     const worker = createBookSourceControlWorker();
@@ -59,7 +74,13 @@ describe('book source control worker activation seam', () => {
           },
         }),
       },
-    ), { BOOK_SOURCE_UPLOAD_CONTROL_STATE: 'enabled' });
+    ), {
+      BOOK_SOURCE_UPLOAD_CONTROL_STATE: 'enabled',
+      BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+      BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+      BOOK_PILOT_SCOPE_CONFIG_JSON: pilotConfig,
+      BOOK_PILOT_SCOPE_AUDIT: vi.fn(),
+    });
 
     expect(response.status).toBe(200);
     expect(begin).toHaveBeenCalledTimes(1);

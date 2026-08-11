@@ -47,7 +47,11 @@ export interface ActivityAuthoringService {
 /** Client facade performs early validation; Worker remains mutation authority. */
 export const createActivityAuthoringService = (
   repository: ActivityAuthoringRepository,
-  options: { previous?: (activityId: string) => NormalizedActivity | undefined } = {},
+  options: {
+    previous?: (activityId: string) => NormalizedActivity | undefined;
+    /** Fixed Book claim supplied by the Book shell; the Worker remains authoritative. */
+    bookId?: string;
+  } = {},
 ): ActivityAuthoringService => {
   const mutation = (value: Omit<ActivityAuthoringMutation, 'operationId'>): ActivityAuthoringMutation => ({
     ...value,
@@ -66,6 +70,9 @@ export const createActivityAuthoringService = (
       const previous = input.targetActivityId ? options.previous?.(input.targetActivityId) : undefined;
       const candidate = validateActivityCandidate(input, previous);
       const command = mutation({
+        ...(options.bookId ?? input.bookId
+          ? { bookId: options.bookId ?? input.bookId }
+          : {}),
         expectedRevision: input.expectedRevision,
         ...(input.targetActivityId === undefined ? {} : { targetActivityId: input.targetActivityId }),
         content: candidate.content,

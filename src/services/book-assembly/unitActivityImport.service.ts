@@ -219,6 +219,7 @@ export const stageUnitActivityImportBundle = async ({
         throw new UnitActivityImportError('unresolved-activity-target', `Activity slot ${slot.activityKey} has no trusted target Activity ID.`);
       }
       const result = await activityAuthoring.stage({
+        bookId: manifest.bookId,
         targetActivityId,
         expectedRevision: expectedActivityRevisions[slot.activityKey] ?? 0,
         content: slot.content,

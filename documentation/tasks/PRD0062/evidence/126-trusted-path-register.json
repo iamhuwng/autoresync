@@ -1,0 +1,172 @@
+{
+  "artifactKind": "prd0062-126-trusted-path-register",
+  "schemaVersion": 1,
+  "sourceCommit": "f710653948462bcd948d59a7db007bc2a870e987",
+  "accepted127": {
+    "commit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
+    "parent": "f710653948462bcd948d59a7db007bc2a870e987",
+    "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+    "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0",
+    "bytesUnmodified": true
+  },
+  "restoredBookDependencyBlobs": [
+    {
+      "path": "src/services/book-assembly/manifestCandidate.service.ts",
+      "source": "598be0ab04f7fd98a335e9517e1b91f28e2ca660",
+      "gitBlobOid": "de5e6980a956ea6b9e249c2633231e9aa87f1ae0",
+      "currentState": "historical base verified, then extended with the current validateBookAssemblyManifestCandidate API and only the existing Book caller exports required by current tests"
+    },
+    {
+      "path": "src/services/book-assembly/sourcePageAuthority.service.ts",
+      "source": "598be0ab04f7fd98a335e9517e1b91f28e2ca660",
+      "gitBlobOid": "33059541856a9fa808abd6880c594d0f72e65eac",
+      "currentState": "historical blob was inspected as the source of the current resolver; final file is narrowed to resolveSourceQualifiedPage and current Book types only, with obsolete preview/compatibility exports removed"
+    },
+    {
+      "path": "src/services/book-assembly/sourceSet.service.ts",
+      "source": "current-domain reconstruction",
+      "history": "no historical Git blob found in inspected Git commits",
+      "currentState": "fixed current SourceSetCandidate validator; no legacy sourceSetCandidate file restored"
+    }
+  ],
+  "policy": "fixed bounded pilot: one named teacher, one book, one assignment, one-to-thirty named students",
+  "canonicalBoundary": {
+    "entry": "cloudflare/src/upload-worker/book-router.ts:createBookRouter.route",
+    "check": "cloudflare/src/book-pilot-scope.ts:enforceBookPilotScopeRoute",
+    "order": "after authentication, rate, route gate, service identity, and body limit; before handler",
+    "default": "route gate disabled; mandatory scope guard independently denies missing/disabled enforcement and missing/invalid config; runtime command/launch defer Book identity to the trusted binding worker"
+  },
+  "composedFactoryBoundary": {
+    "entry": "cloudflare/src/upload-worker/book-route-handlers.ts:adapt",
+    "check": "cloudflare/src/book-pilot-scope.ts:enforceBookPilotScopeIfConfigured",
+    "coveredHandlers": [
+      "bookActivityAuthoring.stage|validate|saveDraft|discard",
+      "bookSource.begin|complete|cancel",
+      "bookAssembly.create|replace|validate|discard",
+      "bookAssemblyMigration.migrate|confirm|discard|cancel",
+      "bookAssembly.fullPdfPublish|componentPdfPublish",
+      "bookAssemblySuccessor.publish",
+      "bookAssemblyMappingRevision.publish",
+      "bookDelivery.create|activate|supersede|revoke",
+      "courseBookPlacement.place|prepare|revoke",
+      "classBookPlacement.prepare",
+      "bookRuntime.command",
+      "bookRuntimeLaunch.launch",
+      "futureSeam.homeworkAssignmentCommand"
+    ],
+    "directBypassNegative": "cloudflare/test/book-pilot-scope.test.ts and cloudflare/test/book-pilot-scope-guard.test.ts"
+  },
+  "directTrustedAdapters": [
+    {
+      "path": "cloudflare/src/upload-worker/book-activity-authoring/worker.ts:createBookActivityAuthoringWorkerHandlers.respond",
+      "mutations": "stage|validate|saveDraft|discard",
+      "writeBoundary": "repository.transaction.beforeWrite",
+      "check": "fail-closed subject_missing without a trusted Book-bound seam; route remains disabled, and any future Book-bound seam must check immediately before every CAS write"
+    },
+    {
+      "path": "cloudflare/src/upload-worker/book-source/worker.ts:handlerFor",
+      "mutations": "begin|complete|cancel",
+      "check": "before Book Source Control Host"
+    },
+    {
+      "path": "cloudflare/src/book-source-worker/control-host.ts:createBookSourceControlHost.fetch",
+      "mutations": "begin|complete|cancel|retry|reconcile",
+      "check": "mandatory pilotScope callback after auth and before service call; absent callback returns privacy-safe 503",
+      "recoveryNote": "retry/reconcile are not canonical manifest routes; both map to fixed mutation scope enforcement before service call, and default runtime reconcile returns rollout_denied"
+    },
+    {
+      "path": "cloudflare/src/book-source-worker/control-worker.ts:fetch and cloudflare/src/book-source-worker/reconciliation-worker.ts:fetch",
+      "mutations": "source control HTTP mutations and retry/reconcile",
+      "check": "production composition supplies the mandatory callback; scheduled reconcile also invokes the fixed mutation check before service mutation",
+      "recoveryNote": "no source control production adapter can omit the boundary; absent callback is independently denied by control-host"
+    },
+    {
+      "path": "cloudflare/src/upload-worker/book-assembly/worker.ts:createBookAssemblyWorkerHandlers.mutate",
+      "mutations": "create|replace|validate|discard",
+      "writeBoundary": "repository.transaction.beforeWrite"
+    },
+    {
+      "path": "cloudflare/src/upload-worker/book-assembly/publication-route-handlers.ts:createFullPdfHandler|createComponentPdfHandler",
+      "mutations": "fullPdfPublish|componentPdfPublish",
+      "check": "before publication worker construction and publish"
+    },
+    {
+      "path": "cloudflare/src/upload-worker/book-delivery/worker.ts:createBookDeliveryWorkerHandlers.respond",
+      "mutations": "create|activate|supersede|revoke",
+      "check": "exact binding book/assignment/student check; activate/revoke resolve trusted binding first"
+    },
+    {
+      "path": "cloudflare/src/upload-worker/book-homework/worker.ts:homeworkAssignmentCommand",
+      "mutations": "assignment saga execute",
+      "check": "before notification-wrapped commit; exact assignment and selected recipient list"
+    },
+    {
+      "path": "cloudflare/src/upload-worker/book-runtime/worker.ts:command",
+      "mutations": "repository.applyCommand",
+      "check": "after trusted binding resolution and before recovery hold/applyCommand; exact Book, student, and assignment"
+    },
+    {
+      "path": "cloudflare/src/upload-worker/book-runtime-launch/worker.ts:launch",
+      "mutations": "none; exact projection reads only",
+      "check": "server-resolved binding bookId is carried in BookRuntimeLaunchContext and checked with exact student/assignment before projection reads"
+    }
+  ],
+  "updateReplacement": {
+    "updateRoute": "book.updates.command -> futureSeam.updateCommand -> BOOK_UPDATES_ROUTES_ENABLED",
+    "replacementRoute": "book.replacement-cleanup.command -> futureSeam.replacementCleanupCommand -> BOOK_REPLACEMENT_CLEANUP_ROUTES_ENABLED",
+    "default": "future seam gate disabled and no default resolver handler",
+    "suppliedHandlerBoundary": "createBookRouteHandlers wraps both future handlers with the fixed check",
+    "directNegative": "wrong book and wrong teacher are denied before supplied handler side effect"
+  },
+  "recoverySensitive": {
+    "source": "BookSourceControlHost retry/reconcile checked as mutation; control/reconciliation adapters and scheduled reconcile are guarded; SourceUpload service recoveryContext rejects cleanup/reconcile/provider effects",
+    "delivery": "BookDeliveryEntitlementLifecycle createDraft/activate/supersede/revoke rejects recoveryContext effects; recovery adapter writes only metadata hold/projection children",
+    "runtime": "BookRuntimeWorker.command checks binding.book.bookId and recovery hold before applyCommand; runtime launch checks binding Book before projections; runtime restore requires explicit recovery plan and writes recovery projections",
+    "replacement": "createReplacementSagaService.execute and retired-byte deletion enqueue/execute reject recovery-side effects; no canonical route handler",
+    "bookMetadata": "restoreBookMetadataRoots requires prepared recovery write plan; delegated canonical/live delivery roots are excluded",
+    "pilotEscape": "retry/reconcile are checked as mutation, never broad rollout recovery; no recovery adapter is a pilot action route; all six pilot action operations are deny in rollback template"
+  },
+  "observabilityRegistry": {
+    "scopeAudit": "privacy-safe decision payload includes operation, reason, environment, revision, fingerprint; no IDs",
+    "rolloutAudit": "book-rollout-gate emits privacy-safe action decision",
+    "featureRegistry": "existing src/config/featureRegistry.ts remains source of UI action/route identity; #126 adds no UI feature or route",
+    "registryConsistency": "canonical route descriptors, composed handler names, and direct adapter list are checked by focused #126 tests and live manifest inspection"
+  },
+  "currentValidatorReconstruction": {
+    "manifestPath": "src/services/book-assembly/manifestCandidate.service.ts",
+    "sourceSetPath": "src/services/book-assembly/sourceSet.service.ts",
+    "contract": "current BookAssemblyManifestCandidate and SourceSetCandidate types only; fail closed; no legacy sourceSetCandidate or generalized framework",
+    "coverage": "exact Book and trusted source authority; verifiedUsable; strategy/count/owner/order/uniqueness; nodes/cycles/depth; units/slots/groups; reciprocal mappings; page/default bounds",
+    "focusedProof": "3 files, 11 tests, 11 passed, 0 failed, 0 skipped after final type-narrowing edits"
+  },
+  "opportunisticBookP1": {
+    "producer": "src/services/book-assembly/mappingRevision.service.ts:createAtomicWrites",
+    "guard": "src/services/book-assembly/publicationTransaction.service.ts:assertCommonPublicationWriteSet",
+    "test": "src/services/book-assembly/mappingRevision.service.test.ts > mapping revision publication plan > publishes through the common transaction while retaining immutable Activity records by reference",
+    "preFixAssertion": "expect(result.status).toBe('published');",
+    "preFixObservedOutput": "AssertionError: expected 'published' to be 'invalid' // Object.is equality\nExpected: \"published\"\nReceived: \"invalid\"\n❯ src/services/book-assembly/mappingRevision.service.test.ts:274:27",
+    "causality": "producer, guard, and test were byte-identical to accepted #127 parent; plan creation passed the reconstructed validator, then the unchanged guard rejected the producer reference without canonicalPayloadFingerprint",
+    "fix": "copy predecessor activity.canonicalPayloadFingerprint and fail closed if absent; no payloadFingerprint fallback or guard weakening",
+    "proof": "exact mapping 4/4; affected assembly integration 38/38; pilot route suite 8/8"
+  },
+  "verification": {
+    "postEditValidator": "x64 harness; root vitest.config.ts; 3 files, 11/11 passed, zero skips",
+    "activityAuthoring": "1 file, 19/19 passed, zero skips",
+    "runtime": "3 files, 21/21 passed, zero skips; moved launch-worker file: 1 file, 2/2 passed separately",
+    "ticket05": "post-exact-byte-fix inspection/source-upload/workflow: 3 files, 44/44 passed, zero skips (inspection 7, upload 13, workflow 24); panel 4/4 and shell 5/5",
+    "postExactByteFixRerun": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/services/book-source-delivery/sourcePdfInspection.browser.test.ts src/services/book-source-delivery/sourceUpload.browser.test.ts src/services/book-source-delivery/sourceUpload.browserWorkflow.test.ts",
+      "runtime": "Node v24.18.0 x64 under Windows ARM64 host",
+      "status": "pass",
+      "discoveredFiles": 3,
+      "executedTests": 44,
+      "passed": 44,
+      "failed": 0,
+      "skips": 0,
+      "breakdown": "inspection 7/7; source upload 13/13; source upload workflow 24/24",
+      "classification": "post-exact-byte-fix proof; mismatch rejects file_changed before digest/PDF.js and leaves no claim"
+    },
+    "productionBuild": "x64 harness vite build; 9501 modules transformed; PASS",
+    "typeResolution": "x64 tsc exit 2 from unchanged baseline diagnostics only; final reconstructed validator files have zero diagnostics"
+  }
+}

@@ -35,6 +35,10 @@ import type {
   BookRuntimeScore,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import { isBookRuntimeRecoveryHold } from '../../../../src/services/book-activity/bookRuntime.recovery.ts';
+import {
+  BookPilotScopeDeniedError,
+  enforceBookPilotScopeIfConfigured,
+} from '../../book-pilot-scope.ts';
 
 export interface BookRuntimeWorkerEnv {
   readonly [key: string]: unknown;
@@ -253,6 +257,21 @@ export const createBookRuntimeWorkerHandlers = (
           env: input.env,
         }),
       ]);
+      await enforceBookPilotScopeIfConfigured({
+        env: input.env,
+        uid: input.uid,
+        request: input.request,
+        operation: 'mutation',
+        actorKind: 'student',
+        bookId: binding?.book.bookId,
+        assignmentId: payload.contextId,
+        contextKind: binding?.context.kind,
+        studentId: input.uid,
+        selectedStudentIds: [input.uid],
+        requireBook: true,
+        requireAssignment: true,
+        requireStudents: true,
+      });
       await assertNoRuntimeRecoveryHold({
         repository: options.repository,
         recipientId: input.uid,
@@ -414,6 +433,9 @@ export const createBookRuntimeWorkerHandlers = (
       }
       return json(sanitizeResult(result), statusFor(result.status));
     } catch (error) {
+      if (error instanceof BookPilotScopeDeniedError) {
+        return json({ code: error.message, decision: error.decision }, error.status);
+      }
       if (error instanceof BookRuntimeCommandSchemaError
         || error instanceof BookRuntimeAuthorizationError
         || error instanceof BookRuntimeWorkerError) {

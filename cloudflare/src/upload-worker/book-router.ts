@@ -1,5 +1,9 @@
 // @ts-ignore Existing Worker verifier is JavaScript without declarations.
 import { createFirebaseVerifier } from './firebase-verification.js';
+import {
+  BookPilotScopeDeniedError,
+  enforceBookPilotScopeRoute,
+} from '../book-pilot-scope.ts';
 import { canonicalBookRouteManifest } from './book-routes/manifest.ts';
 import type { CanonicalBookRouteDescriptor } from './book-routes/types.ts';
 import {
@@ -457,7 +461,14 @@ export const createBookRouter = (options: BookRouterOptions = {}): BookRouter =>
       enforceGate(env, descriptor);
       enforceServiceIdentity(env, descriptor);
       await enforceBodyLimit(request, descriptor);
+      await enforceBookPilotScopeRoute({ request, env, uid, params, descriptor });
     } catch (error) {
+      if (error instanceof BookPilotScopeDeniedError) {
+        return jsonResponse(request, {
+          code: error.message,
+          decision: error.decision,
+        }, error.status, methods);
+      }
       const message = error instanceof Error ? error.message : '';
       if (message === 'book_limited' || message === 'book_rate_limited') {
         return jsonResponse(request, { code: 'rate_limited' }, 429, methods);
@@ -475,7 +486,13 @@ export const createBookRouter = (options: BookRouterOptions = {}): BookRouter =>
     if (!handler) return jsonResponse(request, { code: 'book_route_unavailable' }, 501, methods);
     try {
       return await handleResult(await handler({ request, env, uid, params, descriptor }), request, descriptor);
-    } catch {
+    } catch (error) {
+      if (error instanceof BookPilotScopeDeniedError) {
+        return jsonResponse(request, {
+          code: error.message,
+          decision: error.decision,
+        }, error.status, methods);
+      }
       return jsonResponse(request, { code: 'book_route_failed' }, 500, methods);
     }
   };

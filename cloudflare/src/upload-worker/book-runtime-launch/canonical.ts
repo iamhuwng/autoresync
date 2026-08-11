@@ -191,6 +191,7 @@ const productionContextResolver = (
     bindingId: binding.bindingId,
     bindingRevision: binding.revision,
     contextId: binding.context.contextId,
+    bookId: binding.book.bookId,
     recipientId: binding.recipient.recipientId,
     activityPins,
     authority: trusted,

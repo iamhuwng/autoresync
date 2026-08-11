@@ -1,0 +1,104 @@
+.book-source-inspection {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--color-border, #d9e0eb);
+  border-radius: 16px;
+  background: var(--color-surface, #fff);
+  padding: 24px;
+}
+
+.book-source-inspection__heading,
+.book-source-inspection__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.book-source-inspection__eyebrow {
+  margin: 0 0 8px;
+  color: var(--color-text-secondary, #5d687b);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.book-source-inspection h2,
+.book-source-inspection p {
+  margin: 0;
+}
+
+.book-source-inspection__file-label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.book-source-inspection input[type='file'] {
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--color-border, #d9e0eb);
+  border-radius: 8px;
+  background: var(--color-surface-subtle, #f4f7fb);
+}
+
+.book-source-inspection__claim {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.book-source-inspection__claim div {
+  min-width: 0;
+  border-radius: 12px;
+  background: var(--color-surface-subtle, #f4f7fb);
+  padding: 12px;
+}
+
+.book-source-inspection__claim dt {
+  color: var(--color-text-secondary, #5d687b);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.book-source-inspection__claim dd {
+  overflow-wrap: anywhere;
+  margin: 4px 0 0;
+}
+
+.book-source-inspection__status,
+.book-source-inspection__inline,
+.book-source-inspection__error {
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.book-source-inspection__status,
+.book-source-inspection__inline {
+  background: #eef3ff;
+  color: #243c78;
+}
+
+.book-source-inspection__error {
+  background: #fff0f0;
+  color: #9e1c1c;
+}
+
+.book-source-inspection button {
+  min-height: 44px;
+}
+
+@media (max-width: 720px) {
+  .book-source-inspection__heading,
+  .book-source-inspection__status {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .book-source-inspection__claim {
+    grid-template-columns: 1fr;
+  }
+}

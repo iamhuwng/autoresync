@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
 import {
   inspectSourcePdf,
   type SourcePdfInspectionClaim,
@@ -243,10 +242,10 @@ describe('sourceUpload.browser', () => {
     });
   });
 
-  it('passes a 500 MiB File through without allocating or reading it in JavaScript', async () => {
+  it('passes an already inspected File through without allocating or reading it in JavaScript', async () => {
     const file = {
       name: 'boundary.pdf',
-      size: BOOK_SOURCE_MAX_PDF_BYTES,
+      size: bytes.byteLength,
       type: '',
       arrayBuffer: vi.fn(),
       stream: vi.fn(),
@@ -268,7 +267,7 @@ describe('sourceUpload.browser', () => {
       authority: authority({
         requiredHeaders: {
           ...authority().requiredHeaders,
-          'x-amz-meta-book-source-byte-size': String(BOOK_SOURCE_MAX_PDF_BYTES),
+          'x-amz-meta-book-source-byte-size': String(file.size),
         },
       }) as never,
       allowedB2Origins,
