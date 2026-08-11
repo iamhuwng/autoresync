@@ -20,6 +20,7 @@ import {
   REPLACEMENT_SAGA_MAX_AUDIT_EVENTS,
   REPLACEMENT_SAGA_MAX_ITEMS,
 } from './contract.ts';
+import { isRecoveryEffectSuppressed } from '../../../../../src/services/recoveryEffectGuard.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
 const IDEMPOTENCY = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u;
@@ -261,6 +262,10 @@ const pending = (code: string, saga: ReplacementSagaRecord): ReplacementSagaExec
 
 export const createReplacementSagaService = (dependencies: ReplacementSagaDependencies) => Object.freeze({
   async execute(input: ReplacementSagaExecutionInput): Promise<ReplacementSagaExecutionResult> {
+    if (dependencies.recoveryContext
+      && isRecoveryEffectSuppressed('update-replacement-revocation', dependencies.recoveryContext).suppressed) {
+      return { status: 'blocked', code: 'recovery-side-effect-suppressed' };
+    }
     if (dependencies.enabled !== true) return { status: 'blocked', code: 'replacement_saga_disabled' };
     if (!ID.test(input.ownerId) || !ID.test(input.bookId) || !ID.test(input.planId) || !ID.test(input.reviewId)
       || !IDEMPOTENCY.test(input.idempotencyKey) || typeof input.confirmationToken !== 'string' || input.confirmationToken.length === 0) {

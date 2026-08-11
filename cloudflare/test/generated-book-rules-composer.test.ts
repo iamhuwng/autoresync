@@ -128,12 +128,12 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(JSON.stringify(reverse)).toBe(JSON.stringify(forward));
   });
 
-  it('discovers the complete 33-fragment producer manifest in stable order', () => {
+  it('discovers the complete 38-fragment producer manifest in stable order', () => {
     const sources = currentFragmentSources();
     const forward = discoverGeneratedBookRuleFragmentManifest(sources);
     const reverse = discoverGeneratedBookRuleFragmentManifest([...sources].reverse());
 
-    expect(forward).toHaveLength(35);
+    expect(forward).toHaveLength(38);
     expect(forward.map((entry) => entry.fragmentId)).toEqual([...FINAL_BOOK_RULE_FRAGMENT_IDS]);
     expect(JSON.stringify(reverse)).toBe(JSON.stringify(forward));
     expect(forward.map((entry) => entry.sourcePath)).toEqual(expect.arrayContaining([
@@ -157,7 +157,7 @@ describe('generated Book RTDB rule manifest and composer', () => {
 
     expect(JSON.stringify(reverse)).toBe(JSON.stringify(forward));
     expect(forward.fragmentIds).toEqual([...FINAL_BOOK_RULE_FRAGMENT_IDS]);
-    expect(forward.operations).toHaveLength(348);
+    expect(forward.operations).toHaveLength(369);
     expect(readRule(forward.rules, '/.read')).toBe(readRule(databaseRules.rules, '/.read'));
     expect(readRule(forward.rules, 'courses/.read')).toBe(readRule(databaseRules.rules, 'courses/.read'));
     expect(readRule(forward.rules, 'material_catalog/books/.write')).toBe('false');

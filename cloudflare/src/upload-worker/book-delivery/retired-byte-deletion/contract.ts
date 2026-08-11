@@ -2,6 +2,7 @@ import type {
   BookSourceUploadOperation,
   BookSourceVersionStorageIdentity,
 } from '../../../../../src/types/bookSource.types.ts';
+import type { RecoveryEffectContext } from '../../../../../src/services/recoveryEffectGuard.ts';
 import type {
   ReplacementSagaContextItem,
   ReplacementSagaRecord,
@@ -171,6 +172,7 @@ export interface RetiredByteDeletionDependencies {
   readonly enabled?: boolean;
   readonly now?: () => Date;
   readonly newId?: () => string;
+  readonly recoveryContext?: RecoveryEffectContext;
 }
 
 export type RetiredByteDeletionResult =

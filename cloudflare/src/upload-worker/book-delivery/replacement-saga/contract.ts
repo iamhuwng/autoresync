@@ -9,6 +9,7 @@ import type {
   ReplacementPlanRevisionAuthority,
 } from '../replacement-plans/contract.ts';
 import type { ReplacementSourceSetDelta } from '../../../../../src/services/book-assembly/replacementSourceSetDelta.types.ts';
+import type { RecoveryEffectContext } from '../../../../../src/services/recoveryEffectGuard.ts';
 
 export const REPLACEMENT_SAGA_ROOT = 'book_replacement_sagas';
 export const REPLACEMENT_SAGA_SCHEMA_VERSION = 1 as const;
@@ -182,6 +183,7 @@ export interface ReplacementSagaDependencies {
   readonly enabled?: boolean;
   readonly now?: () => Date;
   readonly newId?: () => string;
+  readonly recoveryContext?: RecoveryEffectContext;
 }
 
 export type ReplacementSagaValidationFacts = {

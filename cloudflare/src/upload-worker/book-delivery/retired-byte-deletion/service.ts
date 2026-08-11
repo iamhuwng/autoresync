@@ -18,6 +18,7 @@ import {
   type RetiredByteDeletionResult,
   type RetiredByteDeletionState,
 } from './contract.ts';
+import { isRecoveryEffectSuppressed } from '../../../../../src/services/recoveryEffectGuard.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,191}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
@@ -243,6 +244,10 @@ export const createRetiredByteDeletionOwner = (
     readonly sourceVersionIds: readonly string[];
     readonly precondition: 'all-contexts-retired-deliveries-revoked';
   }): Promise<{ readonly status: 'queued' | 'replayed' | 'pending' }> => {
+    if (dependencies.recoveryContext
+      && isRecoveryEffectSuppressed('update-replacement-revocation', dependencies.recoveryContext).suppressed) {
+      return { status: 'pending' };
+    }
     if (dependencies.enabled !== true) return { status: 'pending' };
     if (input.precondition !== 'all-contexts-retired-deliveries-revoked'
       || input.saga.state !== 'contexts-pending'
@@ -323,6 +328,10 @@ export const createRetiredByteDeletionOwner = (
     readonly ownerId: string;
     readonly deletionId: string;
   }): Promise<RetiredByteDeletionResult> => {
+    if (dependencies.recoveryContext
+      && isRecoveryEffectSuppressed('update-replacement-revocation', dependencies.recoveryContext).suppressed) {
+      return { status: 'blocked', code: 'recovery-side-effect-suppressed' };
+    }
     if (dependencies.enabled !== true) return { status: 'blocked', code: 'retired-byte-deletion-disabled' };
     if (!validId(input.ownerId) || !validId(input.deletionId)) return { status: 'blocked', code: 'invalid-request' };
     try {

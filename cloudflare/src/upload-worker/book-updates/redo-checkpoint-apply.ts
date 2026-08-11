@@ -5,6 +5,10 @@ import {
   type BookRedoCheckpointInput,
 } from '../../../../src/services/book-activity/bookRedoCheckpointProjection.service.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
+import {
+  isRecoveryEffectSuppressed,
+  type RecoveryEffectContext,
+} from '../../../../src/services/recoveryEffectGuard.ts';
 
 export const BOOK_REDO_CHECKPOINT_ROOT = 'book_update_checkpoints';
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
@@ -39,8 +43,13 @@ const stable = (value: unknown): string => {
 
 export const createBookRedoCheckpointApplier = (options: {
   readonly repository: BookRedoCheckpointRepository;
+  readonly recoveryContext?: RecoveryEffectContext;
 }) => Object.freeze({
   async apply(input: BookRedoCheckpointInput): Promise<BookRedoCheckpointApplyResult> {
+    if (options.recoveryContext
+      && isRecoveryEffectSuppressed('checkpoint', options.recoveryContext).suppressed) {
+      return { status: 'skipped' };
+    }
     const projected = createBookRedoCheckpointProjection(input);
     if (projected.status === 'none') return { status: 'skipped' };
     if (projected.status !== 'checkpoint') return { status: 'conflict', code: projected.code };

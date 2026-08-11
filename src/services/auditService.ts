@@ -16,6 +16,10 @@
 import { ref, push, serverTimestamp, query, orderByChild, limitToLast, get, startAt, endAt } from 'firebase/database';
 import { database } from './firebase';
 import { AuditAction, AuditLogEntry, UserRole, SecurityAuthContext } from '../types/security.types';
+import {
+    isRecoveryEffectSuppressed,
+    type RecoveryEffectContext,
+} from './recoveryEffectGuard';
 
 // =============================================================================
 // TYPES
@@ -33,6 +37,8 @@ export interface AuditLogParams {
     targetId: string;
     /** Additional context details */
     details?: Record<string, unknown>;
+    /** Recovery projections are held until reconciliation and never fan out here. */
+    recoveryContext?: RecoveryEffectContext;
 }
 
 /**
@@ -70,6 +76,10 @@ export const logAuditEvent = (
     params: AuditLogParams,
     authContext: SecurityAuthContext | null
 ): void => {
+    if (params.recoveryContext
+        && isRecoveryEffectSuppressed('audit-fan-out', params.recoveryContext).suppressed) {
+        return;
+    }
     // Fire-and-forget: don't await, don't block
     logAuditEventAsync(params, authContext).catch((error) => {
         // Log errors but don't throw - audit logging should never break main flow

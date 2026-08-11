@@ -1,6 +1,10 @@
 import type { BookImpactSnapshotRepository } from './impact-snapshot.ts';
 import type { BookImpactSnapshot, BookImpactSnapshotContext } from '../../../../src/services/book-delivery/bookImpactSnapshot.types.ts';
 import {
+  isRecoveryEffectSuppressed,
+  type RecoveryEffectContext,
+} from '../../../../src/services/recoveryEffectGuard.ts';
+import {
   BOOK_UPDATE_ACTION_MAX_REASON_LENGTH,
   BOOK_UPDATE_ACTION_MAX_SELECTIONS,
   BOOK_UPDATE_ACTION_SCHEMA_VERSION,
@@ -160,8 +164,13 @@ export const createBookUpdateActionService = (options: {
   readonly actions: BookUpdateActionRepository;
   readonly now?: () => Date;
   readonly newId?: () => string;
+  readonly recoveryContext?: RecoveryEffectContext;
 }) => Object.freeze({
   async accept(command: BookUpdateActionCommand): Promise<BookUpdateActionAcceptResult> {
+    if (options.recoveryContext
+      && isRecoveryEffectSuppressed('update-replacement-revocation', options.recoveryContext).suppressed) {
+      return { status: 'blocked', code: 'recovery-side-effect-suppressed' };
+    }
     const now = (options.now?.() ?? new Date()).toISOString();
     if (!ID.test(command.actorId)
       || !ID.test(command.bookId)

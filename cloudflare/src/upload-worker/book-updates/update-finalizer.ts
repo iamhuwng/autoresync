@@ -5,6 +5,10 @@ import {
   type BookUpdateNotificationPlan,
 } from '../../../../src/services/book-delivery/bookUpdateNotification.types.ts';
 import { advanceBookUpdateAction, type BookUpdateActionRepository } from './update-action.ts';
+import {
+  isRecoveryEffectSuppressed,
+  type RecoveryEffectContext,
+} from '../../../../src/services/recoveryEffectGuard.ts';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
 const MAX_RECIPIENTS = 30;
@@ -55,8 +59,13 @@ export const createBookUpdateFinalizer = (options: {
   readonly plans: BookUpdateNotificationPlanResolver;
   readonly emitter: BookUpdateNotificationEmissionPort;
   readonly now?: () => Date;
+  readonly recoveryContext?: RecoveryEffectContext;
 }) => Object.freeze({
   async finalize(input: { readonly ownerId: string; readonly actionId: string }): Promise<BookUpdateFinalizationResult> {
+    if (options.recoveryContext
+      && isRecoveryEffectSuppressed('notification', options.recoveryContext).suppressed) {
+      return { status: 'blocked', code: 'recovery-side-effect-suppressed' };
+    }
     let action = await options.actions.read(input.ownerId, input.actionId);
     if (!action || action.ownerId !== input.ownerId) return { status: 'blocked', code: 'action-missing' };
     if (action.state === 'completed') return { status: 'completed', action, emitted: 0, replayed: 0 };

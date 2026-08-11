@@ -8,6 +8,10 @@ import type {
 } from '../../../../src/types/notification.types.ts';
 import type { NotificationCommand } from './command-schema.ts';
 import type { NotificationCommandRepository } from './repository.ts';
+import {
+  isRecoveryEffectSuppressed,
+  type RecoveryEffectContext,
+} from '../../../../src/services/recoveryEffectGuard.ts';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
 const MAX_RECIPIENTS = 30;
@@ -70,6 +74,7 @@ export interface BookNotificationEmitterOptions {
   readonly enabled?: boolean | (
     (env?: BookNotificationEmissionEnvironment) => boolean
   );
+  readonly recoveryContext?: RecoveryEffectContext;
 }
 
 export interface BookNotificationEmissionContext {
@@ -294,6 +299,10 @@ export const createBookNotificationEmitter = (
     identity: BookNotificationActionIdentity,
     context: BookNotificationEmissionContext = {},
   ): Promise<BookNotificationEmissionResult> {
+    if (options.recoveryContext
+      && isRecoveryEffectSuppressed('notification', options.recoveryContext).suppressed) {
+      return { status: 'disabled', created: 0, replayed: 0, notificationIds: [] };
+    }
     if (!isBookNotificationEmissionEnabled(options.enabled, context.env)) {
       return {
         status: 'disabled',
