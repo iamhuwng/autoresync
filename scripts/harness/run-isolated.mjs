@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { HARNESS_CONTRACT, toolNames } from './contract.mjs';
+import { HARNESS_CONTRACT, remediationFor, toolNames } from './contract.mjs';
 
 const harnessDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(harnessDirectory, '..', '..');
@@ -273,6 +273,19 @@ function writeEvidence(file, evidence) {
   process.stderr.write(`HARNESS_EVIDENCE ${file}\n`);
 }
 
+function attachRemediation(evidence, code, tool = evidence.invocation.tool) {
+  if (!code) return;
+  evidence.failureCode = code;
+  evidence.remediation = remediationFor(code, evidence.invocation.project, tool);
+}
+
+function writeRemediation(remediation) {
+  if (!remediation) return;
+  process.stderr.write(`harness remediation: ${remediation.summary}\n`);
+  for (const action of remediation.actions) process.stderr.write(`  - ${action}\n`);
+  process.stderr.write(`harness verify: ${remediation.verify}\n`);
+}
+
 function forwardedResult(command, args, options) {
   return new Promise((resolve) => {
     const { timeout, inheritStdin = false, suppressStderrLine, ...spawnOptions } = options;
@@ -371,9 +384,11 @@ async function main() {
     classification: 'harness_preflight_failure',
     failureCode: null,
   };
+  let remediationTool = invocation.tool;
   try {
     if (invocation.mode === 'doctor') {
       const requested = invocation.toolArguments.length ? invocation.toolArguments : toolNames.filter((name) => packageDependencies(project.manifest)[HARNESS_CONTRACT.tools[name].package]);
+      remediationTool = requested[0] || 'doctor';
       for (const name of requested) if (!toolNames.includes(name)) throw failure('TOOL_UNSUPPORTED', `unsupported doctor capability: ${name}`);
       const windowsTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'windows-x64');
       const dependency = windowsTools.length ? await ensureDependencies(project, cacheBase, source) : null;
@@ -433,15 +448,19 @@ async function main() {
     if (exitCode === 0 && declaredTool.sourceMode === 'snapshot') publishOutputs(declaredTool, invocation.toolArguments[0], executionProjectRoot, project.projectRoot);
     evidence.exitCode = exitCode;
     evidence.classification = classifyResult({ error: result.error, exitCode, stdout: result.stdout, stderr: result.stderr });
-    if (result.timedOut) evidence.failureCode = 'TOOL_TIMEOUT';
+    if (result.timedOut) attachRemediation(evidence, 'TOOL_TIMEOUT');
+    else if (evidence.classification === 'zero_tests_collected') attachRemediation(evidence, 'ZERO_TESTS_COLLECTED');
+    else if (evidence.classification === 'harness_startup_failure') attachRemediation(evidence, 'TOOL_STARTUP_FAILED');
     writeEvidence(evidenceFile, evidence);
+    writeRemediation(evidence.remediation);
     return exitCode;
   } catch (error) {
-    evidence.failureCode = error.code || 'HARNESS_UNEXPECTED_FAILURE';
+    attachRemediation(evidence, error.code || 'HARNESS_UNEXPECTED_FAILURE', remediationTool);
     evidence.message = error.message;
     if (evidence.executionWorkspace) evidence.classification = 'harness_transport_failure';
     writeEvidence(evidenceFile, evidence);
     process.stderr.write(`harness preflight: ${evidence.failureCode}: ${error.message}\n`);
+    writeRemediation(evidence.remediation);
     return 2;
   }
 }

@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { HARNESS_CONTRACT } from '../harness/contract.mjs';
+import { HARNESS_CONTRACT, remediationFor } from '../harness/contract.mjs';
 import {
   assertToolDeclared,
   assertInvocationMode,
@@ -74,6 +74,8 @@ test('contract is executable, generic, and self-describing', () => {
   assert.equal(HARNESS_CONTRACT.tools.playwright.capabilities[0].kind, 'browser');
   assert.equal(HARNESS_CONTRACT.tools.firebase.capabilities[0].minimumMajor, 21);
   assert.deepEqual(HARNESS_CONTRACT.tools.firebase.capabilities[0].commands, ['emulators:exec', 'emulators:start']);
+  assert.deepEqual(HARNESS_CONTRACT.tools.playwright.capabilities[0].commands, ['test', 'show-report']);
+  assert.match(remediationFor('BROWSER_RUNTIME_MISSING', 'web', 'playwright').verify, /playwright web install chromium/u);
 });
 
 test('doctor fails closed for unknown capabilities', async () => {
@@ -82,7 +84,18 @@ test('doctor fails closed for unknown capabilities', async () => {
   const evidence = evidenceFrom(result);
   assert.equal(evidence.classification, 'harness_preflight_failure');
   assert.equal(evidence.failureCode, 'TOOL_UNSUPPORTED');
+  assert.equal(evidence.remediation.code, 'TOOL_UNSUPPORTED');
+  assert.match(result.stderr, /harness remediation:/u);
+  assert.match(result.stderr, /harness verify:/u);
   assert.deepEqual(evidence.invocation.command.slice(2, 5), ['--doctor', '.', 'unknown-capability']);
+});
+
+test('doctor remediation names the requested capability, not the dispatcher', async () => {
+  const result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--doctor', '.', 'wrangler'], repositoryRoot);
+  assert.equal(result.status, 2);
+  const evidence = evidenceFrom(result);
+  assert.equal(evidence.failureCode, 'PROJECT_DEPENDENCY_MISSING');
+  assert.match(evidence.remediation.verify, /--doctor \. wrangler$/u);
 });
 
 test('cache identity invalidates on protocol, repository, project, Node ABI/version, npm, manifest, and lock changes', () => {
@@ -137,6 +150,7 @@ test('capability checks fail before startup for missing native binary, browser, 
     fs.writeFileSync(path.join(temporary, 'node_modules', '@playwright', 'test', 'package.json'), JSON.stringify({ name: '@playwright/test', version: '1.0.0', main: 'index.cjs' }));
     fs.writeFileSync(path.join(temporary, 'node_modules', '@playwright', 'test', 'index.cjs'), "module.exports={chromium:{executablePath(){return 'Z:/definitely/missing/chromium.exe'}}};\n");
     assert.throws(() => verifyCapabilities({ capabilities: [{ kind: 'browser', name: 'chromium' }] }, temporary), { code: 'BROWSER_RUNTIME_MISSING' });
+    assert.doesNotThrow(() => verifyCapabilities({ capabilities: [{ kind: 'browser', name: 'chromium', commands: ['test'] }] }, temporary, 'install'));
 
     const previousPath = process.env.PATH;
     process.env.PATH = '';
@@ -224,6 +238,9 @@ test('parallel worktrees share immutable dependencies but use attributable isola
     assert.equal(timeout.status, 124);
     assert.equal(evidenceFrom(timeout).classification, 'harness_transport_failure');
     assert.equal(evidenceFrom(timeout).failureCode, 'TOOL_TIMEOUT');
+    assert.equal(evidenceFrom(zero).remediation.code, 'ZERO_TESTS_COLLECTED');
+    assert.equal(evidenceFrom(startup).remediation.code, 'TOOL_STARTUP_FAILED');
+    assert.equal(evidenceFrom(timeout).remediation.code, 'TOOL_TIMEOUT');
   } finally {
     fs.rmSync(container, { recursive: true, force: true });
   }
@@ -242,6 +259,15 @@ test('supported root and Cloudflare package scripts route through the harness', 
 });
 
 const x64Node = path.join(os.homedir(), 'Tools', 'node-x64', 'node.exe');
+test('Windows x64 bootstrap failure names a contract remediation code', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
+  const result = await run(process.execPath, [
+    path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--doctor', '.', 'vitest',
+  ], repositoryRoot, { CODEX_X64_NODE: path.join(os.tmpdir(), 'missing-x64-node.exe') });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /HARNESS_FAILURE X64_NODE_PREREQUISITE_MISSING/u);
+  assert.ok(HARNESS_CONTRACT.remediations.X64_NODE_PREREQUISITE_MISSING);
+});
+
 test('Windows dispatcher preserves arguments through the x64 PowerShell boundary', { skip: process.platform !== 'win32' || !fs.existsSync(x64Node), timeout: 120_000 }, async () => {
   const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-dispatcher-'));
   try {
