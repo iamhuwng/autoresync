@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "41C",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "41C",
+    "issue": 114,
+    "serviceIdentity": "book_update_addition_service",
+    "generatedRuleLocations": [
+      "book_update_action_recovery/addition_receipts/.read",
+      "book_update_action_recovery/addition_receipts/.write",
+      "book_update_action_recovery/addition_receipts/records/.read",
+      "book_update_action_recovery/addition_receipts/records/.write",
+      "book_update_action_recovery/addition_receipts/records/$ownerId/$actionId/$contextKey/$contextId/$studentId/.read",
+      "book_update_action_recovery/addition_receipts/records/$ownerId/$actionId/$contextKey/$contextId/$studentId/.write",
+      "book_update_action_recovery/addition_receipts/records/$ownerId/$actionId/$contextKey/$contextId/$studentId/.validate"
+    ],
+    "leastPrivilegePaths": [
+      "book_update_action_recovery/addition_receipts/records/$ownerId/$actionId/$contextKey/$contextId/$studentId"
+    ],
+    "backupInventory": "include-metadata",
+    "recoveryLedgerRoot": "book_update_action_recovery"
+  },
+  "operations": [
+    {
+      "path": "book_update_action_recovery/addition_receipts",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_action_recovery/addition_receipts",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_action_recovery/addition_receipts/records",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_action_recovery/addition_receipts/records",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_action_recovery/addition_receipts/records/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.baa.s == true && auth.token.baa.o == $ownerId && auth.token.baa.a == $actionId && auth.token.baa.contextKey == $contextKey && auth.token.baa.contextId == $contextId && auth.token.baa.studentId == $studentId && auth.token.baa.dl >= now"
+    },
+    {
+      "path": "book_update_action_recovery/addition_receipts/records/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.baa.s == true && auth.token.baa.o == $ownerId && auth.token.baa.a == $actionId && auth.token.baa.contextKey == $contextKey && auth.token.baa.contextId == $contextId && auth.token.baa.studentId == $studentId && auth.token.baa.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('actionId').val() == $actionId && newData.child('contextKey').val() == $contextKey && newData.child('contextId').val() == $contextId && newData.child('studentId').val() == $studentId && ((!data.exists() && newData.child('revision').val() == 1) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1))"
+    },
+    {
+      "path": "book_update_action_recovery/addition_receipts/records/$ownerId/$actionId/$contextKey/$contextId/$studentId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.child('schemaVersion').val() == 1 && newData.child('ownerId').val() == $ownerId && newData.child('actionId').val() == $actionId && newData.child('contextKey').val() == $contextKey && newData.child('contextId').val() == $contextId && newData.child('studentId').val() == $studentId && newData.child('phases').child('deadline').exists() && newData.child('phases').child('projection').exists() && newData.child('phases').child('completion').exists() && newData.child('phases').child('audit').exists()"
+    }
+  ]
+}
