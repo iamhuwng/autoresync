@@ -70,14 +70,14 @@
   "localProof": {
     "host": "Windows ARM64",
     "runner": "bundled x64 Vitest harness; no native vitest/vite/wrangler invocation",
-    "discoveredTests": 13,
-    "executedTests": 12,
-    "passedTests": 12,
+    "discoveredTests": 43,
+    "executedTests": 43,
+    "passedTests": 43,
     "failedTests": 0
   },
   "emulatorProof": {
     "status": "not-run",
-    "boundary": "The repository emulator suite exists, but this worktree has no local node_modules/@firebase/rules-unit-testing or Firebase emulator package; no dependency installation was performed."
+    "boundary": "The repository emulator suite and isolated x64 Firebase packages are available, but neither the Windows host nor its Ubuntu WSL distribution has the Java runtime required by the RTDB emulator. No machine dependency installation was performed."
   },
   "remoteProof": {
     "deployed": false,
