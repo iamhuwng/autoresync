@@ -39,6 +39,10 @@ export type ReplacementContextFailureCode =
   | 'context-revision-stale'
   | 'context-replay-conflict'
   | 'context-cas-conflict'
+  | 'context-delivery-authority-missing'
+  | 'context-delivery-authority-unavailable'
+  | 'context-delivery-cas-conflict'
+  | 'context-delivery-readback-pending'
   | 'context-mutation-unavailable'
   | 'context-clock-unavailable';
 
@@ -111,6 +115,63 @@ export interface ReplacementContextOperationReceipt {
   readonly createdAt: string;
 }
 
+/**
+ * The authoritative book_delivery binding projection used by document
+ * authorization. #117 never treats its copied scope as delivery authority.
+ */
+export interface ReplacementContextAuthoritativeDelivery {
+  readonly bindingId: string;
+  readonly bindingRevision: number;
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly contextKey: string;
+  readonly recipientId: string;
+  readonly sourceVersionIds: readonly string[];
+  readonly status: 'active' | 'revoked';
+}
+
+export type ReplacementContextDeliveryMutationResult =
+  | {
+      readonly status: 'advanced' | 'replayed';
+      readonly current: ReplacementContextAuthoritativeDelivery | null;
+    }
+  | { readonly status: 'conflict' | 'unavailable'; readonly current?: ReplacementContextAuthoritativeDelivery | null };
+
+/**
+ * Explicit adapter port for the existing authoritative book_delivery
+ * supersede/revoke seam. Implementations must perform exact CAS/provenance
+ * checks and be idempotent by operationId; #117 performs independent
+ * readback before claiming completion.
+ */
+export interface ReplacementContextDeliveryAuthority {
+  readBinding(input: { readonly bindingId: string }): Promise<ReplacementContextAuthoritativeDelivery | null>;
+  readCurrent(input: {
+    readonly recipientId: string;
+    readonly contextKey: string;
+  }): Promise<ReplacementContextAuthoritativeDelivery | null>;
+  adoptCurrentReplacement(input: {
+    readonly operationId: string;
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly contextKey: string;
+    readonly recipientId: string;
+    readonly expectedCurrent: ReplacementContextCurrentPin;
+    readonly retiredDeliveries: readonly ReplacementContextDeliveryPin[];
+    readonly nextSourceVersionIds: readonly string[];
+    readonly now: string;
+  }): Promise<ReplacementContextDeliveryMutationResult>;
+  declineRetainUnavailable(input: {
+    readonly operationId: string;
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly contextKey: string;
+    readonly recipientId: string;
+    readonly expectedCurrent: ReplacementContextCurrentPin | null;
+    readonly retiredDeliveries: readonly ReplacementContextDeliveryPin[];
+    readonly now: string;
+  }): Promise<ReplacementContextDeliveryMutationResult>;
+}
+
 export interface ReplacementContextCommitInput {
   readonly saga: ReplacementSagaRecord;
   readonly item: ReplacementSagaContextItem;
@@ -177,6 +238,8 @@ export type ReplacementContextOwnerResult =
 
 export interface ReplacementContextOwnerDependencies {
   readonly repository: ReplacementContextRepository;
+  /** Required for enabled operation; omitted only for the disabled route. */
+  readonly deliveryAuthority?: ReplacementContextDeliveryAuthority;
   readonly enabled?: boolean;
   readonly now?: () => Date;
 }

@@ -3,15 +3,19 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ReplacementSagaContextItem, ReplacementSagaRecord } from '../replacement-saga/contract.ts';
 import type {
   ReplacementContextAuthority,
+  ReplacementContextAuthoritativeDelivery,
   ReplacementContextChoice,
   ReplacementContextDecision,
+  ReplacementContextDeliveryAuthority,
   ReplacementContextRepository,
 } from './contract.ts';
 import { InMemoryReplacementContextRepository } from './repository.ts';
 import { createReplacementContextOwner } from './service.ts';
 import { validateGeneratedBookRuleFragment } from '../../book-rules/generated-fragment-manifest.ts';
 
-const hash = (character: string): string => character.repeat(64);
+const hash = (label: string): string => Array.from({ length: 64 }, (_, index) => (
+  ((label.charCodeAt(index % label.length) + index) & 15).toString(16)
+)).join('');
 const now = '2026-08-11T00:00:00.000Z';
 
 const sourceSet = (sourceVersionId: string) => ({
@@ -154,15 +158,84 @@ const makeFixture = (choice: ReplacementContextChoice = 'adopt-current-replaceme
   return { saga, item, authority, decision };
 };
 
-const ownerFor = (fixture: ReturnType<typeof makeFixture>, repository: ReplacementContextRepository = new InMemoryReplacementContextRepository([{ authority: fixture.authority, decision: fixture.decision }])) => (
-  createReplacementContextOwner({ repository, enabled: true, now: () => new Date(now) })
-);
+const makeDeliveryAuthority = (
+  fixture: ReturnType<typeof makeFixture>,
+  options: { readonly leaveAuthoritativeDeliveryActive?: boolean } = {},
+): ReplacementContextDeliveryAuthority => {
+  const records = new Map<string, ReplacementContextAuthoritativeDelivery>(fixture.authority.retiredDeliveries.map((delivery) => [
+    delivery.bindingId,
+    {
+      bindingId: delivery.bindingId,
+      bindingRevision: delivery.bindingRevision,
+      ownerId: delivery.ownerId,
+      bookId: delivery.bookId,
+      contextKey: delivery.contextKey,
+      recipientId: fixture.authority.recipientId,
+      sourceVersionIds: [...delivery.sourceVersionIds],
+      status: delivery.status,
+    },
+  ]));
+  let current: ReplacementContextAuthoritativeDelivery | null = fixture.authority.current
+    ? {
+        bindingId: fixture.authority.current.bindingId,
+        bindingRevision: fixture.authority.current.bindingRevision,
+        ownerId: fixture.saga.ownerId,
+        bookId: fixture.saga.bookId,
+        contextKey: fixture.item.contextKey,
+        recipientId: fixture.authority.recipientId,
+        sourceVersionIds: [...fixture.authority.current.sourceVersionIds],
+        status: 'active',
+      }
+    : null;
+  const copy = <T>(value: T): T => structuredClone(value);
+  const revokeRetired = (): void => {
+    records.forEach((delivery, bindingId) => records.set(bindingId, { ...delivery, status: 'revoked' }));
+  };
+  return {
+    async readBinding(input) {
+      return copy(records.get(input.bindingId) ?? null);
+    },
+    async readCurrent() {
+      return copy(current);
+    },
+    async adoptCurrentReplacement(): Promise<{ status: 'advanced'; current: ReplacementContextAuthoritativeDelivery | null }> {
+      if (!options.leaveAuthoritativeDeliveryActive) {
+        revokeRetired();
+        current = {
+          bindingId: 'binding-new',
+          bindingRevision: 1,
+          ownerId: fixture.saga.ownerId,
+          bookId: fixture.saga.bookId,
+          contextKey: fixture.item.contextKey,
+          recipientId: fixture.authority.recipientId,
+          sourceVersionIds: ['new-v2'],
+          status: 'active',
+        };
+      }
+      return { status: 'advanced', current: copy(current) };
+    },
+    async declineRetainUnavailable(): Promise<{ status: 'advanced'; current: null }> {
+      if (!options.leaveAuthoritativeDeliveryActive) {
+        revokeRetired();
+        current = null;
+      }
+      return { status: 'advanced', current: null };
+    },
+  };
+};
+
+const ownerFor = (
+  fixture: ReturnType<typeof makeFixture>,
+  repository: ReplacementContextRepository = new InMemoryReplacementContextRepository([{ authority: fixture.authority, decision: fixture.decision }]),
+  deliveryAuthority: ReplacementContextDeliveryAuthority = makeDeliveryAuthority(fixture),
+) => createReplacementContextOwner({ repository, deliveryAuthority, enabled: true, now: () => new Date(now) });
 
 describe('#117 ReplacementSagaContextOwner', () => {
   it('adopts the exact replacement, revokes every retired delivery, and preserves Activity work', async () => {
     const fixture = makeFixture();
     const repository = new InMemoryReplacementContextRepository([{ authority: fixture.authority, decision: fixture.decision }]);
-    const result = await ownerFor(fixture, repository).resolveContext({
+    const deliveryAuthority = makeDeliveryAuthority(fixture);
+    const result = await ownerFor(fixture, repository, deliveryAuthority).resolveContext({
       saga: fixture.saga,
       item: fixture.item,
       operationId: fixture.item.operationId,
@@ -175,10 +248,22 @@ describe('#117 ReplacementSagaContextOwner', () => {
       allRetiredDeliveriesRevoked: true,
     });
     if (result.status === 'adopted') {
-      expect(result.authority.current).toEqual({ bindingId: 'binding-1', bindingRevision: 8, sourceVersionIds: ['new-v2'] });
+      expect(result.authority.current).toEqual({ bindingId: 'binding-new', bindingRevision: 1, sourceVersionIds: ['new-v2'] });
       expect(result.authority.retiredDeliveries.every((delivery) => delivery.status === 'revoked')).toBe(true);
       expect(result.authority.immutableActivityWorkFingerprint).toBe(hash('work'));
     }
+    expect(await deliveryAuthority.readCurrent({ recipientId: fixture.authority.recipientId, contextKey: fixture.item.contextKey })).toEqual({
+      bindingId: 'binding-new',
+      bindingRevision: 1,
+      ownerId: fixture.saga.ownerId,
+      bookId: fixture.saga.bookId,
+      contextKey: fixture.item.contextKey,
+      recipientId: fixture.authority.recipientId,
+      sourceVersionIds: ['new-v2'],
+      status: 'active',
+    });
+    await expect(deliveryAuthority.readBinding({ bindingId: 'binding-1' })).resolves.toMatchObject({ status: 'revoked' });
+    await expect(deliveryAuthority.readBinding({ bindingId: 'binding-2' })).resolves.toMatchObject({ status: 'revoked' });
     expect(await repository.findOperation({
       ownerId: fixture.saga.ownerId,
       bookId: fixture.saga.bookId,
@@ -189,7 +274,8 @@ describe('#117 ReplacementSagaContextOwner', () => {
 
   it('records an explicitly allowed decline as unavailable while revoking old delivery', async () => {
     const fixture = makeFixture('decline-retain-unavailable');
-    const result = await ownerFor(fixture).resolveContext({ saga: fixture.saga, item: fixture.item, operationId: fixture.item.operationId });
+    const deliveryAuthority = makeDeliveryAuthority(fixture);
+    const result = await ownerFor(fixture, undefined, deliveryAuthority).resolveContext({ saga: fixture.saga, item: fixture.item, operationId: fixture.item.operationId });
     expect(result).toMatchObject({
       status: 'adopted',
       contextStatus: 'declined-unavailable',
@@ -197,6 +283,25 @@ describe('#117 ReplacementSagaContextOwner', () => {
       allRetiredDeliveriesRevoked: true,
     });
     if (result.status === 'adopted') expect(result.authority.current).toBeNull();
+    await expect(deliveryAuthority.readCurrent({ recipientId: fixture.authority.recipientId, contextKey: fixture.item.contextKey })).resolves.toBeNull();
+    await expect(deliveryAuthority.readBinding({ bindingId: 'binding-1' })).resolves.toMatchObject({ status: 'revoked' });
+    await expect(deliveryAuthority.readBinding({ bindingId: 'binding-2' })).resolves.toMatchObject({ status: 'revoked' });
+  });
+
+  it('does not complete while an authoritative retired binding remains active', async () => {
+    const fixture = makeFixture();
+    const repository = new InMemoryReplacementContextRepository([{ authority: fixture.authority, decision: fixture.decision }]);
+    const deliveryAuthority = makeDeliveryAuthority(fixture, { leaveAuthoritativeDeliveryActive: true });
+    const result = await ownerFor(fixture, repository, deliveryAuthority).resolveContext({ saga: fixture.saga, item: fixture.item, operationId: fixture.item.operationId });
+
+    expect(result).toEqual({ status: 'pending', code: 'context-delivery-readback-pending' });
+    expect(await repository.findOperation({
+      ownerId: fixture.saga.ownerId,
+      bookId: fixture.saga.bookId,
+      contextKey: fixture.item.contextKey,
+      operationId: fixture.item.operationId,
+    })).toBeNull();
+    await expect(deliveryAuthority.readBinding({ bindingId: 'binding-1' })).resolves.toMatchObject({ status: 'active' });
   });
 
   it('fails closed for unsupported choices, stale pins, and cross-owner provenance before mutation', async () => {

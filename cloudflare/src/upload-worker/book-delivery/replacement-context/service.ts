@@ -5,8 +5,12 @@ import type {
 import {
   REPLACEMENT_CONTEXT_MAX_DELIVERIES,
   type ReplacementContextAuthority,
+  type ReplacementContextAuthoritativeDelivery,
   type ReplacementContextChoice,
   type ReplacementContextDecision,
+  type ReplacementContextCurrentPin,
+  type ReplacementContextDeliveryAuthority,
+  type ReplacementContextDeliveryPin,
   type ReplacementContextFailureCode,
   type ReplacementContextOwner,
   type ReplacementContextOwnerDependencies,
@@ -147,6 +151,7 @@ const validateAuthority = (
     || !Array.isArray(authority.retiredDeliveries)
     || authority.retiredDeliveries.length > REPLACEMENT_CONTEXT_MAX_DELIVERIES) return 'context-provenance-invalid';
   if (authority.status !== 'pending' && !allowCompletedReplay) return 'context-replay-conflict';
+  if (authority.status !== 'pending' && authority.completedChoice !== decision.choice) return 'context-replay-conflict';
   if (!same(authority.revisionVector, saga.revisionVector)
     || !same(decision.revisionVector, saga.revisionVector)
     || !validRevision(decision.decisionRevision)
@@ -165,11 +170,13 @@ const validateAuthority = (
     || !authority.allowedChoices.includes(decision.choice)) return 'context-choice-unsupported';
 
   const deliveryIds = new Set<string>();
+  const bindingIds = new Set<string>();
   for (const delivery of authority.retiredDeliveries) {
     if (!delivery || typeof delivery !== 'object') return 'context-provenance-invalid';
     if (!validId(delivery.deliveryId) || deliveryIds.has(delivery.deliveryId)) return 'context-duplicate-delivery';
     deliveryIds.add(delivery.deliveryId);
     if (!validId(delivery.bindingId) || !validRevision(delivery.bindingRevision)
+      || bindingIds.has(delivery.bindingId)
       || delivery.ownerId !== saga.ownerId || delivery.bookId !== saga.bookId
       || delivery.contextKey !== item.contextKey
       || !Array.isArray(delivery.sourceVersionIds)
@@ -177,6 +184,7 @@ const validateAuthority = (
       || !same([...delivery.sourceVersionIds].sort(), [...expectedOldVersions].sort())) {
       return 'context-delivery-pin-stale';
     }
+    bindingIds.add(delivery.bindingId);
   }
   if (authority.status === 'pending') {
     const declineWithoutCurrent = decision.choice === 'decline-retain-unavailable'
@@ -200,6 +208,172 @@ const validateAuthority = (
   }
   if (decision.choice === 'adopt-current-replacement'
     && authority.retiredDeliveries.length === 0) return 'context-delivery-pin-missing';
+  return null;
+};
+
+type DeliveryState =
+  | { readonly status: 'ready'; readonly current: ReplacementContextAuthoritativeDelivery | null }
+  | { readonly status: 'needs-mutation'; readonly current: ReplacementContextAuthoritativeDelivery | null }
+  | { readonly status: 'pending' | 'blocked'; readonly code: ReplacementContextFailureCode };
+
+const deliveryPending = (code: ReplacementContextFailureCode): DeliveryState => ({ status: 'pending', code });
+const deliveryBlocked = (code: ReplacementContextFailureCode): DeliveryState => ({ status: 'blocked', code });
+
+const deliveryIdentityMatches = (
+  actual: ReplacementContextAuthoritativeDelivery,
+  expected: ReplacementContextDeliveryPin,
+  recipientId: string,
+  sourceVersionIds: readonly string[],
+): boolean => (
+  validId(actual.bindingId)
+  && validRevision(actual.bindingRevision)
+  && validId(actual.ownerId)
+  && validId(actual.bookId)
+  && validId(actual.contextKey)
+  && validId(actual.recipientId)
+  && actual.bindingId === expected.bindingId
+  && actual.bindingRevision === expected.bindingRevision
+  && actual.ownerId === expected.ownerId
+  && actual.bookId === expected.bookId
+  && actual.contextKey === expected.contextKey
+  && actual.recipientId === recipientId
+  && (actual.status === 'active' || actual.status === 'revoked')
+  && Array.isArray(actual.sourceVersionIds)
+  && same([...actual.sourceVersionIds].sort(), [...sourceVersionIds].sort())
+);
+
+const currentIdentityMatches = (
+  actual: ReplacementContextAuthoritativeDelivery | null,
+  expected: ReplacementContextCurrentPin | null,
+  saga: ReplacementSagaRecord,
+  item: ReplacementSagaContextItem,
+  recipientId: string,
+  sourceVersionIds: readonly string[],
+): actual is ReplacementContextAuthoritativeDelivery => (
+  actual !== null
+  && expected !== null
+  && actual.bindingId === expected.bindingId
+  && actual.bindingRevision === expected.bindingRevision
+  && actual.ownerId === saga.ownerId
+  && actual.bookId === saga.bookId
+  && actual.contextKey === item.contextKey
+  && actual.recipientId === recipientId
+  && actual.status === 'active'
+  && Array.isArray(actual.sourceVersionIds)
+  && same([...actual.sourceVersionIds].sort(), [...sourceVersionIds].sort())
+);
+
+const currentPin = (actual: ReplacementContextAuthoritativeDelivery): ReplacementContextCurrentPin => ({
+  bindingId: actual.bindingId,
+  bindingRevision: actual.bindingRevision,
+  sourceVersionIds: [...actual.sourceVersionIds],
+});
+
+const readAuthoritativeDeliveryState = async (
+  deliveryAuthority: ReplacementContextDeliveryAuthority,
+  saga: ReplacementSagaRecord,
+  item: ReplacementSagaContextItem,
+  authority: ReplacementContextAuthority,
+  decision: ReplacementContextDecision,
+  expectedOldVersions: readonly string[],
+  expectedNextVersions: readonly string[],
+): Promise<DeliveryState> => {
+  let retired: (ReplacementContextAuthoritativeDelivery | null)[];
+  let current: ReplacementContextAuthoritativeDelivery | null;
+  try {
+    retired = await Promise.all(authority.retiredDeliveries.map((delivery) => (
+      deliveryAuthority.readBinding({ bindingId: delivery.bindingId })
+    )));
+    current = await deliveryAuthority.readCurrent({
+      recipientId: authority.recipientId,
+      contextKey: item.contextKey,
+    });
+  } catch {
+    return deliveryPending('context-delivery-authority-unavailable');
+  }
+  if (retired.some((actual, index) => (
+    actual === null
+    || !deliveryIdentityMatches(actual, authority.retiredDeliveries[index]!, authority.recipientId, expectedOldVersions)
+  ))) return deliveryBlocked('context-delivery-pin-stale');
+
+  const allRetiredRevoked = retired.every((delivery) => delivery!.status === 'revoked');
+  const expectedPendingCurrent = authority.status === 'pending' && decision.choice === 'adopt-current-replacement'
+    ? authority.current
+    : authority.status === 'pending' ? authority.current : null;
+  const oldCurrent = currentIdentityMatches(
+    current,
+    expectedPendingCurrent,
+    saga,
+    item,
+    authority.recipientId,
+    expectedOldVersions,
+  );
+  const nextCurrent = current !== null
+    && validId(current.bindingId)
+    && validRevision(current.bindingRevision)
+    && validId(current.ownerId)
+    && validId(current.bookId)
+    && validId(current.contextKey)
+    && validId(current.recipientId)
+    && current.ownerId === saga.ownerId
+    && current.bookId === saga.bookId
+    && current.contextKey === item.contextKey
+    && current.recipientId === authority.recipientId
+    && current.status === 'active'
+    && Array.isArray(current.sourceVersionIds)
+    && same([...current.sourceVersionIds].sort(), [...expectedNextVersions].sort());
+  if (current !== null && !oldCurrent && !nextCurrent) return deliveryBlocked('context-delivery-pin-stale');
+
+  if (decision.choice === 'adopt-current-replacement' && allRetiredRevoked && nextCurrent) {
+    return { status: 'ready', current };
+  }
+  if (decision.choice === 'decline-retain-unavailable' && allRetiredRevoked && current === null) {
+    return { status: 'ready', current: null };
+  }
+  if (authority.status !== 'pending') return deliveryPending('context-delivery-readback-pending');
+  if (decision.choice === 'adopt-current-replacement' && !oldCurrent && !nextCurrent) {
+    return deliveryBlocked('context-delivery-pin-stale');
+  }
+  if (decision.choice === 'decline-retain-unavailable' && current !== null && !oldCurrent) {
+    return deliveryBlocked('context-delivery-pin-stale');
+  }
+  return { status: 'needs-mutation', current };
+};
+
+const deliveryMutation = async (
+  deliveryAuthority: ReplacementContextDeliveryAuthority,
+  saga: ReplacementSagaRecord,
+  item: ReplacementSagaContextItem,
+  authority: ReplacementContextAuthority,
+  decision: ReplacementContextDecision,
+  expectedNextVersions: readonly string[],
+  operationId: string,
+  now: string,
+): Promise<ReplacementContextFailureCode | null> => {
+  const result = decision.choice === 'adopt-current-replacement'
+    ? await deliveryAuthority.adoptCurrentReplacement({
+        operationId,
+        ownerId: saga.ownerId,
+        bookId: saga.bookId,
+        contextKey: item.contextKey,
+        recipientId: authority.recipientId,
+        expectedCurrent: authority.current!,
+        retiredDeliveries: authority.retiredDeliveries,
+        nextSourceVersionIds: expectedNextVersions,
+        now,
+      })
+    : await deliveryAuthority.declineRetainUnavailable({
+        operationId,
+        ownerId: saga.ownerId,
+        bookId: saga.bookId,
+        contextKey: item.contextKey,
+        recipientId: authority.recipientId,
+        expectedCurrent: authority.current,
+        retiredDeliveries: authority.retiredDeliveries,
+        now,
+      });
+  if (result.status === 'conflict') return 'context-delivery-cas-conflict';
+  if (result.status === 'unavailable') return 'context-delivery-authority-unavailable';
   return null;
 };
 
@@ -307,6 +481,19 @@ export const createReplacementContextOwner = (
       }
       return blocked(authorityFailure);
     }
+
+    const deliveryAuthority = dependencies.deliveryAuthority;
+    if (!deliveryAuthority) return pending('context-delivery-authority-missing');
+    let deliveryState = await readAuthoritativeDeliveryState(
+      deliveryAuthority,
+      input.saga,
+      input.item,
+      authority,
+      decision,
+      expectedOldVersions,
+      expectedNextVersions,
+    );
+    if (deliveryState.status === 'blocked' || deliveryState.status === 'pending') return deliveryState;
     if (authority.status !== 'pending') {
       if (existing
         && authority.completedOperationId === input.operationId
@@ -316,19 +503,42 @@ export const createReplacementContextOwner = (
       }
       return blocked('context-replay-conflict');
     }
-    if (existing) {
-      if (existing.choice !== decision.choice || existing.contextRevision !== authority.contextRevision + 1) {
-        return blocked('context-replay-conflict');
+    if (existing) return pending('context-cas-conflict');
+    if (deliveryState.status === 'needs-mutation') {
+      let mutationFailure: ReplacementContextFailureCode | null;
+      try {
+        mutationFailure = await deliveryMutation(
+          deliveryAuthority,
+          input.saga,
+          input.item,
+          authority,
+          decision,
+          expectedNextVersions,
+          input.operationId,
+          now,
+        );
+      } catch {
+        return pending('context-delivery-authority-unavailable');
       }
-      return success('replayed', authority, decision.choice);
+      if (mutationFailure) return pending(mutationFailure);
+      deliveryState = await readAuthoritativeDeliveryState(
+        deliveryAuthority,
+        input.saga,
+        input.item,
+        authority,
+        decision,
+        expectedOldVersions,
+        expectedNextVersions,
+      );
+      if (deliveryState.status === 'blocked') return deliveryState;
+      if (deliveryState.status !== 'ready') return pending('context-delivery-readback-pending');
     }
-
+    if (deliveryState.status !== 'ready') return pending('context-delivery-readback-pending');
+    if (decision.choice === 'adopt-current-replacement' && !deliveryState.current) {
+      return pending('context-delivery-readback-pending');
+    }
     const nextCurrent = decision.choice === 'adopt-current-replacement'
-      ? {
-          bindingId: authority.current!.bindingId,
-          bindingRevision: authority.current!.bindingRevision + 1,
-          sourceVersionIds: [...expectedNextVersions],
-        }
+      ? currentPin(deliveryState.current!)
       : null;
     let committed;
     try {
