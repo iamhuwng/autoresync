@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "46B",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "46B",
+    "issue": 117,
+    "serviceIdentity": "book_replacement_context_service",
+    "generatedRuleLocations": [
+      "book_replacement_contexts/.read",
+      "book_replacement_contexts/.write",
+      "book_replacement_contexts/scopes/$ownerId/$bookId/$contextKey/.read",
+      "book_replacement_contexts/scopes/$ownerId/$bookId/$contextKey/.write"
+    ],
+    "leastPrivilegePaths": [
+      "book_replacement_contexts/scopes/$ownerId/$bookId/$contextKey"
+    ],
+    "backupInventory": "include-metadata",
+    "recoveryLedgerRoot": "book_replacement_context_recovery"
+  },
+  "operations": [
+    {
+      "path": "book_replacement_contexts",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_contexts",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_contexts/scopes/$ownerId/$bookId/$contextKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brc.s == true && auth.token.brc.o == $ownerId && auth.token.brc.b == $bookId && auth.token.brc.c == $contextKey && auth.token.brc.dl >= now"
+    },
+    {
+      "path": "book_replacement_contexts/scopes/$ownerId/$bookId/$contextKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brc.s == true && auth.token.brc.o == $ownerId && auth.token.brc.b == $bookId && auth.token.brc.c == $contextKey && auth.token.brc.dl >= now && newData.exists() && newData.child('authority/ownerId').val() == $ownerId && newData.child('authority/bookId').val() == $bookId && newData.child('authority/contextKey').val() == $contextKey && newData.child('authority/schemaVersion').val() == 1 && newData.child('authority/contextRevision').isNumber() && newData.child('authority/immutableActivityWorkFingerprint').isString()"
+    }
+  ]
+}
