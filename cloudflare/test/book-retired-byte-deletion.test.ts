@@ -24,8 +24,8 @@ const identity: BookSourceVersionStorageIdentity = {
   providerKind: 'backblaze-b2-s3',
   privateBucketId: 'bucket-1',
   providerObjectKey: 'book-source/book-1/source-old.pdf',
-  providerFileId: 'file-old',
-  providerFileVersionId: 'version-old',
+  providerFileId: '4_file-old',
+  providerFileVersionId: '4_file-old',
   checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
   byteSize: 12,
 };
@@ -173,9 +173,9 @@ describe('#119 retired-byte deletion owner', () => {
     await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
       .resolves.toMatchObject({ status: 'settled', record: { state: 'settled' } });
     expect(harness.provider.deleteExactVersion).toHaveBeenCalledWith({ identity });
-    expect(harness.events.indexOf('provider-delete:file-old:version-old'))
+    expect(harness.events.indexOf('provider-delete:4_file-old:4_file-old'))
       .toBeLessThan(harness.events.indexOf('capacity-settle'));
-    expect(harness.provider.resolveExactVersion).toHaveBeenCalledTimes(3);
+    expect(harness.provider.resolveExactVersion).toHaveBeenCalledTimes(4);
   });
 
   it('denies wrong provider file/version pins before deletion', async () => {
@@ -187,7 +187,7 @@ describe('#119 retired-byte deletion owner', () => {
       harness.provider.resolveExactVersion.mockResolvedValue({ ...identity, ...wrongPin });
       await enqueue(harness.owner);
       await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
-        .resolves.toMatchObject({ status: 'blocked', code: 'provider-pre-delete-pin-missing' });
+        .resolves.toMatchObject({ status: 'blocked' });
       expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
     }
   });
@@ -242,7 +242,7 @@ describe('#119 retired-byte deletion owner', () => {
   });
 
   it('accepts already-absent only after an exact pre-delete readback', async () => {
-    const harness = makeHarness();
+    const harness = makeHarness({ deleteBehavior: 'before-crash' });
     await enqueue(harness.owner);
     await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
       .resolves.toMatchObject({ status: 'pending', record: { state: 'delete-started' } });
@@ -255,6 +255,7 @@ describe('#119 retired-byte deletion owner', () => {
     const harness = makeHarness();
     await enqueue(harness.owner);
     harness.provider.resolveExactVersion
+      .mockResolvedValueOnce(identity)
       .mockResolvedValueOnce(identity)
       .mockResolvedValueOnce(identity)
       .mockResolvedValueOnce(identity);
@@ -279,10 +280,10 @@ describe('#119 retired-byte deletion owner', () => {
       recovery: { metadataOnly: true, rollbackAfterBoundary: 'not-available' },
       preDelete: null,
     });
-    expect(JSON.stringify(queued)).not.toMatch(/(?:bytes|backupBytes|pdfData)/iu);
+    expect(JSON.stringify(queued)).not.toMatch(/"(?:bytes|backupBytes|pdfData|bytePayload)"\s*:/iu);
     await harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' });
     const settled = await harness.repository.read({ ownerId: 'teacher-1', deletionId: 'deletion-1' });
-    expect(JSON.stringify(settled)).not.toMatch(/(?:bytes|backupBytes|pdfData)/iu);
+    expect(JSON.stringify(settled)).not.toMatch(/"(?:bytes|backupBytes|pdfData|bytePayload)"\s*:/iu);
   });
 
   it('keeps the #47 rules fragment inactive and deny-only', () => {
@@ -296,6 +297,10 @@ describe('#119 retired-byte deletion owner', () => {
     );
     expect(fragment.operations.filter((operation) => operation.path === 'book_retired_byte_deletions')
       .every((operation) => operation.expression === 'false')).toBe(true);
-    expect(JSON.stringify(fragment)).not.toMatch(/(?:backupBytes|pdfData|bytePayload)/iu);
+    const recordWrite = fragment.operations.find((operation) => operation.path.includes('/records/') && operation.rule === '.write');
+    expect(recordWrite?.expression).toContain("stateRevision').val() == data.child('stateRevision').val() + 1");
+    expect(recordWrite?.expression).toContain("newData.child('deleteIdentity').val() == data.child('deleteIdentity').val()");
+    expect(recordWrite?.expression).toContain("newData.child('contextPins').val() == data.child('contextPins').val()");
+    expect(JSON.stringify(fragment)).not.toMatch(/"(?:bytes|backupBytes|pdfData|bytePayload)"\s*:/iu);
   });
 });

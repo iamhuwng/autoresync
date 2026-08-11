@@ -76,7 +76,8 @@ const assertIdentity = (
     || identity.sourceVersionId !== expected.sourceVersionId
     || identity.providerKind !== 'backblaze-b2-s3'
     || identity.providerFileId.length === 0
-    || identity.providerFileVersionId.length === 0) {
+    || identity.providerFileVersionId.length === 0
+    || identity.providerFileVersionId !== identity.providerFileId) {
     blocked('stale-source-provenance');
   }
   return identity;
