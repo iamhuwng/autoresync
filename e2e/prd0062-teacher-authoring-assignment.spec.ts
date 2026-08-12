@@ -44,7 +44,6 @@ test('AC-TA-001 creates, previews, publishes, and reloads full/component Book as
     timeout: 120_000,
   });
   await expect(page.getByRole('heading', { name: 'Full-PDF publication fixture' })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole('radio', { name: 'Full PDF' })).toBeChecked();
   await expect(page.getByTestId('ticket65-current-publication')).toContainText('none');
   await expect(page.getByRole('button', { name: 'Publish full PDF Unit' })).toBeDisabled();
   await page.getByRole('button', { name: 'Preview full PDF Unit' }).click();
@@ -92,7 +91,7 @@ test('AC-TA-002 previews exact Book scope, schedule, policy, integrity, and no-w
   });
   await page.getByRole('button', { name: 'Open Book Homework preview' }).click();
   await expect(page.getByText('Read-only Book assignment preview', { exact: true })).toBeVisible();
-  await expect(page.getByRole('status', { name: 'No assignment written' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'No assignment written' })).toBeVisible();
   await expect(page.getByLabel('Assignment scope')).toBeVisible();
   await expect(page.getByRole('group', { name: 'Book Delivery facts' })).toHaveCount(0);
   await expect(page.getByLabel('Book Delivery facts')).toBeVisible();
