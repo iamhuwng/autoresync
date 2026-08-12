@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { FEATURE_REGISTRY } from '../../src/config/featureRegistry';
+import activationConfig from '../wrangler.prd0062-ticket126-vocab-u1-activation.jsonc?raw';
 import { canonicalBookRouteManifest } from '../src/upload-worker/book-routes/manifest.ts';
 
 describe('#126 route and observability registry consistency', () => {
+  it('binds enabled source upload routes to the production control origin', () => {
+    expect(activationConfig).toContain('"BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "enabled"');
+    expect(activationConfig).toContain(
+      '"BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "https://kahut1.web.app"',
+    );
+  });
+
   it('keeps every canonical mutating book route disabled by default', () => {
     const mutating = canonicalBookRouteManifest.filter((route) =>
       route.methods.some((method) => !['GET', 'HEAD'].includes(method)));
