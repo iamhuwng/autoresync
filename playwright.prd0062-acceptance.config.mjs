@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const viteServer = (port) => (
-  `node scripts/harness/run-tool.mjs vite . dev --host localhost --port ${port} --strictPort`
+  `npm run dev -- --host localhost --port ${port} --strictPort`
 );
 
 const firebaseTestEnv = {

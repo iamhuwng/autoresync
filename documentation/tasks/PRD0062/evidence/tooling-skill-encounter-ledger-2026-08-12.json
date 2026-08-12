@@ -16,8 +16,10 @@
   },
   "target": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
-    "head": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
-    "branch": "codex/prd0062-lane-c-campaign"
+    "head": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+    "branch": "codex/prd0062-lane-c-campaign",
+    "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
+    "toolingBaseMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870"
   },
   "toolingTarget": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/prd0062-tooling-base/luyentap-writing-import-rebased",
@@ -27,7 +29,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 9,
+  "entryCount": 12,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -398,6 +400,132 @@
         "commandFriction": "none"
       },
       "improvementProposal": "Have the harness emit a compact before/after manifest and node_modules mutation summary in the final evidence sidecar."
+    },
+    {
+      "id": "encounter-010-downstream-campaign-merge",
+      "recordedAtBangkok": "2026-08-12T11:33:40.846+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.3.0",
+      "skillFingerprintSha256": "7944CFE8143DB8A8F174D6ABC464119F65B579B86CCD84FD3CDAD1807C7F99D8",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+        "head": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+        "branch": "codex/prd0062-lane-c-campaign",
+        "checkpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
+        "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59"
+      },
+      "command": "normal merge codex/prd0062-tooling-base into codex/prd0062-lane-c-campaign",
+      "cwd": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+      "runner": "Git normal merge performed by primary; no merge mutation performed in this encounter",
+      "config": "preserve package.json test:prd0062:legacy-backup-recovery while accepting all repository-local 3.3.0 harness routes",
+      "nativeNode": "not involved",
+      "harness": "repository-local 3.3.0 tooling base consumed",
+      "counts": {
+        "discovered": 1,
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "runtimeDependencies": ["Git merge", "accepted tooling base 83c1eb7d"],
+      "outcome": "MERGED_CLEAN_55D41B95; CAMPAIGN_CHECKPOINT_B39712D1; LEGACY_RECOVERY_ROUTE_PRESERVED",
+      "classification": "DOWNSTREAM_TOOLING_CONSUMPTION_COMPLETED",
+      "usefulness": "Bounded the campaign branch to the accepted application/tooling merge while preserving the campaign-owned legacy recovery route and accepted #118/#127 identities.",
+      "friction": {
+        "skillFriction": "none in the accepted merge",
+        "commandFriction": "none reported by primary"
+      },
+      "improvementProposal": "Have the merge acceptance check emit a compact route-preservation summary for package scripts that intentionally remain campaign-owned."
+    },
+    {
+      "id": "encounter-011-downstream-harness-verification",
+      "recordedAtBangkok": "2026-08-12T11:33:40.846+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.3.0",
+      "skillFingerprintSha256": "7944CFE8143DB8A8F174D6ABC464119F65B579B86CCD84FD3CDAD1807C7F99D8",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+        "head": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+        "branch": "codex/prd0062-lane-c-campaign"
+      },
+      "command": [
+        "npm run test:harness",
+        "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase",
+        "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler"
+      ],
+      "cwd": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+      "runner": "repository-local 3.3.0 run-tool and package test route",
+      "config": "exact merged c50d checkout; root doctor tools vite/vitest/playwright/firebase; Cloudflare doctor tools vitest/wrangler",
+      "nativeNode": "isolated x64 Node v24.18.0; host identity inherited from final harness evidence",
+      "harness": {
+        "contractName": "luyentap-windows-arm64-harness",
+        "version": "3.3.0",
+        "protocol": 1,
+        "focusedEvidence": "package route npm run test:harness",
+        "rootDoctorEvidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json",
+        "cloudflareDoctorEvidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json"
+      },
+      "counts": {
+        "focusedDiscovered": 20,
+        "focusedExecuted": 20,
+        "focusedPassed": 20,
+        "focusedFailed": 0,
+        "focusedSkipped": 0,
+        "focusedDurationSeconds": 61.77,
+        "rootDoctorExitCode": 0,
+        "cloudflareDoctorExitCode": 0
+      },
+      "manifestHashesSha256": {
+        "package.json": "E5679E0135CC47B54A4220914A7F9091B2C6D9C4935339D949DBD21B32CB154C",
+        "package-lock.json": "29653D348FFC03AFE0F8605E107C2F9199CC637736AF0F3A878DCFA1C089E885",
+        "cloudflare/package.json": "97B776A5CAAF90299BBD46BE9388D88E4A751CDF7C0AF7D306136CE378965A88",
+        "cloudflare/package-lock.json": "67866A79CAAA309CC7433E85E5BECDEF8FCCBBE6205433D4EDB78B8C26076DE0"
+      },
+      "runtimeDependencies": ["x64 Node v24.18.0", "isolated harness cache", "clean dirty fingerprint e3b0c442...b855"],
+      "outcome": "FOCUSED_20_OF_20_PASS_ROOT_DOCTOR_PASS_CLOUDFLARE_DOCTOR_PASS",
+      "classification": "COMPLETED",
+      "resolution": "The merged c50d verification passed without package or lockfile changes. Product/browser campaign execution was intentionally not run in this turn.",
+      "usefulness": "Proved downstream compatibility of the accepted 3.3.0 harness in the merged application checkout before any product campaign rerun.",
+      "friction": {
+        "skillFriction": "none in the accepted final verification",
+        "commandFriction": "none reported by primary"
+      },
+      "improvementProposal": "Expose a single downstream verification manifest linking the focused test and both scoped doctor sidecars to the exact merged commit."
+    },
+    {
+      "id": "encounter-012-preexisting-node-modules-junction-cleanup",
+      "recordedAtBangkok": "2026-08-12T11:33:40.846+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.3.0",
+      "skillFingerprintSha256": "7944CFE8143DB8A8F174D6ABC464119F65B579B86CCD84FD3CDAD1807C7F99D8",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+        "head": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+        "branch": "codex/prd0062-lane-c-campaign"
+      },
+      "command": "inspect and, if authorized by environment policy, unlink the exact pre-existing c50d node_modules junction",
+      "cwd": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+      "runner": "PowerShell junction inspection; cleanup attempt was primary-owned",
+      "config": "exact junction target C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules; created 2026-08-12 04:26:58",
+      "nativeNode": "not involved",
+      "harness": "harness did not use the repository junction",
+      "counts": {
+        "discovered": 1,
+        "executed": 1,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0
+      },
+      "runtimeDependencies": ["pre-existing c50d node_modules junction", "environment policy"],
+      "outcome": "JUNCTION_IDENTIFIED_CLEANUP_POLICY_BLOCKED; ROOT_AND_CLOUDFLARE_PACKAGE_LOCK_HASHES_UNCHANGED; CLOUDFLARE_NODE_MODULES_ABSENT",
+      "classification": "LEGACY_CLEANUP_CONSTRAINT_NOT_HARNESS_OR_PRODUCT_FAILURE",
+      "resolution": "Primary validated the exact link and target and attempted to unlink only that junction; environment policy blocked the command before execution. This lane did not delete it.",
+      "usefulness": "Separated a pre-existing local dependency-link cleanup constraint from the accepted harness verification and product behavior.",
+      "friction": {
+        "skillFriction": "The skill correctly prevented borrowing repository node_modules, but does not provide a policy-safe junction cleanup path.",
+        "commandFriction": "Environment policy blocked the narrowly scoped unlink before execution; no workaround or destructive cleanup was attempted."
+      },
+      "improvementProposal": "Add a read-only junction ownership/target report and an explicit operator-approved cleanup handoff instead of allowing tooling verification to infer cleanup authority."
     }
   ]
 }

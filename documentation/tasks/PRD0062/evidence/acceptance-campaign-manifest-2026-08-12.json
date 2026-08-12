@@ -6,13 +6,25 @@
   "generatedByMode": "--manifest",
   "sourcePolicy": "product-source-read-only",
   "repository": {
-    "head": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "head": "55d41b95890f3b2d99c7700fb402b177e7f69870",
     "branch": "codex/prd0062-lane-c-campaign",
+    "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
+    "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
+    "mergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
     "cleanBeforeCampaignChanges": true,
     "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987"
   },
   "frozenTuple": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+    "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
+    "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
+    "toolingContract": {
+      "name": "luyentap-windows-arm64-harness",
+      "version": "3.3.0",
+      "protocol": 1,
+      "grammar": "node scripts/harness/run-tool.mjs <tool> <project> [...args]"
+    },
     "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987",
     "generatedRules": {
       "path": "database.rules.json",
@@ -105,7 +117,8 @@
     { "id": "AC-LR-001", "ticket": "#133", "fixture": "F-GRAMMAR-65", "role": "service", "status": "PASS_LOCAL_RECOVERY_ASSERTIONS" }
   ],
   "harnessInventory": {
-    "windows": "win32 arm64; Node v22.17.1 ARM64",
+    "windows": "win32 arm64 host; isolated verification Node v24.18.0 x64",
+    "applicationToolingIdentity": "merged c50d commit 55d41b95890f3b2d99c7700fb402b177e7f69870; tooling base 83c1eb7d4254abe33281b5c3aace000ae5f17b59",
     "missingPaths": [],
     "presentPaths": [
       "scripts/harness/run-tool.mjs",
@@ -131,6 +144,11 @@
       "node_modules": true,
       "firebaseCli": true,
       "vitestCli": true
+    },
+    "nodeModulesState": {
+      "root": "pre-existing junction created 2026-08-12 04:26:58; target C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules; not used by 3.3.0 harness",
+      "cloudflare": "absent",
+      "cleanup": "exact unlink attempted by primary but blocked before execution by environment policy; unresolved legacy cleanup constraint"
     },
       "acceptanceCli": "PRESENT: scripts/validate-prd0062-acceptance-matrix.mjs",
     "playwrightRoleSelector": "PRD0062_ACCEPTANCE_ROLE=teacher|student for execution; --list without selector exposes all projects without starting a server",
@@ -241,6 +259,52 @@
       "productDefect": null,
       "supersededCampaignDefects": ["lowercase cleanupRoot expectations", "missing seven dummy VITE_FIREBASE_* web-server values"],
       "rerun": "pending with inherited credential environment"
+    },
+    {
+      "name": "merged 3.3.0 focused harness suite",
+      "command": "npm run test:harness",
+      "status": "PASS_COMPLETED",
+      "commit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+      "toolingContract": "luyentap-windows-arm64-harness 3.3.0 protocol 1",
+      "counts": { "collected": 20, "executed": 20, "passed": 20, "failed": 0, "skipped": 0 },
+      "duration": "61.77s",
+      "classification": "completed",
+      "productExecution": false,
+      "evidence": "package route completed; no product/browser campaign was run in this turn"
+    },
+    {
+      "name": "merged root doctor",
+      "command": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase",
+      "status": "PASS_EXIT_0",
+      "commit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+      "counts": { "failed": 0, "skipped": 0 },
+      "classification": "completed",
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json",
+      "runtime": "x64 Node v24.18.0; clean fingerprint e3b0c442...b855"
+    },
+    {
+      "name": "merged Cloudflare doctor",
+      "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler",
+      "status": "PASS_EXIT_0",
+      "commit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+      "counts": { "failed": 0, "skipped": 0 },
+      "classification": "completed",
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json",
+      "runtime": "x64 Node v24.18.0; clean source identity"
+    },
+    {
+      "name": "merged package/node_modules mutation check",
+      "command": "read-only package and lock hash comparison before/after verification",
+      "status": "PASS_HASHES_UNCHANGED",
+      "commit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+      "classification": "completed",
+      "manifestHashesSha256": {
+        "package.json": "E5679E0135CC47B54A4220914A7F9091B2C6D9C4935339D949DBD21B32CB154C",
+        "package-lock.json": "29653D348FFC03AFE0F8605E107C2F9199CC637736AF0F3A878DCFA1C089E885",
+        "cloudflare/package.json": "97B776A5CAAF90299BBD46BE9388D88E4A751CDF7C0AF7D306136CE378965A88",
+        "cloudflare/package-lock.json": "67866A79CAAA309CC7433E85E5BECDEF8FCCBBE6205433D4EDB78B8C26076DE0"
+      },
+      "nodeModules": { "cloudflare": "absent", "root": "pre-existing junction; not used; cleanup policy blocked" }
     }
   ],
   "executionPolicy": {

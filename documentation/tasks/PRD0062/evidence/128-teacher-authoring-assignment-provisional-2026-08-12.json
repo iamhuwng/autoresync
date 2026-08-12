@@ -3,6 +3,22 @@
   "ticket": "#128",
   "lane": "teacher create/source/Assembly/publish/assign/schedule/integrity",
   "status": "PROVISIONAL_BLOCKED",
+  "mergedCampaignIdentity": {
+    "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+    "checkpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
+    "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
+    "applicationCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.3.0", "protocol": 1 }
+  },
+  "downstreamVerification": {
+    "focusedHarness": { "command": "npm run test:harness", "status": "PASS_COMPLETED", "counts": { "collected": 20, "executed": 20, "passed": 20, "failed": 0, "skipped": 0 }, "duration": "61.77s", "classification": "completed" },
+    "rootDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json" },
+    "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
+    "productCampaignExecuted": false,
+    "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
+    "nodeModules": { "root": "pre-existing junction; not used by harness; cleanup policy blocked", "cloudflare": "absent" },
+    "manifestHashesUnchanged": true
+  },
   "verdict": "PROVISIONAL BLOCKED; the latest primary serial teacher run reached four tests but was AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS because dummy Firebase could not authenticate. Earlier campaign defects are superseded; credential-inherited rerun remains pending.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
