@@ -52,7 +52,7 @@ const webServer = acceptanceRole === 'teacher'
     command: viteServer(5173),
     url: 'http://localhost:5173/',
     env: firebaseTestEnv,
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     timeout: 120_000,
   }
   : acceptanceRole === 'student'
@@ -60,7 +60,7 @@ const webServer = acceptanceRole === 'teacher'
       command: viteServer(5174),
       url: 'http://localhost:5174/',
       env: firebaseTestEnv,
-      reuseExistingServer: false,
+      reuseExistingServer: true,
       timeout: 120_000,
     }
     : undefined;
