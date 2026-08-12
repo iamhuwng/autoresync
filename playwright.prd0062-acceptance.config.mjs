@@ -56,13 +56,18 @@ const webServer = acceptanceRole === 'teacher'
     timeout: 120_000,
   }
   : acceptanceRole === 'student'
-    ? {
+    ? [{
       command: viteServer(5174),
       url: 'http://localhost:5174/',
       env: firebaseTestEnv,
       reuseExistingServer: true,
       timeout: 120_000,
-    }
+    }, {
+      command: 'node scripts/harness/run-tool.mjs vite-node . scripts/prd0062-ticket87-proof-server.ts',
+      url: 'http://localhost:5187/__proof/health',
+      reuseExistingServer: true,
+      timeout: 120_000,
+    }]
     : undefined;
 
 export default defineConfig({
