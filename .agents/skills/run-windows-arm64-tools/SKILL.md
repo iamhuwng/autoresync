@@ -5,7 +5,7 @@ description: Run, diagnose, and resolve this repository's test, build, dev, brow
 
 # Run Windows ARM64 Tools
 
-Use the repository-versioned harness contract. Contract version `3.1.0`, this
+Use the repository-versioned harness contract. Contract version `3.3.0`, this
 skill, and `scripts/harness/` must land in the same commit lineage.
 
 ## Fail-closed lineage preflight
@@ -21,7 +21,7 @@ exact root, require all of:
 - `scripts/harness/run-wsl-wrangler.mjs`.
 
 Run `node scripts/harness/run-tool.mjs --contract` and require name
-`luyentap-windows-arm64-harness`, version `3.1.0`, protocol `1`, and grammar
+`luyentap-windows-arm64-harness`, version `3.3.0`, protocol `1`, and grammar
 `<tool> <project> [...args]`. If any file or value differs, report
 `HARNESS_CONTRACT_MISMATCH` with the checkout root. Do not borrow a runner or
 skill from another checkout or fall back to repository `node_modules`.
@@ -48,18 +48,25 @@ Treat doctor as the start of repair, not the completion condition. Continue unti
 doctor and the original command pass, or until resolution requires user authority
 or an unavailable external prerequisite.
 
-1. Read `failureCode`, `message`, and `remediation` from the evidence sidecar. If
+1. Read `failureCode`, `message`, `discovery`, and `remediation` from the evidence sidecar. If
    x64 Node failed before a sidecar could start, read `HARNESS_FAILURE <code>` and
    look up that code under `remediations` in `--contract`.
-2. Follow the remediation actions in order. Inspect before changing state. Keep
-   repository dependency repair explicit and limited to the selected project.
-3. Obtain user authorization before machine-wide Node, Java, or WSL installation.
-   Announce Playwright's user-cache browser download before running it. For cache
-   corruption, prove the diagnosis with a fresh `CODEX_HARNESS_ROOT` before
-   removing the exact validated cache entry.
-4. Run the remediation's `verify` command, then rerun the original command. A
+2. Follow the contract's fixed `discover → reuse → adapt → install → verify`
+   sequence. Finish discovery across the named environment variables, PATH,
+   standard locations, and tool-managed caches before changing state.
+3. Reuse a compatible discovered resource first. Adapt only the harness process
+   environment or selected WSL boundary when possible. Treat installation as the
+   final fallback only after evidence records no compatible candidate.
+4. Obtain user authorization before machine-wide Node, Java, or WSL installation.
+   Announce Playwright's user-cache browser download before running it. Keep
+   repository dependency repair explicit and limited to the selected project. For
+   Windows dependency-cache corruption, prove the diagnosis with a fresh
+   `CODEX_HARNESS_ROOT`; for Wrangler's WSL cache, use a fresh absolute Linux
+   `CODEX_HARNESS_WSL_ROOT` before removing any exact validated cache entry.
+5. Run every command in the remediation's `verify` stage, then rerun the original command. A
    successful doctor alone does not prove the requested product command passed.
-5. Report the resolved requirement and both verification results. If external
+6. Report discovered candidates, the selected resource and adaptation, and both
+   verification results. If external
    authority is still required, report the exact install/change, why it is needed,
    and the command that will verify it afterward.
 
@@ -69,7 +76,8 @@ Common recovery paths are executable contract data rather than duplicated prose:
 - `JAVA_PREREQUISITE_MISSING` requires JDK 21+ only for emulator commands;
 - `WSL_PREREQUISITE_MISSING` requires an authorized WSL installation and WSL Node;
 - native/cache failures first retry with a fresh isolated cache and never borrow
-  repository `node_modules`;
+  repository `node_modules`; Wrangler cache recovery uses only an absolute Linux
+  `CODEX_HARNESS_WSL_ROOT`, never the Windows `CODEX_HARNESS_ROOT`;
 - project dependency/lock failures repair only the explicitly selected package;
 - `LIVE_WORKLOAD_REQUIRES_CHECKOUT` moves the watcher to the active checkout.
 

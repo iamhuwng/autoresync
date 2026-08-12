@@ -14,15 +14,95 @@ const contentHash = (value) => hash(Buffer.isBuffer(value) ? value.toString('utf
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const commandResult = (command, args, options = {}) => spawnSync(command, args, { encoding: 'utf8', shell: false, ...options });
 const failure = (code, message) => Object.assign(new Error(message), { code });
-const selectedNodeEnvironment = () => ({
-  ...process.env,
-  PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH || ''}`,
-});
+export function selectedNodeEnvironment(source = process.env) {
+  const environment = {
+    ...source,
+    PATH: `${path.dirname(process.execPath)}${path.delimiter}${source.PATH || ''}`,
+  };
+  for (const name of Object.keys(environment)) {
+    if (/^npm_config_(?:arch|platform|target_arch|target_platform|libc)$/iu.test(name)) delete environment[name];
+  }
+  return environment;
+}
+
+export function composeToolEnvironment(prepared, base = selectedNodeEnvironment()) {
+  const environment = { ...base, ...prepared.environment };
+  if (prepared.pathPrepend?.length) environment.PATH = `${prepared.pathPrepend.join(path.delimiter)}${path.delimiter}${base.PATH || ''}`;
+  return environment;
+}
+
+function isInside(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+export function playwrightEnvironment(cacheBase, dependencyRoot, configured = process.env.PLAYWRIGHT_BROWSERS_PATH) {
+  if (!configured) return { environment: {}, selection: 'default-user-cache' };
+  const resolved = configured === '0' ? null : path.resolve(configured);
+  const unsafe = configured === '0' || !path.isAbsolute(configured) || isInside(repositoryRoot, resolved) || isInside(dependencyRoot, resolved);
+  const selected = unsafe ? path.join(cacheBase, 'browsers') : resolved;
+  return { environment: { PLAYWRIGHT_BROWSERS_PATH: selected }, selection: unsafe ? 'adapted-harness-cache' : 'configured-absolute-cache' };
+}
+
+export function parseJavaMajor(versionText) {
+  return Number(versionText.match(/version "(?:1\.)?(\d+)/u)?.[1]);
+}
+
+export function selectJavaRuntime(candidates, minimumMajor, probe = (executable) => commandResult(executable, ['-version'])) {
+  const discoveries = [];
+  for (const executable of [...new Set(candidates)]) {
+    const result = probe(executable);
+    const versionText = `${result.stdout || ''}\n${result.stderr || ''}`.trim();
+    const major = parseJavaMajor(versionText);
+    discoveries.push({ executable, available: result.status === 0, major: Number.isFinite(major) ? major : null, version: versionText.split(/\r?\n/u)[0] || null });
+    if (result.status === 0 && Number.isFinite(major) && major >= minimumMajor) {
+      const binDirectory = path.dirname(executable);
+      return { selected: { kind: 'java', executable, home: path.dirname(binDirectory), major }, discoveries };
+    }
+  }
+  return { selected: null, discoveries };
+}
+
+function javaCandidates() {
+  const candidates = [];
+  const addFile = (file) => { if (file && fs.existsSync(file) && fs.statSync(file).isFile()) candidates.push(path.resolve(file)); };
+  const javaName = process.platform === 'win32' ? 'java.exe' : 'java';
+  if (process.env.JAVA_HOME) addFile(path.join(process.env.JAVA_HOME, 'bin', javaName));
+  const located = commandResult(process.platform === 'win32' ? 'where.exe' : 'which', process.platform === 'win32' ? ['java.exe'] : ['-a', 'java']);
+  if (located.status === 0) for (const file of located.stdout.split(/\r?\n/u).filter(Boolean)) addFile(file.trim());
+  if (process.platform === 'win32') {
+    const roots = [
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Java'),
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Eclipse Adoptium'),
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Microsoft'),
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Zulu'),
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Amazon Corretto'),
+      process.env.USERPROFILE && path.join(process.env.USERPROFILE, '.jdks'),
+      process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', 'Eclipse Adoptium'),
+    ].filter(Boolean);
+    for (const root of roots) {
+      if (!fs.existsSync(root)) continue;
+      addFile(path.join(root, 'bin', javaName));
+      for (const entry of fs.readdirSync(root, { withFileTypes: true })) if (entry.isDirectory()) addFile(path.join(root, entry.name, 'bin', javaName));
+    }
+    addFile(path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Android', 'Android Studio', 'jbr', 'bin', javaName));
+  }
+  return [...new Set(candidates.map((candidate) => fs.realpathSync.native(candidate)))];
+}
+
+function resolveJavaRuntime(minimumMajor) {
+  const resolution = selectJavaRuntime(javaCandidates(), minimumMajor);
+  if (!resolution.selected) {
+    const error = failure('JAVA_PREREQUISITE_MISSING', `Java ${minimumMajor}+ is required; no compatible runtime was discovered`);
+    error.discovery = { kind: 'java', candidates: resolution.discoveries };
+    throw error;
+  }
+  return resolution;
+}
 
 export function dependencyCacheIdentity(input) {
   return hash(JSON.stringify({
-    harness: HARNESS_CONTRACT.version,
-    protocol: HARNESS_CONTRACT.protocolVersion,
+    dependencyProtocol: input.dependencyCacheProtocolVersion ?? HARNESS_CONTRACT.dependencyCacheProtocolVersion,
     repositoryIdentity: input.repositoryIdentity,
     project: input.project,
     manifestSha256: input.manifestSha256,
@@ -35,13 +115,22 @@ export function dependencyCacheIdentity(input) {
   }));
 }
 
-export function classifyResult({ error, exitCode, stderr = '', stdout = '' }) {
+export function classifyResult({ error, exitCode, stderr = '', stdout = '', wslRuntimeMetadata }) {
   if (error?.code === 'ETIMEDOUT') return 'harness_transport_failure';
   if (error) return 'harness_startup_failure';
+  if (wslRuntimeMetadata === false && exitCode !== 0) return 'harness_startup_failure';
   const combined = `${stdout}\n${stderr}`;
   if (/\bNo test files found\b|\bNo tests found\b/iu.test(combined)) return 'zero_tests_collected';
-  if (/Unsupported platform:|Failed to start.+workerd|workerd.+failed to start/isu.test(combined)) return 'harness_startup_failure';
+  if (/HARNESS_WSL_FAILURE|Unsupported platform:|Failed to start.+workerd|workerd.+failed to start/isu.test(combined)) return 'harness_startup_failure';
   return exitCode === 0 ? 'completed' : 'product_failure';
+}
+
+export function wslFailureCodeFromStderr(stderr = '') {
+  return stderr.match(/^HARNESS_WSL_FAILURE ([A-Z0-9_]+)(?::|$)/mu)?.[1] ?? null;
+}
+
+export function mergeEvidenceDiscovery(existing, discovered) {
+  return { ...existing, ...discovered };
 }
 
 export function assertInvocationMode(toolName, tool, args) {
@@ -180,14 +269,14 @@ async function ensureDependencies(project, cacheBase, source) {
             fs.symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir');
           }
         }
-        fs.writeFileSync(markerPath, `${JSON.stringify({ identity, contractVersion: HARNESS_CONTRACT.version }, null, 2)}\n`);
+        fs.writeFileSync(markerPath, `${JSON.stringify({ identity, dependencyCacheProtocolVersion: HARNESS_CONTRACT.dependencyCacheProtocolVersion }, null, 2)}\n`);
       }
     } finally {
       release();
     }
   }
   const marker = readJson(markerPath);
-  if (marker.identity !== identity || marker.contractVersion !== HARNESS_CONTRACT.version) throw failure('DEPENDENCY_CACHE_IDENTITY_MISMATCH', `dependency marker mismatch: ${root}`);
+  if (marker.identity !== identity || marker.dependencyCacheProtocolVersion !== HARNESS_CONTRACT.dependencyCacheProtocolVersion) throw failure('DEPENDENCY_CACHE_IDENTITY_MISMATCH', `dependency marker mismatch: ${root}`);
   return { identity, root, npmVersion: npmVersionResult.stdout.trim() };
 }
 
@@ -209,37 +298,49 @@ export function discoverNativeRequirements(dependencyRoot) {
   }
 }
 
-export function verifyCapabilities(tool, dependencyRoot, command = null) {
+export function verifyCapabilities(tool, dependencyRoot, command = null, cacheBase = path.dirname(dependencyRoot)) {
+  const result = { environment: {}, pathPrepend: [], resources: [] };
   for (const capability of tool.capabilities ?? []) {
-    if (command && capability.commands && !capability.commands.includes(command)) continue;
+    const requiredForCommand = !command || !capability.commands || capability.commands.includes(command);
     if (capability.kind === 'java') {
-      const java = commandResult('java', ['-version']);
-      const versionText = `${java.stdout || ''}\n${java.stderr || ''}`;
-      const major = Number(versionText.match(/version "(?:1\.)?(\d+)/u)?.[1]);
-      if (java.status !== 0 || !Number.isFinite(major) || major < capability.minimumMajor) throw failure('JAVA_PREREQUISITE_MISSING', `Java ${capability.minimumMajor}+ is required; observed ${versionText.trim() || 'unavailable'}`);
+      if (!requiredForCommand) continue;
+      const resolution = resolveJavaRuntime(capability.minimumMajor);
+      result.environment.JAVA_HOME = resolution.selected.home;
+      result.pathPrepend.push(path.dirname(resolution.selected.executable));
+      result.resources.push({ ...resolution.selected, discoveries: resolution.discoveries });
     }
     if (capability.kind === 'browser') {
+      const browserEnvironment = playwrightEnvironment(cacheBase, dependencyRoot);
+      Object.assign(result.environment, browserEnvironment.environment);
+      if (!requiredForCommand) continue;
       const probe = `const{createRequire}=require('node:module');const r=createRequire(${JSON.stringify(path.join(dependencyRoot, 'package.json'))});const p=r('@playwright/test')[${JSON.stringify(capability.name)}].executablePath();process.stdout.write(p)`;
-      const browser = commandResult(process.execPath, ['-e', probe]);
-      if (browser.status !== 0 || !fs.existsSync(browser.stdout.trim())) throw failure('BROWSER_RUNTIME_MISSING', `${capability.name} browser binary is not installed for the selected Playwright dependency`);
+      const browser = commandResult(process.execPath, ['-e', probe], { env: { ...selectedNodeEnvironment(), ...result.environment } });
+      const executable = browser.stdout.trim();
+      if (browser.status !== 0 || !fs.existsSync(executable)) {
+        const error = failure('BROWSER_RUNTIME_MISSING', `${capability.name} browser binary is not installed for the selected Playwright dependency`);
+        error.discovery = { kind: 'browser', name: capability.name, expectedExecutable: executable || null, browsersPath: result.environment.PLAYWRIGHT_BROWSERS_PATH || 'default-user-cache', selection: browserEnvironment.selection };
+        throw error;
+      }
+      result.resources.push({ kind: 'browser', name: capability.name, executable, browsersPath: result.environment.PLAYWRIGHT_BROWSERS_PATH || 'default-user-cache', selection: browserEnvironment.selection });
     }
   }
+  return result;
 }
 
-function preflightTool(project, dependency, toolName, command = null) {
+function preflightTool(project, dependency, toolName, command = null, cacheBase) {
   const tool = assertToolDeclared(project, toolName);
   const entry = path.join(dependency.root, 'node_modules', ...tool.entry.split('/'));
   requireFile(entry, 'TOOL_ENTRYPOINT_MISSING', `${toolName} entrypoint`);
   discoverNativeRequirements(dependency.root);
-  verifyCapabilities(tool, dependency.root, command);
-  return { tool, entry };
+  const capabilities = verifyCapabilities(tool, dependency.root, command, cacheBase);
+  return { tool, entry, ...capabilities };
 }
 
 function mirrorRepository(destination) {
   fs.mkdirSync(destination, { recursive: true });
   if (process.platform === 'win32') {
-    const copy = spawnSync('robocopy', [repositoryRoot, destination, '/MIR', '/XJ', '/R:2', '/W:1', '/XD', path.join(repositoryRoot, '.git'), path.join(repositoryRoot, 'node_modules')], { stdio: 'ignore', shell: false });
-    if ((copy.status ?? 16) > 7) throw failure('SOURCE_MIRROR_FAILED', `robocopy exited ${copy.status}`);
+    const copy = spawnSync('robocopy', [repositoryRoot, destination, '/MIR', '/XJ', '/R:2', '/W:1', '/XD', path.join(repositoryRoot, '.git'), path.join(repositoryRoot, 'node_modules')], { encoding: 'utf8', shell: false });
+    if ((copy.status ?? 16) > 7) throw failure('SOURCE_MIRROR_FAILED', `robocopy exited ${copy.status}: ${(copy.stderr || copy.stdout || copy.error?.message || 'no diagnostics').trim().slice(-4000)}`);
     return;
   }
   fs.cpSync(repositoryRoot, destination, { recursive: true, filter: (source) => !['.git', 'node_modules'].includes(path.basename(source)) });
@@ -282,8 +383,9 @@ function attachRemediation(evidence, code, tool = evidence.invocation.tool) {
 function writeRemediation(remediation) {
   if (!remediation) return;
   process.stderr.write(`harness remediation: ${remediation.summary}\n`);
-  for (const action of remediation.actions) process.stderr.write(`  - ${action}\n`);
-  process.stderr.write(`harness verify: ${remediation.verify}\n`);
+  for (const stage of HARNESS_CONTRACT.resolutionOrder) {
+    for (const action of remediation.stages[stage]) process.stderr.write(`harness ${stage}: ${action}\n`);
+  }
 }
 
 function forwardedResult(command, args, options) {
@@ -343,9 +445,16 @@ function forwardedResult(command, args, options) {
   });
 }
 
-async function runWslWrangler(executionProjectRoot, executionRepositoryRoot, toolArguments, version) {
+async function runWslWrangler(executionProjectRoot, executionRepositoryRoot, toolArguments, version, sourceLockSha256) {
   const helper = path.relative(executionProjectRoot, path.join(executionRepositoryRoot, 'scripts', 'harness', 'run-wsl-wrangler.mjs')).split(path.sep).join('/');
-  const payload = Buffer.from(JSON.stringify({ arguments: toolArguments, version, contractVersion: HARNESS_CONTRACT.version }), 'utf8').toString('base64');
+  const wslCacheRoot = process.env.CODEX_HARNESS_WSL_ROOT;
+  const payload = Buffer.from(JSON.stringify({
+    arguments: toolArguments,
+    version,
+    sourceLockSha256,
+    dependencyCacheProtocolVersion: HARNESS_CONTRACT.dependencyCacheProtocolVersion,
+    ...(wslCacheRoot !== undefined ? { wslCacheRoot } : {}),
+  }), 'utf8').toString('base64');
   const runtimeLine = /^HARNESS_WSL_RUNTIME [A-Za-z0-9+/=]+$/u;
   const result = await forwardedResult('wsl.exe', ['--cd', executionProjectRoot, '--', 'node', helper, payload], {
     cwd: repositoryRoot,
@@ -355,8 +464,39 @@ async function runWslWrangler(executionProjectRoot, executionRepositoryRoot, too
     suppressStderrLine: runtimeLine,
   });
   const metadataMatch = result.suppressedStderrLines?.join('\n').match(/^HARNESS_WSL_RUNTIME ([A-Za-z0-9+/=]+)$/mu);
+  result.wslRuntimeMetadata = Boolean(metadataMatch);
   if (metadataMatch) result.harnessRuntime = JSON.parse(Buffer.from(metadataMatch[1], 'base64').toString('utf8'));
   return result;
+}
+
+function discoverWslRuntime(toolName) {
+  const status = commandResult('wsl.exe', ['--status']);
+  if (status.status !== 0) {
+    const error = failure('WSL_PREREQUISITE_MISSING', `WSL is required for ${toolName}`);
+    error.discovery = { kind: 'wsl', status: status.status, node: null };
+    throw error;
+  }
+  const helper = 'scripts/harness/run-wsl-wrangler.mjs';
+  const node = commandResult('wsl.exe', ['--cd', repositoryRoot, '--', 'node', helper, '--probe']);
+  if (node.status !== 0) {
+    const error = failure('WSL_NODE_PREREQUISITE_MISSING', `Node is required inside the selected/default WSL distribution for ${toolName}`);
+    error.discovery = { kind: 'wsl', status: status.status, node: { available: false, message: node.stderr.trim() || node.error?.message || 'unavailable' } };
+    throw error;
+  }
+  let runtime;
+  try {
+    runtime = JSON.parse(node.stdout.trim());
+  } catch {
+    const error = failure('WSL_NODE_PREREQUISITE_MISSING', `WSL Node returned invalid discovery output for ${toolName}`);
+    error.discovery = { kind: 'wsl', status: status.status, node: { available: true, response: node.stdout.trim() } };
+    throw error;
+  }
+  if (!runtime.npmVersion) {
+    const error = failure('WSL_NPM_PREREQUISITE_MISSING', `npm is required inside the selected/default WSL distribution for ${toolName}`);
+    error.discovery = { kind: 'wsl', status: status.status, node: runtime };
+    throw error;
+  }
+  return { kind: 'wsl', ...runtime };
 }
 
 async function main() {
@@ -377,7 +517,11 @@ async function main() {
       cwd: process.cwd(), project: invocation.relativeProjectPath, tool: invocation.tool, arguments: invocation.toolArguments,
     },
     source,
-    runtime: { platform: process.platform, architecture: process.arch, nodeVersion: process.version, nodeAbi: process.versions.modules },
+    runtime: { platform: process.platform, architecture: process.arch, nodeVersion: process.version, nodeAbi: process.versions.modules, executable: process.execPath },
+    discovery: process.env.CODEX_HARNESS_X64_DISCOVERY_B64
+      ? { x64Node: JSON.parse(Buffer.from(process.env.CODEX_HARNESS_X64_DISCOVERY_B64, 'base64').toString('utf8')) }
+      : {},
+    capabilities: [],
     dependencyCache: null,
     executionWorkspace: null,
     exitCode: 2,
@@ -392,12 +536,11 @@ async function main() {
       for (const name of requested) if (!toolNames.includes(name)) throw failure('TOOL_UNSUPPORTED', `unsupported doctor capability: ${name}`);
       const windowsTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'windows-x64');
       const dependency = windowsTools.length ? await ensureDependencies(project, cacheBase, source) : null;
-      if (dependency) for (const name of windowsTools) preflightTool(project, dependency, name);
+      if (dependency) for (const name of windowsTools) evidence.capabilities.push(...preflightTool(project, dependency, name, null, cacheBase).resources);
       const wslTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'wsl');
       for (const name of wslTools) {
         assertToolDeclared(project, name);
-        const status = commandResult('wsl.exe', ['--status']);
-        if (status.status !== 0) throw failure('WSL_PREREQUISITE_MISSING', `WSL is required for ${name}`);
+        evidence.capabilities.push(discoverWslRuntime(name));
       }
       evidence.dependencyCache = dependency ? { identity: dependency.identity, root: dependency.root, npmVersion: dependency.npmVersion } : null;
       evidence.exitCode = 0;
@@ -411,11 +554,9 @@ async function main() {
     assertInvocationMode(invocation.tool, declaredTool, invocation.toolArguments);
     const dependency = declaredTool.runtime === 'windows-x64' ? await ensureDependencies(project, cacheBase, source) : null;
     let prepared = null;
-    if (dependency) prepared = preflightTool(project, dependency, invocation.tool, invocation.toolArguments[0]);
-    if (declaredTool.runtime === 'wsl') {
-      const status = commandResult('wsl.exe', ['--status']);
-      if (status.status !== 0) throw failure('WSL_PREREQUISITE_MISSING', 'WSL is required for Wrangler');
-    }
+    if (dependency) prepared = preflightTool(project, dependency, invocation.tool, invocation.toolArguments[0], cacheBase);
+    if (prepared) evidence.capabilities.push(...prepared.resources);
+    if (declaredTool.runtime === 'wsl') evidence.capabilities.push(discoverWslRuntime(invocation.tool));
     const executionRoot = path.join(cacheBase, 'runs', runId);
     let executionRepositoryRoot = repositoryRoot;
     let executionProjectRoot = project.projectRoot;
@@ -433,9 +574,9 @@ async function main() {
     let result;
     if (declaredTool.runtime === 'wsl') {
       const version = project.lock.packages[`node_modules/${declaredTool.package}`].version;
-      result = await runWslWrangler(executionProjectRoot, executionRepositoryRoot, invocation.toolArguments, version);
+      result = await runWslWrangler(executionProjectRoot, executionRepositoryRoot, invocation.toolArguments, version, contentHash(project.lockRaw));
     } else {
-      const toolEnvironment = selectedNodeEnvironment();
+      const toolEnvironment = composeToolEnvironment(prepared);
       for (const [name, value] of Object.entries(declaredTool.environmentDefaultsByCommand?.[invocation.toolArguments[0]] ?? {})) {
         if (!toolEnvironment[name]) toolEnvironment[name] = value;
       }
@@ -444,11 +585,22 @@ async function main() {
       result = await forwardedResult(process.execPath, [prepared.entry, ...invocation.toolArguments], { cwd: executionProjectRoot, env: toolEnvironment, timeout });
     }
     const exitCode = result.timedOut ? 124 : (result.status ?? 1);
-    if (result.harnessRuntime) evidence.toolRuntime = result.harnessRuntime;
+    if (result.harnessRuntime) {
+      evidence.toolRuntime = result.harnessRuntime;
+      if (result.harnessRuntime.dependencyCache) evidence.dependencyCache = result.harnessRuntime.dependencyCache;
+    }
     if (exitCode === 0 && declaredTool.sourceMode === 'snapshot') publishOutputs(declaredTool, invocation.toolArguments[0], executionProjectRoot, project.projectRoot);
     evidence.exitCode = exitCode;
-    evidence.classification = classifyResult({ error: result.error, exitCode, stdout: result.stdout, stderr: result.stderr });
+    evidence.classification = classifyResult({
+      error: result.error,
+      exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      wslRuntimeMetadata: declaredTool.runtime === 'wsl' ? result.wslRuntimeMetadata : undefined,
+    });
+    const wslFailureCode = declaredTool.runtime === 'wsl' ? wslFailureCodeFromStderr(result.stderr) : null;
     if (result.timedOut) attachRemediation(evidence, 'TOOL_TIMEOUT');
+    else if (wslFailureCode) attachRemediation(evidence, wslFailureCode);
     else if (evidence.classification === 'zero_tests_collected') attachRemediation(evidence, 'ZERO_TESTS_COLLECTED');
     else if (evidence.classification === 'harness_startup_failure') attachRemediation(evidence, 'TOOL_STARTUP_FAILED');
     writeEvidence(evidenceFile, evidence);
@@ -457,6 +609,7 @@ async function main() {
   } catch (error) {
     attachRemediation(evidence, error.code || 'HARNESS_UNEXPECTED_FAILURE', remediationTool);
     evidence.message = error.message;
+    if (error.discovery) evidence.discovery = mergeEvidenceDiscovery(evidence.discovery, error.discovery);
     if (evidence.executionWorkspace) evidence.classification = 'harness_transport_failure';
     writeEvidence(evidenceFile, evidence);
     process.stderr.write(`harness preflight: ${evidence.failureCode}: ${error.message}\n`);

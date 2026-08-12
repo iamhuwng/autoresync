@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/harness/run-tool.mjs vite . build && node scripts/check-bundle-budget.mjs",
-    "deploy:hosting": "npm run build && node node_modules/firebase-tools/lib/bin/firebase.js deploy --only hosting:kahut1",
+    "deploy:hosting": "npm run build && node scripts/harness/run-tool.mjs firebase . deploy --only hosting:kahut1",
     "lint": "eslint . && npm run lint:mantine",
     "lint:mantine": "node scripts/check-mantine-boundary.mjs",
     "preview": "vite preview",
