@@ -5,7 +5,7 @@ description: Run, diagnose, and resolve this repository's test, build, dev, brow
 
 # Run Windows ARM64 Tools
 
-Use the repository-versioned harness contract. Contract version `3.3.0`, this
+Use the repository-versioned harness contract. Contract version `3.4.0`, this
 skill, and `scripts/harness/` must land in the same commit lineage.
 
 ## Fail-closed lineage preflight
@@ -17,11 +17,13 @@ exact root, require all of:
 - `scripts/harness/contract.mjs`;
 - `scripts/harness/run-tool.mjs`;
 - `scripts/harness/run-isolated.mjs`;
+- `scripts/harness/validate-evidence.mjs`;
+- `scripts/harness/live-vite-doctor.mjs`;
 - `scripts/harness/run-x64.ps1`;
 - `scripts/harness/run-wsl-wrangler.mjs`.
 
 Run `node scripts/harness/run-tool.mjs --contract` and require name
-`luyentap-windows-arm64-harness`, version `3.3.0`, protocol `1`, and grammar
+`luyentap-windows-arm64-harness`, version `3.4.0`, protocol `2`, and grammar
 `<tool> <project> [...args]`. If any file or value differs, report
 `HARNESS_CONTRACT_MISMATCH` with the checkout root. Do not borrow a runner or
 skill from another checkout or fall back to repository `node_modules`.
@@ -107,6 +109,31 @@ writes a JSON evidence sidecar and prints its `HARNESS_EVIDENCE <path>` locator
 with concise diagnostics to stderr. The record identifies contract/protocol, command/cwd/project,
 source commit and dirty fingerprint, Node architecture/version/ABI, immutable
 dependency cache, unique execution workspace, exit code, and classification.
+Every sidecar also records `proof.phase` as `doctor`, `collection`, or
+`execution`, plus protected selected-project state before and after for
+`package.json`, `package-lock.json`, and `node_modules`. Playwright `test
+--list` is collection only: it is not product execution and its product counts
+stay zero/null. If protected state changes, the sidecar is a harness failure
+(`PROTECTED_STATE_CHANGED`) and cannot be accepted as product evidence.
+
+Validate evidence only from the sidecars themselves; do not retype claims from
+terminal output:
+
+```text
+node scripts/harness/validate-evidence.mjs --expect-commit <full-sha> [--expect-clean] <sidecar...>
+```
+
+For a normal active-checkout Vite readiness check that never starts or manages a
+server, use:
+
+```text
+node scripts/harness/live-vite-doctor.mjs <project> [--script <name>] [--url <http://localhost:port/path>]
+```
+
+It requires direct Vite package-script routing and project-local dependency
+context. A `node_modules` link resolving outside the selected project is an
+invalid context, not a cleanup target. With a URL, TCP listener and HTTP
+response readiness are separate observations.
 
 Stable classifications are:
 

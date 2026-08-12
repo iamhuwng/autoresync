@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import http from 'node:http';
+import net from 'node:net';
 import { HARNESS_CONTRACT, remediationFor, wranglerDependencyCacheIdentity } from '../harness/contract.mjs';
 import {
   assertToolDeclared,
@@ -21,6 +23,9 @@ import {
   selectJavaRuntime,
   sourceIdentity,
   verifyCapabilities,
+  proofPhase,
+  proofCountsFromResult,
+  protectedProjectState,
   wslFailureCodeFromStderr,
 } from '../harness/run-isolated.mjs';
 import { acquireWslWranglerInstallLock, ensureWranglerCache, wslCacheRoot, wslWranglerLockOwner } from '../harness/run-wsl-wrangler.mjs';
@@ -44,11 +49,13 @@ const git = (cwd, args) => execFileSync('git', args, {
   env: { ...process.env, GIT_AUTHOR_NAME: 'Harness Test', GIT_AUTHOR_EMAIL: 'harness@example.invalid', GIT_COMMITTER_NAME: 'Harness Test', GIT_COMMITTER_EMAIL: 'harness@example.invalid' },
 });
 
-const evidenceFrom = (result) => {
+const evidencePathFrom = (result) => {
   const file = result.stderr.match(/^HARNESS_EVIDENCE (.+)$/mu)?.[1];
   assert.ok(file, result.stderr);
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  return file;
 };
+
+const evidenceFrom = (result) => JSON.parse(fs.readFileSync(evidencePathFrom(result), 'utf8'));
 
 const copyHarnessFixture = (destination) => {
   fs.mkdirSync(path.join(destination, 'scripts', 'harness'), { recursive: true });
@@ -58,11 +65,11 @@ const copyHarnessFixture = (destination) => {
   fs.cpSync(path.join(fixtureRoot, 'synthetic-project'), path.join(destination, 'fixture-project'), { recursive: true });
 };
 
-const invokeSynthetic = (worktree, cacheRoot, marker, toolArguments = ['value with spaces', '--equals=a=b', 'quote"roundtrip'], extraEnvironment = {}) => {
+const invokeSyntheticAt = (worktree, cacheRoot, marker, relativeProjectPath, toolArguments = ['value with spaces', '--equals=a=b', 'quote"roundtrip'], extraEnvironment = {}) => {
   const invocation = Buffer.from(JSON.stringify({
     mode: 'run',
     tool: 'vite-node',
-    relativeProjectPath: 'fixture-project',
+    relativeProjectPath,
     toolArguments,
   })).toString('base64');
   return run(process.execPath, [path.join(worktree, 'scripts', 'harness', 'run-isolated.mjs')], worktree, {
@@ -72,6 +79,8 @@ const invokeSynthetic = (worktree, cacheRoot, marker, toolArguments = ['value wi
     ...extraEnvironment,
   });
 };
+
+const invokeSynthetic = (worktree, cacheRoot, marker, toolArguments = ['value with spaces', '--equals=a=b', 'quote"roundtrip'], extraEnvironment = {}) => invokeSyntheticAt(worktree, cacheRoot, marker, 'fixture-project', toolArguments, extraEnvironment);
 
 test('contract is executable, generic, and self-describing', () => {
   const output = execFileSync(process.execPath, [path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--contract'], { cwd: repositoryRoot, encoding: 'utf8' });
@@ -84,6 +93,8 @@ test('contract is executable, generic, and self-describing', () => {
   assert.deepEqual(HARNESS_CONTRACT.tools.playwright.capabilities[0].commands, ['test', 'show-report']);
   assert.deepEqual(HARNESS_CONTRACT.resolutionOrder, ['discover', 'reuse', 'adapt', 'install', 'verify']);
   assert.equal(HARNESS_CONTRACT.dependencyCacheProtocolVersion, 2);
+  const skill = fs.readFileSync(path.join(repositoryRoot, '.agents/skills/run-windows-arm64-tools/SKILL.md'), 'utf8');
+  for (const required of ['scripts/harness/validate-evidence.mjs', 'scripts/harness/live-vite-doctor.mjs']) assert.match(skill, new RegExp(required.replaceAll('.', '\\.')));
   assert.match(remediationFor('BROWSER_RUNTIME_MISSING', 'web', 'playwright').stages.verify[0], /--doctor web playwright/u);
   assert.equal(wranglerDependencyCacheIdentity({ version: '4.0.0', nodeAbi: '127', architecture: 'arm64', npmVersion: '10.9.2', sourceLockSha256: 'a'.repeat(64) }), '4.0.0-node127-arm64-npm10.9.2-lockaaaaaaaaaaaa-protocol2');
   for (const code of ['WSL_WRANGLER_CACHE_INVALID', 'WSL_WRANGLER_CACHE_INCOMPLETE', 'WSL_WRANGLER_INSTALL_FAILED', 'WSL_WRANGLER_PROTOCOL_INVALID']) {
@@ -174,6 +185,14 @@ test('dirty fingerprint changes with tracked and untracked content, not only pat
   }
 });
 
+test('source provenance fails closed when Git cannot establish the checkout identity', () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-no-git-'));
+  try {
+    assert.throws(() => sourceIdentity(temporary), { code: 'SOURCE_PROVENANCE_UNAVAILABLE' });
+    assert.ok(HARNESS_CONTRACT.remediations.SOURCE_PROVENANCE_UNAVAILABLE);
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+});
+
 test('selected project owns dependency and lockfile resolution', () => {
   assert.throws(() => assertToolDeclared(projectContext('.'), 'wrangler'), { code: 'PROJECT_DEPENDENCY_MISSING' });
   const cloudflare = projectContext('cloudflare');
@@ -223,6 +242,147 @@ test('classifications separate zero collection, startup transport, product failu
   assert.equal(classifyResult({ exitCode: 0 }), 'completed');
   assert.equal(classifyResult({ error: new Error('spawn ENOENT'), exitCode: 1 }), 'harness_startup_failure');
   assert.equal(classifyResult({ error: Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }), exitCode: 124 }), 'harness_transport_failure');
+});
+
+test('proof phases separate doctor, collection, and execution without inventing product counts', () => {
+  assert.equal(proofPhase({ mode: 'doctor', tool: 'doctor', toolArguments: [] }), 'doctor');
+  assert.equal(proofPhase({ mode: 'run', tool: 'playwright', toolArguments: ['test', '--list'] }), 'collection');
+  assert.equal(proofPhase({ mode: 'run', tool: 'vitest', toolArguments: ['run', '--list'] }), 'execution');
+  assert.equal(proofPhase({ mode: 'run', tool: 'vitest', toolArguments: ['run'] }), 'execution');
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-protected-state-'));
+  try {
+    fs.writeFileSync(path.join(temporary, 'package.json'), '{}');
+    fs.writeFileSync(path.join(temporary, 'package-lock.json'), '{}');
+    const state = protectedProjectState({ manifestPath: path.join(temporary, 'package.json'), lockPath: path.join(temporary, 'package-lock.json'), projectRoot: temporary });
+    assert.equal(state.packageJson.kind, 'file');
+    assert.equal(state.packageLock.kind, 'file');
+    assert.equal(state.nodeModules.kind, 'absent');
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+});
+
+test('proof counts parse only supported Playwright and Vitest summaries', () => {
+  assert.deepEqual(
+    proofCountsFromResult({ tool: 'playwright', phase: 'collection', stdout: 'Total: 7 tests in 3 files\n', stderr: '', exitCode: 0 }),
+    { collected: 7, executed: 0, passed: 0, failed: 0, skipped: 0 },
+  );
+  assert.deepEqual(
+    proofCountsFromResult({ tool: 'vitest', phase: 'execution', stdout: ' Tests  3 passed | 1 failed | 2 skipped\n', stderr: '', exitCode: 1 }),
+    { collected: 6, executed: 6, passed: 3, failed: 1, skipped: 2 },
+  );
+  assert.deepEqual(
+    proofCountsFromResult({ tool: 'playwright', phase: 'execution', stdout: '  4 passed (1.2s)\n  1 failed\n  2 skipped\n', stderr: '', exitCode: 1 }),
+    { collected: 7, executed: 7, passed: 4, failed: 1, skipped: 2 },
+  );
+  assert.deepEqual(
+    proofCountsFromResult({ tool: 'vitest', phase: 'execution', stdout: 'assertion: 4 passed\n', stderr: '', exitCode: 0 }),
+    { collected: null, executed: null, passed: null, failed: null, skipped: null },
+  );
+});
+
+test('evidence validator fails closed for commit, dirty-source, and collection/execution mismatches', async () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-validator-'));
+  const sidecar = path.join(temporary, 'sidecar.json');
+  const commit = 'a'.repeat(40);
+  const protectedState = { packageJson: { kind: 'file', sha256: 'b'.repeat(64) }, packageLock: { kind: 'file', sha256: 'c'.repeat(64) }, nodeModules: { kind: 'absent' } };
+  const evidence = { harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion }, invocation: { cwd: temporary, project: '.', tool: 'playwright', command: ['node', 'scripts/harness/run-tool.mjs', 'playwright', '.', 'test', '--list'], arguments: ['test', '--list'] }, source: { commit, dirty: false, dirtyFingerprint: 'd'.repeat(64) }, proof: { phase: 'collection', counts: { collected: 1, executed: 0, passed: 0, failed: 0, skipped: 0 } }, protectedState: { before: protectedState, after: protectedState }, classification: 'completed', failureCode: null, exitCode: 0 };
+  try {
+    fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    let result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', 'e'.repeat(40), sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /commit/u);
+    evidence.source.commit = commit; evidence.source.dirty = true; fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, '--expect-clean', sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /dirty/u);
+    evidence.source.dirty = false; evidence.proof.phase = 'execution'; fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /list-only/u);
+    evidence.proof.phase = 'collection'; evidence.failureCode = 'TOOL_TIMEOUT'; fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /completed evidence/u);
+    evidence.classification = 'product_failure'; evidence.exitCode = 1; fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /product_failure evidence/u);
+    evidence.classification = 'completed'; evidence.exitCode = 0; evidence.failureCode = null;
+    evidence.invocation = { cwd: temporary, project: '.', tool: 'vitest', command: ['node', 'scripts/harness/run-tool.mjs', 'vitest', '.', 'run'], arguments: ['run'] };
+    evidence.proof = { phase: 'execution', counts: { collected: 2, executed: 2, passed: 1, failed: 0, skipped: 0 } }; fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /internally inconsistent/u);
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+});
+
+test('live Vite doctor distinguishes local context, missing dependencies, external links, and TCP from HTTP readiness', async () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-live-vite-'));
+  const harness = path.join(temporary, 'scripts', 'harness');
+  const project = path.join(temporary, 'project');
+  const doctor = path.join(harness, 'live-vite-doctor.mjs');
+  const runDoctor = (args, projectName = 'project') => run(process.execPath, [doctor, projectName, ...args], temporary);
+  try {
+    fs.mkdirSync(path.join(harness), { recursive: true });
+    fs.copyFileSync(path.join(repositoryRoot, 'scripts/harness/live-vite-doctor.mjs'), doctor);
+    fs.mkdirSync(path.join(project, 'node_modules', 'vite', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' }, devDependencies: { vite: '1.0.0' } }));
+    fs.writeFileSync(path.join(project, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: { '': { devDependencies: { vite: '1.0.0' } }, 'node_modules/vite': { version: '1.0.0' } } }));
+    fs.writeFileSync(path.join(project, 'node_modules', 'vite', 'bin', 'vite.js'), "process.stdout.write('vite/1.0.0 win32-x64 node-v22\\n');");
+    let result = await runDoctor([]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).vite.probe.version, '1.0.0');
+    assert.equal(JSON.parse(result.stdout).dependency.insideProject, true);
+    fs.writeFileSync(path.join(project, 'node_modules', 'vite', 'bin', 'vite.js'), "process.stdout.write('vite/1.0.1 win32-x64 node-v22\\n');");
+    result = await runDoctor([]);
+    assert.equal(result.status, 2); assert.match(result.stderr, /VITE_VERSION_MISMATCH/u);
+    fs.writeFileSync(path.join(project, 'node_modules', 'vite', 'bin', 'vite.js'), "process.stdout.write('not a Vite version\\n');");
+    result = await runDoctor([]);
+    assert.equal(result.status, 2); assert.match(result.stderr, /VITE_VERSION_MISMATCH/u);
+    fs.writeFileSync(path.join(project, 'node_modules', 'vite', 'bin', 'vite.js'), "process.stdout.write('vite/1.0.0 win32-x64 node-v22\\n');");
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ scripts: { dev: 'vite && echo unexpected' }, devDependencies: { vite: '1.0.0' } }));
+    result = await runDoctor([]);
+    assert.equal(result.status, 2); assert.match(result.stderr, /VITE_SCRIPT_ROUTE_INVALID/u);
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' }, devDependencies: { vite: '1.0.0' } }));
+    fs.rmSync(path.join(project, 'node_modules'), { recursive: true, force: true });
+    result = await runDoctor([]);
+    assert.equal(result.status, 2); assert.match(result.stderr, /NODE_MODULES_MISSING/u);
+    fs.mkdirSync(path.join(temporary, 'external', 'vite', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(temporary, 'external', 'vite', 'bin', 'vite.js'), "process.stdout.write('vite/1.0.0 win32-x64 node-v22\\n');");
+    fs.symlinkSync(path.join(temporary, 'external'), path.join(project, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
+    result = await runDoctor([]);
+    assert.equal(result.status, 2); assert.match(result.stderr, /DEPENDENCY_CONTEXT_EXTERNAL_LINK/u);
+    fs.symlinkSync(path.join(temporary, 'external'), path.join(temporary, 'escaped-project'), process.platform === 'win32' ? 'junction' : 'dir');
+    result = await runDoctor([], 'escaped-project');
+    assert.equal(result.status, 2); assert.match(result.stderr, /PROJECT_CONTEXT_INVALID/u);
+    fs.rmSync(path.join(project, 'node_modules'), { recursive: true, force: true });
+    fs.mkdirSync(path.join(project, 'node_modules'));
+    fs.symlinkSync(path.join(temporary, 'external', 'vite'), path.join(project, 'node_modules', 'vite'), process.platform === 'win32' ? 'junction' : 'dir');
+    result = await runDoctor([]);
+    assert.equal(result.status, 2); assert.match(result.stderr, /DEPENDENCY_CONTEXT_EXTERNAL_LINK/u);
+    fs.rmSync(path.join(project, 'node_modules'), { recursive: true, force: true });
+    fs.mkdirSync(path.join(project, 'node_modules', 'vite', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'node_modules', 'vite', 'bin', 'vite.js'), "process.stdout.write('vite/1.0.0 win32-x64 node-v22\\n');");
+    result = await runDoctor(['--url', 'https://localhost:1/ready']);
+    assert.equal(result.status, 2); assert.match(result.stderr, /URL_INVALID/u);
+    assert.equal(JSON.parse(result.stdout).readiness.tcp.attempted, false);
+    const server = http.createServer((_request, response) => { response.statusCode = 204; response.end(); });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+    result = await runDoctor(['--url', `http://localhost:${port}/ready`]);
+    const ready = JSON.parse(result.stdout).readiness;
+    assert.equal(ready.tcp.ready, true); assert.equal(ready.http.ready, true);
+    await new Promise((resolve) => server.close(resolve));
+    result = await runDoctor(['--url', `http://localhost:${port}/ready`]);
+    const unavailable = JSON.parse(result.stdout).readiness;
+    assert.equal(result.status, 2);
+    assert.equal(unavailable.tcp.ready, false); assert.equal(unavailable.http.attempted, false);
+    assert.ok(JSON.parse(result.stdout).failureCodes.includes('LIVE_TCP_NOT_READY'));
+    const resetServer = net.createServer((socket) => socket.destroy());
+    await new Promise((resolve) => resetServer.listen(0, '127.0.0.1', resolve));
+    const resetPort = resetServer.address().port;
+    result = await runDoctor(['--url', `http://localhost:${resetPort}/ready`]);
+    assert.equal(result.status, 2);
+    const resetReadiness = JSON.parse(result.stdout);
+    assert.equal(resetReadiness.readiness.tcp.ready, true);
+    assert.equal(resetReadiness.readiness.http.attempted, true);
+    assert.equal(resetReadiness.readiness.http.ready, false);
+    assert.ok(resetReadiness.failureCodes.includes('LIVE_HTTP_NOT_READY'));
+    await new Promise((resolve) => resetServer.close(resolve));
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
 
 test('WSL Wrangler locks serialize active owners, reclaim proven stale owners, and reject unprovable owners', async () => {
@@ -336,6 +496,27 @@ test('snapshot harness rejects live watchers while WSL Wrangler keeps live workt
   assert.doesNotThrow(() => assertInvocationMode('vite', HARNESS_CONTRACT.tools.vite, ['build']));
   assert.doesNotThrow(() => assertInvocationMode('vitest', HARNESS_CONTRACT.tools.vitest, ['run']));
   assert.equal(HARNESS_CONTRACT.tools.wrangler.sourceMode, 'live');
+});
+
+test('ordinary harness execution preserves selected-project dependency metadata', { timeout: 30_000 }, async () => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-protected-node-modules-'));
+  const project = path.join(container, 'project');
+  const cache = path.join(container, 'cache');
+  try {
+    fs.mkdirSync(project);
+    copyHarnessFixture(project);
+    fs.cpSync(path.join(fixtureRoot, 'synthetic-project'), project, { recursive: true });
+    fs.writeFileSync(path.join(project, '.gitignore'), 'node_modules\n');
+    git(project, ['init']);
+    git(project, ['add', '.']);
+    git(project, ['commit', '-m', 'base']);
+    fs.mkdirSync(path.join(project, 'node_modules'));
+    const unchanged = await invokeSyntheticAt(project, cache, 'base', '.');
+    assert.equal(unchanged.status, 0, unchanged.stderr);
+    const evidence = evidenceFrom(unchanged);
+    assert.deepEqual(evidence.protectedState.before, evidence.protectedState.after);
+    assert.equal(evidence.protectedState.before.nodeModules.kind, 'directory');
+  } finally { fs.rmSync(container, { recursive: true, force: true }); }
 });
 
 test('parallel worktrees share immutable dependencies but use attributable isolated execution workspaces', { timeout: 120_000 }, async () => {

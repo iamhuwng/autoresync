@@ -143,20 +143,122 @@ export function assertInvocationMode(toolName, tool, args) {
   }
 }
 
-function gitValue(args, fallback = '', cwd = repositoryRoot) {
+export function proofPhase(invocation) {
+  if (invocation.mode === 'doctor') return 'doctor';
+  const [command, ...rest] = invocation.toolArguments;
+  if (invocation.tool === 'playwright' && command === 'test' && rest.includes('--list')) return 'collection';
+  return 'execution';
+}
+
+function protectedPathState(file) {
+  try {
+    const metadata = fs.lstatSync(file);
+    const kind = metadata.isSymbolicLink() ? 'link' : metadata.isDirectory() ? 'directory' : metadata.isFile() ? 'file' : 'other';
+    return {
+      kind,
+      ...(kind === 'file' ? { sha256: hash(fs.readFileSync(file)) } : {}),
+      ...(kind === 'link' ? { target: fs.readlinkSync(file), resolvedTarget: fs.realpathSync.native(file) } : {}),
+    };
+  } catch (error) {
+    if (error.code === 'ENOENT') return { kind: 'absent' };
+    throw error;
+  }
+}
+
+export function protectedProjectState(project) {
+  return {
+    packageJson: protectedPathState(project.manifestPath),
+    packageLock: protectedPathState(project.lockPath),
+    nodeModules: protectedPathState(path.join(project.projectRoot, 'node_modules')),
+  };
+}
+
+function proofFor(phase) {
+  const collection = phase === 'collection';
+  return {
+    phase,
+    counts: {
+      collected: null,
+      executed: collection ? 0 : null,
+      passed: collection ? 0 : null,
+      failed: collection ? 0 : null,
+      skipped: collection ? 0 : null,
+    },
+  };
+}
+
+const emptyProofCounts = () => ({ collected: null, executed: null, passed: null, failed: null, skipped: null });
+const withoutAnsi = (value) => value.replace(/\u001B\[[0-?]*[ -/]*[@-~]/gu, '');
+
+export function proofCountsFromResult({ tool, phase, stdout = '', stderr = '', exitCode }) {
+  void exitCode;
+  const output = withoutAnsi(`${stdout}\n${stderr}`);
+  if (phase === 'collection' && tool === 'playwright') {
+    const match = output.match(/\bTotal:\s*(\d+)\s+tests?\s+in\s+\d+\s+files?\b/iu);
+    return match ? { collected: Number(match[1]), executed: 0, passed: 0, failed: 0, skipped: 0 } : { collected: null, executed: 0, passed: 0, failed: 0, skipped: 0 };
+  }
+  if (phase !== 'execution') return emptyProofCounts();
+  if (tool === 'vitest') {
+    const summaries = [...output.matchAll(/^\s*Tests\s+(.+?)\s*$/gimu)];
+    if (summaries.length !== 1) return emptyProofCounts();
+    const outcomes = [...summaries[0][1].matchAll(/(\d+)\s+(passed|failed|skipped)\b/giu)];
+    if (!outcomes.length) return emptyProofCounts();
+    const counts = { passed: 0, failed: 0, skipped: 0 };
+    const seen = new Set();
+    for (const [, count, outcome] of outcomes) {
+      if (seen.has(outcome)) return emptyProofCounts();
+      seen.add(outcome);
+      counts[outcome] = Number(count);
+    }
+    const executed = counts.passed + counts.failed + counts.skipped;
+    return { collected: executed, executed, ...counts };
+  }
+  if (tool === 'playwright') {
+    const counts = { passed: 0, failed: 0, skipped: 0 };
+    const seen = new Set();
+    let found = false;
+    for (const line of output.split(/\r?\n/iu)) {
+      const match = line.match(/^\s*(\d+)\s+(passed|failed|skipped)(?:\s+\([^)]*\))?\s*$/iu);
+      if (!match) continue;
+      const outcome = match[2].toLowerCase();
+      if (seen.has(outcome)) return emptyProofCounts();
+      seen.add(outcome);
+      counts[outcome] = Number(match[1]);
+      found = true;
+    }
+    if (!found) return emptyProofCounts();
+    const executed = counts.passed + counts.failed + counts.skipped;
+    return { collected: executed, executed, ...counts };
+  }
+  return emptyProofCounts();
+}
+
+function finalizeProtectedState(evidence, project) {
+  evidence.protectedState.after = protectedProjectState(project);
+  if (JSON.stringify(evidence.protectedState.before) === JSON.stringify(evidence.protectedState.after)) return true;
+  evidence.classification = 'harness_transport_failure';
+  attachRemediation(evidence, 'PROTECTED_STATE_CHANGED');
+  evidence.exitCode = 2;
+  return false;
+}
+
+function requiredGitValue(args, cwd = repositoryRoot) {
   const result = commandResult('git', args, { cwd });
-  return result.status === 0 ? result.stdout.trim() : fallback;
+  if (result.status !== 0) throw failure('SOURCE_PROVENANCE_UNAVAILABLE', `git ${args.join(' ')} failed: ${(result.stderr || result.error?.message || `exit ${result.status}`).trim()}`);
+  return result.stdout.trim();
 }
 
 export function sourceIdentity(root = repositoryRoot) {
-  const commit = gitValue(['rev-parse', 'HEAD'], 'unavailable', root);
-  const commonDirectory = path.resolve(root, gitValue(['rev-parse', '--git-common-dir'], '.git', root));
+  const commit = requiredGitValue(['rev-parse', 'HEAD'], root);
+  const commonDirectory = path.resolve(root, requiredGitValue(['rev-parse', '--git-common-dir'], root));
   const canonicalCommonDirectory = fs.existsSync(commonDirectory) ? fs.realpathSync.native(commonDirectory) : commonDirectory;
   const status = commandResult('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: root });
+  if (status.status !== 0) throw failure('SOURCE_PROVENANCE_UNAVAILABLE', `git status failed: ${(status.stderr || status.error?.message || `exit ${status.status}`).trim()}`);
   const fingerprint = crypto.createHash('sha256');
   const trackedDiff = commandResult('git', ['diff', '--binary', '--no-ext-diff', 'HEAD', '--'], { cwd: root, encoding: null });
+  if (trackedDiff.status !== 0) throw failure('SOURCE_PROVENANCE_UNAVAILABLE', `git diff failed: ${(trackedDiff.stderr?.toString() || trackedDiff.error?.message || `exit ${trackedDiff.status}`).trim()}`);
   if (trackedDiff.status === 0 && trackedDiff.stdout) fingerprint.update(trackedDiff.stdout);
-  const untracked = gitValue(['ls-files', '--others', '--exclude-standard', '-z'], '', root).split('\0').filter(Boolean).sort();
+  const untracked = requiredGitValue(['ls-files', '--others', '--exclude-standard', '-z'], root).split('\0').filter(Boolean).sort();
   for (const relative of untracked) {
     const file = path.join(root, relative);
     fingerprint.update(`untracked\0${relative}\0`);
@@ -505,9 +607,9 @@ async function main() {
   const invocation = JSON.parse(Buffer.from(invocationRaw, 'base64').toString('utf8'));
   const cacheBase = path.resolve(process.env.CODEX_HARNESS_ROOT || path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'codex-harness-v3'));
   const runId = crypto.randomUUID();
-  const source = sourceIdentity();
   const project = projectContext(invocation.relativeProjectPath);
   const evidenceFile = evidencePath(cacheBase, runId);
+  let source = null;
   const evidence = {
     harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion },
     invocation: {
@@ -524,12 +626,16 @@ async function main() {
     capabilities: [],
     dependencyCache: null,
     executionWorkspace: null,
+    proof: proofFor(proofPhase(invocation)),
+    protectedState: { before: protectedProjectState(project), after: null },
     exitCode: 2,
     classification: 'harness_preflight_failure',
     failureCode: null,
   };
   let remediationTool = invocation.tool;
   try {
+    source = sourceIdentity();
+    evidence.source = source;
     if (invocation.mode === 'doctor') {
       const requested = invocation.toolArguments.length ? invocation.toolArguments : toolNames.filter((name) => packageDependencies(project.manifest)[HARNESS_CONTRACT.tools[name].package]);
       remediationTool = requested[0] || 'doctor';
@@ -545,9 +651,10 @@ async function main() {
       evidence.dependencyCache = dependency ? { identity: dependency.identity, root: dependency.root, npmVersion: dependency.npmVersion } : null;
       evidence.exitCode = 0;
       evidence.classification = 'completed';
+      if (!finalizeProtectedState(evidence, project)) evidence.exitCode = 2;
       writeEvidence(evidenceFile, evidence);
-      process.stdout.write(`${JSON.stringify({ ok: true, project: invocation.relativeProjectPath, tools: requested, evidence: evidenceFile })}\n`);
-      return 0;
+      process.stdout.write(`${JSON.stringify({ ok: evidence.classification === 'completed', project: invocation.relativeProjectPath, tools: requested, evidence: evidenceFile })}\n`);
+      return evidence.exitCode;
     }
 
     const declaredTool = assertToolDeclared(project, invocation.tool);
@@ -591,6 +698,9 @@ async function main() {
     }
     if (exitCode === 0 && declaredTool.sourceMode === 'snapshot') publishOutputs(declaredTool, invocation.toolArguments[0], executionProjectRoot, project.projectRoot);
     evidence.exitCode = exitCode;
+    evidence.proof.counts = proofCountsFromResult({
+      tool: invocation.tool, phase: evidence.proof.phase, stdout: result.stdout, stderr: result.stderr, exitCode,
+    });
     evidence.classification = classifyResult({
       error: result.error,
       exitCode,
@@ -603,14 +713,16 @@ async function main() {
     else if (wslFailureCode) attachRemediation(evidence, wslFailureCode);
     else if (evidence.classification === 'zero_tests_collected') attachRemediation(evidence, 'ZERO_TESTS_COLLECTED');
     else if (evidence.classification === 'harness_startup_failure') attachRemediation(evidence, 'TOOL_STARTUP_FAILED');
+    const protectedUnchanged = finalizeProtectedState(evidence, project);
     writeEvidence(evidenceFile, evidence);
     writeRemediation(evidence.remediation);
-    return exitCode;
+    return protectedUnchanged ? exitCode : 2;
   } catch (error) {
     attachRemediation(evidence, error.code || 'HARNESS_UNEXPECTED_FAILURE', remediationTool);
     evidence.message = error.message;
     if (error.discovery) evidence.discovery = mergeEvidenceDiscovery(evidence.discovery, error.discovery);
     if (evidence.executionWorkspace) evidence.classification = 'harness_transport_failure';
+    finalizeProtectedState(evidence, project);
     writeEvidence(evidenceFile, evidence);
     process.stderr.write(`harness preflight: ${evidence.failureCode}: ${error.message}\n`);
     writeRemediation(evidence.remediation);
