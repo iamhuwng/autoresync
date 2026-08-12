@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "artifactKind": "prd0062-pre-134-readiness-assessment",
   "status": "NOT_READY_STOP_BEFORE_134",
-  "assessedSourceHead": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
-  "acceptedApplicationBuildCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
-  "branch": "codex/prd0062-lane-c-campaign",
+  "assessedSourceHead": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+  "acceptedApplicationBuildCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+  "branch": "detached clean campaign worktree",
   "scopeBoundary": "Local evidence convergence only. This artifact is not the #134 readiness packet and grants no deployment, activation, remote mutation, push, pull-request, or #134 authority.",
   "identityContext": {
-    "applicationCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
-    "latestEvidenceCheckpoint": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
+    "applicationCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+    "latestEvidenceCheckpoint": "b461cd753317b57e6679df630c11199647c22a3f",
     "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
     "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
     "featureGateTemplateSha256": "bb7ee79cb3b71e19b381dea843a5d78457a28677b386c7529b667bebe3a65406",
@@ -46,14 +46,14 @@
     }
   },
   "group3Verdicts": [
-    { "ticket": 128, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/128-teacher-authoring-assignment-provisional-2026-08-12.json", "artifactSha256": "400262e83f9f4ebcb961d4a7f936747fa73247c275167565772fb276dcaff1a8", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context; positive activation also waits for #126" },
-    { "ticket": 129, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/129-teacher-updates-results-provisional-2026-08-12.json", "artifactSha256": "6738a5c92e09e9a5506d32e8921f6a1cf2bd13dc1a709ca17f67cff4dec7550a", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context" },
-    { "ticket": 130, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/130-student-runtime-provisional-2026-08-12.json", "artifactSha256": "a2cc2643ac88417be84a9c11251bb7d5e338a3f7bf6e46c56b9f00b274f526d9", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context; positive activation also waits for #126" },
-    { "ticket": 131, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/131-accessibility-device-provisional-2026-08-12.json", "artifactSha256": "99b608fcbf9d309a7acbaca74abd7e00ebbd105c98a25d55bb2e4a8e7b8da6ba", "gate": "operator-provided clean checkout with project-local npm ci, authenticated context, and manual screen-reader/native-zoom verification" },
+    { "ticket": 128, "status": "PASS_LOCAL_NON_ACTIVATION_CASES", "artifact": "documentation/tasks/PRD0062/evidence/128-teacher-authoring-assignment-provisional-2026-08-12.json", "artifactSha256": "8dfa10159af4ce5292e59fb029a58efbdc28ce03387464277be025aded76b124", "gate": "positive activated workflow waits for #126 exact approval, activation, and readback" },
+    { "ticket": 129, "status": "PASS_LOCAL_ACCEPTANCE", "artifact": "documentation/tasks/PRD0062/evidence/129-teacher-updates-results-provisional-2026-08-12.json", "artifactSha256": "0d85649ded219c2c2d9fa98e2316cf25dc519615319be9e832d574922c4ea1fd", "gate": null },
+    { "ticket": 130, "status": "PASS_LOCAL_ACCEPTANCE", "artifact": "documentation/tasks/PRD0062/evidence/130-student-runtime-provisional-2026-08-12.json", "artifactSha256": "f7eef2111e27b7fee34f179566bc732e3c15a452d42676e869eba465a20313b7", "gate": "activated/deployed delivery waits for #126" },
+    { "ticket": 131, "status": "PASS_LOCAL_AUTOMATED_MANUAL_PENDING", "artifact": "documentation/tasks/PRD0062/evidence/131-accessibility-device-provisional-2026-08-12.json", "artifactSha256": "8b7b1c33f219e157bf0ee74b3fc82843b95a5d4fac49f8adc55b8b28ccd6014b", "gate": "native screen-reader announcement/order verification remains manual and unclaimed" },
     { "ticket": 132, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/132-contract-security-provisional-2026-08-12.json", "artifactSha256": "6d1b2b7254d03ce85472df727c6a5ba3853499469291be181d8afa302ad5c6fb", "gate": "#118 is all-green and reused; the non-duplicated #132 execution remains a 3.4 TOOL_TIMEOUT with no product verdict" },
     { "ticket": 133, "status": "PASS_LOCAL_ACCEPTANCE", "artifact": "documentation/tasks/PRD0062/evidence/133-legacy-backup-recovery-provisional-2026-08-12.json", "artifactSha256": "f41df69ad791e63c71e7f9b1682979e44fe27e1086593de6098387e39949de80", "gate": null }
   ],
-  "campaignManifest": { "path": "documentation/tasks/PRD0062/evidence/acceptance-campaign-manifest-2026-08-12.json", "sha256": "23ec1818682eb2846f8101f18f094d13e61c5127e89ec24a51ce0421eeb594a1" },
+  "campaignManifest": { "path": "documentation/tasks/PRD0062/evidence/acceptance-campaign-manifest-2026-08-12.json", "sha256": "d692b29cae8aaa59205aa4aa12805b79ae952c80dda6f0247463fdc4dcfe7a1b" },
   "deployedDrillScope": { "status": "NOT_AUTHORIZED_NOT_RUN", "intendedBoundary": "the exact approved #126 scope only", "ticket134": "SEPARATE_APPROVAL_REQUIRED" },
   "providerOperationLimits": {
     "remoteMutation": false,
@@ -91,9 +91,9 @@
     "ticket126ActiveAndReadBack": false,
     "tickets128Through133ClosedOnSameBuild": false,
     "ticket133LocalAcceptance": true,
-    "unresolvedP0P1": "#132 lacks an authoritative product verdict; #128-#131 remain operator/auth/manual-verification gated. No new rules P0/P1 remains after the #118 correction.",
+    "unresolvedP0P1": "#132 lacks an authoritative product verdict. #128's activated workflow and #130 deployed delivery remain #126-gated; #131 native screen-reader verification is manual. No new rules P0/P1 remains after the #118 correction.",
     "rollbackCleanupLocallyRehearsedWherePossible": "PARTIAL_PLAN_ONLY",
     "ticket135LocalHarnessPrepared": true
   },
-  "verdict": "NOT READY FOR #134. Stop before #134. #118 and #133 are now locally accepted, but #126 is not approved/active/read back and #128-#132 are not closed against the accepted build."
+  "verdict": "NOT READY FOR #134. Stop before #134. #118, #127, #129, #130, #133, and the automated #131 slice are locally accepted, and #128's non-activation slice passes. #126 still lacks exact approved identities/activation/readback, #128's positive workflow is held, #132 has no authoritative product verdict, and native screen-reader verification remains unclaimed."
 }
