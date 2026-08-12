@@ -1,0 +1,61 @@
+{
+  "artifactKind": "prd0062-126-bounded-activation-identity",
+  "schemaVersion": 1,
+  "status": "canonical-identities-recorded-not-approved-not-activated",
+  "sourceCommit": "17bc474ce5d346fe17914b158e225ab2ec953656",
+  "scope": {
+    "teacher": {
+      "email": "teacher@test.com",
+      "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "existing": true
+    },
+    "student": {
+      "email": "student@test.com",
+      "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "existing": true
+    },
+    "book": {
+      "bookId": "book-vocab-u1-d43935c735245dc8",
+      "identityKind": "deterministic-new-book",
+      "sourcePdfPath": "C:\\Users\\The Lord\\Downloads\\Documents\\Vocab-U1.pdf",
+      "sourcePdfSha256": "d43935c735245dc82de93ae7068f4a556560be366299a7609649d2f0960a0266",
+      "bytesCommitted": false
+    },
+    "assignment": {
+      "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+      "identityKind": "deterministic-new-book-homework-assignment",
+      "contextKind": "homework"
+    },
+    "maxStudents": 30
+  },
+  "explicitRejections": [
+    {
+      "id": "8RB8mFCRIAmJz0u7kZR1",
+      "kind": "legacy-non-book-homework",
+      "decision": "reject-and-do-not-reuse"
+    },
+    {
+      "id": "book-ielts-vocabulary-band-6-9781108900607",
+      "kind": "draft-empty-book",
+      "decision": "reject-and-do-not-select"
+    }
+  ],
+  "frozenHashes": {
+    "immutable118": {
+      "fragmentManifestSha256": "9f720df1bce39e88d169749e491a28e1bc3fec89902508ca2d24a2ec81b5b831",
+      "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
+      "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+    },
+    "accepted127": {
+      "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+      "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+    }
+  },
+  "activation": {
+    "approved": false,
+    "activated": false,
+    "remoteMutation": false,
+    "deployment": false,
+    "remoteReadback": "not-performed"
+  }
+}
