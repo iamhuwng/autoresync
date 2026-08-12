@@ -2,34 +2,34 @@
   "schemaVersion": 1,
   "artifactKind": "prd0062-pre-134-readiness-assessment",
   "status": "NOT_READY_STOP_BEFORE_134",
-  "assessedSourceHead": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
+  "assessedSourceHead": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
+  "acceptedApplicationBuildCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
   "branch": "codex/prd0062-lane-c-campaign",
-  "scopeBoundary": "Read-only/local evidence convergence only. This artifact is not the #134 readiness packet and grants no deployment, activation, remote mutation, push, pull-request, or #134 authority.",
+  "scopeBoundary": "Local evidence convergence only. This artifact is not the #134 readiness packet and grants no deployment, activation, remote mutation, push, pull-request, or #134 authority.",
   "identityContext": {
-    "frozenCampaign": {
-      "applicationCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
-      "latestEvidenceCheckpoint": "20f039959a815385697b8a9aa652f9297e3d0a34",
-      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
-      "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
-      "featureGateTemplateSha256": "bb7ee79cb3b71e19b381dea843a5d78457a28677b386c7529b667bebe3a65406",
-      "accepted127MatrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
-      "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
-    },
+    "applicationCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+    "latestEvidenceCheckpoint": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
+    "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
+    "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "featureGateTemplateSha256": "bb7ee79cb3b71e19b381dea843a5d78457a28677b386c7529b667bebe3a65406",
+    "accepted127MatrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+    "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0",
+    "historicalCampaignTooling": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2, "scope": "preserved #128-#133 evidence where unchanged" },
     "currentRepositoryTooling": {
       "commit": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
       "publishedSourceCommit": "aeac957cf8e09c8f28e59f932d1be738edd210d0",
       "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
-      "focusedTests": { "collected": 30, "executed": 30, "passed": 30, "failed": 0, "skipped": 0 },
-      "campaignEvidenceRewritten": false
+      "focusedTests": { "collected": 30, "executed": 30, "passed": 30, "failed": 0, "skipped": 0 }
     }
   },
   "group1": {
     "ticket118": {
-      "status": "ACCEPTED_REUSABLE_UNCHANGED",
-      "proof": { "path": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json", "sha256": "ff6346687769eba411917d47d016252148d1f9c42d8af01214df62cd6d9fd1d2" },
+      "status": "ACCEPTED_ALL_GREEN_REUSABLE",
+      "proof": { "path": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json", "sha256": "f772a70aec0cf83f171acc72ac8af9db2379a0435cc1e7747f63b1b87d6f3610" },
       "fragmentManifest": { "path": "documentation/tasks/PRD0062/evidence/118-final-fragment-manifest-2026-08-12.json", "sha256": "9f720df1bce39e88d169749e491a28e1bc3fec89902508ca2d24a2ec81b5b831" },
-      "generatedRules": { "path": "database.rules.json", "sha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3" },
-      "rollbackRules": { "path": "firebase.prd0062-118-rules.rollback.json", "sha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a" },
+      "generatedRules": { "path": "database.rules.json", "sha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b" },
+      "rollbackRules": { "path": "firebase.prd0062-118-rules.rollback.json", "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6" },
+      "matrix": { "files": 7, "tests": 85, "passed": 85, "failed": 0, "resultSha256": "5505352c25e3eb3af8e528ab854a67b16c1564f1b96a88a2aa68ab9dfb902144" },
       "rerunRequired": false
     }
   },
@@ -37,7 +37,7 @@
     "ticket127": { "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY", "artifact": "documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-12.json", "artifactSha256": "63daa9f79534a25c548899ca0236de1567afaf02b530bb2be680bbc9d3774a16", "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4", "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0" },
     "ticket126": {
       "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_NOT_ACTIVATED",
-      "approvalPacket": { "path": "documentation/tasks/PRD0062/evidence/126-bounded-activation-approval-packet.json", "sha256": "a407516c98914f311f3625240bee59b6c22a54071dc5596e1b74976dcab6d1f8" },
+      "approvalPacket": { "path": "documentation/tasks/PRD0062/evidence/126-bounded-activation-approval-packet.json", "sha256": "66d35d1302cc3289fbc1448b32796f9a8b34d6ce944689a3370e3f80fde5b7bc" },
       "scope": "exactly one named teacher, one named book, one named assignment, and no more than 30 named students",
       "unresolvedIdentities": ["teacherId", "bookId", "assignmentId", "studentIds"],
       "activationIdentitySha256": null,
@@ -46,13 +46,14 @@
     }
   },
   "group3Verdicts": [
-    { "ticket": 128, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/128-teacher-authoring-assignment-provisional-2026-08-12.json", "artifactSha256": "5fcfefa3493c50b7942db3a7c65467727a61bcb7ab0c2871ce258d1e8501b2a8", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context; positive activation also waits for #126" },
-    { "ticket": 129, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/129-teacher-updates-results-provisional-2026-08-12.json", "artifactSha256": "77e122c639be977e8c1762375d5318b1a5bcdaf2a3158f8eeecfd32fc153e603", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context" },
-    { "ticket": 130, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/130-student-runtime-provisional-2026-08-12.json", "artifactSha256": "f1b840c1962686afb7aa421dfc42a83d0d492240a49195e2d54176c556d817c2", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context; positive activation also waits for #126" },
-    { "ticket": 131, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/131-accessibility-device-provisional-2026-08-12.json", "artifactSha256": "90a7256ff6d5f3078cef42c9076401f463e5e4818652cda17af2f8bc61110fca", "gate": "operator-provided clean checkout with project-local npm ci, authenticated context, and manual screen-reader/native-zoom verification" },
-    { "ticket": 132, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/132-contract-security-provisional-2026-08-12.json", "artifactSha256": "2167c49fd3203e1fac04524378a716f9262a623fa0591054a0364ef97027989a", "gate": "3.4 TOOL_TIMEOUT is accepted stop evidence, not a product verdict; any future retry requires independently justified repository emulator-test configuration discovery" },
-    { "ticket": 133, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/133-legacy-backup-recovery-provisional-2026-08-12.json", "artifactSha256": "42b58775dd8ff56bdcdd4bb1655089b63605d1cdae22a8449b5fab1d4d2d734f", "gate": "resolve three transferred baseline-identical legacy cases; bounded 1/1 recovery slice is not ticket acceptance" }
+    { "ticket": 128, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/128-teacher-authoring-assignment-provisional-2026-08-12.json", "artifactSha256": "400262e83f9f4ebcb961d4a7f936747fa73247c275167565772fb276dcaff1a8", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context; positive activation also waits for #126" },
+    { "ticket": 129, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/129-teacher-updates-results-provisional-2026-08-12.json", "artifactSha256": "6738a5c92e09e9a5506d32e8921f6a1cf2bd13dc1a709ca17f67cff4dec7550a", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context" },
+    { "ticket": 130, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/130-student-runtime-provisional-2026-08-12.json", "artifactSha256": "a2cc2643ac88417be84a9c11251bb7d5e338a3f7bf6e46c56b9f00b274f526d9", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context; positive activation also waits for #126" },
+    { "ticket": 131, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/131-accessibility-device-provisional-2026-08-12.json", "artifactSha256": "99b608fcbf9d309a7acbaca74abd7e00ebbd105c98a25d55bb2e4a8e7b8da6ba", "gate": "operator-provided clean checkout with project-local npm ci, authenticated context, and manual screen-reader/native-zoom verification" },
+    { "ticket": 132, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/132-contract-security-provisional-2026-08-12.json", "artifactSha256": "6d1b2b7254d03ce85472df727c6a5ba3853499469291be181d8afa302ad5c6fb", "gate": "#118 is all-green and reused; the non-duplicated #132 execution remains a 3.4 TOOL_TIMEOUT with no product verdict" },
+    { "ticket": 133, "status": "PASS_LOCAL_ACCEPTANCE", "artifact": "documentation/tasks/PRD0062/evidence/133-legacy-backup-recovery-provisional-2026-08-12.json", "artifactSha256": "f41df69ad791e63c71e7f9b1682979e44fe27e1086593de6098387e39949de80", "gate": null }
   ],
+  "campaignManifest": { "path": "documentation/tasks/PRD0062/evidence/acceptance-campaign-manifest-2026-08-12.json", "sha256": "23ec1818682eb2846f8101f18f094d13e61c5127e89ec24a51ce0421eeb594a1" },
   "deployedDrillScope": { "status": "NOT_AUTHORIZED_NOT_RUN", "intendedBoundary": "the exact approved #126 scope only", "ticket134": "SEPARATE_APPROVAL_REQUIRED" },
   "providerOperationLimits": {
     "remoteMutation": false,
@@ -61,14 +62,14 @@
     "push": false,
     "pullRequest": false,
     "ticket134": false,
-    "ticket135RemoteMeasurement": "separate remote-access authorization required; local refusal-safe preparation remains accepted and is not repeated"
+    "ticket135RemoteMeasurement": "separate remote-access authorization required"
   },
   "cleanupAndRollback": {
     "fixtureCleanup": "plan-only; no campaign fixture state was written",
     "fixtureCleanupRoot": "prd0062_acceptance/",
     "fixtureCleanupTargetCount": 40,
     "rulesRollbackArtifact": "firebase.prd0062-118-rules.rollback.json",
-    "rulesRollbackSha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a",
+    "rulesRollbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
     "activationRollback": "restore all-deny bookRolloutGateConfig, leave all route gates disabled, and retain scope-guard denial for disabled or invalid configuration",
     "rehearsal": "local command definitions exist; no deployed cleanup or rollback was run"
   },
@@ -89,9 +90,10 @@
     "ticket127Accepted": true,
     "ticket126ActiveAndReadBack": false,
     "tickets128Through133ClosedOnSameBuild": false,
-    "unresolvedP0P1": "No new P0/P1 identified in this assessment; open ticket blockers remain acceptance gates, not waived defects.",
+    "ticket133LocalAcceptance": true,
+    "unresolvedP0P1": "#132 lacks an authoritative product verdict; #128-#131 remain operator/auth/manual-verification gated. No new rules P0/P1 remains after the #118 correction.",
     "rollbackCleanupLocallyRehearsedWherePossible": "PARTIAL_PLAN_ONLY",
     "ticket135LocalHarnessPrepared": true
   },
-  "verdict": "NOT READY FOR #134. Stop before #134. Do not emit or treat this assessment as the readiness packet until #126 is approved/active/read back and #128-#133 are closed against one accepted build."
+  "verdict": "NOT READY FOR #134. Stop before #134. #118 and #133 are now locally accepted, but #126 is not approved/active/read back and #128-#132 are not closed against the accepted build."
 }

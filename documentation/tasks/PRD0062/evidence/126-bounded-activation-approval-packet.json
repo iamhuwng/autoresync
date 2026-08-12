@@ -3,8 +3,9 @@
   "schemaVersion": 1,
   "status": "engineering-proof-only-not-approved-not-activated",
   "approvalBoundary": {
-    "parentCommit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
-    "implementationCommit": "the single local commit containing this packet; emitted in the handoff after commit",
+    "candidateApplicationCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+    "implementationCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+    "priorEvidenceCheckpointCommit": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
     "remoteMutation": false,
     "deployment": false,
     "activation": false,
@@ -32,6 +33,7 @@
     }
   },
   "immutable118Identity": {
+    "sourceBuildCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
     "proof": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
     "fragmentManifest": {
       "path": "documentation/tasks/PRD0062/evidence/118-final-fragment-manifest-2026-08-12.json",
