@@ -6,12 +6,13 @@
   "generatedByMode": "--manifest",
   "sourcePolicy": "product-source-read-only",
   "repository": {
-    "head": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+    "head": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
     "branch": "codex/prd0062-lane-c-campaign",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
     "mergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
-    "latestEvidenceCommit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+    "latestEvidenceCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "latestToolingCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
     "cleanBeforeCampaignChanges": true,
     "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987"
   },
@@ -23,8 +24,8 @@
     "latestEvidenceCommit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
     "toolingContract": {
       "name": "luyentap-windows-arm64-harness",
-      "version": "3.3.0",
-      "protocol": 1,
+      "version": "3.4.0",
+      "protocol": 2,
       "grammar": "node scripts/harness/run-tool.mjs <tool> <project> [...args]"
     },
     "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987",
@@ -120,7 +121,7 @@
   ],
   "harnessInventory": {
     "windows": "win32 arm64 host; isolated verification Node v24.18.0 x64",
-    "applicationToolingIdentity": "merged c50d commit 55d41b95890f3b2d99c7700fb402b177e7f69870; tooling base 83c1eb7d4254abe33281b5c3aace000ae5f17b59",
+    "applicationToolingIdentity": "c50d commit 63e20716587a7a958620a30b61ea5144ecbd2b9b; source tooling commit 848e174899c9c0fa510dd07d77f6281914fb365d; repository-local harness 3.4.0 protocol 2",
     "missingPaths": [],
     "presentPaths": [
       "scripts/harness/run-tool.mjs",
@@ -148,9 +149,9 @@
       "vitestCli": true
     },
     "nodeModulesState": {
-      "root": "pre-existing junction created 2026-08-12 04:26:58; target C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules; not used by 3.3.0 harness",
+      "root": "pre-existing junction created 2026-08-12 04:26:58; target C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules; invalid external dependency context under 3.4 live-Vite doctor",
       "cloudflare": "absent",
-      "cleanup": "exact unlink attempted by primary but blocked before execution by environment policy; unresolved legacy cleanup constraint"
+      "cleanup": "exact unlink attempted by primary but blocked before execution by environment policy; unresolved legacy cleanup constraint; no server started"
     },
       "acceptanceCli": "PRESENT: scripts/validate-prd0062-acceptance-matrix.mjs",
     "playwrightRoleSelector": "PRD0062_ACCEPTANCE_ROLE=teacher|student for execution; --list without selector exposes all projects without starting a server",
@@ -331,6 +332,46 @@
       "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/98f71299-6088-49c0-b981-e5587729f450.json",
       "supersedes": "prior campaign-owned AC-LR-001 focused run",
       "ticketStatus": "#133 remains PROVISIONAL_BLOCKED due three transferred baseline-identical #118 cases and inactive #126"
+    },
+    {
+      "name": "3.4 focused Node harness suite",
+      "status": "PASS_COMPLETED",
+      "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "counts": { "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0 },
+      "duration": "31.47s",
+      "classification": "completed",
+      "productExecution": false
+    },
+    {
+      "name": "3.4 root doctor",
+      "status": "PASS_EXIT_0",
+      "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "classification": "completed",
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/bee529f7-badd-47e7-a21f-55bd4ae9f884.json",
+      "evidenceSha256Prefix": "e456c043...ef1c",
+      "validator": { "expectedCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "expectClean": true }
+    },
+    {
+      "name": "3.4 Cloudflare doctor and Wrangler",
+      "status": "PASS_EXIT_0",
+      "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "classification": "completed",
+      "cloudflareDoctor": { "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/394a2ea6-66ea-42c5-8c00-5c2a6c2ca235.json", "sha256Prefix": "a02a4a1b...cd66" },
+      "wrangler": { "version": "4.103.0", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/c7fe197e-4ece-4a26-8612-f4bcbc4d2e95.json", "sha256Prefix": "4fd92ca5...d601" },
+      "validator": { "expectedCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "expectClean": true }
+    },
+    {
+      "name": "3.4 Playwright collection and live-Vite readiness",
+      "status": "COLLECTION_PASS_BROWSER_BLOCKED",
+      "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+      "classification": "collection_completed_live_vite_preflight_blocked",
+      "collection": { "phase": "collection", "collected": 9, "executed": 0, "passed": 0, "failed": 0, "skipped": 0, "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/e234fc42-7629-4648-a284-e2de6d18acf9.json", "sha256Prefix": "cc2b6aba...3691", "protectedRootLink": "unchanged" },
+      "liveViteDoctor": { "project": ".", "script": "dev", "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "dependency": "link resolves outside project to C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules", "tcpAttempted": false, "httpAttempted": false, "serverStarted": false },
+      "browserExecuted": false,
+      "blocker": "Using the pre-existing external node_modules junction would violate the 3.4 skill; authenticated teacher/student execution remains held."
     }
   ],
   "executionPolicy": {

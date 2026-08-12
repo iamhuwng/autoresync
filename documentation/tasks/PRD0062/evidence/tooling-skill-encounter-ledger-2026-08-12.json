@@ -14,13 +14,23 @@
     "version": "3.3.0",
     "sha256": "7944CFE8143DB8A8F174D6ABC464119F65B579B86CCD84FD3CDAD1807C7F99D8"
   },
+  "currentRepositorySkill": {
+    "name": "run-windows-arm64-tools",
+    "repositoryPath": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased/.agents/skills/run-windows-arm64-tools/SKILL.md",
+    "version": "3.4.0",
+    "sha256": "85B35CF5864F72E65CB469483BC2140BBE3B08EC0CB1C2C2B89892319DE6C520",
+    "contract": "luyentap-windows-arm64-harness",
+    "protocol": 2,
+    "grammar": "node scripts/harness/run-tool.mjs <tool> <project> [...args]"
+  },
   "target": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
-    "head": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+    "head": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
     "branch": "codex/prd0062-lane-c-campaign",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
-    "latestEvidenceCommit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88"
+    "latestEvidenceCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "latestToolingCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b"
   },
   "toolingTarget": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/prd0062-tooling-base/luyentap-writing-import-rebased",
@@ -30,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 14,
+  "entryCount": 17,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -601,6 +611,136 @@
         "commandFriction": "none"
       },
       "improvementProposal": "Keep package-route evidence linked to the exact commit and preserve prior focused-run history as superseded rather than replacing it silently."
+    },
+    {
+      "id": "encounter-015-authority-3-4-clean-boundary-review",
+      "recordedAtBangkok": "2026-08-12T13:23:10.902+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.4.0",
+      "skillFingerprintSha256": "85B35CF5864F72E65CB469483BC2140BBE3B08EC0CB1C2C2B89892319DE6C520",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+        "head": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+        "branch": "codex/prd0062-lane-c-campaign",
+        "baseCommit": "a3cb87c045803574d42a9b895192f911c329bedf",
+        "sourceCommit": "848e174899c9c0fa510dd07d77f6281914fb365d"
+      },
+      "command": [
+        "Get-Content -Raw .agents/skills/run-windows-arm64-tools/SKILL.md",
+        "git diff --name-status a3cb87c0 63e20716587a7a958620a30b61ea5144ecbd2b9b",
+        "git diff --check a3cb87c0 63e20716587a7a958620a30b61ea5144ecbd2b9b"
+      ],
+      "cwd": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+      "runner": "PowerShell and read-only Git inspection; no repository harness execution",
+      "config": "clean c50d boundary; primary cherry-picked source commit 848e1748 without conflicts",
+      "nativeNode": "not used for repository tooling execution in this encounter",
+      "harness": {
+        "contractName": "luyentap-windows-arm64-harness",
+        "version": "3.4.0",
+        "protocol": 2,
+        "requiredLocalFiles": [
+          ".agents/skills/run-windows-arm64-tools/SKILL.md",
+          "scripts/harness/contract.mjs",
+          "scripts/harness/run-tool.mjs",
+          "scripts/harness/run-isolated.mjs",
+          "scripts/harness/validate-evidence.mjs",
+          "scripts/harness/live-vite-doctor.mjs",
+          "scripts/harness/run-x64.ps1",
+          "scripts/harness/run-wsl-wrangler.mjs"
+        ]
+      },
+      "counts": {
+        "changedFiles": 6,
+        "insertions": 643,
+        "deletions": 17,
+        "toolExecutions": 0,
+        "productAssertions": 0
+      },
+      "runtimeDependencies": ["repository-local skill and harness sources", "read-only Git inspection"],
+      "outcome": "AUTHORITY_RECEIVED_CLEAN_3_4_BOUNDARY; SOURCE_CHERRY_PICK_CLEAN_NO_CONFLICTS; SIX_TOOLING_FILES_ONLY",
+      "classification": "TOOLING_3_4_LINEAGE_SCOPE_PASS",
+      "resolution": "The exact six-file diff contains only the repository-local skill, harness contract/test runner changes, evidence validator, and live-Vite doctor. No product or Reading V2 paths changed; package manifests, rules, fixtures, accepted #118 proof, accepted #127 matrix/fixture evidence, and campaign evidence are untouched by this six-file integration.",
+      "historicalClaimReview": {
+        "status": "APPEND_ONLY_CORRECTION_PENDING_PRIMARY_SIDECAR_VALIDATION",
+        "affectedEntry": "encounter-013-exact-commit-playwright-collection",
+        "issue": "3.3 recorded Playwright --list counts as executed/passed; 3.4 semantics define --list as collection-only and product execution counts must be zero/null.",
+        "action": "Do not rewrite encounter-013. After primary validates the 3.4 sidecar, append a correction entry if the sidecar confirms collection-only semantics."
+      },
+      "usefulness": "Established the clean 3.4 repository/tooling boundary before primary runs the exact acceptance commands.",
+      "friction": {
+        "skillFriction": "none observed",
+        "commandFriction": "none; the requested read-only inspection completed without harness execution"
+      },
+      "improvementProposal": "Have the 3.4 evidence validator emit a migration warning when a historical collection sidecar or ledger record uses nonzero execution counts for Playwright --list."
+    },
+    {
+      "id": "encounter-016-authoritative-3-4-verification",
+      "recordedAtBangkok": "2026-08-12T13:25:36.694+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.4.0",
+      "skillFingerprintSha256": "85B35CF5864F72E65CB469483BC2140BBE3B08EC0CB1C2C2B89892319DE6C520",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+        "head": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+        "branch": "codex/prd0062-lane-c-campaign"
+      },
+      "command": [
+        "primary exact contract check at 63e20716",
+        "primary focused Node harness suite",
+        "node scripts/harness/validate-evidence.mjs --expect-commit 63e20716587a7a958620a30b61ea5144ecbd2b9b --expect-clean <root-doctor-sidecar> <cloudflare-doctor-sidecar> <wrangler-sidecar>",
+        "node scripts/harness/live-vite-doctor.mjs . --script dev",
+        "primary Playwright --list through run-tool.mjs"
+      ],
+      "cwd": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+      "runner": "primary-accepted repository-local 3.4 harness; no commands rerun in this ledger-only continuation",
+      "config": "contract 3.4.0 protocol 2; eight required local files; exact full commit and clean evidence validation",
+      "nativeNode": "primary sidecars are authoritative; no new runtime probe in this turn",
+      "harness": {
+        "contractName": "luyentap-windows-arm64-harness",
+        "version": "3.4.0",
+        "protocol": 2,
+        "requiredLocalFiles": 8,
+        "focusedSuite": { "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "durationSeconds": 31.47 },
+        "rootDoctor": { "status": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/bee529f7-badd-47e7-a21f-55bd4ae9f884.json", "sha256Prefix": "e456c043...ef1c" },
+        "cloudflareDoctor": { "status": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/394a2ea6-66ea-42c5-8c00-5c2a6c2ca235.json", "sha256Prefix": "a02a4a1b...cd66" },
+        "wrangler": { "version": "4.103.0", "status": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/c7fe197e-4ece-4a26-8612-f4bcbc4d2e95.json", "sha256Prefix": "4fd92ca5...d601" },
+        "validator": { "validated": 3, "expectedCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "expectClean": true },
+        "playwrightList": { "phase": "collection", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/e234fc42-7629-4648-a284-e2de6d18acf9.json", "sha256Prefix": "cc2b6aba...3691", "collected": 9, "executed": 0, "passed": 0, "failed": 0, "skipped": 0, "protectedRootLink": "unchanged" },
+        "liveViteDoctor": { "status": "blocked", "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "project": ".", "script": "dev", "resolvedDependency": "link outside selected project to C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules", "tcpAttempted": false, "httpAttempted": false, "serverStarted": false }
+      },
+      "counts": { "focusedCollected": 26, "focusedExecuted": 26, "focusedPassed": 26, "focusedFailed": 0, "focusedSkipped": 0, "playwrightCollected": 9, "playwrightExecuted": 0, "playwrightPassed": 0, "playwrightFailed": 0, "playwrightSkipped": 0 },
+      "runtimeDependencies": ["3.4.0 repository-local harness", "primary evidence sidecars", "external dependency link blocker for live Vite"],
+      "outcome": "FOCUSED_26_OF_26_PASS_DOCTORS_AND_WRANGLER_PASS_COLLECTION_9_LIVE_VITE_BLOCKED",
+      "classification": "COMPLETED_TOOLING_BROWSER_EXECUTION_BLOCKED_BY_EXTERNAL_DEPENDENCY_CONTEXT",
+      "resolution": "Primary validation accepted the contract, focused harness, root/Cloudflare doctors, Wrangler, and Playwright collection against the exact full commit. Live Vite readiness failed closed on DEPENDENCY_CONTEXT_EXTERNAL_LINK before TCP/HTTP or server start; authenticated browser execution remains blocked.",
+      "usefulness": "Captures the first authoritative 3.4 sidecar-backed verification without converting collection into product execution proof.",
+      "friction": { "skillFriction": "none in the accepted 3.4 semantics", "commandFriction": "the pre-existing external node_modules link is an invalid dependency context for live-Vite execution" },
+      "improvementProposal": "Make the live-Vite doctor emit a directly reusable remediation record that clearly separates external-link context failure from server readiness observations."
+    },
+    {
+      "id": "encounter-017-3-3-playwright-list-semantics-correction",
+      "recordedAtBangkok": "2026-08-12T13:25:36.694+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.4.0",
+      "skillFingerprintSha256": "85B35CF5864F72E65CB469483BC2140BBE3B08EC0CB1C2C2B89892319DE6C520",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+        "head": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+        "branch": "codex/prd0062-lane-c-campaign"
+      },
+      "command": "append-only correction proposal for historical encounter-013-exact-commit-playwright-collection",
+      "cwd": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+      "runner": "3.4 evidence semantics review; no historical record rewritten",
+      "config": "Playwright --list is proof.phase=collection only",
+      "nativeNode": "not applicable",
+      "harness": "3.4 validator accepted sidecar e234fc42-7629-4648-a284-e2de6d18acf9.json",
+      "counts": { "historicalRecordedExecuted": 9, "historicalRecordedPassed": 9, "authoritativeCollectionCollected": 9, "authoritativeCollectionExecuted": 0, "authoritativeCollectionPassed": 0, "authoritativeCollectionFailed": 0, "authoritativeCollectionSkipped": 0 },
+      "outcome": "HISTORICAL_3_3_WORDING_CORRECTION_REQUIRED_COLLECTION_ONLY",
+      "classification": "APPEND_ONLY_EVIDENCE_CORRECTION",
+      "resolution": "Historical encounter-013 remains unchanged. Its nonzero executed/passed wording must not be used as product execution proof; the authoritative 3.4 collection sidecar records collected=9 and all execution/result counts as zero.",
+      "usefulness": "Prevents old 3.3 collection wording from being mistaken for authenticated product execution under the 3.4 contract.",
+      "friction": { "skillFriction": "3.4 semantics are explicit", "commandFriction": "historical ledger wording predated the phase/count contract" },
+      "improvementProposal": "Require a migration lint over prior evidence ledgers that rejects nonzero execution counts when the invocation is Playwright --list."
     }
   ]
 }

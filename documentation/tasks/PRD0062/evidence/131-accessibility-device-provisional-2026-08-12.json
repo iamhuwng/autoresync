@@ -3,6 +3,14 @@
   "ticket": "#131",
   "lane": "keyboard/semantics/focus/screen-reader/zoom/touch/overflow/widths",
   "status": "PROVISIONAL_BLOCKED",
+  "latest34ToolingEvidence": {
+    "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+    "focusedHarness": { "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "duration": "31.47s" },
+    "playwrightCollection": { "phase": "collection", "collected": 9, "executed": 0, "passed": 0, "failed": 0, "skipped": 0, "files": 4, "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/e234fc42-7629-4648-a284-e2de6d18acf9.json", "sha256Prefix": "cc2b6aba...3691", "protectedRootLink": "unchanged" },
+    "liveViteDoctor": { "script": "dev", "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "dependency": "external link to C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules", "tcpAttempted": false, "httpAttempted": false, "serverStarted": false },
+    "browserExecution": "HELD; collection is not product execution and external dependency context is invalid under 3.4"
+  },
   "mergedCampaignIdentity": {
     "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
     "checkpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",

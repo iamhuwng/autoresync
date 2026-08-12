@@ -3,6 +3,13 @@
   "ticket": "#133",
   "lane": "legacy/metadata backup/no-PDF/restore/deterministic recovery",
   "status": "PROVISIONAL_BLOCKED",
+  "latest34ToolingIdentity": {
+    "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+    "focusedHarness": { "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "duration": "31.47s" },
+    "recoveryExecution": "no new AC-LR-001 run in this tooling-only update; prior exact-commit result remains historical evidence",
+    "liveViteDoctor": { "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "serverStarted": false }
+  },
   "mergedCampaignIdentity": {
     "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
     "checkpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
