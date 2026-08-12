@@ -4,11 +4,19 @@
   "lane": "legacy/metadata backup/no-PDF/restore/deterministic recovery",
   "status": "PROVISIONAL_BLOCKED",
   "latest34ToolingIdentity": {
-    "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
     "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
-    "focusedHarness": { "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "duration": "31.47s" },
-    "recoveryExecution": "no new AC-LR-001 run in this tooling-only update; prior exact-commit result remains historical evidence",
-    "liveViteDoctor": { "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "serverStarted": false }
+    "priorFocusedHarness": { "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "duration": "31.47s" },
+    "recoveryExecution": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+      "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
+      "phase": "execution",
+      "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 },
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/f8659b6a-6984-4272-9fc7-ccf566cd9164.json",
+      "evidenceSha256": "1a69b98960ef4b641fd328ba22ee798868b62d5fddf485a2d4b3ee3742256840",
+      "protectedState": "unchanged"
+    },
+    "liveViteDoctor": { "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "classification": "invalid dependency context; not a cleanup target", "serverStarted": false }
   },
   "mergedCampaignIdentity": {
     "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
@@ -27,7 +35,7 @@
     "nodeModules": { "root": "pre-existing junction; not used by harness; cleanup policy blocked", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "PROVISIONAL BLOCKED; AC-LR-001 passed its campaign-owned local recovery assertions, while three #118 failures remain baseline-identical legacy expectations transferred to #133 and #126 remains inactive.",
+  "verdict": "PROVISIONAL BLOCKED; the bounded #133 recovery slice passed its campaign-owned local recovery assertions at the exact commit, but this is not ticket acceptance: three #118 failures remain baseline-identical legacy expectations transferred to #133 and #126 remains inactive.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
@@ -88,14 +96,16 @@
     }
   ],
   "execution": {
-    "command": "npm run test:prd0062:legacy-backup-recovery",
-    "runtime": "Windows ARM64 host; harness 3.3.0; isolated x64 Node; exact runtime in evidence sidecar",
-    "commit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+    "command": "harness 3.4 scoped recovery execution; exact invocation recorded in evidence sidecar",
+    "runtime": "Windows ARM64 host; harness 3.4.0 protocol 2; exact runtime in evidence sidecar",
+    "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
     "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
     "classification": "completed",
     "counts": { "files": 1, "tests": 1, "passed": 1, "failed": 0, "skipped": 0 },
-    "duration": "59.14s",
-    "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/98f71299-6088-49c0-b981-e5587729f450.json",
+    "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/f8659b6a-6984-4272-9fc7-ccf566cd9164.json",
+    "evidenceSha256": "1a69b98960ef4b641fd328ba22ee798868b62d5fddf485a2d4b3ee3742256840",
+    "phase": "execution",
+    "protectedState": "unchanged",
     "supersededHarnessHistory": [
       { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts scripts/prd0062-legacy-backup-recovery.test.ts", "status": "NO_TEST_FILES_FOUND", "currentBlocker": false },
       { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "environment": "Luna sandbox", "status": "PRELOAD_SHARED_MIRROR_ACCESS_DENIED", "currentBlocker": false },
@@ -104,5 +114,5 @@
   },
   "scope": ["legacy compatibility", "metadata-only inventory", "no PDF bytes", "restore fencing", "two-pass deterministic recovery", "zero new side effects"],
   "productDefect": null,
-  "nextGate": "Resolve the three transferred #118 baseline-identical legacy cases under #133 and obtain separate #126 approval/activation; do not claim closure from AC-LR-001 alone."
+  "nextGate": "Resolve the three transferred #118 baseline-identical legacy cases under #133 and obtain separate #126 approval/activation; do not claim ticket closure from the bounded recovery slice alone."
 }

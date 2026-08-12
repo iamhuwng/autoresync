@@ -6,13 +6,13 @@
   "generatedByMode": "--manifest",
   "sourcePolicy": "product-source-read-only",
   "repository": {
-    "head": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "head": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
     "branch": "codex/prd0062-lane-c-campaign",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
     "mergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
-    "latestEvidenceCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
-    "latestToolingCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "latestEvidenceCommit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+    "latestToolingCommit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
     "cleanBeforeCampaignChanges": true,
     "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987"
   },
@@ -21,7 +21,7 @@
     "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
-    "latestEvidenceCommit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+    "latestEvidenceCommit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
     "toolingContract": {
       "name": "luyentap-windows-arm64-harness",
       "version": "3.4.0",
@@ -116,12 +116,12 @@
     { "id": "AC-TR-001", "ticket": "#129", "fixture": "F-PDF-EDGE", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
     { "id": "AC-SR-001", "ticket": "#130", "fixture": "F-VOCAB-60", "role": "student", "status": "HARNESS_BLOCKED_NOT_EXECUTED" },
     { "id": "AC-AD-001", "ticket": "#131", "fixture": "F-VOCAB-65", "role": "student", "status": "HARNESS_BLOCKED_NOT_EXECUTED" },
-    { "id": "AC-SC-001", "ticket": "#132", "fixture": "F-PDF-EDGE", "role": "service", "status": "REUSED_118_NOT_RERUN" },
-    { "id": "AC-LR-001", "ticket": "#133", "fixture": "F-GRAMMAR-65", "role": "service", "status": "PASS_LOCAL_RECOVERY_ASSERTIONS" }
+    { "id": "AC-SC-001", "ticket": "#132", "fixture": "F-PDF-EDGE", "role": "service", "status": "HARNESS_PREFLIGHT_FAILURE_NO_PRODUCT_EXECUTION" },
+    { "id": "AC-LR-001", "ticket": "#133", "fixture": "F-GRAMMAR-65", "role": "service", "status": "PASS_BOUNDED_LOCAL_RECOVERY_ASSERTIONS_NOT_TICKET_ACCEPTANCE" }
   ],
   "harnessInventory": {
     "windows": "win32 arm64 host; isolated verification Node v24.18.0 x64",
-    "applicationToolingIdentity": "c50d commit 63e20716587a7a958620a30b61ea5144ecbd2b9b; source tooling commit 848e174899c9c0fa510dd07d77f6281914fb365d; repository-local harness 3.4.0 protocol 2",
+    "applicationToolingIdentity": "c50d commit 389a3157319499f2ee1c64fd5d1ba4e64aa5b66c; repository-local harness 3.4.0 protocol 2",
     "missingPaths": [],
     "presentPaths": [
       "scripts/harness/run-tool.mjs",
@@ -151,7 +151,8 @@
     "nodeModulesState": {
       "root": "pre-existing junction created 2026-08-12 04:26:58; target C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules; invalid external dependency context under 3.4 live-Vite doctor",
       "cloudflare": "absent",
-      "cleanup": "exact unlink attempted by primary but blocked before execution by environment policy; unresolved legacy cleanup constraint; no server started"
+      "dependencyContextDisposition": "DEPENDENCY_CONTEXT_EXTERNAL_LINK is invalid dependency context, not a cleanup target; no unlink or removal is required or proposed",
+      "serverStarted": false
     },
       "acceptanceCli": "PRESENT: scripts/validate-prd0062-acceptance-matrix.mjs",
     "playwrightRoleSelector": "PRD0062_ACCEPTANCE_ROLE=teacher|student for execution; --list without selector exposes all projects without starting a server",
@@ -369,9 +370,33 @@
       "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
       "classification": "collection_completed_live_vite_preflight_blocked",
       "collection": { "phase": "collection", "collected": 9, "executed": 0, "passed": 0, "failed": 0, "skipped": 0, "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/e234fc42-7629-4648-a284-e2de6d18acf9.json", "sha256Prefix": "cc2b6aba...3691", "protectedRootLink": "unchanged" },
-      "liveViteDoctor": { "project": ".", "script": "dev", "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "dependency": "link resolves outside project to C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules", "tcpAttempted": false, "httpAttempted": false, "serverStarted": false },
+      "liveViteDoctor": { "project": ".", "script": "dev", "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "classification": "invalid dependency context; not a cleanup target", "dependency": "link resolves outside project to C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules", "tcpAttempted": false, "httpAttempted": false, "serverStarted": false },
       "browserExecuted": false,
-      "blocker": "Using the pre-existing external node_modules junction would violate the 3.4 skill; authenticated teacher/student execution remains held."
+      "blocker": "The pre-existing external node_modules junction is invalid dependency context under the 3.4 skill; authenticated teacher/student execution remains held. No unlink or removal is proposed."
+    },
+    {
+      "name": "3.4 #133 bounded legacy-backup-recovery slice",
+      "status": "PASS_BOUNDED_LOCAL_RECOVERY_ASSERTIONS_NOT_TICKET_ACCEPTANCE",
+      "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "phase": "execution",
+      "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 },
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/f8659b6a-6984-4272-9fc7-ccf566cd9164.json",
+      "evidenceSha256": "1a69b98960ef4b641fd328ba22ee798868b62d5fddf485a2d4b3ee3742256840",
+      "protectedState": "unchanged",
+      "scope": "bounded #133 recovery slice only; not full AC-LR-001 or ticket acceptance"
+    },
+    {
+      "name": "3.4 #132 bounded contract-security retry diagnostic",
+      "status": "HARNESS_PREFLIGHT_FAILURE_NO_PRODUCT_EXECUTION",
+      "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+      "worktreeClean": false,
+      "phase": "execution",
+      "failureCode": "EPERM",
+      "failureBoundary": "dependency-cache staging rename before Firebase, emulator, Vitest, or product-code startup",
+      "counts": { "collected": null, "executed": null, "passed": null, "failed": null, "skipped": null },
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/4986ad64-18e1-44df-bd29-bc3262bd62e5.json",
+      "scope": "diagnostic failure evidence only; not clean proof, full AC-SC-001, or ticket acceptance"
     }
   ],
   "executionPolicy": {

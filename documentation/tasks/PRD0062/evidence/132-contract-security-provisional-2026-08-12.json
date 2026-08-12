@@ -4,10 +4,26 @@
   "lane": "non-duplicated contract/security; #118 tuple reuse",
   "status": "PROVISIONAL_BLOCKED",
   "latest34ToolingIdentity": {
-    "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
     "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
-    "focusedHarness": { "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "duration": "31.47s" },
-    "securityCaseExecution": "not run in this tooling-only update; #118 tuple remains reused unchanged"
+    "priorFocusedHarness": { "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "duration": "31.47s" },
+    "securityCaseExecution": {
+      "status": "HARNESS_PREFLIGHT_FAILURE",
+      "phase": "execution",
+      "sourceCommit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+      "worktreeClean": false,
+      "failureCode": "EPERM",
+      "failureBoundary": "dependency-cache staging rename before Firebase, emulator, Vitest, or product-code startup",
+      "counts": { "collected": null, "executed": null, "passed": null, "failed": null, "skipped": null },
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/4986ad64-18e1-44df-bd29-bc3262bd62e5.json",
+      "authoritativeFor": "diagnostic preflight failure only; not clean proof or AC-SC-001 acceptance",
+      "productDefect": null,
+      "historicalInconclusiveAttempt": {
+        "status": "INCONCLUSIVE_HARNESS_PRESTART_TIMEOUT",
+        "durationSeconds": 904,
+        "failureBoundary": "source-mirror robocopy before Firebase, project code, emulator ports, or evidence-sidecar creation"
+      }
+    }
   },
   "mergedCampaignIdentity": {
     "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
@@ -25,7 +41,7 @@
     "nodeModules": { "root": "pre-existing junction; not used by harness; cleanup policy blocked", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "#118 tuple is unchanged and reusable; #132's own final non-duplicated matrix was not executed.",
+  "verdict": "#118 tuple is unchanged and reusable; the latest bounded #132 attempt is diagnostic harness preflight evidence only, not clean proof, a product/security result, or full AC-SC-001 acceptance.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
@@ -53,9 +69,9 @@
     "remoteProof": "none"
   },
   "cases": [
-    { "id": "AC-SC-001", "status": "REUSED_118_NOT_RERUN", "blockers": ["#118 tuple reused without assembled-rules rerun", "campaign security command was not run because the shared x64 harness is unavailable before application/test load", "#126 remains engineering-proof-only and not active"] }
+    { "id": "AC-SC-001", "status": "HARNESS_PREFLIGHT_FAILURE_NO_PRODUCT_EXECUTION", "blockers": ["#118 tuple reused without assembled-rules rerun", "latest campaign attempt failed with EPERM during dependency-cache staging rename before Firebase, project-code, emulator, Vitest, or assertion activity", "#126 remains engineering-proof-only and not active"] }
   ],
   "scope": ["trusted writes", "ancestor/root/cross-user negatives", "stale/replay/privacy boundaries", "assembled-rule contract", "non-duplicated security cases"],
   "productDefect": null,
-  "nextGate": "Keep the #118 generated-rules and assembled-suite tuple unchanged; run only the non-duplicated AC-SC-001 slice after the shared x64 harness is repaired, retaining the three baseline-identical legacy failures under #133."
+  "nextGate": "Keep the #118 generated-rules and assembled-suite tuple unchanged; after the dependency-cache staging rename is reliable, rerun only the non-duplicated AC-SC-001 slice on a clean worktree, retaining the three baseline-identical legacy failures under #133."
 }
