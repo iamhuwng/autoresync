@@ -40,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 27,
+  "entryCount": 28,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -990,6 +990,47 @@
       "resolution": "Authenticated local identity discovery completed without creating accounts. The #126 configs remained local and fail closed. Wrangler doctor passed, while both dry-runs truthfully stopped at the existing jose bundling failure; no deployment, activation, remote mutation, package change, or lockfile change occurred.",
       "genericObservation": "A completed Wrangler capability doctor does not prove that the selected Worker bundles; a dependency-resolution failure after Wrangler starts is a product/configuration result and should remain distinct from harness preflight.",
       "improvementProposal": "Preserve bundler dependency-resolution diagnostics and protected-state hashes in Wrangler sidecars; do not teach the reusable harness about application package names or deployment identities."
+    },
+    {
+      "id": "encounter-028-harness-35-wsl-project-dependency-context",
+      "recordedAtBangkok": "2026-08-13T00:42:13+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.5.0",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/26db/luyentap-writing-import-rebased",
+        "baseHead": "30659f9b7cd087ee46db4d59f9cb250c998711a2",
+        "worktreeCleanBeforeInvocation": false,
+        "dirtyReason": "isolated rejected source-boundary experiment; never integrated"
+      },
+      "harness": {
+        "contractName": "luyentap-windows-arm64-harness",
+        "version": "3.5.0",
+        "protocol": 3,
+        "wranglerDependencyCacheProtocol": 2
+      },
+      "selectedProject": "cloudflare",
+      "selectedTools": ["vitest", "wrangler"],
+      "doctorCommand": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler",
+      "originalCommands": [
+        "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-source-upload-worker.test.ts test/book-source-document-delivery-worker.test.ts test/book-source-reconciliation-worker.test.ts test/book-source-capacity-probe-worker.test.ts --maxWorkers=1 --passWithNoTests=false",
+        "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run --config wrangler.prd0062-ticket126-vocab-u1-activation.jsonc"
+      ],
+      "resource": {
+        "discovered": "the protocol-2 WSL cache identity included the selected lock hash but its generated package declared only Wrangler; selected-project dependencies were absent and no later NODE_PATH/PATH adaptation existed",
+        "reused": "existing immutable protocol-2 WSL Wrangler cache for read-only diagnosis only",
+        "adapted": "none; repository node_modules installation or linkage is prohibited by the skill",
+        "installed": null
+      },
+      "evidence": {
+        "doctor": { "path": "C:/Users/The Lord/AppData/Local/codex-prd0062-126-jose-verification/doctor.json", "sha256": "e7cddb4e1a004d09db87a030803a9750eb3ada2be5baa4c774ce688054904b92", "classification": "completed", "dirty": true },
+        "interruptedFocusedRun": { "path": "C:/Users/The Lord/AppData/Local/codex-prd0062-126-jose-verification/focused-tests.json", "sha256": "0c328b0c27781563d8349c7b2d9e9c398b186e5945266312370ea52d70ea3493", "lifecycle": "in_progress", "accepted": false },
+        "focusedRerun": { "path": "C:/Users/The Lord/AppData/Local/codex-prd0062-126-jose-verification/focused-tests-rerun.json", "sha256": "bf1e31a728272e81c4a36b590b4b878a9eab9765bacb2b3e947c17200bc67c52", "emittedClassification": "product_failure", "counts": { "collected": 47, "executed": 47, "passed": 45, "failed": 2, "skipped": 0 }, "accepted": false },
+        "wranglerDryRun": { "path": "C:/Users/The Lord/AppData/Local/codex-prd0062-126-jose-verification/activation-dry-run.json", "sha256": "a830aea8c83e0c187b71d7083c69db276f0089914aaba7b846d1db5e30ada058", "emittedClassification": "product_failure", "authoritativeClassification": "harness_startup_failure", "stableFailureCode": "WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING", "dirty": true, "productVerdict": null }
+      },
+      "classification": "HARNESS_DEFECT_CONFIRMED_NO_PRODUCT_VERDICT",
+      "resolution": "Tooling-authority read-only inspection confirmed that Harness 3.5 installs only Wrangler into the WSL cache while the live selected project has no repository node_modules. The prior encounter-027 product-failure interpretation is corrected append-only: those bundling failures are harness-boundary evidence. The rejected source experiment is not accepted or integrated, and activation remains blocked pending an accepted protocol-bumped generic harness fix.",
+      "genericObservation": "A dependency-cache identity must bind and install the same selected-project dependency graph it claims to represent, and the runner must expose that immutable graph to live-source module resolution without mutating the checkout.",
+      "improvementProposal": "Bump the WSL cache protocol; bind manifest and lock hashes; install the selected lock with npm ci; expose only the matching immutable cache through process-scoped resolution; make doctor fail closed before tool startup when that context is incomplete."
     }
   ]
 }

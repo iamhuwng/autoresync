@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "status": "engineering-proof-only-not-approved-not-activated",
   "approvalBoundary": {
-    "candidateApplicationCommit": "17bc474ce5d346fe17914b158e225ab2ec953656",
+    "candidateApplicationCommit": "487d091a46c53bfd16fbc72575a0f73f14fdcd18",
     "implementationCommit": "17bc474ce5d346fe17914b158e225ab2ec953656",
     "priorEvidenceCheckpointCommit": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
     "remoteMutation": false,
@@ -55,9 +55,9 @@
     "identityPath": "documentation/tasks/PRD0062/evidence/126-activation-identity.json",
     "identitySha256": "f86f04cf3214fc08a9723ba03dc4f9996cffd0fa0b11dac27f64c4688922f1b9",
     "activationConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
-    "activationConfigSha256": "a2cfbbad13d2f44b29a620f090b8c6edd787e1571bf61d99e0e96e4c339b9984",
+    "activationConfigSha256": "6f8e336757fb0e5ab5e507b62a3a8e63f165c672a954825e80dcba2f4d7810c2",
     "rollbackConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
-    "rollbackConfigSha256": "5c4cc54de6c067b95cd28a292d9dc4e4834f79eae5942d69d66fd413fadcc2b8",
+    "rollbackConfigSha256": "d388f328aae5e3b3a95b4b47ae9088f0f4e0e0b813e6c5ab11fb1b816d1f44da",
     "pathRegisterPath": "documentation/tasks/PRD0062/evidence/126-trusted-path-register.json",
     "pathRegisterSha256": "c75fdeaa57e592c100373fc61aeac3049097eb2a22e253e6b84bdd9f4a7b93cf",
     "scope": "exactly one existing teacher + one deterministic new Book + one deterministic new Book Homework assignment + one existing student",
@@ -306,20 +306,22 @@
     "rollbackActions": "all six deny",
     "rollbackScopeEnforcement": "disabled so the mandatory guard denies with enforcement_disabled before side effects",
     "dryRun": {
-      "status": "attempted-product-failure",
-      "activation": "Harness 3.5 execution reached Wrangler bundling and failed because isolated Wrangler could not resolve jose; no deployment occurred",
-      "rollback": "Harness 3.5 execution reached Wrangler bundling and failed because isolated Wrangler could not resolve jose; no deployment occurred",
+      "status": "harness-blocked-no-product-verdict",
+      "activation": "Harness 3.5 could not supply the selected Cloudflare project's locked dependency graph to live Wrangler; bundling never established a valid product dependency context and no deployment occurred",
+      "rollback": "Harness 3.5 could not supply the selected Cloudflare project's locked dependency graph to live Wrangler; bundling never established a valid product dependency context and no deployment occurred",
       "protectedState": "package.json and package-lock.json unchanged",
       "evidence": [
         "C:\\Users\\The Lord\\AppData\\Local\\codex-harness-v3\\evidence\\a9cce6be-634e-48e4-a74e-cad4489dc029.json",
         "C:\\Users\\The Lord\\AppData\\Local\\codex-harness-v3\\evidence\\4392c8ef-6335-4d83-aec7-0836ee93c86f.json"
       ],
-      "rerun": "not rerun per bounded correction instruction"
+      "classificationCorrection": "The emitted product_failure classification is not authoritative at this boundary. Tooling-authority inspection confirmed a generic Harness 3.5 defect: the protocol-2 WSL cache installs only Wrangler while cloudflare/node_modules remains absent, so selected-project imports cannot resolve. Treat as harness_startup_failure / WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING.",
+      "rerun": "blocked until an accepted protocol-bumped generic harness fix is integrated; then rerun the exact activation and rollback dry-runs once"
     },
     "blockers": [
       "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY, BOOK_ASSEMBLY_SERVICE_IDENTITY, BOOK_HOMEWORK_SERVICE_IDENTITY, and BOOK_RUNTIME_SERVICE_IDENTITY are not supplied by an authoritative production config",
       "required Google service-account and Backblaze B2 values are deployment-only secrets and are not committed",
-      "the repository's current public kahoot-media R2 binding is not approved for Book Source; the private source binding requires separate operator/remote proof"
+      "the repository's current public kahoot-media R2 binding is not approved for Book Source; the private source binding requires separate operator/remote proof",
+      "Harness 3.5 cannot provide selected-project dependencies to live Wrangler; integrate an accepted generic protocol-bumped tooling fix before any activation or rollback proof"
     ]
   },
   "unresolvedApproval": "Canonical identities are recorded, but deployment authority must separately approve and deploy the exact activation config, then verify positive and negative readback. This task performed no activation, deployment, remote mutation, or push."
