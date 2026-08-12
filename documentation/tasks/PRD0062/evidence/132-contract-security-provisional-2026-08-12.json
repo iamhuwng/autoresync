@@ -77,7 +77,7 @@
     "nodeModules": { "root": "pre-existing external junction; not used by harness; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "#118 tuple is unchanged and reusable. Fresh-root doctor recovered cache publication, but the bounded #132 execution ended in a sidecar-supported harness transport timeout with null counts. Separately hashed logs corroborate tool startup only; no product verdict is authoritative, and this is not full AC-SC-001 or ticket closure.",
+  "verdict": "The corrected #118 tuple is accepted all-green and reusable. The bounded #132-owned non-duplicated execution remains a sidecar-supported harness transport timeout with null counts. Separately hashed logs corroborate tool startup only; no #132 product verdict is authoritative, and this is not full AC-SC-001 or ticket closure.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
@@ -91,23 +91,23 @@
     }
   },
   "tupleVerification": {
-    "status": "PASS",
-    "method": "live file hashes and HEAD verification",
-    "proof": "database.rules.json and scripts/prd0062-118-assembled-rules-matrix.mjs match the supplied #118 hashes",
+    "status": "PASS_UPDATED_TUPLE",
+    "method": "corrected #118 clean proof at 78306ee1049ba0b2db4f525a168693a666e8a19a plus live file identities",
+    "proof": "database.rules.json and the unchanged assembled-suite definition match the corrected #118 identities",
     "duplicate118Run": false
   },
   "reused118Evidence": {
     "path": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
-    "proofClass": "local composition plus RTDB emulator/security proof",
-    "status": "accepted-no-new-regressions",
-    "counts": { "resultFiles": 7, "totalTests": 85, "passedTests": 82, "failedTests": 3, "skippedTests": 0 },
-    "legacyFailuresTransferredTo": "#133",
+    "proofClass": "clean local deterministic composition plus RTDB emulator/security proof",
+    "status": "ACCEPTED_ALL_GREEN",
+    "counts": { "resultFiles": 7, "totalTests": 85, "passedTests": 85, "failedTests": 0, "skippedTests": 0 },
+    "legacyFailuresTransferredTo": null,
     "remoteProof": "none"
   },
   "cases": [
-    { "id": "AC-SC-001", "status": "HARNESS_TRANSPORT_FAILURE_NO_AUTHORITATIVE_PRODUCT_VERDICT", "blockers": ["#118 tuple reused without assembled-rules rerun", "latest bounded execution has a sidecar-supported harness transport timeout with all result counts null; separately hashed logs corroborate startup only", "#126 remains engineering-proof-only and not active"] }
+    { "id": "AC-SC-001", "status": "HARNESS_TRANSPORT_FAILURE_NO_AUTHORITATIVE_PRODUCT_VERDICT", "blockers": ["corrected #118 tuple reused without duplicate rerun in #132", "latest bounded #132-owned execution has a sidecar-supported harness transport timeout with all result counts null; separately hashed logs corroborate startup only", "#126 remains engineering-proof-only and not active"] }
   ],
   "scope": ["trusted writes", "ancestor/root/cross-user negatives", "stale/replay/privacy boundaries", "assembled-rule contract", "non-duplicated security cases"],
   "productDefect": null,
-  "nextGate": "Keep the #118 generated-rules and assembled-suite tuple unchanged; assess the bounded transport timeout from its sidecar before any materially changed retry. Do not widen the timeout without understanding the expected duration; retain the three baseline-identical legacy failures under #133."
+  "nextGate": "Keep the corrected #118 tuple unchanged. Assess the bounded #132 transport timeout from its sidecar before any materially changed retry; do not widen the timeout without understanding expected duration. #133's former transferred legacy cases are resolved."
 }

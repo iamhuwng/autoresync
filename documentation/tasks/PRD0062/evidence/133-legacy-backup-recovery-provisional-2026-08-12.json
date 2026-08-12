@@ -2,117 +2,78 @@
   "schemaVersion": 1,
   "ticket": "#133",
   "lane": "legacy/metadata backup/no-PDF/restore/deterministic recovery",
-  "status": "PROVISIONAL_BLOCKED",
-  "latest34ToolingIdentity": {
-    "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
-    "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
-    "priorFocusedHarness": { "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "duration": "31.47s" },
-    "recoveryExecution": {
-      "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts",
-      "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
-      "phase": "execution",
-      "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 },
-      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/f8659b6a-6984-4272-9fc7-ccf566cd9164.json",
-      "evidenceSha256": "1a69b98960ef4b641fd328ba22ee798868b62d5fddf485a2d4b3ee3742256840",
-      "protectedState": "unchanged"
-    },
-    "liveViteDoctor": { "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "classification": "invalid dependency context; not a cleanup target", "serverStarted": false }
-  },
-  "mergedCampaignIdentity": {
-    "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
-    "checkpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
-    "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
-    "applicationCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
-    "latestEvidenceCommit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
-    "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.3.0", "protocol": 1 }
-  },
-  "downstreamVerification": {
-    "focusedHarness": { "command": "npm run test:harness", "status": "PASS_COMPLETED", "counts": { "collected": 20, "executed": 20, "passed": 20, "failed": 0, "skipped": 0 }, "duration": "61.77s", "classification": "completed" },
-    "rootDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json" },
-    "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
-    "productCampaignExecuted": false,
-    "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
-    "nodeModules": { "root": "pre-existing external junction; not used by harness; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
-    "manifestHashesUnchanged": true
-  },
-  "verdict": "PROVISIONAL BLOCKED; the bounded #133 recovery slice passed its campaign-owned local recovery assertions at the exact commit, but this is not ticket acceptance: three #118 failures remain baseline-identical legacy expectations transferred to #133 and #126 remains inactive.",
-  "authority": {
-    "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
-    "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
+  "status": "PASS_LOCAL_ACCEPTANCE",
+  "verdict": "The campaign-owned recovery slice and all three transferred legacy-rule cases pass. #133 has no remaining local product blocker; this is local acceptance only and does not authorize deployment, activation, #134, push, or a PR.",
+  "acceptedIdentity": {
+    "sourceCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+    "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
+    "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
     "rulesSuiteSha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
-    "ticket126": { "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE", "commit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2", "activationIdentitySha256": null },
-    "ticket127": {
-      "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY",
-      "commit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
-      "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
-      "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
-    }
+    "ticket127MatrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+    "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
   },
-  "classificationSource": {
-    "path": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
-    "proofClass": "local composition plus RTDB emulator/security proof",
-    "tupleUnchanged": true,
-    "freshRerun": false,
-    "reasonFreshRerunNotRequired": "the supplied #118 tuple remains unchanged; #132 reuses it and #133 owns only the three baseline-identical classifications"
-  },
-  "baselineIdenticalCases": [
-    {
-      "id": "LEGACY-118-MATERIAL-CATALOG-SUMMARY",
-      "testFile": "src/__tests__/security/materialCatalogFirebaseRules.test.ts",
-      "title": "Material Catalog Firebase rule contract defines versioned universal summary ownership, public-read, and schema rules",
-      "assembledStatus": "failed",
-      "rollbackStatus": "failed",
-      "classification": "#133_OWNED_BASELINE_IDENTICAL_LEGACY",
-      "failure": "TypeError: Cannot read properties of undefined (reading '.validate') at line 380:21",
-      "correction": "Reclassified as pre-existing baseline expectation; no product or test source changed."
-    },
-    {
-      "id": "LEGACY-118-READING-V2-SOFT-REMOVE-WITHOUT-CLEANUP",
-      "testFile": "src/__tests__/security/readingV2FirebaseRules.test.ts",
-      "title": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove Reading V2 masters when material summary cleanup rows are absent",
-      "assembledStatus": "failed",
-      "rollbackStatus": "failed",
-      "classification": "#133_OWNED_BASELINE_IDENTICAL_LEGACY",
-      "failure": "PERMISSION_DENIED: Permission denied",
-      "correction": "Reclassified as pre-existing baseline expectation; Reading V2 source was not edited."
-    },
-    {
-      "id": "LEGACY-118-READING-V2-THIN-MASTER-SOFT-REMOVE",
-      "testFile": "src/__tests__/security/readingV2FirebaseRules.test.ts",
-      "title": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove thin legacy Reading V2 masters without passage refs",
-      "assembledStatus": "failed",
-      "rollbackStatus": "failed",
-      "classification": "#133_OWNED_BASELINE_IDENTICAL_LEGACY",
-      "failure": "PERMISSION_DENIED: Permission denied",
-      "correction": "Reclassified as pre-existing baseline expectation; Reading V2 source was not edited."
-    }
-  ],
-  "cases": [
-    {
-      "id": "AC-LR-001",
-      "fixture": "F-GRAMMAR-65",
-      "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
-      "blockers": ["three #118 baseline-identical legacy cases remain unresolved/transferred to #133", "#126 remains engineering-proof-only and not active"]
-    }
-  ],
-  "execution": {
-    "command": "harness 3.4 scoped recovery execution; exact invocation recorded in evidence sidecar",
-    "runtime": "Windows ARM64 host; harness 3.4.0 protocol 2; exact runtime in evidence sidecar",
-    "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
-    "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
-    "classification": "completed",
+  "recoverySlice": {
+    "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+    "sourceCommit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+    "harness": { "version": "3.4.0", "protocol": 2 },
+    "status": "passed",
     "counts": { "files": 1, "tests": 1, "passed": 1, "failed": 0, "skipped": 0 },
-    "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/f8659b6a-6984-4272-9fc7-ccf566cd9164.json",
-    "evidenceSha256": "1a69b98960ef4b641fd328ba22ee798868b62d5fddf485a2d4b3ee3742256840",
-    "phase": "execution",
-    "protectedState": "unchanged",
-    "supersededHarnessHistory": [
-      { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts scripts/prd0062-legacy-backup-recovery.test.ts", "status": "NO_TEST_FILES_FOUND", "currentBlocker": false },
-      { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "environment": "Luna sandbox", "status": "PRELOAD_SHARED_MIRROR_ACCESS_DENIED", "currentBlocker": false },
-      { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "status": "PASS_LOCAL_RECOVERY_ASSERTIONS", "duration": "2.68s", "supersededBy": "npm run test:prd0062:legacy-backup-recovery at 48bf9b38" }
+    "sidecar": {
+      "path": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/f8659b6a-6984-4272-9fc7-ccf566cd9164.json",
+      "sha256": "1a69b98960ef4b641fd328ba22ee798868b62d5fddf485a2d4b3ee3742256840"
+    },
+    "protectedStateChanged": false,
+    "reuseBasis": "The corrected #118 tuple changed only RTDB rule leaves and the composer test. The metadata/no-PDF/restore/two-pass recovery implementation and fixture identity did not change, so this unaffected slice is reused under the campaign rerun rule."
+  },
+  "transferredLegacyCases": {
+    "rootCause": "Merge b8cd836c dropped 25 accepted normal-product rule leaves before #118 froze its rollback base.",
+    "repair": "Restored all 25 leaves in the rollback base and sole generated rules artifact without editing Reading V2 product code.",
+    "matrixEvidence": {
+      "proof": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
+      "sidecarSha256": "e8175c5144cb4f7e0c2a137d349860da7304c74cdd82b86cf6a8078cfcab3468",
+      "resultSha256": "5505352c25e3eb3af8e528ab854a67b16c1564f1b96a88a2aa68ab9dfb902144",
+      "counts": { "files": 7, "tests": 85, "passed": 85, "failed": 0, "skipped": 0, "pending": 0, "todo": 0 }
+    },
+    "cases": [
+      {
+        "id": "LEGACY-118-MATERIAL-CATALOG-SUMMARY",
+        "testFile": "src/__tests__/security/materialCatalogFirebaseRules.test.ts",
+        "status": "passed",
+        "assertionsInFile": 23,
+        "restoredRuleLeaves": "four readiness/projection validators at each of five universal summary rows"
+      },
+      {
+        "id": "LEGACY-118-READING-V2-SOFT-REMOVE-WITHOUT-CLEANUP",
+        "testFile": "src/__tests__/security/readingV2FirebaseRules.test.ts",
+        "status": "passed",
+        "assertionsInFile": 33,
+        "restoredRuleLeaves": "four owner-authorized universal-summary cleanup delete branches from 01d5dd12"
+      },
+      {
+        "id": "LEGACY-118-READING-V2-THIN-MASTER-SOFT-REMOVE",
+        "testFile": "src/__tests__/security/readingV2FirebaseRules.test.ts",
+        "status": "passed",
+        "assertionsInFile": 33,
+        "restoredRuleLeaves": "removed-state full composition validation from 5de8590b"
+      }
     ]
   },
-  "scope": ["legacy compatibility", "metadata-only inventory", "no PDF bytes", "restore fencing", "two-pass deterministic recovery", "zero new side effects"],
-  "productDefect": null,
-  "nextGate": "Resolve the three transferred #118 baseline-identical legacy cases under #133 and obtain separate #126 approval/activation; do not claim ticket closure from the bounded recovery slice alone."
+  "scope": [
+    "legacy compatibility",
+    "metadata-only inventory",
+    "no PDF bytes",
+    "restore fencing",
+    "two-pass deterministic recovery",
+    "zero new side effects"
+  ],
+  "ticket126": {
+    "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE",
+    "note": "#126 remains a campaign/pre-#134 gate but is no longer a #133 product-test blocker."
+  },
+  "historicalEvidence": {
+    "priorStatus": "PROVISIONAL_BLOCKED",
+    "priorReason": "The old #118 rollback base reproduced three failures and incorrectly classified them as baseline-identical legacy expectations.",
+    "correction": "Exact merge-parent comparison proved the rollback base itself was incomplete; the corrected base and generated artifact make all three cases green."
+  },
+  "nextGate": "Consume this local #133 verdict in the shared campaign manifest. Do not rerun unaffected recovery coverage unless its implementation, fixture, or accepted identity changes."
 }

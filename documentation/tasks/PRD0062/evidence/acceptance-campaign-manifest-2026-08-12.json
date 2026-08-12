@@ -6,7 +6,7 @@
   "generatedByMode": "--manifest",
   "sourcePolicy": "product-source-read-only",
   "repository": {
-    "head": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
+    "head": "78306ee1049ba0b2db4f525a168693a666e8a19a",
     "branch": "codex/prd0062-lane-c-campaign",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
@@ -17,7 +17,7 @@
     "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987"
   },
   "frozenTuple": {
-    "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "appCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
     "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
@@ -31,7 +31,7 @@
     "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987",
     "generatedRules": {
       "path": "database.rules.json",
-      "sha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3"
+      "sha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b"
     },
     "assembledRulesSuite": {
       "path": "scripts/prd0062-118-assembled-rules-matrix.mjs",
@@ -332,7 +332,7 @@
       "duration": "59.14s",
       "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/98f71299-6088-49c0-b981-e5587729f450.json",
       "supersedes": "prior campaign-owned AC-LR-001 focused run",
-      "ticketStatus": "#133 remains PROVISIONAL_BLOCKED due three transferred baseline-identical #118 cases and inactive #126"
+      "ticketStatus": "#133 PASS_LOCAL_ACCEPTANCE; its unaffected 1/1 recovery slice is reused and all three transferred legacy-rule cases pass in the corrected #118 85/85 matrix. #126 remains inactive as a separate campaign gate."
     },
     {
       "name": "3.5 repository harness lineage acceptance",

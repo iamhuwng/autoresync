@@ -40,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 24,
+  "entryCount": 25,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -871,6 +871,42 @@
       "resolution": "Both scoped doctors completed. The rules-composition assertions passed after replacing a Windows/Vite virtual-URL filesystem helper with raw imports. The vite-node snapshot write was intentionally not treated as a live-checkout mutation or acceptance evidence; the final rules artifact was updated through reviewed repository patches and is verified by exact composer equality.",
       "genericObservation": "Snapshot tools must not imply that arbitrary source writes are published back to the live checkout; test helpers should consume module bytes through the bundler rather than reconstructing filesystem paths from transformed module URLs.",
       "improvementProposal": "Document that source-mirror writes are invocation-local unless a tool declares a published output, and include a path-with-spaces raw-import fixture in harness-adjacent repository tests without adding application-specific behavior to the harness."
+    },
+    {
+      "id": "encounter-025-prd0062-rules-matrix-clean-acceptance",
+      "recordedAtBangkok": "2026-08-12T20:02:00+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.5.0",
+      "target": { "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased", "head": "78306ee1049ba0b2db4f525a168693a666e8a19a", "worktreeCleanBeforeInvocation": true },
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "selectedProjects": [".", "cloudflare"],
+      "selectedTools": ["firebase", "vitest"],
+      "doctorCommand": "node scripts/harness/run-tool.mjs --doctor . firebase",
+      "originalCommands": [
+        "node scripts/harness/run-tool.mjs vitest cloudflare run test/generated-book-rules-composer.test.ts --reporter=verbose",
+        "node scripts/harness/run-tool.mjs firebase . emulators:exec --only database <seven-file Vitest JSON command>"
+      ],
+      "resource": {
+        "discovered": "repository-local Harness 3.5.0, Windows x64 Node, Microsoft Java 21, and matching immutable dependency caches",
+        "reused": "validated root and Cloudflare caches",
+        "adapted": "restored the suite-owned non-secret Firebase web placeholders and used a no-space external JSON result path after two bounded configuration/argument failures",
+        "installed": null
+      },
+      "evidence": {
+        "firebaseDoctor": { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-firebase-doctor-clean.json", "sha256": "218ff2893324b212a251f86e9ac94c9da97f7093530ed6e54c36857353b6a1ce", "classification": "completed" },
+        "focusedComposer": { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-composer-focused-clean.json", "sha256": "f5079d8fee46e8c8a6bb04cf782c2a7d88f6280a2bf0b3b06b2df0336ff2c290", "classification": "completed", "counts": { "collected": 13, "executed": 13, "passed": 13, "failed": 0, "skipped": 0 } },
+        "acceptedMatrixSidecar": { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-assembled-matrix-clean-final2.json", "sha256": "e8175c5144cb4f7e0c2a137d349860da7304c74cdd82b86cf6a8078cfcab3468", "classification": "completed" },
+        "acceptedMatrixResult": { "path": "C:/Users/Public/prd0062-118-assembled-matrix-results-final.json", "sha256": "5505352c25e3eb3af8e528ab854a67b16c1564f1b96a88a2aa68ab9dfb902144", "counts": { "files": 7, "tests": 85, "passed": 85, "failed": 0, "skipped": 0, "pending": 0, "todo": 0 } },
+        "supersededAttempts": [
+          { "sidecarSha256": "727cbf5ac4b5e686b007fbac7f0c10c426ac236cc86268586b032b354593f96b", "classification": "verification-configuration failure", "resolution": "six files passed 52/52; Reading V2 collected zero assertions because the generic database URL was invalid" },
+          { "sidecarSha256": "83d117240c993da890092fc2183d9ccce0e8dadcaa0c524be8115a6ef388d659", "classification": "completed but counts null", "resolution": "all seven files passed; superseded because no hashable per-file JSON was retained" },
+          { "sidecarSha256": "3bb25f2fb89fcad6674818f826cd1ea15d2e15abd4281532d916fe6c76194598", "classification": "command-argument failure", "resolution": "absolute result path split at a space before emulator/Vitest startup" }
+        ]
+      },
+      "classification": "COMPLETED_CLEAN_RULES_ACCEPTANCE",
+      "resolution": "The focused composer suite passed 13/13. The complete seven-file RTDB matrix passed 85/85 with every configured file present and executing assertions. Protected package, lockfile, and node_modules state was unchanged.",
+      "genericObservation": "Wrapper tools need an explicit structured-result path when reusable evidence requires file-level test counts; suite-owned local configuration must be preserved when translating a legacy launcher to a generic harness boundary.",
+      "improvementProposal": "Consider a generic harness mechanism for declaring and hashing child result artifacts and for parsing supported nested test-runner summaries, without encoding Firebase suites or application fixtures into reusable harness logic."
     }
   ]
 }
