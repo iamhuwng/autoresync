@@ -4,18 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "node ../scripts/harness/run-tool.mjs vitest . run",
     "test:security:red": "node scripts/run-insecure-baseline.mjs",
     "test:security:green": "node scripts/run-hardened-negative-suite.mjs",
     "verify:r2-lifecycle": "node scripts/verify-r2-lifecycle-config.mjs r2-lifecycle.temp-24h.json",
-    "check": "wrangler deploy --dry-run",
-    "local": "wrangler dev",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "deployed-status": "wrangler deployments status --name r2-upload-signer --json",
-    "version-list": "wrangler versions list --name r2-upload-signer --json",
-    "version-pin": "wrangler versions deploy",
-    "rollback": "wrangler rollback"
+    "check": "node ../scripts/harness/run-tool.mjs wrangler . deploy --dry-run",
+    "local": "node ../scripts/harness/run-tool.mjs wrangler . dev",
+    "dev": "node ../scripts/harness/run-tool.mjs wrangler . dev",
+    "deploy": "node ../scripts/harness/run-tool.mjs wrangler . deploy",
+    "deployed-status": "node ../scripts/harness/run-tool.mjs wrangler . deployments status --name r2-upload-signer --json",
+    "version-list": "node ../scripts/harness/run-tool.mjs wrangler . versions list --name r2-upload-signer --json",
+    "version-pin": "node ../scripts/harness/run-tool.mjs wrangler . versions deploy",
+    "rollback": "node ../scripts/harness/run-tool.mjs wrangler . rollback"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.18",
