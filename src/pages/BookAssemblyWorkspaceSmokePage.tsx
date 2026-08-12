@@ -198,23 +198,26 @@ const ticket65Manifest: BookAssemblyManifestCandidate = {
     { nodeKey: 'unit-fixture', parentNodeKey: 'section-fixture', nodeType: 'unit', order: 1 },
     { nodeKey: 'unit-later-incomplete', parentNodeKey: 'section-fixture', nodeType: 'unit', order: 2 },
   ],
-  units: [{
-    unitKey: 'unit-fixture',
-    activitySlots: [{
-      activityKey: 'activity-ticket65',
-      order: 1,
-      contextRequirement: 'required',
-      pageGroupKeys: ['pages-ticket65'],
-    }],
-    pageGroups: [{
-      pageGroupKey: 'pages-ticket65',
-      sourceKey: 'full',
-      pages: [2, 3],
-      defaultPhysicalPageNumber: 2,
-      activityKeys: ['activity-ticket65'],
-      mode: 'activity',
-    }],
-  }],
+  units: [
+    {
+      unitKey: 'unit-fixture',
+      activitySlots: [{
+        activityKey: 'activity-ticket65',
+        order: 1,
+        contextRequirement: 'required',
+        pageGroupKeys: ['pages-ticket65'],
+      }],
+      pageGroups: [{
+        pageGroupKey: 'pages-ticket65',
+        sourceKey: 'full',
+        pages: [2, 3],
+        defaultPhysicalPageNumber: 2,
+        activityKeys: ['activity-ticket65'],
+        mode: 'activity',
+      }],
+    },
+    { unitKey: 'unit-later-incomplete', activitySlots: [], pageGroups: [] },
+  ],
 };
 
 const ticket65Activity: NormalizedActivity = {
@@ -265,41 +268,44 @@ const ticket66Manifest: BookAssemblyManifestCandidate = {
     { nodeKey: 'unit-component-a', parentNodeKey: 'section-component-a', nodeType: 'unit', order: 1 },
     { nodeKey: 'unit-later-incomplete', parentNodeKey: 'section-component-a', nodeType: 'unit', order: 2 },
   ],
-  units: [{
-    unitKey: 'unit-component-a',
-    activitySlots: [
-      {
-        activityKey: 'activity-ticket66-a',
-        order: 1,
-        contextRequirement: 'required',
-        pageGroupKeys: ['pages-ticket66-a'],
-      },
-      {
-        activityKey: 'activity-ticket66-b',
-        order: 2,
-        contextRequirement: 'required',
-        pageGroupKeys: ['pages-ticket66-b'],
-      },
-    ],
-    pageGroups: [
-      {
-        pageGroupKey: 'pages-ticket66-a',
-        sourceKey: 'component-a',
-        pages: [1],
-        defaultPhysicalPageNumber: 1,
-        activityKeys: ['activity-ticket66-a'],
-        mode: 'activity',
-      },
-      {
-        pageGroupKey: 'pages-ticket66-b',
-        sourceKey: 'component-b',
-        pages: [1],
-        defaultPhysicalPageNumber: 1,
-        activityKeys: ['activity-ticket66-b'],
-        mode: 'activity',
-      },
-    ],
-  }],
+  units: [
+    {
+      unitKey: 'unit-component-a',
+      activitySlots: [
+        {
+          activityKey: 'activity-ticket66-a',
+          order: 1,
+          contextRequirement: 'required',
+          pageGroupKeys: ['pages-ticket66-a'],
+        },
+        {
+          activityKey: 'activity-ticket66-b',
+          order: 2,
+          contextRequirement: 'required',
+          pageGroupKeys: ['pages-ticket66-b'],
+        },
+      ],
+      pageGroups: [
+        {
+          pageGroupKey: 'pages-ticket66-a',
+          sourceKey: 'component-a',
+          pages: [1],
+          defaultPhysicalPageNumber: 1,
+          activityKeys: ['activity-ticket66-a'],
+          mode: 'activity',
+        },
+        {
+          pageGroupKey: 'pages-ticket66-b',
+          sourceKey: 'component-b',
+          pages: [1],
+          defaultPhysicalPageNumber: 1,
+          activityKeys: ['activity-ticket66-b'],
+          mode: 'activity',
+        },
+      ],
+    },
+    { unitKey: 'unit-later-incomplete', activitySlots: [], pageGroups: [] },
+  ],
 };
 
 const ticket66Activity = (suffix: 'a' | 'b'): NormalizedActivity => ({

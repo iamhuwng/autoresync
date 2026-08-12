@@ -108,9 +108,9 @@ test('AC-TA-002 previews exact Book scope, schedule, policy, integrity, and no-w
     await fork.click();
     await expect(page.getByRole('status').filter({ hasText: 'Fork-before-assign callback observed' })).toBeVisible();
   }
+  await expect(page.getByText(/Preview creates no whole-Book attempt.*Delivery mutation/u)).toBeVisible();
   await page.getByRole('button', { name: 'Confirm preview for assignment handoff' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Read-only handoff prepared for 2 Activity record' })).toBeVisible();
-  await expect(page.getByText(/Preview creates no whole-Book attempt.*Delivery mutation/u)).toBeVisible();
   await saveArtifact('AC-TA-002', testInfo, [
     'exact scope, frozen outline, source breadth, and ordered Activity policy inspected',
     'schedule and accountable integrity policy inspected',
