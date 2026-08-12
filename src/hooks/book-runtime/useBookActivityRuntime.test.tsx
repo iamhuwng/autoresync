@@ -93,6 +93,41 @@ describe('useBookActivityRuntime', () => {
     vi.useRealTimers();
   });
 
+  it('loads saved responses when schedule authority enables the runtime after mount', async () => {
+    const client = runtimeClient({
+      readDraft: vi.fn(async () => ({
+        schemaVersion: 1,
+        ...address,
+        recipientId: 'student-1',
+        interactionId: 'interaction-1',
+        revision: 1,
+        response: { text: 'saved response' },
+        updatedByOperationId: operationId,
+        updatedAt: '2026-07-28T00:00:00.000Z',
+      })),
+    });
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useBookActivityRuntime({
+        client,
+        recipientId: 'student-1',
+        address,
+        interactionIds: ['interaction-1'],
+        storage: store(),
+        enabled,
+      }),
+      { initialProps: { enabled: false } },
+    );
+
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+    rerender({ enabled: true });
+
+    await waitFor(() => expect(result.current.status).toBe('saved'));
+    expect(result.current.responses).toEqual({
+      'interaction-1': { text: 'saved response' },
+    });
+    expect(client.readDraft).toHaveBeenCalledOnce();
+  });
+
   it('consumes explicit permissions and never reconstructs release or late policy from browser time', async () => {
     const client = runtimeClient();
     const unreleased = renderHook(() => useBookActivityRuntime({

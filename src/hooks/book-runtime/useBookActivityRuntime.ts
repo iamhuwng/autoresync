@@ -202,6 +202,7 @@ export const useBookActivityRuntime = (
     recipientId: options.recipientId,
     address: options.address,
     interactionIds: options.interactionIds,
+    enabled: options.enabled !== false,
   });
   const now = useCallback(() => optionsRef.current.now?.() ?? Date.now(), []);
   const generatedTabIdRef = useRef(randomId());
