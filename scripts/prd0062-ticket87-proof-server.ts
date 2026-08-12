@@ -5,15 +5,17 @@ type ProofState = 'unreleased' | 'available' | 'overdue' | 'late-allowed' | 'rev
 
 let state: ProofState = 'available';
 
-const decision = () => resolveBookScheduleWindow({
+const decision = (placement: {
+  placementId: string;
+  activityId: string;
+  activityVersion: number;
+  nodeKey: string;
+}) => resolveBookScheduleWindow({
   assignmentId: 'homework-fixture',
   recipientId: 'student-fixture',
   bindingId: 'binding-student-fixture',
   bindingRevision: 3,
-  placementId: 'placement-choice',
-  activityId: 'activity-choice',
-  activityVersion: 3,
-  nodeKey: 'group-1',
+  ...placement,
   operation: 'launch',
   schedule: {
     schemaVersion: 1,
@@ -28,6 +30,7 @@ const decision = () => resolveBookScheduleWindow({
   },
   outline: [
     { nodeKey: 'group-1', parentNodeKey: null, nodeType: 'unit', order: 1 },
+    { nodeKey: 'group-2', parentNodeKey: null, nodeType: 'unit', order: 2 },
   ],
   studentExtensions: {},
   lateSubmissionAllowed: state === 'late-allowed',
@@ -81,7 +84,16 @@ createServer((request, response) => {
   if (request.method === 'GET'
     && request.url === '/v1/book-delivery/student-fixture/homework-fixture'
     && request.headers.authorization === 'Bearer student-fixture-token') {
-    const scheduleWindow = decision();
+    const placements = [
+      { placementId: 'placement-choice', activityId: 'activity-choice', activityVersion: 3, nodeKey: 'group-1' },
+      { placementId: 'placement-source', activityId: 'activity-source', activityVersion: 1, nodeKey: 'group-1' },
+      { placementId: 'placement-long', activityId: 'activity-long', activityVersion: 1, nodeKey: 'group-2' },
+    ] as const;
+    const activities = placements.map((placement) => ({
+      ...placement,
+      scheduleWindow: decision(placement),
+    }));
+    const scheduleWindow = activities[0].scheduleWindow;
     response.writeHead(200, cors);
     response.end(JSON.stringify({
       schemaVersion: 1,
@@ -90,12 +102,7 @@ createServer((request, response) => {
       bindingRevision: 3,
       recipientId: 'student-fixture',
       context: { contextId: 'homework-fixture', kind: 'homework', entitlementBasis: 'assignment' },
-      activities: [{
-        placementId: 'placement-choice',
-        activityId: 'activity-choice',
-        activityVersion: 3,
-        scheduleWindow,
-      }],
+      activities,
       actionFlags: {
         canAutosave: scheduleWindow.permissions.canAutosave,
         canSubmit: scheduleWindow.permissions.canSubmit,
