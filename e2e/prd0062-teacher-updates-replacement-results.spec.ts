@@ -90,7 +90,7 @@ test('AC-TU-001 updates a Book source set with checkpoint-safe staged state and 
   await expect(page.getByTestId('ticket70-current-candidate')).toHaveText(originalCandidate ?? '');
   await expect(page.getByTestId('ticket70-source-bytes')).toHaveText(originalBytes ?? '');
   await expect(page.getByTestId('ticket70-publication-state')).toHaveText(originalPublication ?? '');
-  await expect(page.getByRole('status').filter({ hasText: /Current candidate remains/u })).toBeVisible();
+  await expect(page.locator('p[role="status"]').filter({ hasText: /Current candidate remains/u })).toBeVisible();
   await page.getByRole('button', { name: 'Confirm migration' }).click();
   await expect(page.getByTestId('ticket70-current-candidate')).toContainText('component_pdfs');
   await expect(page.getByTestId('ticket70-source-bytes')).toHaveText(originalBytes ?? '');
