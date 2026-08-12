@@ -124,6 +124,7 @@ test('AC-TR-001 replaces source strategy with explicit confirmation and preserve
   await expect(page.getByTestId('ticket70-current-candidate')).toHaveText(originalCandidate ?? '');
   await expect(page.getByTestId('ticket70-source-bytes')).toHaveText(originalBytes ?? '');
   await expect(page.getByTestId('ticket70-publication-state')).toHaveText(originalPublication ?? '');
+  await expect(page.getByTestId('ticket70-staged-candidate')).toHaveText(/none|empty|not staged/iu);
   await page.getByRole('button', { name: 'Prepare migration' }).click();
   await page.getByRole('button', { name: 'Confirm migration' }).click();
   await expect(page.getByTestId('ticket70-current-candidate')).toContainText('full_pdf');
