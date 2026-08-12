@@ -40,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 26,
+  "entryCount": 27,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -949,6 +949,47 @@
       "resolution": "Bounded #128-#131 automated cases completed after fixing acceptance-fixture sequencing, schedule-proof coverage, one normal-use runtime hydration defect, and desktop/mobile test viewport assumptions. No deploy, remote mutation, activation, push, or #134 action occurred.",
       "genericObservation": "Long browser campaigns are more attributable when case selectors remain below the outer timeout, nested long-lived helper tools have separate sidecars, and viewport-specific controls are exercised only at supported widths.",
       "improvementProposal": "Keep nested helper evidence isolated by default and consider surfacing the last Playwright action name in timeout artifacts; do not encode application fixtures, ports, or test names in reusable harness logic."
+    },
+    {
+      "id": "encounter-027-prd0062-126-live-vite-and-wrangler-artifacts",
+      "recordedAtBangkok": "2026-08-12T23:30:00+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.5.0",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/prd0062-campaign-clean/luyentap-writing-import-rebased",
+        "baseHead": "17bc474ce5d346fe17914b158e225ab2ec953656",
+        "integratedHead": "487d091a",
+        "worktreeCleanBeforeInvocation": true
+      },
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "selectedProjects": [".", "cloudflare"],
+      "selectedTools": ["vite", "wrangler"],
+      "doctorCommands": [
+        "node scripts/harness/live-vite-doctor.mjs . --script dev --url http://localhost:5173/",
+        "node scripts/harness/run-tool.mjs --doctor cloudflare wrangler"
+      ],
+      "originalCommands": [
+        "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run --config wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
+        "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run --config wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc"
+      ],
+      "resource": {
+        "discovered": "repository-local Harness 3.5.0/protocol 3, project-local root dependencies, free localhost:5173, and the existing WSL Wrangler boundary",
+        "reused": "the accepted campaign worktree and immutable harness caches",
+        "adapted": "none",
+        "installed": null
+      },
+      "evidence": {
+        "liveViteDoctor": "completed; project-local dependency directory, TCP listener, and HTTP 200 readiness were verified before authenticated identity discovery",
+        "wranglerDoctor": "completed",
+        "activationDryRun": { "classification": "product_failure", "boundary": "bundling", "failure": "isolated Wrangler could not resolve the declared jose dependency", "protectedState": "unchanged" },
+        "rollbackDryRun": { "classification": "product_failure", "boundary": "bundling", "failure": "isolated Wrangler could not resolve the declared jose dependency", "protectedState": "unchanged" },
+        "activationConfigSha256": "6f8e336757fb0e5ab5e507b62a3a8e63f165c672a954825e80dcba2f4d7810c2",
+        "rollbackConfigSha256": "d388f328aae5e3b3a95b4b47ae9088f0f4e0e0b813e6c5ab11fb1b816d1f44da"
+      },
+      "classification": "COMPLETED_LIVE_VITE_AND_WRANGLER_PRODUCT_FAILURE",
+      "resolution": "Authenticated local identity discovery completed without creating accounts. The #126 configs remained local and fail closed. Wrangler doctor passed, while both dry-runs truthfully stopped at the existing jose bundling failure; no deployment, activation, remote mutation, package change, or lockfile change occurred.",
+      "genericObservation": "A completed Wrangler capability doctor does not prove that the selected Worker bundles; a dependency-resolution failure after Wrangler starts is a product/configuration result and should remain distinct from harness preflight.",
+      "improvementProposal": "Preserve bundler dependency-resolution diagnostics and protected-state hashes in Wrangler sidecars; do not teach the reusable harness about application package names or deployment identities."
     }
   ]
 }
