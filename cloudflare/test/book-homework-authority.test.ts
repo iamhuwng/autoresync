@@ -36,6 +36,7 @@ const manifest: BookHomeworkManifest = {
     bookId: 'book-1',
     bookMode: 'pdf',
     bookRevision: 2,
+    manifestVersionId: 'manifest-1',
     publicationId: 'publication-1',
     publicationRevision: 1,
     publicationStatus: 'published',

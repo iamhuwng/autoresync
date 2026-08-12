@@ -19,6 +19,7 @@ import {
   type BookRuntimeRecoveryHold,
 } from '../../../../src/services/book-activity/bookRuntime.recovery.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
+import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 
 export interface BookRuntimeRepository {
   /** Recovery hold is an internal denial gate; it never returns runtime rows. */
@@ -985,15 +986,37 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
         clearTimeout(timeout);
       }
     }) as typeof fetch;
-    this.rtdb = new FirebaseRtdbRestClient({
-      env: {
-        ...options.env,
-        GOOGLE_SA_KEY: this.serviceAccountKey,
-      },
-      fetchImpl: this.fetchImpl,
-      getAccessToken: this.getAccessToken,
-      firebaseAuthToken: Boolean(this.getAccessToken),
-    });
+    if (this.getAccessToken || options.env.readDatabaseValue) {
+      this.rtdb = new FirebaseRtdbRestClient({
+        env: options.env,
+        fetchImpl: this.fetchImpl,
+        ...(this.getAccessToken
+          ? { getAccessToken: this.getAccessToken, firebaseAuthToken: true }
+          : {}),
+      });
+    } else {
+      const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+        serviceAccountJson: this.serviceAccountKey!,
+        serviceIdentity: identity,
+        firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+        firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+        fetchImpl: this.fetchImpl,
+      });
+      this.rtdb = new FirebaseRtdbRestClient({
+        env: options.env,
+        fetchImpl: this.fetchImpl,
+        firebaseAuthToken: true,
+        getFirebaseAuthToken: async ({ path } = { path: '' }) => {
+          const match = /^book_runtime\/scopes\/([A-Za-z0-9][A-Za-z0-9._:@-]{0,159})\/([A-Za-z0-9][A-Za-z0-9._:@-]{0,159})(?:\/|$)/u.exec(path);
+          if (!match) throw new BookRuntimeRepositoryError('runtime_claim_context_unavailable');
+          return getFirebaseAuthToken({
+            service: 'book_runtime',
+            recipientId: match[1],
+            contextId: match[2],
+          });
+        },
+      });
+    }
   }
 
   private assertWriteIdentity(): void {

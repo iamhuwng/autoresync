@@ -1,4 +1,12 @@
-import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
+import {
+  FirebaseRtdbRestClient,
+  type FirebaseRtdbAuthRequest,
+  type RepositoryEnv,
+} from '../listening-authoring/rtdb.ts';
+import {
+  createFirebaseClaimTokenProvider,
+  type BookFirebaseClaimTuple,
+} from '../book-activity-authoring/firebase-token.ts';
 import type {
   BookAssemblyActivityVersionReference,
 } from '../../../../src/types/bookAssembly.types.ts';
@@ -41,6 +49,9 @@ export interface CanonicalActivityVersionWriterEnv extends RepositoryEnv {
 export interface CanonicalActivityVersionReaderEnv extends RepositoryEnv {
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY?: string;
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY?: string;
+  /** Explicit fallback for launch deployments that share the assembly identity. */
+  BOOK_ASSEMBLY_SERVICE_IDENTITY?: string;
+  BOOK_ASSEMBLY_GOOGLE_SA_KEY?: string;
 }
 
 interface ServiceAccountKey {
@@ -174,11 +185,16 @@ const rtdbClient = (
   keyJson: string | undefined,
   fetchImpl: typeof fetch,
   getAccessToken: (() => Promise<string>) | undefined,
+  getFirebaseAuthToken?: (request?: FirebaseRtdbAuthRequest) => Promise<string>,
 ): FirebaseRtdbRestClient => new FirebaseRtdbRestClient({
   // Do not allow the shared/generic key to become an implicit authority.
   env: { ...env, GOOGLE_SA_KEY: keyJson },
   fetchImpl,
   getAccessToken,
+  ...(getFirebaseAuthToken === undefined ? {} : {
+    firebaseAuthToken: true,
+    getFirebaseAuthToken,
+  }),
 });
 
 const assertRetryCount = (value: number): number => {
@@ -345,6 +361,35 @@ const exactRequestPaths = (request: ExactPublishedActivityVersionRequest): {
   ),
 });
 
+const readerClaimsForPath = (
+  path: string,
+  request: ExactPublishedActivityVersionRequest,
+): BookFirebaseClaimTuple => {
+  const paths = exactRequestPaths(request);
+  if (path === paths.canonical || path === paths.studentSafeProjection) {
+    return {
+      service: 'book_activity_runtime_reader',
+      ownerId: request.ownerId,
+      bookId: request.bookId,
+      manifestVersionId: request.manifestVersionId,
+      activityId: request.activityId,
+      activityVersionId: request.activityVersionId,
+    };
+  }
+  const publicationPrefix = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/`;
+  if (path.startsWith(publicationPrefix)) {
+    return {
+      service: 'book_assembly_publication',
+      bookId: request.bookId,
+      ownerId: request.ownerId,
+    };
+  }
+  throw new Error('canonical_activity_version_reader_path_invalid');
+};
+
+/** Exact Firebase claim tuple used for each protected read in one request. */
+export const canonicalActivityVersionReaderClaimsForPath = readerClaimsForPath;
+
 export class FirebaseRestCanonicalActivityVersionWriter
 implements CanonicalActivityVersionWriter {
   private readonly rtdb: FirebaseRtdbRestClient;
@@ -430,17 +475,31 @@ implements CanonicalActivityVersionWriter {
 
 export class FirebaseRestExactPublishedActivityVersionReader
 implements ExactPublishedActivityVersionReader {
-  private readonly rtdb: FirebaseRtdbRestClient;
+  private readonly rtdbFor: (
+    request: ExactPublishedActivityVersionRequest,
+  ) => FirebaseRtdbRestClient;
 
   constructor(private readonly options: {
     env: CanonicalActivityVersionReaderEnv;
     fetchImpl?: typeof fetch;
     getAccessToken?: () => Promise<string>;
+    /** Injectable Firebase ID-token seam; takes precedence over production token minting. */
+    getFirebaseAuthToken?: (request?: FirebaseRtdbAuthRequest) => Promise<string>;
   }) {
-    const identity = options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY?.trim();
+    const dedicatedIdentity = options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY?.trim();
+    const dedicatedKey = options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY?.trim();
+    const hasPartialDedicatedBinding = Boolean(dedicatedIdentity || dedicatedKey) && !(
+      dedicatedIdentity && dedicatedKey
+    );
+    if (hasPartialDedicatedBinding && !options.getAccessToken && !options.getFirebaseAuthToken) {
+      throw new Error('incomplete_canonical_activity_version_reader_binding');
+    }
+    const identity = dedicatedIdentity
+      ?? options.env.BOOK_ASSEMBLY_SERVICE_IDENTITY?.trim();
     if (!identity) throw new Error('missing_canonical_activity_version_reader_service_identity');
     const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-    const keyJson = options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY?.trim();
+    const keyJson = dedicatedKey
+      ?? options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY?.trim();
     if (keyJson) {
       assertServiceAccountMatchesIdentity(
         keyJson,
@@ -448,34 +507,67 @@ implements ExactPublishedActivityVersionReader {
         'canonical_activity_version_reader',
       );
     }
-    if (!keyJson && !options.getAccessToken) {
+    if (!keyJson && !options.getAccessToken && !options.getFirebaseAuthToken) {
       throw new Error('missing_canonical_activity_version_reader_google_sa_key');
     }
-    this.rtdb = rtdbClient(options.env, keyJson, fetchImpl, options.getAccessToken);
+    if (options.getFirebaseAuthToken) {
+      this.rtdbFor = () => rtdbClient(
+          options.env,
+          keyJson,
+          fetchImpl,
+          options.getAccessToken,
+          options.getFirebaseAuthToken,
+        );
+      return;
+    }
+    if (options.getAccessToken) {
+      // Existing tests and mutation-adjacent callers use OAuth injection. Keep
+      // that seam unchanged; production credentials below use Firebase Auth.
+      this.rtdbFor = () => rtdbClient(options.env, keyJson, fetchImpl, options.getAccessToken);
+      return;
+    }
+    if (!keyJson) throw new Error('missing_canonical_activity_version_reader_google_sa_key');
+    const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+      serviceAccountJson: keyJson,
+      serviceIdentity: identity,
+      firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+      firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+      fetchImpl,
+    });
+    this.rtdbFor = (request) => rtdbClient(
+        options.env,
+        keyJson,
+        fetchImpl,
+        undefined,
+        async (authRequest = { path: '' }) => getFirebaseAuthToken(
+          readerClaimsForPath(authRequest.path, request),
+        ),
+      );
   }
 
   async readExact(
     request: ExactPublishedActivityVersionRequest,
   ): Promise<CanonicalPublishedActivityVersionRecord | null> {
+    const rtdb = this.rtdbFor(request);
     const paths = exactRequestPaths(request);
-    const manifest = await this.rtdb.readValue(paths.manifest);
+    const manifest = await rtdb.readValue(paths.manifest);
     if (!sameManifest(manifest, request)) return null;
     const publicationRevision = (manifest as Record<string, unknown>).publicationRevision;
 
-      const bookActivityVersion = await this.rtdb.readValue(paths.bookActivityVersion);
+      const bookActivityVersion = await rtdb.readValue(paths.bookActivityVersion);
       if (!sameBookActivityVersion(bookActivityVersion, request, publicationRevision as number)) return null;
       const bookActivity = bookActivityVersion as Record<string, unknown>;
-      const current = await this.rtdb.readValue(bookCurrentPath(request.bookId));
+      const current = await rtdb.readValue(bookCurrentPath(request.bookId));
       const operation = isRecord(current)
         && current.manifestVersionId === request.manifestVersionId
         && current.publicationId === request.publicationId
         ? null
-        : await this.rtdb.readValue(bookOperationPath(
+        : await rtdb.readValue(bookOperationPath(
           request.bookId,
           bookActivity.createdByCommandId as string,
         ));
       if (!publicationVisible(current, operation, bookActivity, request)) return null;
-      const bookSafeProjection = await this.rtdb.readValue(bookSafeProjectionPath(
+    const bookSafeProjection = await rtdb.readValue(bookSafeProjectionPath(
       request.bookId,
       bookActivity.safeProjectionId as string,
     ));
@@ -486,19 +578,19 @@ implements ExactPublishedActivityVersionReader {
       publicationRevision as number,
     )) return null;
 
-    const canonical = parseCanonical(await this.rtdb.readValue(paths.canonical));
+    const canonical = parseCanonical(await rtdb.readValue(paths.canonical));
     if (!canonical || !sameCanonicalIdentity(canonical, request, bookActivity)) return null;
     const placementIds = (bookSafeProjection as Record<string, unknown>).placementIds as string[];
     if (stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) return null;
     for (const placementId of placementIds) {
       if (!sameBookPlacement(
-        await this.rtdb.readValue(bookPlacementPath(request.bookId, placementId)),
+        await rtdb.readValue(bookPlacementPath(request.bookId, placementId)),
         bookActivity,
         request,
         publicationRevision as number,
       )) return null;
     }
-    const studentSafeProjection = await this.rtdb.readValue(paths.studentSafeProjection);
+    const studentSafeProjection = await rtdb.readValue(paths.studentSafeProjection);
     if (stable(studentSafeProjection) !== stable(safeProjectionFor(canonical))) return null;
     return canonical;
   }

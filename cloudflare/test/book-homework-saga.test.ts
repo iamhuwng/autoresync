@@ -41,6 +41,7 @@ const publication = (): BookDeliveryPublishedPublicationReference => ({
   bookId: 'book-1',
   bookMode: 'pdf',
   bookRevision: 2,
+  manifestVersionId: 'manifest-1',
   publicationId: 'publication-1',
   publicationRevision: 4,
   publicationStatus: 'published',
@@ -82,6 +83,7 @@ const manifest = (): BookHomeworkManifest => ({
     bookId: 'book-1',
     bookMode: 'pdf',
     bookRevision: 2,
+    manifestVersionId: 'manifest-1',
     publicationId: 'publication-1',
     publicationRevision: 4,
     publicationStatus: 'published',
@@ -168,11 +170,24 @@ const command = (overrides: Partial<BookHomeworkSagaCommand> = {}): BookHomework
     operationId,
     idempotencyKey: 'idempotency-1',
     manifestVersionId: 'manifest-1',
+    intent: {
+      bookId: 'book-1',
+      target: { kind: 'unit', bookId: 'book-1', nodeKey: 'unit-1', classId: 'class-1' },
+      schedule: { finalDueAt: '2026-08-30T00:00:00.000Z', nodeOverrides: [] },
+      policy: {
+        intent: 'practice',
+        integrityCapture: false,
+        integrityOverride: false,
+        activityPolicies: [{
+          placementId: 'placement-1',
+          maxAttempts: 2,
+          feedbackRelease: 'immediate',
+          lateSubmissionAllowed: false,
+        }],
+      },
+      expectedPublication: { publicationId: 'publication-1', publicationRevision: 4, manifestVersionId: 'manifest-1' },
+    },
     selectedRecipientIds: ['student-1', 'student-2'],
-    expectedManifestFingerprint: stable(value.manifest),
-    expectedPublicationFingerprint: value.publication.fingerprint,
-    expectedExposureApprovalFingerprint: value.exposureApproval.fingerprint,
-    expectedPolicyFingerprint: value.frozenPolicy.fingerprint,
     createdAt,
     ...overrides,
   };
@@ -340,7 +355,7 @@ describe('Book Homework assignment saga', () => {
       frozenPolicy: { ...first.frozenPolicy, fingerprint: 'policy-drifted' },
     };
     await expect(saga.execute(command())).resolves.toMatchObject({ status: 'committed' });
-    await expect(saga.execute(command({ expectedPolicyFingerprint: 'policy-conflict' })))
+    await expect(saga.execute(command({ idempotencyKey: 'policy-conflict' })))
       .rejects.toMatchObject({ code: 'idempotency-conflict' });
     expect(calls).toBe(2);
     expect((await repository.read('assignment-1'))?.state).toBe('committed');
@@ -366,7 +381,6 @@ describe('Book Homework assignment saga', () => {
     const blocked = makeSaga(assignmentTwo, undefined, assignmentTwoResolver);
     const failed = await blocked.saga.execute(command({
       assignmentId: 'assignment-2',
-      expectedManifestFingerprint: stable(assignmentTwo.manifest),
     }));
     expect(failed.status).toBe('failed_terminal');
     expect(failed.record.visibility).toBe('hidden');
@@ -380,7 +394,7 @@ describe('Book Homework assignment saga', () => {
         BOOK_HOMEWORK_SERVICE_IDENTITY: 'book-homework@example.iam.gserviceaccount.com',
       },
       fetchImpl: firebase.fetchImpl,
-    })).toThrow('scoped_access_token');
+    })).toThrow('missing_book_homework_google_sa_key');
     const repository = new FirebaseRestBookHomeworkSagaRepository({
       env: {
         FIREBASE_DB_URL: 'https://firebase.test',
@@ -436,7 +450,6 @@ describe('Book Homework assignment saga', () => {
     const { saga, repository } = makeSaga();
     await expect(saga.execute(command({ selectedRecipientIds: [] }))).rejects.toMatchObject({ code: 'invalid-command' });
     await expect(saga.execute(command({ selectedRecipientIds: ['student-1', 'student-1'] }))).rejects.toMatchObject({ code: 'invalid-command' });
-    await expect(saga.execute(command({ expectedPolicyFingerprint: 'changed' }))).rejects.toMatchObject({ code: 'stale-input' });
     const unapproved = {
       ...canonical(),
       exposureApproval: { approved: false, fingerprint: 'exposure-fingerprint-1' },

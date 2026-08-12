@@ -324,9 +324,9 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
     || binding.issuer.authorityBoundary !== 'book-owner' || !id(binding.issuer.ownerId)) {
     error(errors, 'invalid-value', 'binding.issuer', 'Issuer boundary is invalid.');
   }
-  if (!exact(binding.book, ['bookId', 'bookMode', 'bookRevision', 'publicationId', 'publicationRevision', 'publicationStatus'], 'binding.book', errors)
+  if (!exact(binding.book, ['bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'publicationId', 'publicationRevision', 'publicationStatus'], 'binding.book', errors)
     || !id(binding.book.bookId) || binding.book.bookMode !== 'pdf'
-    || !nonnegative(binding.book.bookRevision) || !id(binding.book.publicationId)
+    || !nonnegative(binding.book.bookRevision) || !id(binding.book.manifestVersionId) || !id(binding.book.publicationId)
     || !positive(binding.book.publicationRevision) || binding.book.publicationStatus !== 'published') {
     error(errors, 'invalid-publication', 'binding.book', 'Only published Mode 2 PDF Books may be bound.');
   }

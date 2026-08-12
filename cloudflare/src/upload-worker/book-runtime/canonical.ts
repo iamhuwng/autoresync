@@ -14,6 +14,7 @@ import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
 } from '../book-delivery/repository.ts';
+import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import {
   FirebaseRestBookRuntimeRepository,
@@ -102,6 +103,12 @@ export interface BookRuntimeCanonicalHandlersOptions {
   readonly activitySchedulePolicy?: BookHomeworkActivitySchedulePolicyResolver;
 }
 
+const CANONICAL_ACTIVITY_PATH_ID = '[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}';
+const CANONICAL_ACTIVITY_READ_PATH = new RegExp(
+  `^${CANONICAL_ACTIVITY_VERSION_ROOT}/(${CANONICAL_ACTIVITY_PATH_ID})/(${CANONICAL_ACTIVITY_PATH_ID})$`,
+  'u',
+);
+
 export const createBookRuntimeProductionDependencies = (
   env: BookRuntimeCanonicalEnv,
   schedulePolicy: BookRuntimeSchedulePolicy | undefined,
@@ -109,13 +116,38 @@ export const createBookRuntimeProductionDependencies = (
 ): BookRuntimeCanonicalDependencies => {
   const runtimeRepository = new FirebaseRestBookRuntimeRepository({ env });
   const deliveryRepository = new FirebaseRestBookDeliveryRepository({ env });
-  const activityReader = new FirebaseRtdbRestClient({
-    env: {
-      ...env,
-      GOOGLE_SA_KEY: env.BOOK_RUNTIME_GOOGLE_SA_KEY,
-    },
-    fetchImpl: globalThis.fetch,
-  });
+  const activityClaimTokenProvider = env.readDatabaseValue
+    ? undefined
+    : createFirebaseClaimTokenProvider({
+      serviceAccountJson: env.BOOK_RUNTIME_GOOGLE_SA_KEY?.trim() ?? '',
+      serviceIdentity: env.BOOK_RUNTIME_SERVICE_IDENTITY?.trim() ?? '',
+      firebaseProjectId: env.FIREBASE_PROJECT_ID?.trim() ?? '',
+      firebaseWebApiKey: env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+      fetchImpl: globalThis.fetch,
+    });
+  const activityReaderFor = (binding: BookDeliveryBinding): FirebaseRtdbRestClient => {
+    const clientOptions = {
+      env,
+      fetchImpl: globalThis.fetch,
+    };
+    if (!activityClaimTokenProvider) return new FirebaseRtdbRestClient(clientOptions);
+    return new FirebaseRtdbRestClient({
+      ...clientOptions,
+      firebaseAuthToken: true,
+      getFirebaseAuthToken: async ({ path } = { path: '' }) => {
+        const match = CANONICAL_ACTIVITY_READ_PATH.exec(path);
+        if (!match) throw new Error('book_activity_runtime_reader_path_invalid');
+        return activityClaimTokenProvider({
+          service: 'book_activity_runtime_reader',
+          ownerId: binding.issuer.ownerId,
+          bookId: binding.book.bookId,
+          manifestVersionId: binding.book.manifestVersionId,
+          activityId: match[1]!,
+          activityVersionId: match[2]!,
+        });
+      },
+    });
+  };
   const authorityStore = {
     read: (assignmentId: string) =>
       new FirebaseRestBookHomeworkDocumentStore({ env }).read(assignmentId),
@@ -151,7 +183,7 @@ export const createBookRuntimeProductionDependencies = (
         && candidate.activityVersion === activityVersion
       ));
       if (!placement) return null;
-      const value = await activityReader.readValue(
+      const value = await activityReaderFor(binding).readValue(
         `${CANONICAL_ACTIVITY_VERSION_ROOT}/${activityId}/${placement.activityVersionId}`,
       );
       try {

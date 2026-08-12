@@ -2,6 +2,10 @@ import {
   createBookHomeworkWorkerHandlers,
   type BookHomeworkWorkerHandlersOptions,
 } from '../book-homework/worker.ts';
+import {
+  createBookHomeworkProductionRuntime,
+  type BookHomeworkTrustedRuntimeEnv,
+} from '../book-homework/runtime.ts';
 
 /**
  * #59-owned canonical composition boundary. Authority and saga behavior stay
@@ -9,4 +13,13 @@ import {
  */
 export const createCanonicalBookHomeworkHandlers = (
   options: BookHomeworkWorkerHandlersOptions = {},
-) => createBookHomeworkWorkerHandlers(options);
+) => createBookHomeworkWorkerHandlers(
+  options.saga || options.sagaFactory
+    ? options
+    : {
+        ...options,
+        sagaFactory: (env) => createBookHomeworkProductionRuntime(
+          env as BookHomeworkTrustedRuntimeEnv,
+        ),
+      },
+);

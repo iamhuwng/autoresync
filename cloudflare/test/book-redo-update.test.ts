@@ -46,6 +46,7 @@ const binding = (update: Partial<BookDeliveryBinding> = {}): BookDeliveryBinding
   issuer: { ownerId: 'owner-1', authorityBoundary: 'book-owner' },
   book: {
     bookId: 'book-1', bookMode: 'pdf', bookRevision: 1,
+    manifestVersionId: 'manifest-1',
     publicationId: 'publication-1', publicationRevision: 1, publicationStatus: 'published',
   },
   scope: { kind: 'placements', nodeKeys: ['node-1'], placementIds: ['placement-1', 'placement-2'] },

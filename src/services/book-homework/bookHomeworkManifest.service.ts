@@ -736,11 +736,13 @@ export const validateBookHomeworkManifest = (value: unknown): BookHomeworkManife
   if (!isId(manifest.manifestVersionId) || !isId(manifest.ownerId) || !isId(manifest.createdByCommandId)) push(errors, 'invalid-value', '$', 'Manifest identity fields are invalid.');
   if (!isIso(manifest.createdAt)) push(errors, 'invalid-value', '$.createdAt', 'Creation time is invalid.');
   if (!isPositiveInt(manifest.bindingRevision)) push(errors, 'invalid-value', '$.bindingRevision', 'Binding revision is invalid.');
-  if (!exact(manifest.book, ['bookId', 'bookMode', 'bookRevision', 'publicationId', 'publicationRevision', 'publicationStatus'], [], '$.book', errors)) {
+  if (!exact(manifest.book, ['bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'publicationId', 'publicationRevision', 'publicationStatus'], [], '$.book', errors)) {
     // Nested errors are already recorded.
   } else {
     const book = manifest.book as Record<string, unknown>;
-    if (!isId(book.bookId) || book.bookMode !== 'pdf' || !Number.isSafeInteger(book.bookRevision) || (book.bookRevision as number) < 0 || !isId(book.publicationId) || !isPositiveInt(book.publicationRevision) || book.publicationStatus !== 'published') push(errors, 'invalid-publication', '$.book', 'Book publication reference is invalid.');
+    if (!isId(book.bookId) || book.bookMode !== 'pdf' || !Number.isSafeInteger(book.bookRevision) || (book.bookRevision as number) < 0
+      || !isId(book.manifestVersionId) || book.manifestVersionId !== manifest.manifestVersionId
+      || !isId(book.publicationId) || !isPositiveInt(book.publicationRevision) || book.publicationStatus !== 'published') push(errors, 'invalid-publication', '$.book', 'Book publication reference is invalid.');
   }
   const bookId = isRecord(manifest.book) && typeof manifest.book.bookId === 'string' ? manifest.book.bookId : '';
   exact(manifest.context, ['contextId', 'entitlementBasis', 'kind', 'recipientId'], [], '$.context', errors);

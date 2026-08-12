@@ -347,12 +347,13 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
     || value.context.kind !== 'course'
     || value.context.entitlementBasis !== 'enrollment'
     || !isRecord(value.book) || !exactKeys(value.book, [
-      'bookId', 'bookMode', 'bookRevision', 'publicationId', 'publicationRevision', 'publicationStatus',
+      'bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'publicationId', 'publicationRevision', 'publicationStatus',
     ])
     || typeof value.book.bookId !== 'string' || !ID.test(value.book.bookId)
     || value.book.bookMode !== 'pdf'
     || typeof value.book.bookRevision !== 'number' || !Number.isSafeInteger(value.book.bookRevision)
     || (value.book.bookRevision as number) < 1
+    || typeof value.book.manifestVersionId !== 'string' || !ID.test(value.book.manifestVersionId)
     || typeof value.book.publicationId !== 'string' || !ID.test(value.book.publicationId)
     || typeof value.book.publicationRevision !== 'number' || !Number.isSafeInteger(value.book.publicationRevision)
     || (value.book.publicationRevision as number) < 1

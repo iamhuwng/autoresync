@@ -812,30 +812,55 @@ const tokenProvider = (
 export class FirebaseRestBookAssemblyPublicationRepository
 implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
   private readonly rtdb: FirebaseRtdbRestClient;
+  private readonly readRtdb: FirebaseRtdbRestClient;
 
   constructor(private readonly options: {
     env: BookAssemblyPublicationRepositoryEnv;
     fetchImpl?: typeof fetch;
     getAccessToken?: () => Promise<string>;
+    /** Optional least-privilege Firebase ID-token path for read-only consumers. */
+    readonly getFirebaseAuthToken?: (bookId: string) => Promise<string>;
     maxRetries?: number;
   }) {
     const identity = options.env.BOOK_ASSEMBLY_SERVICE_IDENTITY?.trim();
     if (!identity) throw new Error('missing_book_assembly_publication_service_identity');
     const fetchImpl = options.fetchImpl ?? globalThis.fetch;
     const keyJson = options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY?.trim();
-    if (!keyJson && !options.getAccessToken) {
+    if (!keyJson && !options.getAccessToken && !options.getFirebaseAuthToken) {
       throw new Error('missing_book_assembly_publication_google_sa_key');
     }
+    const getMutationAccessToken = options.getAccessToken
+      ?? (keyJson ? tokenProvider(keyJson, identity, fetchImpl) : async () => {
+        throw new Error('book_assembly_publication_mutation_auth_unavailable');
+      });
     this.rtdb = new FirebaseRtdbRestClient({
       env: { ...options.env, GOOGLE_SA_KEY: keyJson },
       fetchImpl,
-      getAccessToken: options.getAccessToken
-        ?? tokenProvider(keyJson!, identity, fetchImpl),
+      getAccessToken: getMutationAccessToken,
     });
+    this.readRtdb = options.getFirebaseAuthToken
+      ? new FirebaseRtdbRestClient({
+          env: { ...options.env, GOOGLE_SA_KEY: undefined },
+          fetchImpl,
+          firebaseAuthToken: true,
+          getFirebaseAuthToken: async ({ path } = { path: '' }) => {
+            const prefix = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/`;
+            if (!path.startsWith(prefix)) {
+              throw new Error('invalid_book_assembly_publication_read_path');
+            }
+            const bookId = path.slice(prefix.length);
+            assertPathId(bookId, 'invalid_book_assembly_publication_book_id');
+            if (scopePath(bookId) !== path) {
+              throw new Error('invalid_book_assembly_publication_read_path');
+            }
+            return options.getFirebaseAuthToken!(bookId);
+          },
+        })
+      : this.rtdb;
   }
 
   async readScope(bookId: string): Promise<BookAssemblyPublicationScope<BookAssemblyPublicationResult>> {
-    const value = await this.rtdb.readWithEtag<unknown>(scopePath(bookId));
+    const value = await this.readRtdb.readWithEtag<unknown>(scopePath(bookId));
     return parseScope<BookAssemblyPublicationResult>(value.data, bookId);
   }
 

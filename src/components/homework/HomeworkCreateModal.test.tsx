@@ -3,6 +3,7 @@ import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeworkCreateModal } from './HomeworkCreateModal';
 import { createHomework } from '../../services/homeworkManager';
+import { createBookHomeworkAssignmentViaWorker } from '../../services/homeworkAssignmentClient';
 import type { BookHomeworkPreviewSource } from '../../services/book-homework/bookHomeworkPreview.service';
 
 const mockGetAllTests = vi.fn();
@@ -21,6 +22,7 @@ const bookPreviewSource: BookHomeworkPreviewSource = {
             bookId: 'book-1',
             bookMode: 'pdf',
             bookRevision: 1,
+            manifestVersionId: 'manifest-1',
             publicationId: 'publication-1',
             publicationRevision: 1,
             publicationStatus: 'published',
@@ -66,6 +68,11 @@ const bookPreviewSource: BookHomeworkPreviewSource = {
     bookTitle: 'Book Preview Fixture',
 };
 
+const bookPreviewWorkerSource = {
+    ...bookPreviewSource,
+    classId: 'class-1',
+};
+
 vi.mock('../../contexts/AuthContext', () => ({
     useAuth: () => ({
         user: {
@@ -87,6 +94,10 @@ vi.mock('../../hooks/useFeatureTracking', () => ({
 
 vi.mock('../../services/homeworkManager', () => ({
     createHomework: vi.fn(),
+}));
+
+vi.mock('../../services/homeworkAssignmentClient', () => ({
+    createBookHomeworkAssignmentViaWorker: vi.fn(),
 }));
 
 vi.mock('../../services/homeworkTemplateService', () => ({
@@ -392,7 +403,7 @@ describe('HomeworkCreateModal', () => {
                 isOpen={true}
                 onClose={onClose}
                 onSuccess={onSuccess}
-                preselectedBookHomework={bookPreviewSource}
+                preselectedBookHomework={bookPreviewWorkerSource}
                 onBookHomeworkConfirm={onBookHomeworkConfirm}
             />
         );
@@ -412,6 +423,55 @@ describe('HomeworkCreateModal', () => {
             }));
         });
         expect(createHomework).not.toHaveBeenCalled();
+        expect(onSuccess).toHaveBeenCalled();
+    });
+
+    it('submits the bounded intent through the canonical Worker by default', async () => {
+        vi.mocked(createBookHomeworkAssignmentViaWorker).mockResolvedValue({
+            status: 'committed',
+            assignmentId: 'assignment-1',
+            operationId: '00000000-0000-4000-8000-000000000001',
+            state: 'committed',
+            visibility: 'committed',
+            recipientCount: 1,
+            committedRecipientCount: 1,
+            revision: 1,
+        });
+        const onSuccess = vi.fn();
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={onSuccess}
+                preselectedBookHomework={bookPreviewWorkerSource}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('Due Date'), {
+            target: { value: '2026-08-01T12:00' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /confirm preview/i }));
+
+        await waitFor(() => {
+            expect(createBookHomeworkAssignmentViaWorker).toHaveBeenCalledWith(expect.objectContaining({
+                selectedRecipientIds: ['student-1'],
+                intent: expect.objectContaining({
+                    bookId: 'book-1',
+                    target: { kind: 'book', bookId: 'book-1', classId: 'class-1' },
+                    expectedPublication: {
+                        publicationId: 'publication-1',
+                        publicationRevision: 1,
+                        manifestVersionId: 'manifest-1',
+                    },
+                }),
+            }));
+        });
+        const command = vi.mocked(createBookHomeworkAssignmentViaWorker).mock.calls[0]?.[0];
+        expect(command).not.toHaveProperty('ownerId');
+        expect(command).not.toHaveProperty('createdAt');
+        expect(command).not.toHaveProperty('manifest');
+        expect(JSON.stringify(command)).not.toContain('source-1');
         expect(onSuccess).toHaveBeenCalled();
     });
 

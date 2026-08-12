@@ -10,6 +10,7 @@ const equalSet = (left: readonly string[], right: readonly string[]): boolean =>
 const matchesPlacement = (binding: BookDeliveryBinding, placement: CourseBookPlacement): boolean => {
   if (binding.context.kind !== 'course' || binding.context.contextId !== placement.courseMaterialId
     || binding.context.ownerId !== placement.ownerId || binding.book.bookId !== placement.pins.bookId
+    || binding.book.manifestVersionId !== placement.pins.manifestVersionId
     || binding.book.publicationId !== placement.pins.publicationId
     || binding.book.publicationRevision !== placement.pins.publicationRevision
     || binding.revision !== placement.pins.bindingRevision || binding.scope.kind !== placement.selection.kind

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { decodeJwt, exportPKCS8, generateKeyPair } from 'jose';
 import {
   FirebaseRestBookDeliveryRecoveryProjectionStore,
   FirebaseRestBookDeliveryRepository,
@@ -55,11 +56,75 @@ const createFirebase = () => {
 
 const env = {
   FIREBASE_DB_URL: 'https://firebase.test',
+  FIREBASE_PROJECT_ID: 'delivery-project',
+  FIREBASE_WEB_API_KEY: 'delivery-web-key',
   BOOK_DELIVERY_SERVICE_IDENTITY: 'book-delivery@example.iam.gserviceaccount.com',
   BOOK_RECOVERY_SERVICE_IDENTITY: 'book-recovery@example.iam.gserviceaccount.com',
 } as const;
 
+const productionEnv = async () => {
+  const { privateKey } = await generateKeyPair('RS256', { modulusLength: 2048, extractable: true });
+  return {
+    ...env,
+    BOOK_DELIVERY_GOOGLE_SA_KEY: JSON.stringify({
+      client_email: env.BOOK_DELIVERY_SERVICE_IDENTITY,
+      private_key: await exportPKCS8(privateKey),
+    }),
+  };
+};
+
 describe('Book Delivery Firebase repository', () => {
+  it('uses path-bound Firebase custom ID tokens for production scope reads', async () => {
+    const production = await productionEnv();
+    const customTokens: string[] = [];
+    const authQueries: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname === 'identitytoolkit.googleapis.com') {
+        const body = JSON.parse(String(init?.body)) as { token: string };
+        customTokens.push(body.token);
+        return new Response(JSON.stringify({ idToken: `firebase-id-${customTokens.length}`, expiresIn: '3600' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      const auth = url.searchParams.get('auth');
+      expect(auth).toBeTruthy();
+      authQueries.push(auth!);
+      const path = decodeURIComponent(url.pathname.replace(/^\/+|\.json$/gu, ''));
+      const value = path.endsWith('/current')
+        ? {
+          bindingId: 'binding-worker', bindingRevision: 1, recipientId: path.split('/')[2],
+          contextId: path.split('/')[3], contextKind: 'preview', status: 'active', updatedAt: '2026-07-25T00:00:00.000Z',
+        }
+        : null;
+      return new Response(JSON.stringify(value), { status: 200, headers: { etag: '"0"' } });
+    };
+    const repository = new FirebaseRestBookDeliveryRepository({ env: production, fetchImpl });
+
+    await expect(repository.readCurrent('teacher-1', 'preview-1')).resolves.toMatchObject({
+      recipientId: 'teacher-1', contextId: 'preview-1',
+    });
+    await expect(repository.readCurrent('student-1', 'homework-1')).resolves.toMatchObject({
+      recipientId: 'student-1', contextId: 'homework-1',
+    });
+
+    expect(customTokens).toHaveLength(2);
+    expect(authQueries).toEqual([
+      'firebase-id-1', 'firebase-id-1', 'firebase-id-2', 'firebase-id-2',
+    ]);
+    expect(decodeJwt(customTokens[0]!).claims).toEqual({
+      book_delivery_service: true,
+      book_delivery_recipientId: 'teacher-1',
+      book_delivery_contextId: 'preview-1',
+    });
+    expect(decodeJwt(customTokens[1]!).claims).toEqual({
+      book_delivery_service: true,
+      book_delivery_recipientId: 'student-1',
+      book_delivery_contextId: 'homework-1',
+    });
+  });
+
   it('uses exact indexes and one scope CAS for atomic lifecycle transitions', async () => {
     const firebase = createFirebase();
     const repository = new FirebaseRestBookDeliveryRepository({

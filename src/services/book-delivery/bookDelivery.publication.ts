@@ -11,6 +11,7 @@ export interface BookDeliveryPublishedPublicationReference {
   readonly bookId: string;
   readonly bookMode: 'pdf';
   readonly bookRevision: number;
+  readonly manifestVersionId: string;
   readonly publicationId: string;
   readonly publicationRevision: number;
   readonly publicationStatus: 'published';
@@ -54,12 +55,12 @@ export function assertPublishedBookDeliveryPublication(
 ): asserts value is BookDeliveryPublishedPublicationReference {
   if (!isRecord(value)) throw new BookDeliveryPublicationError('publication must be a plain object.');
   exactKeys(value, [
-    'bookId', 'bookMode', 'bookRevision', 'outline', 'ownerId', 'placements', 'publicationId',
+    'bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'outline', 'ownerId', 'placements', 'publicationId',
     'publicationRevision', 'publicationStatus', 'schedulePolicy', 'scope', 'sourceSet',
   ], 'publication');
   const publication = value as Record<string, any>;
   if (!id(publication.bookId) || publication.bookMode !== 'pdf' || !Number.isSafeInteger(publication.bookRevision)
-    || publication.bookRevision < 0 || !id(publication.publicationId) || !Number.isSafeInteger(publication.publicationRevision)
+    || publication.bookRevision < 0 || !id(publication.manifestVersionId) || !id(publication.publicationId) || !Number.isSafeInteger(publication.publicationRevision)
     || publication.publicationRevision <= 0 || publication.publicationStatus !== 'published' || !id(publication.ownerId)
     || !Array.isArray(publication.placements) || !isRecord(publication.sourceSet) || !Array.isArray(publication.sourceSet.sources)) {
     throw new BookDeliveryPublicationError('publication is not a published Mode 2 PDF reference.');
@@ -81,6 +82,7 @@ export function assertPublishedBookDeliveryPublication(
       bookId: publication.bookId,
       bookMode: publication.bookMode,
       bookRevision: publication.bookRevision,
+      manifestVersionId: publication.manifestVersionId,
       publicationId: publication.publicationId,
       publicationRevision: publication.publicationRevision,
       publicationStatus: publication.publicationStatus,

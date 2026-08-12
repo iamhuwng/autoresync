@@ -189,6 +189,8 @@ const isCanonicalBookRuntimeDeliveryProjection = (
     || value.book.bookMode !== 'pdf'
     || !Number.isSafeInteger(value.book.bookRevision)
     || (value.book.bookRevision as number) < 1
+    || typeof value.book.manifestVersionId !== 'string'
+    || !SAFE_ID.test(value.book.manifestVersionId)
     || typeof value.book.publicationId !== 'string'
     || !SAFE_ID.test(value.book.publicationId)
     || !Number.isSafeInteger(value.book.publicationRevision)

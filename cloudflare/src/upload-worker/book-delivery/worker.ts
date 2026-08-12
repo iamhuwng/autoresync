@@ -449,6 +449,7 @@ export const createTrustedBookDeliveryPublication = (
     bookId: intent.bookId,
     bookMode: 'pdf',
     bookRevision: version.bookRevision,
+    manifestVersionId: version.manifestVersionId,
     publicationId: version.publicationId,
     publicationRevision: version.publicationRevision,
     publicationStatus: 'published',

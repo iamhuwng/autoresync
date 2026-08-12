@@ -44,6 +44,8 @@ const createFetchHarness = (
   const calls: string[] = [];
   const etagRequests: string[] = [];
   const ifMatches: string[] = [];
+  const authTokens: string[] = [];
+  const authorizationHeaders: string[] = [];
   let stored = initial;
   const scopeRoot = BOOK_ASSEMBLY_PUBLICATION_ROOT + '/book-1';
   const etags = new Map<string, string>([['current', '"scope-1"']]);
@@ -85,6 +87,10 @@ const createFetchHarness = (
     const method = String(init?.method ?? 'GET');
     const headers = new Headers(init?.headers);
     const url = new URL(String(input));
+    const auth = url.searchParams.get('auth');
+    if (auth !== null) authTokens.push(auth);
+    const authorization = headers.get('authorization');
+    if (authorization !== null) authorizationHeaders.push(authorization);
     const path = decodeURIComponent(url.pathname.replace(/^\/+|\.json$/gu, ''));
     calls.push(method + ' ' + path);
     if (method === 'GET') {
@@ -118,7 +124,15 @@ const createFetchHarness = (
     }
     return new Response('', { status: 405 });
   };
-  return { calls, etagRequests, ifMatches, fetchImpl, read: () => stored };
+  return {
+    calls,
+    etagRequests,
+    ifMatches,
+    authTokens,
+    authorizationHeaders,
+    fetchImpl,
+    read: () => stored,
+  };
 };
 
 const completeScope = (
@@ -578,6 +592,32 @@ describe('Book Assembly publication Firebase repository', () => {
       write: true,
     }))).rejects.toThrow('book_assembly_publication_pointer_cas_retries_exhausted');
     expect(exhaustedHarness.read()).toBeNull();
+  });
+
+  it('uses a Firebase auth query for exact-book read-only access while mutations retain OAuth auth', async () => {
+    const harness = createFetchHarness(null);
+    const requestedBookIds: string[] = [];
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      fetchImpl: harness.fetchImpl,
+      getAccessToken: async () => 'oauth-token',
+      getFirebaseAuthToken: async (bookId) => {
+        requestedBookIds.push(bookId);
+        return 'firebase-id-token';
+      },
+    });
+
+    await expect(repository.readScope('book-1')).resolves.toEqual({});
+    expect(requestedBookIds).toEqual(['book-1']);
+    expect(harness.authTokens).toEqual(['firebase-id-token']);
+    expect(harness.authorizationHeaders).toEqual([]);
+
+    await expect(repository.transaction('book-1', () => ({
+      outcome: 'read-only',
+      write: false,
+    }))).resolves.toBe('read-only');
+    expect(harness.authTokens).toEqual(['firebase-id-token']);
+    expect(harness.authorizationHeaders).toEqual(['Bearer oauth-token', 'Bearer oauth-token']);
   });
 
   it('rejects immutable updates and deletes without issuing child writes', async () => {

@@ -35,9 +35,9 @@ service cloud.firestore {
         );
     }
 
-    // Mode 2 Book Homework is a trusted-worker authority record.  Firestore
-    // rules deliberately deny browser writes; Admin/Worker writes are checked
-    // by the authority repository and bypass client rules.
+    // Mode 2 Book Homework is a trusted-worker authority record. Firestore
+    // rules deny browser writes and admit only the assignment/owner-scoped
+    // Firebase service claim minted by the Homework Worker.
     function isBookHomework(data) {
       return data is map
         && (
@@ -48,6 +48,34 @@ service cloud.firestore {
           )
           || data.keys().hasAny(['bookManifest'])
         );
+    }
+
+    function isExactBookHomeworkServiceDocument(assignmentId) {
+      return request.auth != null
+        && request.auth.token.book_homework_service == true
+        && request.auth.token.book_homework_assignmentId == assignmentId;
+    }
+
+    function isValidBookHomeworkServiceAuthority(data, assignmentId) {
+      return isBookHomework(data)
+        && data.keys().hasAll([
+          'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest',
+          'schedule', 'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt', 'updatedAt'
+        ])
+        && data.assignmentId == assignmentId
+        && data.assignmentKind == 'book_activity_bundle'
+        && data.schemaVersion == 1
+        && data.ownerId == request.auth.token.book_homework_ownerId
+        && request.auth.uid == data.ownerId
+        && data.bookManifest is map
+        && data.bookManifest.ownerId == data.ownerId
+        && data.bookManifest.context is map
+        && data.bookManifest.context.kind == 'homework'
+        && data.bookManifest.context.entitlementBasis == 'assignment'
+        && data.saga is map
+        && data.saga.sagaId == data.bookManifest.context.contextId
+        && data.visibility is map
+        && data.visibility.manifestVersionId == data.bookManifest.manifestVersionId;
     }
 
     function isCommittedBookHomework(data) {
@@ -273,13 +301,24 @@ service cloud.firestore {
       // Raw Book authority documents are never browser-readable. Firestore
       // rules cannot validate arbitrary members of nested lists/maps; the
       // canonical Worker owns authenticated safe Book projections.
-      allow read: if request.auth != null
-        && !isBookHomework(resource.data);
-      allow create: if request.auth != null
-        && !isBookHomework(request.resource.data)
-        && request.resource.data.createdBy == request.auth.uid
-        && isValidReadingPassageHomeworkPayload(request.resource.data);
-      allow update: if request.auth != null
+      allow read: if (
+          request.auth != null
+          && !isBookHomework(resource.data)
+        ) || (
+          isExactBookHomeworkServiceDocument(assignmentId)
+          && isBookHomework(resource.data)
+        );
+      allow create: if (
+          request.auth != null
+          && !isBookHomework(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && isValidReadingPassageHomeworkPayload(request.resource.data)
+        ) || (
+          isExactBookHomeworkServiceDocument(assignmentId)
+          && isValidBookHomeworkServiceAuthority(request.resource.data, assignmentId)
+        );
+      allow update: if (
+        request.auth != null
         && !isBookHomework(resource.data)
         && !isBookHomework(request.resource.data)
         && (
@@ -289,6 +328,15 @@ service cloud.firestore {
             && isValidReadingPassageHomeworkPayload(request.resource.data)
           )
           || isStudentStatsOnlyHomeworkUpdate()
+        )) || (
+          isExactBookHomeworkServiceDocument(assignmentId)
+          && isValidBookHomeworkServiceAuthority(resource.data, assignmentId)
+          && isValidBookHomeworkServiceAuthority(request.resource.data, assignmentId)
+          && request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.assignmentId == resource.data.assignmentId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.bookManifest.context == resource.data.bookManifest.context
+          && request.resource.data.saga.sagaId == resource.data.saga.sagaId
         );
       allow delete: if request.auth != null
         && !isBookHomework(resource.data)

@@ -13,17 +13,47 @@ const SERVICE_KEY = JSON.stringify({
   private_key: 'private-key',
 });
 const operationId = '00000000-0000-4000-8000-000000000086';
+const pilotScopeConfig = {
+  schemaVersion: 'v1',
+  environment: 'test',
+  revision: 'book-homework-route-pilot',
+  issuedAt: new Date(Date.now() - 60_000).toISOString(),
+  expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+  teacherId: 'teacher-1',
+  bookId: 'book-1',
+  assignmentId: 'assignment-1',
+  studentIds: ['student-1'],
+  maxStudents: 30,
+} as const;
+const pilotScopeEnv = {
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify(pilotScopeConfig),
+} as const;
 
 const command = (): Omit<BookHomeworkSagaCommand, 'ownerId' | 'createdAt'> => ({
   assignmentId: 'assignment-1',
   operationId,
   idempotencyKey: 'idempotency-1',
   manifestVersionId: 'manifest-1',
+  intent: {
+    bookId: 'book-1',
+    target: { kind: 'unit', bookId: 'book-1', nodeKey: 'unit-1', classId: 'class-1' },
+    schedule: { finalDueAt: '2026-08-30T00:00:00.000Z', nodeOverrides: [] },
+    policy: {
+      intent: 'practice',
+      integrityCapture: false,
+      integrityOverride: false,
+      activityPolicies: [{
+        placementId: 'placement-1',
+        maxAttempts: 2,
+        feedbackRelease: 'immediate',
+        lateSubmissionAllowed: false,
+      }],
+    },
+    expectedPublication: { publicationId: 'publication-1', publicationRevision: 1, manifestVersionId: 'manifest-1' },
+  },
   selectedRecipientIds: ['student-1'],
-  expectedManifestFingerprint: 'manifest-fingerprint-1',
-  expectedPublicationFingerprint: 'publication-fingerprint-1',
-  expectedExposureApprovalFingerprint: 'exposure-fingerprint-1',
-  expectedPolicyFingerprint: 'policy-fingerprint-1',
 });
 
 const record = (): BookHomeworkSagaRecord => ({
@@ -54,6 +84,7 @@ const record = (): BookHomeworkSagaRecord => ({
 });
 
 const env = (overrides: Partial<BookHomeworkWorkerEnv> = {}): BookHomeworkWorkerEnv => ({
+  ...pilotScopeEnv,
   BOOK_HOMEWORK_ROUTES_ENABLED: 'enabled',
   BOOK_HOMEWORK_READ_ROUTES_ENABLED: 'enabled',
   BOOK_HOMEWORK_SERVICE_IDENTITY: 'book-homework@example.test',
@@ -162,7 +193,10 @@ describe('Ticket 33E canonical Book Homework route', () => {
     const saga = makeSaga();
     const router = makeRouter(saga);
 
-    const pathMismatch = await router.fetch(requestFor(command(), '/book-homework/assignments/other-assignment/commands'), env());
+    const pathMismatch = await router.fetch(
+      requestFor(command(), '/book-homework/assignments/other-assignment/commands'),
+      env({ BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({ ...pilotScopeConfig, assignmentId: 'other-assignment' }) }),
+    );
     expect(pathMismatch.status).toBe(409);
 
     const idempotencyMismatch = await router.fetch(
@@ -193,7 +227,9 @@ describe('Ticket 33E canonical Book Homework route', () => {
       firebaseVerifier: { verifyAuthorizationHeader: async () => ({ valid: true, uid: 'teacher-1' }) },
     }).fetch(requestFor(command()), env());
     expect(unavailable.status).toBe(503);
-    await expect(unavailable.json()).resolves.toEqual({ code: 'saga_unavailable' });
+    await expect(unavailable.json()).resolves.toEqual({
+      code: 'book_homework_runtime_dependencies_unavailable',
+    });
 
     const saga = makeSaga();
     const disabled = await makeRouter(saga).fetch(requestFor(command()), env({

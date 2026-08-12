@@ -1,4 +1,8 @@
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
+import {
+  createFirebaseClaimTokenProvider,
+  type BookFirebaseClaimTuple,
+} from '../book-activity-authoring/firebase-token.ts';
 import { validateBookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.schema.ts';
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import type {
@@ -229,10 +233,19 @@ const createRtdb = (options: {
   readonly fetchImpl?: typeof fetch;
   readonly getAccessToken?: () => Promise<string>;
 }, errorPrefix: string): FirebaseRtdbRestClient => {
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  if (options.getAccessToken) {
+    return new FirebaseRtdbRestClient({
+      env: options.env,
+      fetchImpl,
+      getAccessToken: options.getAccessToken,
+      firebaseAuthToken: true,
+    });
+  }
   const identity = options.identity?.trim();
   if (!identity) throw new Error(`missing_${errorPrefix}_service_identity`);
   const keyJson = (options.keyJson ?? options.env.GOOGLE_SA_KEY)?.trim();
-  if (!keyJson && !options.getAccessToken) throw new Error(`missing_${errorPrefix}_google_sa_key`);
+  if (!keyJson) throw new Error(`missing_${errorPrefix}_google_sa_key`);
   if (keyJson) {
     let clientEmail: unknown;
     try { clientEmail = (JSON.parse(keyJson) as Record<string, unknown>).client_email; } catch {
@@ -240,11 +253,38 @@ const createRtdb = (options: {
     }
     if (clientEmail !== identity) throw new Error(`${errorPrefix}_service_identity_mismatch`);
   }
+  if (errorPrefix !== 'book_delivery') {
+    return new FirebaseRtdbRestClient({
+      env: { ...options.env, GOOGLE_SA_KEY: keyJson },
+      fetchImpl,
+    });
+  }
+  const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+    serviceAccountJson: keyJson,
+    serviceIdentity: identity,
+    firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+    firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+    fetchImpl,
+  });
   return new FirebaseRtdbRestClient({
-    env: { ...options.env, GOOGLE_SA_KEY: keyJson },
-    fetchImpl: options.fetchImpl ?? globalThis.fetch,
-    getAccessToken: options.getAccessToken,
-    firebaseAuthToken: Boolean(options.getAccessToken),
+    env: options.env,
+    fetchImpl,
+    firebaseAuthToken: true,
+    getFirebaseAuthToken: async ({ path } = { path: '' }) => {
+      const indexMatch = /^book_delivery\/indexes\/bindings\/[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/u.exec(path);
+      if (indexMatch) {
+        const claims: BookFirebaseClaimTuple = { service: 'book_delivery' };
+        return getFirebaseAuthToken(claims);
+      }
+      const scopeMatch = /^book_delivery\/scopes\/([A-Za-z0-9][A-Za-z0-9_-]{0,159})\/([A-Za-z0-9][A-Za-z0-9_-]{0,159})(?:\/|$)/u.exec(path);
+      if (!scopeMatch) throw new Error('book_delivery_claim_scope_unavailable');
+      const claims: BookFirebaseClaimTuple = {
+        service: 'book_delivery',
+        recipientId: scopeMatch[1]!,
+        contextId: scopeMatch[2]!,
+      };
+      return getFirebaseAuthToken(claims);
+    },
   });
 };
 

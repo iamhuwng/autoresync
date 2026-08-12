@@ -21,6 +21,7 @@ const publication = (): Record<string, unknown> => {
     bookId: 'book-pdf-1',
     bookMode: 'pdf',
     bookRevision: 3,
+    manifestVersionId: 'manifest-1',
     publicationId: 'publication-1',
     publicationRevision: 4,
     publicationStatus: 'published',

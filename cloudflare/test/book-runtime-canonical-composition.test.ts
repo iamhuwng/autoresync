@@ -5,6 +5,9 @@ import {
   createCanonicalActivityVersionFingerprint,
 } from '../../src/services/book-assembly/canonicalActivityVersion.service.ts';
 import type { BookDeliveryBinding } from '../../src/services/book-delivery/bookDelivery.types.ts';
+import { createBookRuntimeScheduleAuthority } from '../../src/services/book-activity/activityRuntimeAttempt.service.ts';
+import type { BookRuntimeScheduleOperationKind } from '../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import { resolveBookScheduleWindow } from '../../src/services/book-delivery/bookScheduleWindow.service.ts';
 import { createBookRouteHandlers } from '../src/upload-worker/book-route-handlers.ts';
 import {
   createBookRuntimeCanonicalHandlers,
@@ -12,6 +15,24 @@ import {
   type BookRuntimeCanonicalDependencies,
 } from '../src/upload-worker/book-runtime/canonical.ts';
 import type { BookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
+
+const BOOK_HOMEWORK_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\nredacted\n-----END PRIVATE KEY-----';
+const pilotScopeEnv = {
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1',
+    environment: 'test',
+    revision: 'book-runtime-canonical-composition-pilot',
+    issuedAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    teacherId: 'teacher-1',
+    bookId: 'book-1',
+    assignmentId: 'context-1',
+    studentIds: ['student-1'],
+    maxStudents: 30,
+  }),
+} as const;
 
 const normalizedActivity = () => ({
   schemaVersion: 1 as const,
@@ -97,6 +118,7 @@ const binding = (): BookDeliveryBinding => ({
     bookId: 'book-1',
     bookMode: 'pdf',
     bookRevision: 1,
+    manifestVersionId: 'manifest-1',
     publicationId: 'publication-1',
     publicationRevision: 1,
     publicationStatus: 'published',
@@ -113,8 +135,8 @@ const binding = (): BookDeliveryBinding => ({
     contextId: 'context-1',
     recipientId: 'student-1',
     ownerId: 'teacher-1',
-    kind: 'solo',
-    entitlementBasis: 'solo',
+    kind: 'homework',
+    entitlementBasis: 'assignment',
   },
   sourceSet: {
     strategy: 'full_pdf',
@@ -139,6 +161,35 @@ const binding = (): BookDeliveryBinding => ({
   schedulePolicy: { policyId: 'policy-1', policyRevision: 1, basis: 'immutable-reference' },
   createdAt: '2026-07-30T00:00:00.000Z',
 });
+
+const scheduleAuthority = (operation: BookRuntimeScheduleOperationKind) => {
+  const evaluatedAt = new Date().toISOString();
+  return createBookRuntimeScheduleAuthority(resolveBookScheduleWindow({
+    assignmentId: 'context-1', recipientId: 'student-1', bindingId: 'binding-1',
+    bindingRevision: 1, placementId: 'placement-1', activityId: 'activity-1',
+    activityVersion: 1, nodeKey: 'unit-1', operation,
+    schedule: {
+      schemaVersion: 1, resolverVersion: 1,
+      availableFrom: new Date(Date.now() - 60_000).toISOString(),
+      finalDueAt: new Date(Date.now() + 3_600_000).toISOString(),
+      scheduleRules: [],
+    },
+    outline: binding().outline, studentExtensions: {}, lateSubmissionAllowed: false,
+    maxAttempts: 2, attemptsUsed: 0, policyRevision: 1, authorityRevision: 1,
+    evaluatedAt,
+  }));
+};
+
+const schedulePolicy = {
+  authorize: ({ operation }: { operation: BookRuntimeScheduleOperationKind }) => ({
+    outcome: 'allowed' as const,
+    authority: scheduleAuthority(operation),
+  }),
+  revalidate: ({ operation }: { operation: BookRuntimeScheduleOperationKind }) => ({
+    outcome: 'allowed' as const,
+    authority: scheduleAuthority(operation),
+  }),
+};
 
 const repository = (): BookRuntimeRepository => ({
   readDraft: vi.fn(async () => null),
@@ -167,10 +218,19 @@ const dependencies = (runtimeRepository: BookRuntimeRepository): BookRuntimeCano
 });
 
 const env = {
+  ...pilotScopeEnv,
   BOOK_RUNTIME_SERVICE_IDENTITY: 'runtime@example.test',
-  BOOK_RUNTIME_GOOGLE_SA_KEY: '{}',
+  BOOK_RUNTIME_GOOGLE_SA_KEY: JSON.stringify({
+    client_email: 'runtime@example.test',
+    private_key: BOOK_HOMEWORK_PRIVATE_KEY,
+  }),
   BOOK_DELIVERY_SERVICE_IDENTITY: 'delivery@example.test',
-  BOOK_DELIVERY_GOOGLE_SA_KEY: '{}',
+  BOOK_DELIVERY_GOOGLE_SA_KEY: JSON.stringify({
+    client_email: 'delivery@example.test',
+    private_key: BOOK_HOMEWORK_PRIVATE_KEY,
+  }),
+  FIREBASE_PROJECT_ID: 'project-test',
+  FIREBASE_WEB_API_KEY: 'api-key-test',
   FIREBASE_DB_URL: 'https://database.example.test',
 };
 
@@ -188,9 +248,11 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
       createDependencies: () => ({
         repository: runtimeRepository,
         resolveBinding,
-        schedulePolicy: { authorize: () => ({ outcome: 'allowed' }) },
+        schedulePolicy,
         resolveActivity: async () => normalizedActivity(),
+        resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
       }),
+      schedulePolicy,
     });
 
     const result = await handlers.command({
@@ -225,7 +287,9 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
   });
 
   it('fails closed when production repository credentials are absent', async () => {
-    const handlers = createBookRuntimeCanonicalHandlers();
+    const handlers = createBookRuntimeCanonicalHandlers({
+      schedulePolicy: { authorize: () => ({ outcome: 'allowed' }) },
+    });
     const result = await handlers.command({
       request: new Request('https://worker.test/book-runtime/commands', {
         method: 'POST',
@@ -244,8 +308,14 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
   it('keeps terminal submissions independent of completion credentials when projection is disabled', async () => {
     const runtimeEnv = {
       ...env,
-      BOOK_RUNTIME_GOOGLE_SA_KEY: JSON.stringify({ client_email: 'runtime@example.test' }),
-      BOOK_DELIVERY_GOOGLE_SA_KEY: JSON.stringify({ client_email: 'delivery@example.test' }),
+      BOOK_RUNTIME_GOOGLE_SA_KEY: JSON.stringify({
+        client_email: 'runtime@example.test',
+        private_key: BOOK_HOMEWORK_PRIVATE_KEY,
+      }),
+      BOOK_DELIVERY_GOOGLE_SA_KEY: JSON.stringify({
+        client_email: 'delivery@example.test',
+        private_key: BOOK_HOMEWORK_PRIVATE_KEY,
+      }),
       BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED: 'disabled',
     };
     const production = createBookRuntimeProductionDependencies(runtimeEnv, undefined, undefined);
@@ -285,6 +355,7 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
     const readDatabaseValue = vi.fn(async (path: string) => {
       if (path === 'book_delivery/scopes/student-1/context-1/current') return current;
       if (path === 'book_delivery/scopes/student-1/context-1/records/binding-1') return record;
+      if (path === 'book_delivery/scopes/student-1/context-1/recovery/hold') return null;
       if (path === 'book_activity/versions/activity-1/activity-version-1') {
         return canonicalActivityVersion();
       }
@@ -292,19 +363,24 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
       if (path === 'book_runtime/scopes/student-1/context-1/placement-1/interaction-1') {
         return null;
       }
+      if (path === 'book_runtime/scopes/student-1/context-1/recovery/hold') return null;
       throw new Error(`unexpected read: ${path}`);
     });
-    const handlers = createBookRuntimeCanonicalHandlers();
+    const handlers = createBookRuntimeCanonicalHandlers({ schedulePolicy });
     const result = await handlers.readDraft({
       request: new Request('https://worker.test/book-runtime/drafts'),
       env: {
         ...env,
         BOOK_RUNTIME_GOOGLE_SA_KEY: JSON.stringify({
           client_email: env.BOOK_RUNTIME_SERVICE_IDENTITY,
+          private_key: BOOK_HOMEWORK_PRIVATE_KEY,
         }),
         BOOK_DELIVERY_GOOGLE_SA_KEY: JSON.stringify({
           client_email: env.BOOK_DELIVERY_SERVICE_IDENTITY,
+          private_key: BOOK_HOMEWORK_PRIVATE_KEY,
         }),
+        FIREBASE_PROJECT_ID: 'project-test',
+        FIREBASE_WEB_API_KEY: 'api-key-test',
         readDatabaseValue,
       },
       uid: 'student-1',

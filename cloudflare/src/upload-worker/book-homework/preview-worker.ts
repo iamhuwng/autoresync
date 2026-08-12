@@ -197,10 +197,6 @@ export const ticket86PreviewCommandContract = (env: Ticket86PreviewEnv) => {
     assignmentId: env.TICKET86_ASSIGNMENT_ID,
     manifestVersionId: canonical.manifest.manifestVersionId,
     selectedRecipientIds: canonical.recipientIds,
-    expectedManifestFingerprint: stable(canonical.manifest),
-    expectedPublicationFingerprint: canonical.publication.fingerprint,
-    expectedExposureApprovalFingerprint: canonical.exposureApproval.fingerprint,
-    expectedPolicyFingerprint: canonical.frozenPolicy.fingerprint,
   };
 };
 

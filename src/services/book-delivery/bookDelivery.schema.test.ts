@@ -14,6 +14,7 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
   bookId: 'book-pdf-1',
   bookMode: 'pdf' as const,
   bookRevision: 3,
+  manifestVersionId: 'manifest-1',
   publicationId: 'publication-1',
   publicationRevision: 4,
   publicationStatus: 'published' as const,
@@ -151,6 +152,12 @@ describe('Book Delivery binding schema', () => {
     const missingVersionId = structuredClone(binding()) as any;
     delete missingVersionId.placements[0].activityVersionId;
     expect(validateBookDeliveryBinding(missingVersionId).valid).toBe(false);
+
+    const missingManifestVersionId = structuredClone(binding()) as any;
+    delete missingManifestVersionId.book.manifestVersionId;
+    expect(validateBookDeliveryBinding(missingManifestVersionId).errors).toContainEqual(
+      expect.objectContaining({ code: 'missing-field', path: 'binding.book.manifestVersionId' }),
+    );
 
     const missingPageGroups = structuredClone(binding()) as any;
     missingPageGroups.placements[0].pageGroupKeys = [];

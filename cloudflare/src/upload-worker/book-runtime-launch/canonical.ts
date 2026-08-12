@@ -24,6 +24,7 @@ import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
 } from '../book-delivery/repository.ts';
+import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 import {
   createBookRuntimeLaunchWorkerHandlers,
   type BookRuntimeLaunchContext,
@@ -53,6 +54,26 @@ extends BookRuntimeLaunchWorkerHandlerOptions {
     env: BookRuntimeLaunchCanonicalEnv,
   ) => BookRuntimeLaunchProductionDependencies;
 }
+
+/**
+ * Reader credentials intentionally reuse the assembly service identity until a
+ * dedicated reader binding is deployed. This is an explicit mapping, not a
+ * second fallback identity or a new role.
+ */
+export const canonicalActivityVersionReaderEnv = (
+  env: BookRuntimeLaunchCanonicalEnv,
+): BookRuntimeLaunchCanonicalEnv => {
+  const dedicatedIdentity = env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY?.trim();
+  const dedicatedKey = env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY?.trim();
+  if (dedicatedIdentity || dedicatedKey) return env;
+  return {
+    ...env,
+    BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY:
+      env.BOOK_ASSEMBLY_SERVICE_IDENTITY,
+    BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY:
+      env.BOOK_ASSEMBLY_GOOGLE_SA_KEY,
+  };
+};
 
 interface AuthoritativeLaunchContext {
   readonly uid: string;
@@ -162,11 +183,30 @@ const authority = (value: unknown): AuthoritativeLaunchContext | null => {
 
 export const createBookRuntimeLaunchProductionDependencies = (
   env: BookRuntimeLaunchCanonicalEnv,
-): BookRuntimeLaunchProductionDependencies => ({
-  delivery: new FirebaseRestBookDeliveryRepository({ env }),
-  publications: new FirebaseRestBookAssemblyPublicationRepository({ env }),
-  exactReader: new FirebaseRestExactPublishedActivityVersionReader({ env }),
-});
+): BookRuntimeLaunchProductionDependencies => {
+  const readerEnv = canonicalActivityVersionReaderEnv(env);
+  const assemblyIdentity = env.BOOK_ASSEMBLY_SERVICE_IDENTITY?.trim() ?? '';
+  const assemblyTokenProvider = createFirebaseClaimTokenProvider({
+    serviceAccountJson: env.BOOK_ASSEMBLY_GOOGLE_SA_KEY?.trim() ?? '',
+    serviceIdentity: assemblyIdentity,
+    firebaseProjectId: env.FIREBASE_PROJECT_ID?.trim() ?? '',
+    firebaseWebApiKey: env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+  });
+  return {
+    delivery: new FirebaseRestBookDeliveryRepository({ env }),
+    publications: new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      getFirebaseAuthToken: (bookId) => assemblyTokenProvider({
+        service: 'book_assembly_publication',
+        bookId,
+        // The root scope rule requires a non-null owner claim; exact owner and
+        // publication lineage are verified against the bound manifest below.
+        ownerId: assemblyIdentity,
+      }),
+    }),
+    exactReader: new FirebaseRestExactPublishedActivityVersionReader({ env: readerEnv }),
+  };
+};
 
 const productionContextResolver = (
   createDependencies: (env: BookRuntimeLaunchCanonicalEnv) => BookRuntimeLaunchProductionDependencies,

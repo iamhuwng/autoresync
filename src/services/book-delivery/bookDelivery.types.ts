@@ -32,6 +32,8 @@ export interface BookDeliveryBookReference {
   readonly bookId: string;
   readonly bookMode: 'pdf';
   readonly bookRevision: number;
+  /** Immutable manifest identity that defines the published placement graph. */
+  readonly manifestVersionId: string;
   readonly publicationId: string;
   readonly publicationRevision: number;
   readonly publicationStatus: 'published';

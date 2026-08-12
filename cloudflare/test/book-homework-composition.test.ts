@@ -18,6 +18,22 @@ import {
 const operationId = '00000000-0000-4000-8000-000000000100';
 const assignmentId = 'assignment-1';
 const committedAt = '2026-08-03T12:00:00.000Z';
+const pilotScopeEnv = {
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1',
+    environment: 'test',
+    revision: 'book-homework-composition-pilot',
+    issuedAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    teacherId: 'teacher-1',
+    bookId: 'book-1',
+    assignmentId,
+    studentIds: ['student-1'],
+    maxStudents: 30,
+  }),
+} as const;
 
 const record = (): BookHomeworkSagaRecord => ({
   schemaVersion: 1,
@@ -59,15 +75,29 @@ const request = () => new Request('https://worker.example/book-homework', {
     operationId,
     idempotencyKey: 'idempotency-1',
     manifestVersionId: 'manifest-1',
+    intent: {
+      bookId: 'book-1',
+      target: { kind: 'unit', bookId: 'book-1', nodeKey: 'unit-1', classId: 'class-1' },
+      schedule: { finalDueAt: '2026-08-30T00:00:00.000Z', nodeOverrides: [] },
+      policy: {
+        intent: 'practice',
+        integrityCapture: false,
+        integrityOverride: false,
+        activityPolicies: [{
+          placementId: 'placement-1',
+          maxAttempts: 2,
+          feedbackRelease: 'immediate',
+          lateSubmissionAllowed: false,
+        }],
+      },
+      expectedPublication: { publicationId: 'publication-1', publicationRevision: 1, manifestVersionId: 'manifest-1' },
+    },
     selectedRecipientIds: ['student-1'],
-    expectedManifestFingerprint: 'manifest-fingerprint',
-    expectedPublicationFingerprint: 'publication-fingerprint',
-    expectedExposureApprovalFingerprint: 'exposure-fingerprint',
-    expectedPolicyFingerprint: 'policy-fingerprint',
   }),
 });
 
 const workerEnv = {
+  ...pilotScopeEnv,
   BOOK_NOTIFICATIONS_EMISSION_ENABLED: true,
   readDatabaseValue: async () => ({
     role: 'teacher',
@@ -126,6 +156,24 @@ describe('canonical Book Homework composition', () => {
     expect(result.init.status).toBe(500);
     expect(execute).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it('uses the production runtime by default and fails closed when its config is absent', async () => {
+    const handlers = createCanonicalBookHomeworkHandlers({
+      now: () => committedAt,
+    });
+
+    const result = await handlers.homeworkAssignmentCommand({
+      request: request(),
+      env: workerEnv,
+      uid: 'teacher-1',
+      assignmentId,
+    });
+
+    expect(result).toEqual({
+      body: { code: 'book_homework_runtime_dependencies_unavailable' },
+      init: { status: 503 },
+    });
   });
 
   it('rejects ambiguous static and per-request runtime composition', () => {

@@ -34,7 +34,7 @@ const binding = (bindingId: string, revision: number, placements: readonly BookD
   status: 'active',
   recipient: { recipientId: 'student-1', recipientKind: 'student' },
   issuer: { ownerId: 'owner-1', authorityBoundary: 'book-owner' },
-  book: { bookId: 'book-1', bookMode: 'pdf', bookRevision: 1, publicationId: 'publication-1', publicationRevision: 1, publicationStatus: 'published' },
+  book: { bookId: 'book-1', bookMode: 'pdf', bookRevision: 1, manifestVersionId: 'manifest-1', publicationId: 'publication-1', publicationRevision: 1, publicationStatus: 'published' },
   scope: { kind: 'subtree', nodeKeys: outline.map((entry) => entry.nodeKey), placementIds: placements.map((entry) => entry.placementId) },
   outline,
   context: { contextId: 'hw-1', recipientId: 'student-1', ownerId: 'owner-1', kind: 'homework', entitlementBasis: 'assignment' },

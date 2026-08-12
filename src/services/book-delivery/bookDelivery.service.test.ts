@@ -14,6 +14,7 @@ const publication = (strategy: 'full_pdf' | 'component_pdfs' = 'full_pdf') => ({
   bookId: 'book-pdf-1',
   bookMode: 'pdf' as const,
   bookRevision: 3,
+  manifestVersionId: 'manifest-1',
   publicationId: strategy === 'full_pdf' ? 'publication-full' : 'publication-component',
   publicationRevision: 4,
   publicationStatus: 'published' as const,

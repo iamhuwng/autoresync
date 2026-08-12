@@ -39,11 +39,26 @@ const bookCommand = {
   operationId: '00000000-0000-4000-8000-000000000086',
   idempotencyKey: 'book-idempotency-1',
   manifestVersionId: 'manifest-1',
+  intent: {
+    bookId: 'book-1',
+    target: { kind: 'book' as const, bookId: 'book-1', classId: 'class-1' },
+    schedule: {
+      finalDueAt: '2026-06-18T00:00:00.000Z',
+      nodeOverrides: [],
+    },
+    policy: {
+      intent: 'accountable' as const,
+      integrityCapture: true,
+      integrityOverride: false,
+      activityPolicies: [],
+    },
+    expectedPublication: {
+      publicationId: 'publication-1',
+      publicationRevision: 1,
+      manifestVersionId: 'manifest-1',
+    },
+  },
   selectedRecipientIds: ['student-1'],
-  expectedManifestFingerprint: 'manifest-fingerprint-1',
-  expectedPublicationFingerprint: 'publication-fingerprint-1',
-  expectedExposureApprovalFingerprint: 'exposure-fingerprint-1',
-  expectedPolicyFingerprint: 'policy-fingerprint-1',
 } as const;
 
 const bookResponse = {

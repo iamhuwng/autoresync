@@ -192,6 +192,7 @@ const assertBookInput = (input: BookHomeworkWorkerCommandInput): void => {
         || typeof input.operationId !== 'string' || !BOOK_OPERATION_ID.test(input.operationId)
         || typeof input.idempotencyKey !== 'string' || input.idempotencyKey.length === 0
         || typeof input.manifestVersionId !== 'string' || input.manifestVersionId.length === 0
+        || !input.intent || typeof input.intent !== 'object' || Array.isArray(input.intent)
         || !Array.isArray(input.selectedRecipientIds) || input.selectedRecipientIds.length === 0) {
         throw new HomeworkAssignmentWorkerError('Invalid Book Homework command.', 400, 'INVALID_ASSIGNMENT_REQUEST');
     }

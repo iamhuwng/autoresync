@@ -26,6 +26,7 @@ const projection = (kind: 'course' | 'class', contextId: string, overrides: Part
     bookId: 'book-1',
     bookMode: 'pdf',
     bookRevision: 1,
+    manifestVersionId: 'manifest-1',
     publicationId: 'publication-1',
     publicationRevision: 1,
     publicationStatus: 'published',

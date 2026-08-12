@@ -5,8 +5,14 @@ import type { BookAssemblyPublicationScope } from '../../src/services/book-assem
 import type { BookAssemblyPublicationResult } from '../../src/services/book-assembly/publicationTransaction.service.ts';
 import {
   createBookRuntimeLaunchCanonicalHandlers,
+  canonicalActivityVersionReaderEnv,
   type BookRuntimeLaunchProductionDependencies,
 } from '../src/upload-worker/book-runtime-launch/canonical.ts';
+import {
+  canonicalActivityVersionReaderClaimsForPath,
+  FirebaseRestExactPublishedActivityVersionReader,
+} from '../src/upload-worker/book-assembly/canonical-activity-version-repository.ts';
+import type { FirebaseRtdbAuthRequest } from '../src/upload-worker/listening-authoring/rtdb.ts';
 
 const pilotEnv = {
   BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
@@ -44,6 +50,7 @@ const binding = (): BookDeliveryBinding => ({
   issuer: { ownerId: 'teacher-1', authorityBoundary: 'book-owner' },
   book: {
     bookId: 'book-1', bookMode: 'pdf', bookRevision: 3,
+    manifestVersionId: 'manifest-1',
     publicationId: 'publication-1', publicationRevision: 4, publicationStatus: 'published',
   },
   scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
@@ -146,6 +153,80 @@ const handlersFor = (value = dependencies()) => ({
 });
 
 describe('Book Runtime launch production composition', () => {
+  it('maps the assembly identity explicitly when dedicated reader bindings are absent', () => {
+    const env = {
+      FIREBASE_DB_URL: 'https://firebase.test',
+      BOOK_ASSEMBLY_SERVICE_IDENTITY: 'assembly@example.test',
+      BOOK_ASSEMBLY_GOOGLE_SA_KEY: 'assembly-key',
+    };
+    const mapped = canonicalActivityVersionReaderEnv(env);
+    expect(mapped.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY)
+      .toBe('assembly@example.test');
+    expect(mapped.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY)
+      .toBe('assembly-key');
+
+    const dedicated = {
+      ...env,
+      BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY: 'reader@example.test',
+      BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY: 'reader-key',
+    };
+    expect(canonicalActivityVersionReaderEnv(dedicated as never)).toBe(dedicated);
+  });
+
+  it('uses Firebase Auth with exact request-scoped reader claims', async () => {
+    const authRequests: FirebaseRtdbAuthRequest[] = [];
+    const calls: string[] = [];
+    const reader = new FirebaseRestExactPublishedActivityVersionReader({
+      env: {
+        FIREBASE_DB_URL: 'https://firebase.test',
+        BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY: 'reader@example.test',
+      },
+      fetchImpl: async (input) => {
+        calls.push(String(input));
+        return new Response('null', { status: 200 });
+      },
+      getFirebaseAuthToken: async (request) => {
+        authRequests.push(request!);
+        return 'firebase-id-token';
+      },
+    });
+    await expect(reader.readExact({
+      bookId: 'book-1',
+      manifestVersionId: 'manifest-1',
+      publicationId: 'publication-1',
+      ownerId: 'teacher-1',
+      activityId: 'activity-1',
+      activityVersionId: 'activity-version-1',
+      activityVersion: 7,
+      payloadFingerprint: 'fnv1a64:1111111111111111',
+    })).resolves.toBeNull();
+
+    expect(authRequests).toEqual([{
+      path: 'book_assembly_publications/books/book-1/versions/manifest-1',
+    }]);
+    expect(new URL(calls[0]!).searchParams.get('auth')).toBe('firebase-id-token');
+    expect(canonicalActivityVersionReaderClaimsForPath(
+      'book_activity/versions/activity-1/activity-version-1',
+      {
+        bookId: 'book-1',
+        manifestVersionId: 'manifest-1',
+        publicationId: 'publication-1',
+        ownerId: 'teacher-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-version-1',
+        activityVersion: 7,
+        payloadFingerprint: 'fnv1a64:1111111111111111',
+      },
+    )).toEqual({
+      service: 'book_activity_runtime_reader',
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      manifestVersionId: 'manifest-1',
+      activityId: 'activity-1',
+      activityVersionId: 'activity-version-1',
+    });
+  });
+
   it('revalidates the current binding, derives immutable provenance, and supports a repeat launch', async () => {
     const { handlers, dependencies: production } = handlersFor();
     const first = await handlers.launch({ request: request(), env: pilotEnv, uid: 'student-1' });

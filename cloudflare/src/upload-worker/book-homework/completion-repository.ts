@@ -21,6 +21,7 @@ import type {
   BookHomeworkManifest,
 } from '../../../../src/types/homework.types.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
+import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 
 /**
  * The completion aggregate intentionally lives below the existing trusted
@@ -884,12 +885,36 @@ export class FirebaseRestBookHomeworkCompletionRepository {
     this.getAccessToken = options.getAccessToken;
     this.maxRetries = Math.max(1, Math.min(8, options.maxRetries ?? MAX_RETRIES));
     const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-    this.rtdb = new FirebaseRtdbRestClient({
-      env: { ...options.env, GOOGLE_SA_KEY: this.serviceAccountKey },
-      fetchImpl,
-      getAccessToken: this.getAccessToken,
-      firebaseAuthToken: Boolean(this.getAccessToken),
-    });
+    if (this.getAccessToken) {
+      this.rtdb = new FirebaseRtdbRestClient({
+        env: { ...options.env, GOOGLE_SA_KEY: undefined },
+        fetchImpl,
+        getAccessToken: this.getAccessToken,
+        firebaseAuthToken: true,
+      });
+    } else {
+      const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+        serviceAccountJson: this.serviceAccountKey!,
+        serviceIdentity: identity,
+        firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+        firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+        fetchImpl,
+      });
+      this.rtdb = new FirebaseRtdbRestClient({
+        env: { ...options.env, GOOGLE_SA_KEY: undefined },
+        fetchImpl,
+        firebaseAuthToken: true,
+        getFirebaseAuthToken: async ({ path } = { path: '' }) => {
+          const match = /^book_runtime\/homework_completion\/([A-Za-z0-9][A-Za-z0-9._:@-]{0,159})\/([A-Za-z0-9][A-Za-z0-9._:@-]{0,159})(?:\/|$)/u.exec(path);
+          if (!match) throw new BookHomeworkCompletionRepositoryError('homework_completion_claim_context_unavailable');
+          return getFirebaseAuthToken({
+            service: 'book_runtime',
+            recipientId: match[1],
+            contextId: match[2],
+          });
+        },
+      });
+    }
     this.deriveProjection = options.deriveProjection ?? deriveBookHomeworkCompletionProjection;
   }
 

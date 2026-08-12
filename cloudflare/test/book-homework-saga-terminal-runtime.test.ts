@@ -41,6 +41,22 @@ const SOURCE_VERSION_ID = 'source-terminal-v2';
 const PAGE_GROUP_KEY = 'pages-terminal';
 const CREATED_AT = '2026-08-01T00:00:00.000Z';
 const RUNTIME_NOW = '2026-08-01T00:00:01.000Z';
+const pilotScopeEnv = {
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1',
+    environment: 'test',
+    revision: 'book-homework-terminal-runtime-pilot',
+    issuedAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    teacherId: OWNER_ID,
+    bookId: 'book-terminal',
+    assignmentId: ROOT_CONTEXT_ID,
+    studentIds: [RECIPIENT_ID],
+    maxStudents: 30,
+  }),
+} as const;
 
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
@@ -55,6 +71,7 @@ const publication = (): BookDeliveryPublishedPublicationReference => ({
   bookId: 'book-terminal',
   bookMode: 'pdf',
   bookRevision: 3,
+  manifestVersionId: 'manifest-terminal',
   publicationId: 'publication-terminal',
   publicationRevision: 9,
   publicationStatus: 'published',
@@ -106,6 +123,7 @@ const manifest = (): BookHomeworkManifest => ({
     bookId: 'book-terminal',
     bookMode: 'pdf',
     bookRevision: 3,
+    manifestVersionId: 'manifest-terminal',
     publicationId: 'publication-terminal',
     publicationRevision: 9,
     publicationStatus: 'published',
@@ -202,11 +220,33 @@ const command = (
   operationId: '00000000-0000-4000-8000-000000000185',
   idempotencyKey: 'idempotency-terminal',
   manifestVersionId: value.manifest.manifestVersionId,
+  intent: {
+    bookId: 'book-terminal',
+    target: {
+      kind: 'unit',
+      bookId: 'book-terminal',
+      nodeKey: 'unit-terminal',
+      classId: 'class-1',
+    },
+    schedule: { finalDueAt: '2026-08-31T00:00:00.000Z', nodeOverrides: [] },
+    policy: {
+      intent: 'practice',
+      integrityCapture: false,
+      integrityOverride: false,
+      activityPolicies: [{
+        placementId: PLACEMENT_ID,
+        maxAttempts: 2,
+        feedbackRelease: 'immediate',
+        lateSubmissionAllowed: false,
+      }],
+    },
+    expectedPublication: {
+      publicationId: 'publication-terminal',
+      publicationRevision: 9,
+      manifestVersionId: 'manifest-terminal',
+    },
+  },
   selectedRecipientIds: [RECIPIENT_ID],
-  expectedManifestFingerprint: stable(value.manifest),
-  expectedPublicationFingerprint: value.publication.fingerprint,
-  expectedExposureApprovalFingerprint: value.exposureApproval.fingerprint,
-  expectedPolicyFingerprint: value.frozenPolicy.fingerprint,
   createdAt: CREATED_AT,
   ...overrides,
 });
@@ -374,7 +414,7 @@ describe('Book Homework saga to first terminal runtime submission', () => {
         clientRevision: 0,
         ...common,
       }),
-      env: {},
+      env: pilotScopeEnv,
       uid: RECIPIENT_ID,
     });
     const submitted = await handlers.command({
@@ -384,7 +424,7 @@ describe('Book Homework saga to first terminal runtime submission', () => {
         clientRevision: 1,
         ...common,
       }),
-      env: {},
+      env: pilotScopeEnv,
       uid: RECIPIENT_ID,
     });
 
@@ -482,7 +522,7 @@ describe('Book Homework saga to first terminal runtime submission', () => {
         clientRevision: 0,
         response: [{ interactionId: INTERACTION_ID, answer: 'terminal-answer' }],
       }),
-      env: {},
+      env: pilotScopeEnv,
       uid: RECIPIENT_ID,
     });
 

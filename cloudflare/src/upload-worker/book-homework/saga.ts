@@ -44,11 +44,7 @@ export interface BookHomeworkSagaDependencies {
   readonly sagaRepository: BookHomeworkSagaRepository;
   readonly authorityRepository: BookHomeworkAuthorityRepository;
   readonly deliveryRepository: BookDeliveryRepository;
-  readonly resolveCanonical: (input: {
-    readonly assignmentId: string;
-    readonly ownerId: string;
-    readonly selectedRecipientIds: readonly string[];
-  }) => Promise<BookHomeworkSagaCanonicalState>;
+  readonly resolveCanonical: (command: BookHomeworkSagaCommand) => Promise<BookHomeworkSagaCanonicalState>;
   readonly hooks?: BookHomeworkSagaHooks;
   readonly maxRecipients?: number;
 }
@@ -232,6 +228,9 @@ const assertCommandEnvelope = (
   assertId(command.ownerId, 'ownerId');
   assertId(command.idempotencyKey, 'idempotencyKey');
   assertId(command.manifestVersionId, 'manifestVersionId');
+  if (!command.intent || typeof command.intent !== 'object' || Array.isArray(command.intent)) {
+    throw new BookHomeworkSagaError('invalid-command', 'intent is required.');
+  }
   assertIso(command.createdAt, 'createdAt');
   if (!UUID.test(command.operationId)) throw new BookHomeworkSagaError('invalid-command', 'operationId must be a UUID.');
   return sortedUniqueIds(command.selectedRecipientIds, 'selectedRecipientIds', maxRecipients);
@@ -295,6 +294,7 @@ const rootFingerprint = (command: BookHomeworkSagaCommand, canonical: BookHomewo
   idempotencyKey: command.idempotencyKey,
   manifestVersionId: command.manifestVersionId,
   selectedRecipientIds: [...command.selectedRecipientIds].sort(),
+  intent: command.intent,
   manifest: canonical.manifest,
   schedule: canonical.schedule,
   publication: canonical.publication,
@@ -312,10 +312,6 @@ const requestFingerprint = (command: BookHomeworkSagaCommand): string => stable(
   idempotencyKey: command.idempotencyKey,
   manifestVersionId: command.manifestVersionId,
   selectedRecipientIds: [...command.selectedRecipientIds].sort(),
-  expectedManifestFingerprint: command.expectedManifestFingerprint,
-  expectedPublicationFingerprint: command.expectedPublicationFingerprint,
-  expectedExposureApprovalFingerprint: command.expectedExposureApprovalFingerprint,
-  expectedPolicyFingerprint: command.expectedPolicyFingerprint,
 });
 
 const assertCanonical = (
@@ -348,12 +344,6 @@ const assertCanonical = (
   if (canonical.sourceReadiness !== 'ready' || !canonical.exposureApproval.approved
     || !canonical.capabilities.canAssignBookHomework) {
     throw new BookHomeworkSagaError('not-ready', 'Source readiness, exposure approval, or assignment capability is unavailable.');
-  }
-  if (canonical.exposureApproval.fingerprint !== command.expectedExposureApprovalFingerprint
-    || canonical.frozenPolicy.fingerprint !== command.expectedPolicyFingerprint
-    || canonical.publication.fingerprint !== command.expectedPublicationFingerprint
-    || stable(canonical.manifest) !== command.expectedManifestFingerprint) {
-    throw new BookHomeworkSagaError('stale-input', 'A publication, manifest, exposure, or frozen policy fingerprint changed.');
   }
   if (!ID.test(canonical.frozenPolicy.policyId)
     || !Number.isSafeInteger(canonical.frozenPolicy.policyRevision)
@@ -464,7 +454,7 @@ export class BookHomeworkAssignmentSaga {
   ): Promise<readonly BookHomeworkTeacherStudentResolution[] | null> {
     assertId(assignmentId, 'assignmentId');
     assertId(ownerId, 'ownerId');
-    const record = await this.dependencies.sagaRepository.read(assignmentId);
+    const record = await this.dependencies.sagaRepository.read(assignmentId, ownerId);
     if (!record
       || record.state !== 'committed'
       || record.visibility !== 'committed'
@@ -508,7 +498,7 @@ export class BookHomeworkAssignmentSaga {
   private async executeLocked(command: BookHomeworkSagaCommand): Promise<BookHomeworkSagaResult> {
     const maxRecipients = this.dependencies.maxRecipients ?? MAX_RECIPIENTS;
     const requestedRecipients = assertCommandEnvelope(command, maxRecipients);
-    let record = await this.dependencies.sagaRepository.read(command.assignmentId);
+    let record = await this.dependencies.sagaRepository.read(command.assignmentId, command.ownerId);
     if (record) {
       assertValidBookHomeworkSagaRecord(record);
       const sameIdentity = record.ownerId === command.ownerId
@@ -531,11 +521,7 @@ export class BookHomeworkAssignmentSaga {
       }
     }
     if (record?.state === 'compensating') return this.compensate(record, command);
-    const canonical = await this.dependencies.resolveCanonical({
-      assignmentId: command.assignmentId,
-      ownerId: command.ownerId,
-      selectedRecipientIds: command.selectedRecipientIds,
-    });
+    const canonical = await this.dependencies.resolveCanonical(command);
     const recipients = assertCanonical(command, canonical, maxRecipients);
     const fingerprint = rootFingerprint(command, canonical);
     if (record) {
@@ -568,7 +554,7 @@ export class BookHomeworkAssignmentSaga {
       };
       assertValidBookHomeworkSagaRecord(record);
       if (!await this.dependencies.sagaRepository.create(record)) {
-        const raced = await this.dependencies.sagaRepository.read(command.assignmentId);
+        const raced = await this.dependencies.sagaRepository.read(command.assignmentId, command.ownerId);
         if (!raced) throw new BookHomeworkSagaError('concurrent-resume', 'Saga create raced without a readable winner.');
         if (raced.fingerprint !== fingerprint) throw new BookHomeworkSagaError('idempotency-conflict', 'Concurrent saga fingerprint differs.');
         record = raced;
@@ -583,11 +569,7 @@ export class BookHomeworkAssignmentSaga {
       for (let index = 0; index < record.recipients.length; index += 1) {
         record = await this.processRecipient(record, index, canonical, command);
       }
-      const refreshedCanonical = await this.dependencies.resolveCanonical({
-        assignmentId: command.assignmentId,
-        ownerId: command.ownerId,
-        selectedRecipientIds: command.selectedRecipientIds,
-      });
+      const refreshedCanonical = await this.dependencies.resolveCanonical(command);
       assertCanonical(command, refreshedCanonical, maxRecipients);
       if (rootFingerprint(command, refreshedCanonical) !== record.fingerprint) {
         throw new BookHomeworkSagaError('stale-input', 'Canonical publication or roster changed during fan-out.');
@@ -605,7 +587,7 @@ export class BookHomeworkAssignmentSaga {
         throw error;
       }
       const message = error instanceof Error ? error.message : 'Book Homework saga failed.';
-      const latest = await this.dependencies.sagaRepository.read(command.assignmentId);
+      const latest = await this.dependencies.sagaRepository.read(command.assignmentId, command.ownerId);
       record = latest ?? record;
       record = record.state === 'compensating'
         ? record

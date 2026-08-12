@@ -93,6 +93,7 @@ describe('Book Delivery Worker contract', () => {
           bindingId: 'binding-worker',
           book: {
             publicationId: 'publication-1',
+            manifestVersionId: 'manifest-1',
             publicationRevision: 4,
           },
           issuer: { ownerId: 'teacher-1' },

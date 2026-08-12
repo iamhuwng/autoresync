@@ -48,6 +48,7 @@ const binding: BookDeliveryBinding = {
     bookId: 'book-1',
     bookMode: 'pdf',
     bookRevision: 4,
+    manifestVersionId: 'manifest-1',
     publicationId: 'publication-4',
     publicationRevision: 4,
     publicationStatus: 'published',

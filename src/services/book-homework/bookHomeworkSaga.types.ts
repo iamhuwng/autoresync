@@ -1,6 +1,9 @@
 import type { BookDeliveryPublishedPublicationReference } from '../book-delivery/bookDelivery.publication';
 import type { BookHomeworkAuthoritySchedule } from './bookHomeworkAuthority.types';
-import type { BookHomeworkManifest } from '../../types/homework.types';
+import type {
+  BookHomeworkManifest,
+  BookHomeworkSelectionTarget,
+} from '../../types/homework.types';
 
 export const BOOK_HOMEWORK_SAGA_SCHEMA_VERSION = 1 as const;
 export const BOOK_HOMEWORK_SAGA_STATES = [
@@ -96,16 +99,67 @@ export interface BookHomeworkSagaCanonicalState {
   };
 }
 
+/**
+ * Untrusted browser assignment choices. The Worker reconstructs canonical
+ * manifest, Delivery, policy, and teacher authority data from this intent.
+ */
+export interface BookHomeworkSagaNodeOverrideIntent {
+  readonly nodeKey: string;
+  readonly availableFrom?: string;
+  readonly dueAt?: string;
+}
+
+export interface BookHomeworkSagaStudentExtensionIntent {
+  readonly studentId: string;
+  readonly nodeKey: string;
+  readonly dueAt: string;
+}
+
+export interface BookHomeworkSagaActivityPolicyIntent {
+  readonly placementId: string;
+  readonly maxAttempts: number | null;
+  readonly feedbackRelease: 'immediate' | 'after_completion' | 'after_deadline' | 'never' | 'manual';
+  readonly lateSubmissionAllowed: boolean;
+}
+
+/**
+ * Book scope plus the class provenance used to authorize the selected roster.
+ * The canonical Book target remains unchanged; classId is only untrusted
+ * assignment context for the Worker to verify.
+ */
+export type BookHomeworkSagaAssignmentTargetIntent = BookHomeworkSelectionTarget & {
+  readonly classId: string;
+};
+
+export interface BookHomeworkSagaAssignmentIntent {
+  readonly bookId: string;
+  readonly target: BookHomeworkSagaAssignmentTargetIntent;
+  readonly schedule: {
+    readonly finalDueAt: string;
+    readonly availableFrom?: string;
+    readonly nodeOverrides: readonly BookHomeworkSagaNodeOverrideIntent[];
+    readonly studentExtensions?: readonly BookHomeworkSagaStudentExtensionIntent[];
+  };
+  readonly policy: {
+    readonly intent: 'accountable' | 'practice';
+    readonly integrityCapture: boolean;
+    readonly integrityOverride: boolean;
+    readonly activityPolicies: readonly BookHomeworkSagaActivityPolicyIntent[];
+  };
+  readonly expectedPublication: {
+    readonly publicationId: string;
+    readonly publicationRevision: number;
+    readonly manifestVersionId: string;
+  };
+}
+
 export interface BookHomeworkSagaCommand {
   readonly assignmentId: string;
   readonly ownerId: string;
   readonly operationId: string;
   readonly idempotencyKey: string;
   readonly manifestVersionId: string;
+  readonly intent: BookHomeworkSagaAssignmentIntent;
   readonly selectedRecipientIds: readonly string[];
-  readonly expectedManifestFingerprint: string;
-  readonly expectedPublicationFingerprint: string;
-  readonly expectedExposureApprovalFingerprint: string;
-  readonly expectedPolicyFingerprint: string;
   readonly createdAt: string;
 }

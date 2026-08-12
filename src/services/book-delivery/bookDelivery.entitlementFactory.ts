@@ -49,6 +49,7 @@ export const createBookDeliveryBinding = (
       bookId: publication.bookId,
       bookMode: publication.bookMode,
       bookRevision: publication.bookRevision,
+      manifestVersionId: publication.manifestVersionId,
       publicationId: publication.publicationId,
       publicationRevision: publication.publicationRevision,
       publicationStatus: publication.publicationStatus,

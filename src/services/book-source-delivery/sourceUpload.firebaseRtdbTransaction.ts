@@ -1,5 +1,3 @@
-import { SignJWT, importPKCS8 } from 'jose';
-
 export interface SourceUploadRtdbTransactionResult<T> {
   readonly committed: boolean;
   readonly value: T | null;
@@ -49,6 +47,61 @@ const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 16 * 1024;
 const ACCESS_TOKEN_CACHE_SKEW_MS = 60_000;
 const encoder = new TextEncoder();
+
+// This module is consumed by the Cloudflare package from outside its package
+// root. Keep service-account signing on the platform Web Crypto API so that
+// the source-service boundary does not acquire a package-local dependency.
+const bytesToBase64Url = (bytes: Uint8Array): string => {
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '');
+};
+
+const pemToDer = (value: string): ArrayBuffer => {
+  const encoded = value
+    .replace(/-----BEGIN PRIVATE KEY-----/gu, '')
+    .replace(/-----END PRIVATE KEY-----/gu, '')
+    .replace(/\s/gu, '');
+  if (!encoded || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded)) {
+    throw new Error('invalid_pkcs8');
+  }
+  const binary = atob(encoded);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+};
+
+const signServiceAccountAssertion = async (
+  input: {
+    readonly email: string;
+    readonly privateKey: string;
+    readonly issuedAt: number;
+  },
+): Promise<string> => {
+  const header = bytesToBase64Url(encoder.encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+  const payload = bytesToBase64Url(encoder.encode(JSON.stringify({
+    scope: FIREBASE_SCOPES,
+    iss: input.email,
+    sub: input.email,
+    aud: GOOGLE_OAUTH_TOKEN_URL,
+    iat: input.issuedAt,
+    exp: input.issuedAt + 3600,
+  })));
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    pemToDer(input.privateKey),
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    key,
+    encoder.encode(`${header}.${payload}`),
+  );
+  return `${header}.${payload}.${bytesToBase64Url(new Uint8Array(signature))}`;
+};
 
 const fail = (code: string): never => {
   throw new TrustedSourceUploadRtdbTransactionError(code);
@@ -120,14 +173,11 @@ export const createTrustedFirebaseRtdbServiceAccountAccessTokenProvider = (
     if (!Number.isSafeInteger(nowMs) || nowMs < 0) fail('trusted_source_upload_oauth_clock_invalid');
     let assertion: string;
     try {
-      assertion = await new SignJWT({ scope: FIREBASE_SCOPES })
-        .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-        .setIssuer(email)
-        .setSubject(email)
-        .setAudience(GOOGLE_OAUTH_TOKEN_URL)
-        .setIssuedAt(Math.floor(nowMs / 1000))
-        .setExpirationTime(Math.floor(nowMs / 1000) + 3600)
-        .sign(await importPKCS8(privateKey, 'RS256'));
+      assertion = await signServiceAccountAssertion({
+        email,
+        privateKey,
+        issuedAt: Math.floor(nowMs / 1000),
+      });
     } catch {
       return fail('trusted_source_upload_oauth_assertion_failed');
     }

@@ -30,8 +30,12 @@ import BookHomeworkPreviewPanel, {
 import BookScheduleEditor from './BookScheduleEditor';
 import type {
     BookHomeworkPreviewDraft,
-    BookHomeworkPreviewSource,
 } from '../../services/book-homework/bookHomeworkPreview.service';
+import {
+    createBookHomeworkAssignmentIntent,
+    type BookHomeworkAssignmentPreviewSource,
+} from '../../services/book-homework/bookHomeworkAssignmentIntent';
+import { createBookHomeworkAssignmentViaWorker } from '../../services/homeworkAssignmentClient';
 import { resolvePreset, getContextDefaults } from '../../utils/antiCheatPresets';
 // @ts-ignore - JS service
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
@@ -57,7 +61,7 @@ interface HomeworkCreateModalProps {
     };
     preselectedContentRef?: HomeworkContentRef;
     createHomeworkAssignment?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => Promise<string>;
-    preselectedBookHomework?: BookHomeworkPreviewSource;
+    preselectedBookHomework?: BookHomeworkAssignmentPreviewSource;
     onBookHomeworkConfirm?: (draft: BookHomeworkPreviewDraft) => Promise<void> | void;
     onBookHomeworkForkBeforeAssign?: () => void;
 }
@@ -544,17 +548,27 @@ export function HomeworkCreateModal({
     };
 
     const handleBookHomeworkConfirm = async (draft: BookHomeworkPreviewDraft): Promise<void> => {
-        if (!onBookHomeworkConfirm) {
-            setError('Book Homework assignment handoff is not configured. No assignment was created.');
-            toast.warning('Book Homework handoff is not configured; no assignment was created.');
-            return;
-        }
-
         setSubmitting(true);
         setError(null);
         try {
-            await onBookHomeworkConfirm(draft);
-            toast.success('Book Homework preview confirmed for assignment handoff.');
+            if (onBookHomeworkConfirm) {
+                await onBookHomeworkConfirm(draft);
+            } else {
+                if (!preselectedBookHomework || !user?.uid) {
+                    throw new Error('Book Homework assignment requires an authenticated teacher and trusted preview context.');
+                }
+                if (preselectedBookHomework.identity.ownerId !== user.uid) {
+                    throw new Error('Book Homework preview belongs to a different teacher. No assignment was created.');
+                }
+                const command = createBookHomeworkAssignmentIntent({
+                    source: preselectedBookHomework,
+                    draft,
+                });
+                await createBookHomeworkAssignmentViaWorker(command);
+            }
+            toast.success(onBookHomeworkConfirm
+                ? 'Book Homework preview confirmed for assignment handoff.'
+                : 'Book Homework assignment created.');
             onSuccess();
             handleClose();
         } catch (err) {

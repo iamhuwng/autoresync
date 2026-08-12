@@ -1,4 +1,3 @@
-import { importPKCS8, SignJWT } from 'jose';
 import {
   classifyBookHomeworkDeadlineMutation,
   type BookHomeworkSchedule,
@@ -27,11 +26,13 @@ import {
   fingerprint,
   inheritedBookHomeworkDueAt,
 } from './authority.ts';
+import {
+  createFirebaseClaimTokenProvider,
+  type BookFirebaseClaimTuple,
+} from '../book-activity-authoring/firebase-token.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const MAX_RETRIES = 5;
-const OAUTH2_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const FIREBASE_SCOPES = 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/userinfo.email';
 
 export interface BookHomeworkStoredDocument {
   readonly value: unknown;
@@ -456,11 +457,9 @@ export class InMemoryBookHomeworkDocumentStore implements BookHomeworkDocumentSt
   }
 }
 
-interface ServiceAccountKey { readonly client_email: string; readonly private_key: string }
-interface TokenResponse { readonly access_token?: string; readonly expires_in?: number }
-
 export interface BookHomeworkRepositoryEnv {
   readonly FIREBASE_PROJECT_ID?: string;
+  readonly FIREBASE_WEB_API_KEY?: string;
   readonly BOOK_HOMEWORK_SERVICE_IDENTITY?: string;
   readonly BOOK_HOMEWORK_GOOGLE_SA_KEY?: string;
 }
@@ -508,51 +507,58 @@ const encodeMap = (value: Record<string, unknown>): Record<string, FirestoreValu
 const decodeMap = (value: Record<string, FirestoreValue> | undefined): unknown =>
   Object.fromEntries(Object.entries(value ?? {}).map(([key, entry]) => [key, decodeValue(entry)]));
 
-const tokenProvider = (keyJson: string, identity: string, fetchImpl: typeof fetch): (() => Promise<string>) => {
-  let key: ServiceAccountKey;
-  try { key = JSON.parse(keyJson) as ServiceAccountKey; } catch { throw new Error('invalid_book_homework_google_sa_key'); }
-  if (!key.client_email || !key.private_key || key.client_email !== identity) throw new Error('book_homework_service_identity_mismatch');
-  let cached = ''; let expiresAt = 0;
-  return async () => {
-    if (cached && Date.now() < expiresAt - 300_000) return cached;
-    const now = Math.floor(Date.now() / 1000);
-    const assertion = await new SignJWT({ iss: key.client_email, sub: key.client_email, aud: OAUTH2_TOKEN_URL, iat: now, exp: now + 3600, scope: FIREBASE_SCOPES })
-      .setProtectedHeader({ alg: 'RS256' })
-      .sign(await importPKCS8(key.private_key, 'RS256'));
-    const response = await fetchImpl.call(globalThis, OAUTH2_TOKEN_URL, {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
-    });
-    const body = JSON.parse(await response.text()) as TokenResponse;
-    if (!response.ok || !body.access_token) throw new Error(`book_homework_google_oauth_failed:${response.status}`);
-    cached = body.access_token; expiresAt = Date.now() + Math.max(0, (body.expires_in ?? 3600) * 1000);
-    return cached;
-  };
-};
-
 export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocumentStore {
   private readonly projectId: string;
   private readonly fetchImpl: typeof fetch;
-  private readonly getAccessToken: () => Promise<string>;
+  private readonly getFirebaseIdToken: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework' }>) => Promise<string>;
 
   constructor(options: {
     readonly env: BookHomeworkRepositoryEnv;
     readonly fetchImpl?: typeof fetch;
+    /** Test-only seam. Production uses the dedicated SA custom-token exchange. */
     readonly getAccessToken?: () => Promise<string>;
+    readonly getFirebaseIdToken?: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework' }>) => Promise<string>;
   }) {
     this.projectId = options.env.FIREBASE_PROJECT_ID?.trim() ?? '';
     const identity = options.env.BOOK_HOMEWORK_SERVICE_IDENTITY?.trim() ?? '';
     const key = options.env.BOOK_HOMEWORK_GOOGLE_SA_KEY?.trim();
     if (!this.projectId || !identity) throw new Error('missing_book_homework_firestore_identity');
-    if (!key && !options.getAccessToken) throw new Error('missing_book_homework_google_sa_key');
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
-    this.getAccessToken = options.getAccessToken ?? tokenProvider(key!, identity, this.fetchImpl);
+    if (options.getFirebaseIdToken) {
+      this.getFirebaseIdToken = options.getFirebaseIdToken;
+    } else if (options.getAccessToken) {
+      // Kept solely for existing emulator/unit-test seams. It is never used
+      // by the production constructor path unless a caller explicitly injects
+      // it, and no OAuth fallback is maintained here.
+      this.getFirebaseIdToken = async () => options.getAccessToken!();
+    } else {
+      if (!key) throw new Error('missing_book_homework_google_sa_key');
+      let serviceEmail: unknown;
+      try {
+        serviceEmail = (JSON.parse(key) as Record<string, unknown>).client_email;
+      } catch {
+        throw new Error('invalid_book_homework_google_sa_key');
+      }
+      if (serviceEmail !== identity) throw new Error('book_homework_service_identity_mismatch');
+      const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+        serviceAccountJson: key,
+        serviceIdentity: identity,
+        firebaseProjectId: this.projectId,
+        firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+        fetchImpl: this.fetchImpl,
+      });
+      this.getFirebaseIdToken = getFirebaseAuthToken;
+    }
   }
 
   async read(assignmentId: string): Promise<BookHomeworkStoredDocument | null> {
     assertCommandId(assignmentId, 'assignmentId');
     const response = await this.fetchImpl.call(globalThis, this.url(assignmentId), {
-      headers: { Authorization: `Bearer ${await this.getAccessToken()}` },
+      headers: {
+        Authorization: `Bearer ${await this.getFirebaseIdToken({
+          service: 'book_homework', assignmentId,
+        })}`,
+      },
     });
     if (response.status === 404) return null;
     const body = await response.text();
@@ -564,13 +570,22 @@ export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocume
 
   async write(assignmentId: string, value: BookHomeworkAuthorityRecord, updateTime?: string): Promise<boolean> {
     assertValidBookHomeworkAuthorityRecord(value);
+    if (value.assignmentId !== assignmentId) {
+      throw new BookHomeworkAuthorityError(
+        'invalid-record',
+        'Book Homework authority identity does not match its document path.',
+      );
+    }
     const query = updateTime === undefined
       ? '?currentDocument.exists=false'
       : `?currentDocument.updateTime=${encodeURIComponent(updateTime)}`;
+    const firebaseIdToken = await this.getFirebaseIdToken({
+      service: 'book_homework', assignmentId, ownerId: value.ownerId,
+    });
     const response = await this.fetchImpl.call(globalThis, `${this.url(assignmentId)}${query}`, {
       method: 'PATCH',
       headers: {
-        Authorization: `Bearer ${await this.getAccessToken()}`,
+        Authorization: `Bearer ${firebaseIdToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ fields: encodeMap(value as unknown as Record<string, unknown>) }),
@@ -598,6 +613,7 @@ export const createFirebaseRestBookHomeworkRepository = (options: {
   readonly env: BookHomeworkRepositoryEnv;
   readonly fetchImpl?: typeof fetch;
   readonly getAccessToken?: () => Promise<string>;
+  readonly getFirebaseIdToken?: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework' }>) => Promise<string>;
   readonly resolveAffectedStudentStates: (
     record: BookHomeworkAuthorityRecord,
     nodeKey: string,

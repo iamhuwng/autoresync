@@ -28,6 +28,18 @@ const makeHomeworkRuleContexts = () => ({
   unauthenticated: testEnv.unauthenticatedContext(),
 });
 
+const makeBookHomeworkServiceContext = (
+  assignmentId = 'book-assignment-1',
+  ownerId = 'teacher-1',
+  uid = ownerId,
+  claims: Record<string, unknown> = {},
+) => testEnv.authenticatedContext(uid, {
+  book_homework_service: true,
+  book_homework_assignmentId: assignmentId,
+  book_homework_ownerId: ownerId,
+  ...claims,
+});
+
 const baseHomeworkAssignment = (overrides: Record<string, unknown> = {}) => ({
   title: 'Reading Passage Homework',
   materialType: 'reading-passage',
@@ -142,6 +154,30 @@ const bookHomeworkAuthority = (
   updatedAt: '2026-07-28T00:00:00.000Z',
   ...overrides,
 });
+
+const validBookHomeworkAuthority = (
+  assignmentId = 'book-assignment-1',
+  ownerId = 'teacher-1',
+) => {
+  const authority = bookHomeworkAuthority('prepared');
+  return {
+    ...authority,
+    assignmentId,
+    ownerId,
+    bookManifest: {
+      ...authority.bookManifest,
+      ownerId,
+      context: {
+        ...authority.bookManifest.context,
+        contextId: assignmentId,
+      },
+    },
+    saga: {
+      ...authority.saga,
+      sagaId: assignmentId,
+    },
+  };
+};
 
 const seedHomeworkAssignments = async (): Promise<void> => {
   await testEnv.withSecurityRulesDisabled(async (context) => {
@@ -375,6 +411,67 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
         bookManifest: { manifestVersionId: 'manifest-2', context: { recipientId: 'student-1' } },
         visibility: { status: 'committed', pointerId: 'manifest-2', manifestVersionId: 'manifest-2' },
       }),
+    );
+  });
+
+  it('enforces exact Book Homework service assignment reads and owner-bound writes', async () => {
+    const assignmentId = 'book-assignment-1';
+    const authority = validBookHomeworkAuthority(assignmentId, 'teacher-1');
+    const service = makeBookHomeworkServiceContext(assignmentId, 'teacher-1');
+    const authorityRef = service.firestore().doc(`homework_assignments/${assignmentId}`);
+
+    await assertSucceeds(authorityRef.set(authority));
+    await assertSucceeds(authorityRef.get());
+    await assertSucceeds(authorityRef.update({
+      revision: 2,
+      updatedAt: '2026-07-28T00:01:00.000Z',
+    }));
+
+    await assertFails(
+      makeBookHomeworkServiceContext('book-assignment-2', 'teacher-1')
+        .firestore().doc(`homework_assignments/${assignmentId}`).get(),
+    );
+    // Reads are assignment-scoped because the repository does not know the
+    // persisted owner until after decoding. Writes additionally bind owner/uid.
+    await assertSucceeds(
+      makeBookHomeworkServiceContext(assignmentId, 'teacher-2', 'teacher-2')
+        .firestore().doc(`homework_assignments/${assignmentId}`).get(),
+    );
+    await assertFails(
+      makeBookHomeworkServiceContext(assignmentId, 'teacher-2', 'teacher-2')
+        .firestore().doc(`homework_assignments/${assignmentId}`).update({
+          revision: 3,
+          updatedAt: '2026-07-28T00:02:00.000Z',
+        }),
+    );
+    await assertFails(
+      makeBookHomeworkServiceContext(assignmentId, 'teacher-1', 'teacher-1', {
+        book_homework_assignmentId: 'book-assignment-1/other',
+      }).firestore().doc(`homework_assignments/${assignmentId}`).get(),
+    );
+    await assertFails(
+      makeBookHomeworkServiceContext(assignmentId, 'teacher-1', 'teacher-1', {
+        book_homework_service: 'true',
+      }).firestore().doc(`homework_assignments/${assignmentId}`).get(),
+    );
+
+    const malformedAuthority = validBookHomeworkAuthority(assignmentId, 'teacher-1');
+    malformedAuthority.bookManifest.context.kind = 'not-homework';
+    await assertFails(
+      service.firestore().doc('homework_assignments/book-malformed-service').set(malformedAuthority),
+    );
+
+    await assertFails(authorityRef.update({ ownerId: 'teacher-2' }));
+    await assertFails(authorityRef.update({ assignmentId: 'book-assignment-2' }));
+    await assertFails(authorityRef.update({ 'bookManifest.context.contextId': 'other-assignment' }));
+    await assertFails(authorityRef.delete());
+
+    const { student, teacher, unauthenticated } = makeHomeworkRuleContexts();
+    await assertFails(teacher.firestore().doc(`homework_assignments/${assignmentId}`).get());
+    await assertFails(student.firestore().doc(`homework_assignments/${assignmentId}`).get());
+    await assertFails(unauthenticated.firestore().doc(`homework_assignments/${assignmentId}`).get());
+    await assertFails(
+      teacher.firestore().doc('homework_assignments/book-browser-create').set(authority),
     );
   });
 });

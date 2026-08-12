@@ -52,7 +52,7 @@ const copy: ClassBookCopyIdentity = {
 
 const publication: BookDeliveryPublishedPublicationReference = {
   bookId: 'book-1', bookMode: 'pdf', bookRevision: 1,
-  publicationId: 'publication-1', publicationRevision: 2, publicationStatus: 'published', ownerId: 'teacher-1',
+  manifestVersionId: 'manifest-1', publicationId: 'publication-1', publicationRevision: 2, publicationStatus: 'published', ownerId: 'teacher-1',
   scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
   outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1, titleSnapshot: 'Unit one' }],
   sourceSet: { strategy: 'full_pdf', sources: [{

@@ -1,12 +1,13 @@
 import { SignJWT, importPKCS8 } from 'jose';
 
 export interface RepositoryEnv {
-  FIREBASE_DB_URL?: string;
-  FIREBASE_WEB_API_KEY?: string;
-  GOOGLE_SA_KEY?: string;
-  LISTENING_AUTHORING_IDEMPOTENCY_SECRET?: string;
-  LISTENING_AUTHORING_DEV_WRITES_ENABLED?: string;
-  readDatabaseValue?: (path: string, query?: FirebaseRtdbQuery) => Promise<unknown>;
+  readonly FIREBASE_DB_URL?: string;
+  readonly FIREBASE_PROJECT_ID?: string;
+  readonly FIREBASE_WEB_API_KEY?: string;
+  readonly GOOGLE_SA_KEY?: string;
+  readonly LISTENING_AUTHORING_IDEMPOTENCY_SECRET?: string;
+  readonly LISTENING_AUTHORING_DEV_WRITES_ENABLED?: string;
+  readonly readDatabaseValue?: (path: string, query?: FirebaseRtdbQuery) => Promise<unknown>;
 }
 
 export interface FirebaseRtdbQuery {
@@ -14,6 +15,11 @@ export interface FirebaseRtdbQuery {
   readonly equalTo?: string | number | boolean | null;
   readonly limitToFirst?: number;
   readonly limitToLast?: number;
+}
+
+export interface FirebaseRtdbAuthRequest {
+  readonly path: string;
+  readonly query?: FirebaseRtdbQuery;
 }
 
 export interface CourseBookAuthority102EnrollmentClaims {
@@ -362,9 +368,9 @@ export class FirebaseRtdbRestClient {
     private readonly options: {
       env: RepositoryEnv;
       fetchImpl: typeof fetch;
-      getAccessToken?: () => Promise<string>;
+      getAccessToken?: (request?: FirebaseRtdbAuthRequest) => Promise<string>;
       firebaseAuthToken?: boolean;
-      getFirebaseAuthToken?: () => Promise<string>;
+      getFirebaseAuthToken?: (request?: FirebaseRtdbAuthRequest) => Promise<string>;
     },
   ) {}
 
@@ -450,8 +456,8 @@ export class FirebaseRtdbRestClient {
     return true;
   }
 
-  private async accessToken(): Promise<string> {
-    if (this.options.getAccessToken) return this.options.getAccessToken();
+  private async accessToken(request: FirebaseRtdbAuthRequest): Promise<string> {
+    if (this.options.getAccessToken) return this.options.getAccessToken(request);
     const saKey = this.options.env.GOOGLE_SA_KEY?.trim();
     if (!saKey) throw new Error('missing_google_sa_key');
     return getTokenCache(saKey, this.options.fetchImpl).getToken();
@@ -466,7 +472,7 @@ export class FirebaseRtdbRestClient {
       if (!getFirebaseAuthToken) {
         throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
       }
-      const token = await getFirebaseAuthToken();
+      const token = await getFirebaseAuthToken({ path, query });
       if (typeof token !== 'string' || !token.trim()) {
         throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
       }
@@ -474,7 +480,7 @@ export class FirebaseRtdbRestClient {
     }
     return {
       url: withQuery(rtdbUrl(this.options.env, path), query),
-      headers: { Authorization: `Bearer ${await this.accessToken()}` },
+      headers: { Authorization: `Bearer ${await this.accessToken({ path, query })}` },
     };
   }
 }

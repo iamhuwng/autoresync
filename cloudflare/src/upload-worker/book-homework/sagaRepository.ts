@@ -1,4 +1,5 @@
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
+import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 import {
   BOOK_HOMEWORK_SAGA_RECIPIENT_STATES,
   BOOK_HOMEWORK_SAGA_SCHEMA_VERSION,
@@ -16,7 +17,7 @@ const MAX_RECIPIENTS = 30;
 const MAX_BYTES = 512 * 1024;
 
 export interface BookHomeworkSagaRepository {
-  read(assignmentId: string): Promise<BookHomeworkSagaRecord | null>;
+  read(assignmentId: string, ownerId?: string): Promise<BookHomeworkSagaRecord | null>;
   create(record: BookHomeworkSagaRecord): Promise<boolean>;
   compareAndSet(record: BookHomeworkSagaRecord, expectedRevision: number): Promise<boolean>;
 }
@@ -163,6 +164,7 @@ export interface BookHomeworkSagaRepositoryEnv extends RepositoryEnv {
 
 export class FirebaseRestBookHomeworkSagaRepository implements BookHomeworkSagaRepository {
   private readonly rtdb: FirebaseRtdbRestClient;
+  private readonly rtdbForOwner?: (ownerId: string) => FirebaseRtdbRestClient;
 
   constructor(options: {
     readonly env: BookHomeworkSagaRepositoryEnv;
@@ -172,7 +174,6 @@ export class FirebaseRestBookHomeworkSagaRepository implements BookHomeworkSagaR
     const identity = options.env.BOOK_HOMEWORK_SERVICE_IDENTITY?.trim();
     const keyJson = options.env.BOOK_HOMEWORK_GOOGLE_SA_KEY?.trim();
     if (!identity) throw new Error('missing_book_homework_saga_service_identity');
-    if (!options.getAccessToken) throw new Error('missing_book_homework_saga_scoped_access_token');
     if (keyJson) {
       let clientEmail: unknown;
       try { clientEmail = (JSON.parse(keyJson) as Record<string, unknown>).client_email; } catch {
@@ -180,20 +181,51 @@ export class FirebaseRestBookHomeworkSagaRepository implements BookHomeworkSagaR
       }
       if (clientEmail !== identity) throw new Error('book_homework_saga_service_identity_mismatch');
     }
-    this.rtdb = new FirebaseRtdbRestClient({
-      // Do not fall back to a Google OAuth service-account token here. The
-      // Worker must supply a Firebase Auth token carrying the rule-bound
-      // service/owner claims; server-side CAS remains the second boundary.
-      env: { ...options.env, GOOGLE_SA_KEY: undefined },
-      fetchImpl: options.fetchImpl ?? globalThis.fetch,
-      getAccessToken: options.getAccessToken,
+    const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    if (options.getAccessToken) {
+      this.rtdb = new FirebaseRtdbRestClient({
+        env: options.env,
+        fetchImpl,
+        getAccessToken: options.getAccessToken,
+        firebaseAuthToken: true,
+      });
+      return;
+    }
+    if (!keyJson) throw new Error('missing_book_homework_google_sa_key');
+    const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+      serviceAccountJson: keyJson,
+      serviceIdentity: identity,
+      firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+      firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+      fetchImpl,
+    });
+    this.rtdbForOwner = (ownerId: string) => new FirebaseRtdbRestClient({
+      env: options.env,
+      fetchImpl,
       firebaseAuthToken: true,
+      getFirebaseAuthToken: async () => getFirebaseAuthToken({
+        service: 'book_homework',
+        ownerId,
+      }),
+    });
+    this.rtdb = new FirebaseRtdbRestClient({
+      env: options.env,
+      fetchImpl,
+      firebaseAuthToken: true,
+      getFirebaseAuthToken: async () => { throw new Error('book_homework_owner_unavailable'); },
     });
   }
 
-  async read(assignmentId: string): Promise<BookHomeworkSagaRecord | null> {
+  private clientForOwner(ownerId?: string): FirebaseRtdbRestClient {
+    if (!this.rtdbForOwner) return this.rtdb;
+    if (!ownerId) throw new Error('book_homework_owner_unavailable');
+    assertId(ownerId, 'owner_id');
+    return this.rtdbForOwner(ownerId);
+  }
+
+  async read(assignmentId: string, ownerId?: string): Promise<BookHomeworkSagaRecord | null> {
     assertId(assignmentId, 'assignment_id');
-    const value = fromStored(await this.rtdb.readValue(sagaPath(assignmentId)));
+    const value = fromStored(await this.clientForOwner(ownerId).readValue(sagaPath(assignmentId)));
     if (value === null) return null;
     assertValidBookHomeworkSagaRecord(value);
     return clone(value);
@@ -201,18 +233,20 @@ export class FirebaseRestBookHomeworkSagaRepository implements BookHomeworkSagaR
 
   async create(record: BookHomeworkSagaRecord): Promise<boolean> {
     assertValidBookHomeworkSagaRecord(record);
-    const { data, etag } = await this.rtdb.readWithEtag<unknown>(sagaPath(record.assignmentId));
+    const rtdb = this.clientForOwner(record.ownerId);
+    const { data, etag } = await rtdb.readWithEtag<unknown>(sagaPath(record.assignmentId));
     if (data !== null) return false;
-    return this.rtdb.writeIfMatch(sagaPath(record.assignmentId), toStored(record), etag);
+    return rtdb.writeIfMatch(sagaPath(record.assignmentId), toStored(record), etag);
   }
 
   async compareAndSet(record: BookHomeworkSagaRecord, expectedRevision: number): Promise<boolean> {
     assertValidBookHomeworkSagaRecord(record);
-    const response = await this.rtdb.readWithEtag<unknown>(sagaPath(record.assignmentId));
+    const rtdb = this.clientForOwner(record.ownerId);
+    const response = await rtdb.readWithEtag<unknown>(sagaPath(record.assignmentId));
     const data = fromStored(response.data);
     if (data === null) return false;
     assertValidBookHomeworkSagaRecord(data);
     if (data.revision !== expectedRevision) return false;
-    return this.rtdb.writeIfMatch(sagaPath(record.assignmentId), toStored(record), response.etag);
+    return rtdb.writeIfMatch(sagaPath(record.assignmentId), toStored(record), response.etag);
   }
 }
