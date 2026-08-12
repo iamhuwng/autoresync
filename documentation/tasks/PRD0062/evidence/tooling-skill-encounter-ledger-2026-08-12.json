@@ -11,36 +11,36 @@
   "canonicalSkill": {
     "name": "run-windows-arm64-tools",
     "canonicalPath": "C:/Users/The Lord/.codex/skills/run-windows-arm64-tools/SKILL.md",
-    "version": "3.4.0",
-    "sha256": "85B35CF5864F72E65CB469483BC2140BBE3B08EC0CB1C2C2B89892319DE6C520"
+    "version": "3.5.0",
+    "sha256": "8645140F8E92FDF3C4AFAF458CC7DF7B7530C6758900E0E500F84E17E5FE42DB"
   },
   "currentRepositorySkill": {
     "name": "run-windows-arm64-tools",
     "repositoryPath": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased/.agents/skills/run-windows-arm64-tools/SKILL.md",
-    "version": "3.4.0",
-    "sha256": "85B35CF5864F72E65CB469483BC2140BBE3B08EC0CB1C2C2B89892319DE6C520",
+    "version": "3.5.0",
+    "sha256": "8645140F8E92FDF3C4AFAF458CC7DF7B7530C6758900E0E500F84E17E5FE42DB",
     "contract": "luyentap-windows-arm64-harness",
-    "protocol": 2,
+    "protocol": 3,
     "grammar": "node scripts/harness/run-tool.mjs <tool> <project> [...args]"
   },
   "target": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
-    "head": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
+    "head": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
     "branch": "codex/prd0062-lane-c-campaign",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
-    "latestEvidenceCommit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
-    "latestToolingCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b"
+    "latestEvidenceCommit": "20f039959a815385697b8a9aa652f9297e3d0a34",
+    "latestToolingCommit": "7de9c270078839f3cdb25f13f96385ddf5adcb59"
   },
   "toolingTarget": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/prd0062-tooling-base/luyentap-writing-import-rebased",
     "branch": "codex/prd0062-tooling-base",
     "baseCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
-    "finalCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
+    "finalCommit": "aeac957cf8e09c8f28e59f932d1be738edd210d0",
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 22,
+  "entryCount": 23,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -809,6 +809,28 @@
       "resolution": "The clean timeout is sufficient provisional stop evidence. No timeout increase or rerun was performed. Preserved logs were hashed; cleanup readback found no run-owned process or observed emulator listener. Default jsdom/MSW setup remains an unmeasured repository test-configuration confounder.",
       "genericObservation": "A timeout after startup requires phase timing, durable partial output, and configuration-isolated measurement before adapting the timeout; warnings alone do not establish causality.",
       "improvementProposal": "Record per-phase duration and a hashed bounded partial-output artifact for TOOL_TIMEOUT while keeping application test-framework details outside reusable harness logic."
+    },
+    {
+      "id": "encounter-023-harness-3-5-lineage-integration-verification",
+      "recordedAtBangkok": "2026-08-12T19:18:02.9203213+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.5.0",
+      "target": { "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased", "head": "7de9c270078839f3cdb25f13f96385ddf5adcb59", "worktreeCleanBeforeInvocation": true },
+      "publishedSourceCommit": "aeac957cf8e09c8f28e59f932d1be738edd210d0",
+      "commands": [
+        "node scripts/harness/run-tool.mjs --contract",
+        "npm.cmd run test:harness",
+        "git diff --check"
+      ],
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "selectedProject": ".",
+      "selectedTool": "harness contract and focused self-test",
+      "resource": { "discovered": "published repository commit aeac957cf8e09c8f28e59f932d1be738edd210d0", "reused": "existing Node/npm runtime", "adapted": null, "installed": "complete repository-local 3.5 lineage by exact cherry-pick" },
+      "evidence": { "sidecar": null, "reason": "contract inspection and Node test-runner self-test are not repository-tool product invocations", "counts": { "collected": 30, "executed": 30, "passed": 30, "failed": 0, "skipped": 0 } },
+      "classification": "COMPLETED_CLEAN_HARNESS_3_5_ACCEPTANCE",
+      "resolution": "Contract reported 3.5.0/protocol 3; all 30 focused harness tests passed; git diff --check passed; package manifests, lockfiles, and product files were not changed. Historical 3.4 evidence remains unchanged.",
+      "genericObservation": "A versioned harness upgrade should be accepted as one complete repository lineage with a focused contract/self-test proof before any downstream product-tool reuse.",
+      "improvementProposal": "Keep the self-test count and global/repository skill byte identity in the integration record while preserving older sidecars under their original contract versions."
     }
   ]
 }

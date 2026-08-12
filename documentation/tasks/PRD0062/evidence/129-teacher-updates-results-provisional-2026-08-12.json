@@ -24,10 +24,10 @@
     "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
     "productCampaignExecuted": false,
     "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
-    "nodeModules": { "root": "pre-existing junction; not used by harness; cleanup policy blocked", "cloudflare": "absent" },
+    "nodeModules": { "root": "pre-existing external junction; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "PROVISIONAL BLOCKED; the latest primary serial teacher run reached four tests but was AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS because dummy Firebase could not authenticate. Earlier campaign defects are superseded; credential-inherited rerun remains pending.",
+  "verdict": "PROVISIONAL BLOCKED; the latest primary serial teacher run reached four tests but produced no authenticated product assertions. The earlier mirror/cache defect is superseded; current browser execution requires an operator-provided clean checkout with project-local dependencies and valid authenticated test context.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
@@ -41,8 +41,8 @@
     }
   },
   "cases": [
-    { "id": "AC-TU-001", "fixture": "F-VOCAB-65", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS", "blockers": ["dummy Firebase fallback rendered the app but authentication stayed at / for 60s; no product assertions completed", "credential-inherited primary rerun pending", "#126 remains engineering-proof-only and not active"] },
-    { "id": "AC-TR-001", "fixture": "F-PDF-EDGE", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS", "blockers": ["dummy Firebase fallback rendered the app but authentication stayed at / for 60s; no product assertions completed", "credential-inherited primary rerun pending", "#126 remains engineering-proof-only and not active"] }
+    { "id": "AC-TU-001", "fixture": "F-VOCAB-65", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS", "blockers": ["valid project-local live-Vite dependency context is not available in c50d", "authenticated test context is not available", "#126 remains engineering-proof-only and not active"] },
+    { "id": "AC-TR-001", "fixture": "F-PDF-EDGE", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS", "blockers": ["valid project-local live-Vite dependency context is not available in c50d", "authenticated test context is not available", "#126 remains engineering-proof-only and not active"] }
   ],
   "executionHistory": {
     "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium",
@@ -61,5 +61,5 @@
     "productDefect": null,
     "remoteProof": "not authorized and not attempted"
   },
-  "nextGate": "Run AC-TU-001/AC-TR-001 serially after the x64 mirror/cache access issue is repaired; retain the local smoke boundary and do not infer real service/replay proof from it."
+  "nextGate": "An operator must provide a clean checkout/worktree with its own npm ci and valid authenticated test context. Then run AC-TU-001/AC-TR-001 serially; retain the local smoke boundary and do not infer service/replay proof from it."
 }

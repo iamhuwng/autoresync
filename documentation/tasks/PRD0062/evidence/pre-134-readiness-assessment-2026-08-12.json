@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "prd0062-pre-134-readiness-assessment",
+  "status": "NOT_READY_STOP_BEFORE_134",
+  "assessedSourceHead": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
+  "branch": "codex/prd0062-lane-c-campaign",
+  "scopeBoundary": "Read-only/local evidence convergence only. This artifact is not the #134 readiness packet and grants no deployment, activation, remote mutation, push, pull-request, or #134 authority.",
+  "identityContext": {
+    "frozenCampaign": {
+      "applicationCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+      "latestEvidenceCheckpoint": "20f039959a815385697b8a9aa652f9297e3d0a34",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
+      "featureGateTemplateSha256": "bb7ee79cb3b71e19b381dea843a5d78457a28677b386c7529b667bebe3a65406",
+      "accepted127MatrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+      "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+    },
+    "currentRepositoryTooling": {
+      "commit": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
+      "publishedSourceCommit": "aeac957cf8e09c8f28e59f932d1be738edd210d0",
+      "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "focusedTests": { "collected": 30, "executed": 30, "passed": 30, "failed": 0, "skipped": 0 },
+      "campaignEvidenceRewritten": false
+    }
+  },
+  "group1": {
+    "ticket118": {
+      "status": "ACCEPTED_REUSABLE_UNCHANGED",
+      "proof": { "path": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json", "sha256": "ff6346687769eba411917d47d016252148d1f9c42d8af01214df62cd6d9fd1d2" },
+      "fragmentManifest": { "path": "documentation/tasks/PRD0062/evidence/118-final-fragment-manifest-2026-08-12.json", "sha256": "9f720df1bce39e88d169749e491a28e1bc3fec89902508ca2d24a2ec81b5b831" },
+      "generatedRules": { "path": "database.rules.json", "sha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3" },
+      "rollbackRules": { "path": "firebase.prd0062-118-rules.rollback.json", "sha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a" },
+      "rerunRequired": false
+    }
+  },
+  "group2": {
+    "ticket127": { "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY", "artifact": "documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-12.json", "artifactSha256": "63daa9f79534a25c548899ca0236de1567afaf02b530bb2be680bbc9d3774a16", "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4", "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0" },
+    "ticket126": {
+      "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_NOT_ACTIVATED",
+      "approvalPacket": { "path": "documentation/tasks/PRD0062/evidence/126-bounded-activation-approval-packet.json", "sha256": "a407516c98914f311f3625240bee59b6c22a54071dc5596e1b74976dcab6d1f8" },
+      "scope": "exactly one named teacher, one named book, one named assignment, and no more than 30 named students",
+      "unresolvedIdentities": ["teacherId", "bookId", "assignmentId", "studentIds"],
+      "activationIdentitySha256": null,
+      "positiveNegativeReadback": "NOT_RUN",
+      "requiredGate": "Deployment authority must fill the exact identities, approve the exact packet, activate only that scope, and verify positive and negative readback."
+    }
+  },
+  "group3Verdicts": [
+    { "ticket": 128, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/128-teacher-authoring-assignment-provisional-2026-08-12.json", "artifactSha256": "5fcfefa3493c50b7942db3a7c65467727a61bcb7ab0c2871ce258d1e8501b2a8", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context; positive activation also waits for #126" },
+    { "ticket": 129, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/129-teacher-updates-results-provisional-2026-08-12.json", "artifactSha256": "77e122c639be977e8c1762375d5318b1a5bcdaf2a3158f8eeecfd32fc153e603", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context" },
+    { "ticket": 130, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/130-student-runtime-provisional-2026-08-12.json", "artifactSha256": "f1b840c1962686afb7aa421dfc42a83d0d492240a49195e2d54176c556d817c2", "gate": "operator-provided clean checkout with project-local npm ci and authenticated context; positive activation also waits for #126" },
+    { "ticket": 131, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/131-accessibility-device-provisional-2026-08-12.json", "artifactSha256": "90a7256ff6d5f3078cef42c9076401f463e5e4818652cda17af2f8bc61110fca", "gate": "operator-provided clean checkout with project-local npm ci, authenticated context, and manual screen-reader/native-zoom verification" },
+    { "ticket": 132, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/132-contract-security-provisional-2026-08-12.json", "artifactSha256": "2167c49fd3203e1fac04524378a716f9262a623fa0591054a0364ef97027989a", "gate": "3.4 TOOL_TIMEOUT is accepted stop evidence, not a product verdict; any future retry requires independently justified repository emulator-test configuration discovery" },
+    { "ticket": 133, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/133-legacy-backup-recovery-provisional-2026-08-12.json", "artifactSha256": "42b58775dd8ff56bdcdd4bb1655089b63605d1cdae22a8449b5fab1d4d2d734f", "gate": "resolve three transferred baseline-identical legacy cases; bounded 1/1 recovery slice is not ticket acceptance" }
+  ],
+  "deployedDrillScope": { "status": "NOT_AUTHORIZED_NOT_RUN", "intendedBoundary": "the exact approved #126 scope only", "ticket134": "SEPARATE_APPROVAL_REQUIRED" },
+  "providerOperationLimits": {
+    "remoteMutation": false,
+    "deployment": false,
+    "activation": false,
+    "push": false,
+    "pullRequest": false,
+    "ticket134": false,
+    "ticket135RemoteMeasurement": "separate remote-access authorization required; local refusal-safe preparation remains accepted and is not repeated"
+  },
+  "cleanupAndRollback": {
+    "fixtureCleanup": "plan-only; no campaign fixture state was written",
+    "fixtureCleanupRoot": "prd0062_acceptance/",
+    "fixtureCleanupTargetCount": 40,
+    "rulesRollbackArtifact": "firebase.prd0062-118-rules.rollback.json",
+    "rulesRollbackSha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a",
+    "activationRollback": "restore all-deny bookRolloutGateConfig, leave all route gates disabled, and retain scope-guard denial for disabled or invalid configuration",
+    "rehearsal": "local command definitions exist; no deployed cleanup or rollback was run"
+  },
+  "telemetryNeededBy135": {
+    "status": "QUERY_DEFINITIONS_NOT_YET_BOUND_TO_AN_APPROVED_REMOTE_DRILL",
+    "requiredSeries": [
+      "book_pilot_scope and book_rollout_gate decision counts by outcome/reason without identity payloads",
+      "Worker request count, response class, bytes transferred, latency, and error/retry count for the exact drill interval",
+      "R2/B2 object count, stored bytes, read/write/delete operations, and egress for the exact drill prefix",
+      "Firebase RTDB/Firestore read/write/storage operation counts attributable to the exact drill interval",
+      "provider billing/free-tier usage and remaining headroom before and after the exact drill"
+    ],
+    "execution": "NOT_RUN",
+    "authority": "#135 remote measurement requires separate authorization after stable routes and an approved deployed-drill identity"
+  },
+  "readinessConditions": {
+    "ticket118Accepted": true,
+    "ticket127Accepted": true,
+    "ticket126ActiveAndReadBack": false,
+    "tickets128Through133ClosedOnSameBuild": false,
+    "unresolvedP0P1": "No new P0/P1 identified in this assessment; open ticket blockers remain acceptance gates, not waived defects.",
+    "rollbackCleanupLocallyRehearsedWherePossible": "PARTIAL_PLAN_ONLY",
+    "ticket135LocalHarnessPrepared": true
+  },
+  "verdict": "NOT READY FOR #134. Stop before #134. Do not emit or treat this assessment as the readiness packet until #126 is approved/active/read back and #128-#133 are closed against one accepted build."
+}

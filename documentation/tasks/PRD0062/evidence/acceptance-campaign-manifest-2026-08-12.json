@@ -6,13 +6,13 @@
   "generatedByMode": "--manifest",
   "sourcePolicy": "product-source-read-only",
   "repository": {
-    "head": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
+    "head": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
     "branch": "codex/prd0062-lane-c-campaign",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
     "mergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
-    "latestEvidenceCommit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
-    "latestToolingCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "latestEvidenceCommit": "20f039959a815385697b8a9aa652f9297e3d0a34",
+    "latestToolingCommit": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
     "cleanBeforeCampaignChanges": true,
     "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987"
   },
@@ -21,7 +21,7 @@
     "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
-    "latestEvidenceCommit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
+    "latestEvidenceCommit": "20f039959a815385697b8a9aa652f9297e3d0a34",
     "toolingContract": {
       "name": "luyentap-windows-arm64-harness",
       "version": "3.4.0",
@@ -121,7 +121,7 @@
   ],
   "harnessInventory": {
     "windows": "win32 arm64 host; isolated verification Node v24.18.0 x64",
-    "applicationToolingIdentity": "c50d evidence HEAD 6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e; repository-local harness 3.4.0 protocol 2; application commit remains 2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "applicationToolingIdentity": "frozen campaign product evidence remains application commit 2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2 under Harness 3.4.0 protocol 2; current c50d HEAD 7de9c270078839f3cdb25f13f96385ddf5adcb59 integrates Harness 3.5.0 protocol 3 for future invocations; latest evidence checkpoint is 20f039959a815385697b8a9aa652f9297e3d0a34",
     "missingPaths": [],
     "presentPaths": [
       "scripts/harness/run-tool.mjs",
@@ -333,6 +333,17 @@
       "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/98f71299-6088-49c0-b981-e5587729f450.json",
       "supersedes": "prior campaign-owned AC-LR-001 focused run",
       "ticketStatus": "#133 remains PROVISIONAL_BLOCKED due three transferred baseline-identical #118 cases and inactive #126"
+    },
+    {
+      "name": "3.5 repository harness lineage acceptance",
+      "status": "PASS_COMPLETED",
+      "commit": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
+      "publishedSourceCommit": "aeac957cf8e09c8f28e59f932d1be738edd210d0",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "commands": ["node scripts/harness/run-tool.mjs --contract", "npm.cmd run test:harness", "git diff --check"],
+      "counts": { "collected": 30, "executed": 30, "passed": 30, "failed": 0, "skipped": 0 },
+      "classification": "completed tooling self-test; no product execution",
+      "scope": "complete repository-local 3.5 lineage only; historical 3.4 evidence retained unchanged and #132 not rerun"
     },
     {
       "name": "3.4 focused Node harness suite",
