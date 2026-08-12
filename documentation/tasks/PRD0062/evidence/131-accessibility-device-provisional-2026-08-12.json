@@ -2,7 +2,17 @@
   "schemaVersion": 1,
   "ticket": "#131",
   "lane": "keyboard/semantics/focus/screen-reader/zoom/touch/overflow/widths",
-  "status": "PROVISIONAL_BLOCKED",
+  "status": "PASS_LOCAL_AUTOMATED_MANUAL_PENDING",
+  "currentCampaignExecution": {
+    "finalApplicationCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+    "executedCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+    "sidecar": "C:/Users/The Lord/AppData/Local/ch35/prd0062-131-mobile-6f7767d9.json",
+    "sidecarSha256": "2778490996ccf2ae9e1018e294a26841a83e75270ffdcdd69f1319a722f833c6",
+    "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 },
+    "classification": "completed",
+    "automatedProof": ["desktop keyboard focus and Enter navigation", "44px mobile touch controls", "mobile overflow", "200% zoom overflow", "student-safe content"],
+    "remainingManualGate": "Native screen-reader announcement/order verification is not automated or claimed."
+  },
   "latest34ToolingEvidence": {
     "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
     "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
@@ -22,12 +32,12 @@
     "focusedHarness": { "command": "npm run test:harness", "status": "PASS_COMPLETED", "counts": { "collected": 20, "executed": 20, "passed": 20, "failed": 0, "skipped": 0 }, "duration": "61.77s", "classification": "completed" },
     "rootDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json" },
     "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
-    "productCampaignExecuted": false,
+    "productCampaignExecuted": true,
     "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
     "nodeModules": { "root": "pre-existing external junction; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "PROVISIONAL BLOCKED; campaign-owned accessibility/device coverage is present, but authenticated browser execution is incomplete. The earlier mirror failure is historical; current execution requires an operator-provided clean checkout with project-local dependencies and valid authenticated test context. Manual screen-reader verification was not claimed.",
+  "verdict": "The automated desktop keyboard/focus and mobile touch/overflow/200%-zoom case passes in the authenticated clean worktree. Native screen-reader verification remains a separate manual gate and is not claimed.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
@@ -50,5 +60,5 @@
     "productDefect": null,
     "remoteProof": "not authorized and not attempted"
   },
-  "nextGate": "An operator must provide a clean checkout/worktree with its own npm ci and valid authenticated test context. Then run AC-AD-001 with the student Chromium mobile project and add manual screen-reader/native-zoom notes separately."
+  "nextGate": "Perform and record native screen-reader announcement/order verification. Do not rerun the passing automated slice unless its implementation, fixture, or accepted identity changes."
 }

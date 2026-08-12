@@ -40,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 25,
+  "entryCount": 26,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -907,6 +907,48 @@
       "resolution": "The focused composer suite passed 13/13. The complete seven-file RTDB matrix passed 85/85 with every configured file present and executing assertions. Protected package, lockfile, and node_modules state was unchanged.",
       "genericObservation": "Wrapper tools need an explicit structured-result path when reusable evidence requires file-level test counts; suite-owned local configuration must be preserved when translating a legacy launcher to a generic harness boundary.",
       "improvementProposal": "Consider a generic harness mechanism for declaring and hashing child result artifacts and for parsing supported nested test-runner summaries, without encoding Firebase suites or application fixtures into reusable harness logic."
+    },
+    {
+      "id": "encounter-026-prd0062-authenticated-browser-campaign",
+      "recordedAtBangkok": "2026-08-12T22:00:00+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.5.0",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/prd0062-campaign-clean/luyentap-writing-import-rebased",
+        "finalHead": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+        "worktreeCleanBeforeAcceptedInvocations": true
+      },
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "selectedProject": ".",
+      "selectedTools": ["vite", "vitest", "playwright", "vite-node"],
+      "doctorCommand": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase",
+      "originalCommands": [
+        "node scripts/harness/run-tool.mjs vitest . run src/hooks/book-runtime/useBookActivityRuntime.test.tsx --maxWorkers=1 --passWithNoTests=false",
+        "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs <bounded ticket/case selector> --reporter=line"
+      ],
+      "resource": {
+        "discovered": "repository-local Harness 3.5.0/protocol 3 and an operator-approved clean worktree",
+        "reused": "immutable external x64 dependency cache, authenticated local sessions, deterministic fixtures, live Vite ports 5173/5174, and the existing ticket-87 schedule proof server",
+        "adapted": "used a real project-local npm ci directory, isolated the nested proof-server sidecar, and split long browser campaigns by acceptance case",
+        "installed": "project-local dependencies from the selected checkout lockfile; package and lock hashes remained unchanged"
+      },
+      "evidence": {
+        "accepted": [
+          { "ticket": "128", "sha256": "5d17528fbf5a0caa02f7a4bc31f381ab0c4ab61fe7a560a4b4c95283766b645b", "counts": "2/2 passed" },
+          { "ticket": "129", "sha256": "28c439e285302e2b75d266a969c3a14a527c5c11d2335ca97ca48e5d2393586e", "counts": "1/1 passed" },
+          { "ticket": "129", "sha256": "33efff64c3cf9d863bdae8c82726e41b4bff2271983378d87292fb8478745b16", "counts": "1/1 passed" },
+          { "ticket": "130", "sha256": "f08a5ec245864ecf8427ab14f47787a3386670faf6ffdb883b8dad24d5433682", "counts": "1/1 passed" },
+          { "ticket": "130", "sha256": "c8fcf1868aa1fd8876a503b96766bc39c1c68fd262544d5b7a3b97f02603a127", "counts": "2/2 passed" },
+          { "ticket": "130", "sha256": "f7fbe05c69193e02ac7b30b747c5756395570078d1c88bce94909cb5b277250f", "counts": "1/1 passed" },
+          { "ticket": "130-unit", "sha256": "d1b24d637425f956df010da70e0fbbe4845df92447b5c726901bcaeb5a5aa832", "counts": "11/11 passed" },
+          { "ticket": "131", "sha256": "2778490996ccf2ae9e1018e294a26841a83e75270ffdcdd69f1319a722f833c6", "counts": "1/1 passed" }
+        ],
+        "supersededBoundaries": "Preserved sidecars distinguish configuration startup failures, zero collection, product assertions, and TOOL_TIMEOUT. They are not reclassified as accepted evidence."
+      },
+      "classification": "COMPLETED_CLEAN_BOUNDED_BROWSER_CAMPAIGN",
+      "resolution": "Bounded #128-#131 automated cases completed after fixing acceptance-fixture sequencing, schedule-proof coverage, one normal-use runtime hydration defect, and desktop/mobile test viewport assumptions. No deploy, remote mutation, activation, push, or #134 action occurred.",
+      "genericObservation": "Long browser campaigns are more attributable when case selectors remain below the outer timeout, nested long-lived helper tools have separate sidecars, and viewport-specific controls are exercised only at supported widths.",
+      "improvementProposal": "Keep nested helper evidence isolated by default and consider surfacing the last Playwright action name in timeout artifacts; do not encode application fixtures, ports, or test names in reusable harness logic."
     }
   ]
 }

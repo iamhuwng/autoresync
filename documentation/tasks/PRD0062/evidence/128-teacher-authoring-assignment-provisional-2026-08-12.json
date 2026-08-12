@@ -2,7 +2,17 @@
   "schemaVersion": 1,
   "ticket": "#128",
   "lane": "teacher create/source/Assembly/publish/assign/schedule/integrity",
-  "status": "PROVISIONAL_BLOCKED",
+  "status": "PASS_LOCAL_NON_ACTIVATION_CASES",
+  "currentCampaignExecution": {
+    "finalApplicationCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+    "executedCommit": "bf9d1c2f789e0614c8078fdd817524de4963f24b",
+    "scopeImpactAfterExecution": "Later commits only changed student runtime/accessibility and acceptance-test orchestration; #128 product paths were unaffected.",
+    "sidecar": "C:/Users/The Lord/AppData/Local/ch35/prd0062-128-teacher-bf9d1c2f.json",
+    "sidecarSha256": "5d17528fbf5a0caa02f7a4bc31f381ab0c4ab61fe7a560a4b4c95283766b645b",
+    "counts": { "collected": 2, "executed": 2, "passed": 2, "failed": 0, "skipped": 0 },
+    "classification": "completed",
+    "boundary": "Non-activation teacher creation/assembly/publication/assignment assertions only. Positive activated workflow remains held by #126."
+  },
   "latest34ToolingEvidence": {
     "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
     "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
@@ -22,12 +32,12 @@
     "focusedHarness": { "command": "npm run test:harness", "status": "PASS_COMPLETED", "counts": { "collected": 20, "executed": 20, "passed": 20, "failed": 0, "skipped": 0 }, "duration": "61.77s", "classification": "completed" },
     "rootDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json" },
     "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
-    "productCampaignExecuted": false,
+    "productCampaignExecuted": true,
     "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
     "nodeModules": { "root": "pre-existing external junction; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "PROVISIONAL BLOCKED; the latest primary serial teacher run reached four tests but produced no authenticated product assertions. The earlier mirror/cache defect is superseded; current browser execution requires an operator-provided clean checkout with project-local dependencies and valid authenticated test context. Positive activation remains held by #126.",
+  "verdict": "The two locally authorized, non-activation #128 cases pass in an authenticated clean worktree. The positive activated workflow remains held until #126 has exact identities, separate approval, activation, and readback.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
@@ -61,5 +71,5 @@
     "productDefect": null,
     "remoteProof": "not authorized and not attempted"
   },
-  "nextGate": "An operator must provide a clean checkout/worktree with its own npm ci and valid authenticated test context. Then run AC-TA-001/002 serially; hold the positive activated workflow until #126 is separately approved, activated, and read back."
+  "nextGate": "Provide and approve the exact #126 teacher, book, assignment, and student allowlist identities; then run only #128's held positive activated workflow after #126 activation/readback."
 }

@@ -2,7 +2,29 @@
   "schemaVersion": 1,
   "ticket": "#129",
   "lane": "teacher update/checkpoint/replacement/notifications/results/history/replay",
-  "status": "PROVISIONAL_BLOCKED",
+  "status": "PASS_LOCAL_ACCEPTANCE",
+  "currentCampaignExecution": {
+    "finalApplicationCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+    "scopeImpactAfterExecution": "Later commits only changed student runtime/accessibility and acceptance-test orchestration; #129 product paths were unaffected.",
+    "cases": [
+      {
+        "id": "AC-TU-001",
+        "commit": "c34f66ffa81fc6e1f979f0e2c06d7a1c025cd60b",
+        "sidecar": "C:/Users/The Lord/AppData/Local/ch35/prd0062-129-tu-c34f66ff.json",
+        "sidecarSha256": "28c439e285302e2b75d266a969c3a14a527c5c11d2335ca97ca48e5d2393586e",
+        "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 }
+      },
+      {
+        "id": "AC-TR-001",
+        "commit": "9f63b81f0122282316c69b02ce9803bf0d1c9cb9",
+        "sidecar": "C:/Users/The Lord/AppData/Local/ch35/prd0062-129-tr-9f63b81f.json",
+        "sidecarSha256": "33efff64c3cf9d863bdae8c82726e41b4bff2271983378d87292fb8478745b16",
+        "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 }
+      }
+    ],
+    "classification": "completed",
+    "boundary": "Local deterministic update/replacement/results acceptance; no activation or remote-state claim."
+  },
   "latest34ToolingEvidence": {
     "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
     "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
@@ -22,12 +44,12 @@
     "focusedHarness": { "command": "npm run test:harness", "status": "PASS_COMPLETED", "counts": { "collected": 20, "executed": 20, "passed": 20, "failed": 0, "skipped": 0 }, "duration": "61.77s", "classification": "completed" },
     "rootDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json" },
     "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
-    "productCampaignExecuted": false,
+    "productCampaignExecuted": true,
     "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
     "nodeModules": { "root": "pre-existing external junction; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "PROVISIONAL BLOCKED; the latest primary serial teacher run reached four tests but produced no authenticated product assertions. The earlier mirror/cache defect is superseded; current browser execution requires an operator-provided clean checkout with project-local dependencies and valid authenticated test context.",
+  "verdict": "AC-TU-001 and AC-TR-001 pass as authenticated local deterministic acceptance cases. This proves the bounded update/replacement/results smoke paths, not deployed service or activation state.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
@@ -61,5 +83,5 @@
     "productDefect": null,
     "remoteProof": "not authorized and not attempted"
   },
-  "nextGate": "An operator must provide a clean checkout/worktree with its own npm ci and valid authenticated test context. Then run AC-TU-001/AC-TR-001 serially; retain the local smoke boundary and do not infer service/replay proof from it."
+  "nextGate": "No further local #129 rerun is required unless its implementation, fixtures, or accepted identity changes. Retain the local-smoke boundary."
 }

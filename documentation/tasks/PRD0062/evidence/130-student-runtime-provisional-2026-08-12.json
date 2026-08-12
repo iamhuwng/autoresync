@@ -2,7 +2,20 @@
   "schemaVersion": 1,
   "ticket": "#130",
   "lane": "Solo/Homework/Course/Class runtime/persistence/submission/results/isolation/reload/invalidation",
-  "status": "PROVISIONAL_BLOCKED",
+  "status": "PASS_LOCAL_ACCEPTANCE",
+  "currentCampaignExecution": {
+    "finalApplicationCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+    "executedCommit": "1fd21dd6c2db72ff8a5901f9b17a49da40299b2c",
+    "scopeImpactAfterExecution": "Subsequent commits changed only the #131 accessibility spec.",
+    "sidecars": [
+      { "case": "runtime persistence/retry/conflict", "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-130-runtime-1fd21dd6.json", "sha256": "f08a5ec245864ecf8427ab14f47787a3386670faf6ffdb883b8dad24d5433682", "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 } },
+      { "case": "deterministic fixture and safe deny preflight", "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-130-preflight-1fd21dd6.json", "sha256": "c8fcf1868aa1fd8876a503b96766bc39c1c68fd262544d5b7a3b97f02603a127", "counts": { "collected": 2, "executed": 2, "passed": 2, "failed": 0, "skipped": 0 } },
+      { "case": "accepted personal timer", "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-130-timer-1fd21dd6.json", "sha256": "f7fbe05c69193e02ac7b30b747c5756395570078d1c88bce94909cb5b277250f", "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 } },
+      { "case": "runtime hook regression", "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-runtime-hook-1fd21dd6.json", "sha256": "d1b24d637425f956df010da70e0fbbe4845df92447b5c726901bcaeb5a5aa832", "counts": { "collected": 11, "executed": 11, "passed": 11, "failed": 0, "skipped": 0 } }
+    ],
+    "classification": "completed",
+    "boundary": "Local authenticated smoke and deterministic fixtures. No #126 activation, deployed, or generalized rollout claim."
+  },
   "latest34ToolingEvidence": {
     "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
     "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
@@ -22,12 +35,12 @@
     "focusedHarness": { "command": "npm run test:harness", "status": "PASS_COMPLETED", "counts": { "collected": 20, "executed": 20, "passed": 20, "failed": 0, "skipped": 0 }, "duration": "61.77s", "classification": "completed" },
     "rootDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json" },
     "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
-    "productCampaignExecuted": false,
+    "productCampaignExecuted": true,
     "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
     "nodeModules": { "root": "pre-existing external junction; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "PROVISIONAL BLOCKED; the accepted runtime spec and campaign config are present, but authenticated browser execution is incomplete. The earlier mirror failure is historical; current execution requires an operator-provided clean checkout with project-local dependencies and valid authenticated test context. Positive activation remains held.",
+  "verdict": "The deterministic preflight, student persistence/reload/retry/conflict flow, and accepted personal timer pass in the authenticated clean worktree. The proof is local and does not claim #126 activation or deployed delivery.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
@@ -60,7 +73,7 @@
       "currentBlocker": false
     },
     "currentBlocker": false,
-    "browserExecuted": false,
+    "browserExecuted": true,
     "browserExecutionPending": "primary serial teacher/student runs"
   },
   "scope": ["Solo", "Homework", "Course", "Class", "autosave/reload", "submission/results", "schedules/notifications", "context isolation", "replacement invalidation"],
@@ -70,5 +83,5 @@
     "productDefect": null,
     "remoteProof": "not authorized and not attempted"
   },
-  "nextGate": "An operator must provide a clean checkout/worktree with its own npm ci and valid authenticated test context. Then run AC-SR-001 on student port 5174 with a fresh role-owned server."
+  "nextGate": "No further local #130 rerun is required unless its implementation, fixture, or accepted identity changes. Activated/deployed delivery remains governed by #126 and later gates."
 }

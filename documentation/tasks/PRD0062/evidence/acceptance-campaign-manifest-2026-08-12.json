@@ -448,6 +448,39 @@
       "partialTerminalOutputArtifact": null,
       "processAndPortReadback": "no run-owned process and no listener on 4400, 8080, 9000, or 9150",
       "classification": "default jsdom/MSW setup is a repository verification-configuration confounder; warnings are neither a product assertion result nor proof of timeout cause"
+    },
+    {
+      "name": "3.5 authenticated local #128-#131 campaign checkpoint",
+      "status": "LOCAL_AUTOMATED_CASES_COMPLETE_WITH_EXTERNAL_GATES",
+      "finalApplicationCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "worktree": "C:/Users/The Lord/.codex/worktrees/prd0062-campaign-clean/luyentap-writing-import-rebased",
+      "dependencyContext": "project-local npm ci directory; package and lock hashes unchanged",
+      "ticketVerdicts": {
+        "128": "PASS_LOCAL_NON_ACTIVATION_CASES; positive activated workflow held for #126",
+        "129": "PASS_LOCAL_ACCEPTANCE",
+        "130": "PASS_LOCAL_ACCEPTANCE",
+        "131": "PASS_LOCAL_AUTOMATED; native screen-reader verification pending"
+      },
+      "acceptedSidecarSha256": {
+        "128": "5d17528fbf5a0caa02f7a4bc31f381ab0c4ab61fe7a560a4b4c95283766b645b",
+        "129Update": "28c439e285302e2b75d266a969c3a14a527c5c11d2335ca97ca48e5d2393586e",
+        "129Replacement": "33efff64c3cf9d863bdae8c82726e41b4bff2271983378d87292fb8478745b16",
+        "130Runtime": "f08a5ec245864ecf8427ab14f47787a3386670faf6ffdb883b8dad24d5433682",
+        "130Preflight": "c8fcf1868aa1fd8876a503b96766bc39c1c68fd262544d5b7a3b97f02603a127",
+        "130Timer": "f7fbe05c69193e02ac7b30b747c5756395570078d1c88bce94909cb5b277250f",
+        "131Automated": "2778490996ccf2ae9e1018e294a26841a83e75270ffdcdd69f1319a722f833c6"
+      },
+      "identityReuse": "Later commits were limited to student runtime/accessibility and acceptance orchestration. Earlier teacher cases were not rerun because their affected slices and #118/#127 identities did not change.",
+      "externalGates": [
+        "#126 exact teacher/book/assignment/student allowlist identities remain incomplete and activation is not approved or active",
+        "#132 remains provisional at its recorded harness timeout boundary",
+        "#131 native screen-reader verification is manual and unclaimed",
+        "#134 remains separately approval-gated"
+      ],
+      "remoteMutation": false,
+      "deployment": false,
+      "activation": false
     }
   ],
   "executionPolicy": {
