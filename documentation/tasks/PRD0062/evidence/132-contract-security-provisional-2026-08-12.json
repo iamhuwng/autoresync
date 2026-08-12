@@ -4,24 +4,60 @@
   "lane": "non-duplicated contract/security; #118 tuple reuse",
   "status": "PROVISIONAL_BLOCKED",
   "latest34ToolingIdentity": {
-    "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+    "commit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
     "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
     "priorFocusedHarness": { "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0, "duration": "31.47s" },
+    "freshRootDoctor": {
+      "command": "node scripts/harness/run-tool.mjs --doctor . firebase",
+      "status": "PASS_EXIT_0",
+      "phase": "doctor",
+      "worktreeClean": true,
+      "cachePublication": "RECOVERED_FRESH_EXTERNAL_CACHE",
+      "evidence": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-doctor.json",
+      "evidenceSha256": "2bb7c0cd5c4709e7a3b8efee85a19a9c4acfd06adfd4462e327879fc185bab87"
+    },
     "securityCaseExecution": {
-      "status": "HARNESS_PREFLIGHT_FAILURE",
+      "command": "node scripts/harness/run-tool.mjs firebase . emulators:exec --only database,firestore \"node node_modules/vitest/vitest.mjs run src/__tests__/security/prd0040-security.emulator.test.ts --maxWorkers=1 --passWithNoTests=false\"",
+      "status": "HARNESS_TRANSPORT_FAILURE",
       "phase": "execution",
-      "sourceCommit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
-      "worktreeClean": false,
-      "failureCode": "EPERM",
-      "failureBoundary": "dependency-cache staging rename before Firebase, emulator, Vitest, or product-code startup",
+      "sourceCommit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
+      "worktreeClean": true,
+      "failureCode": "TOOL_TIMEOUT",
+      "exitCode": 124,
+      "failureBoundary": "sidecar-supported harness transport timeout with all counts null; separately hashed emulator logs corroborate Firebase/emulator/Vitest startup but do not establish a product verdict or timeout cause",
       "counts": { "collected": null, "executed": null, "passed": null, "failed": null, "skipped": null },
-      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/4986ad64-18e1-44df-bd29-bc3262bd62e5.json",
-      "authoritativeFor": "diagnostic preflight failure only; not clean proof or AC-SC-001 acceptance",
+      "evidence": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-execution.json",
+      "evidenceSha256": "940a5f917ff765f5db3110cb8081d3701c1383908e501e96921e2321fbbb9445",
+      "authoritativeFor": "transport failure and startup boundary only; not clean proof, an AC-SC-001 verdict, or ticket acceptance",
       "productDefect": null,
-      "historicalInconclusiveAttempt": {
-        "status": "INCONCLUSIVE_HARNESS_PRESTART_TIMEOUT",
-        "durationSeconds": 904,
-        "failureBoundary": "source-mirror robocopy before Firebase, project code, emulator ports, or evidence-sidecar creation"
+      "priorAttempts": {
+        "attemptA": {
+          "status": "INCONCLUSIVE_HARNESS_PRESTART_TIMEOUT",
+          "durationSeconds": 904,
+          "failureBoundary": "source-mirror robocopy before Firebase, project code, emulator ports, or evidence-sidecar creation"
+        },
+        "attemptB": {
+          "status": "HARNESS_PREFLIGHT_FAILURE",
+          "sourceCommit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+          "worktreeClean": false,
+          "failureCode": "EPERM",
+          "failureBoundary": "dependency-cache staging rename before Firebase, emulator, Vitest, or product-code startup",
+          "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/4986ad64-18e1-44df-bd29-bc3262bd62e5.json"
+        }
+      },
+      "postTimeoutDiscovery": {
+        "mode": "read-only; no rerun or timeout adaptation",
+        "executionWorkspace": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/runs/9dbf474f-6a05-48f2-a32c-e2fdcf25c825",
+        "partialTerminalOutputArtifact": null,
+        "logHashes": {
+          "firebase-debug.log": "f5bb77ba7500724b4dc5d02db6a292a26e61c315efde2e316ad4f39dc1262998",
+          "firestore-debug.log": "85723bf25fc05cac7fc67c39446abb2764d4a08fa79cda9b2f255a466f2e2516",
+          "database-debug.log": "222b175aaea3c77ed3c15da0c955841521ab9b35b8db968b74d5ae8ee5de3320"
+        },
+        "observedTiming": "Firebase debug log begins 2026-08-12T08:10:19.521Z; RTDB reports listening at 08:11:33.210Z; the child script was launched after emulator readiness; last preserved emulator activity is 08:12:47.034Z. No durable partial terminal artifact exists to attribute per-test timing.",
+        "configurationConfounder": "The exact command used default vitest.config.ts with jsdom and src/__tests__/setup.ts, which starts MSW in warn mode. Emulator-request warnings are repository test-configuration evidence, not an ARM64 harness or product assertion verdict, and do not alone prove the timeout cause.",
+        "cleanupReadback": "No run-owned Java/Node/Firebase/Vitest process and no listeners on observed emulator ports 4400, 8080, 9000, or 9150 remained after timeout.",
+        "futureRetryGate": "Before any timeout adaptation, use a project-owned emulator-test configuration that excludes browser/MSW setup, collect the target file, and measure one representative filtered test through the same Firebase harness/cache on a new clean commit. Configuration changes require normal review and explicit retry authority."
       }
     }
   },
@@ -38,10 +74,10 @@
     "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
     "productCampaignExecuted": false,
     "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
-    "nodeModules": { "root": "pre-existing junction; not used by harness; cleanup policy blocked", "cloudflare": "absent" },
+    "nodeModules": { "root": "pre-existing external junction; not used by harness; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "#118 tuple is unchanged and reusable; the latest bounded #132 attempt is diagnostic harness preflight evidence only, not clean proof, a product/security result, or full AC-SC-001 acceptance.",
+  "verdict": "#118 tuple is unchanged and reusable. Fresh-root doctor recovered cache publication, but the bounded #132 execution ended in a sidecar-supported harness transport timeout with null counts. Separately hashed logs corroborate tool startup only; no product verdict is authoritative, and this is not full AC-SC-001 or ticket closure.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
@@ -69,9 +105,9 @@
     "remoteProof": "none"
   },
   "cases": [
-    { "id": "AC-SC-001", "status": "HARNESS_PREFLIGHT_FAILURE_NO_PRODUCT_EXECUTION", "blockers": ["#118 tuple reused without assembled-rules rerun", "latest campaign attempt failed with EPERM during dependency-cache staging rename before Firebase, project-code, emulator, Vitest, or assertion activity", "#126 remains engineering-proof-only and not active"] }
+    { "id": "AC-SC-001", "status": "HARNESS_TRANSPORT_FAILURE_NO_AUTHORITATIVE_PRODUCT_VERDICT", "blockers": ["#118 tuple reused without assembled-rules rerun", "latest bounded execution has a sidecar-supported harness transport timeout with all result counts null; separately hashed logs corroborate startup only", "#126 remains engineering-proof-only and not active"] }
   ],
   "scope": ["trusted writes", "ancestor/root/cross-user negatives", "stale/replay/privacy boundaries", "assembled-rule contract", "non-duplicated security cases"],
   "productDefect": null,
-  "nextGate": "Keep the #118 generated-rules and assembled-suite tuple unchanged; after the dependency-cache staging rename is reliable, rerun only the non-duplicated AC-SC-001 slice on a clean worktree, retaining the three baseline-identical legacy failures under #133."
+  "nextGate": "Keep the #118 generated-rules and assembled-suite tuple unchanged; assess the bounded transport timeout from its sidecar before any materially changed retry. Do not widen the timeout without understanding the expected duration; retain the three baseline-identical legacy failures under #133."
 }

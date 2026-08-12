@@ -11,8 +11,8 @@
   "canonicalSkill": {
     "name": "run-windows-arm64-tools",
     "canonicalPath": "C:/Users/The Lord/.codex/skills/run-windows-arm64-tools/SKILL.md",
-    "version": "3.3.0",
-    "sha256": "7944CFE8143DB8A8F174D6ABC464119F65B579B86CCD84FD3CDAD1807C7F99D8"
+    "version": "3.4.0",
+    "sha256": "85B35CF5864F72E65CB469483BC2140BBE3B08EC0CB1C2C2B89892319DE6C520"
   },
   "currentRepositorySkill": {
     "name": "run-windows-arm64-tools",
@@ -25,11 +25,11 @@
   },
   "target": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
-    "head": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "head": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
     "branch": "codex/prd0062-lane-c-campaign",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
-    "latestEvidenceCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+    "latestEvidenceCommit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
     "latestToolingCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b"
   },
   "toolingTarget": {
@@ -40,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 17,
+  "entryCount": 22,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -741,6 +741,74 @@
       "usefulness": "Prevents old 3.3 collection wording from being mistaken for authenticated product execution under the 3.4 contract.",
       "friction": { "skillFriction": "3.4 semantics are explicit", "commandFriction": "historical ledger wording predated the phase/count contract" },
       "improvementProposal": "Require a migration lint over prior evidence ledgers that rejects nonzero execution counts when the invocation is Playwright --list."
+    },
+    {
+      "id": "encounter-018-fresh-root-firebase-doctor-cache-recovery",
+      "recordedAtBangkok": "2026-08-12T14:30:00+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.4.0",
+      "target": { "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased", "head": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e", "worktreeClean": true },
+      "command": "node scripts/harness/run-tool.mjs --doctor . firebase",
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "externalCache": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/dependencies/d5e92ac96a2897a0c39bfd06648f04f0ac44dff5d2c22f9026bf8bb6fbd49761",
+      "sidecar": { "path": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-doctor.json", "sha256": "2bb7c0cd5c4709e7a3b8efee85a19a9c4acfd06adfd4462e327879fc185bab87" },
+      "classification": "COMPLETED_CLEAN_DOCTOR_CACHE_PUBLICATION_RECOVERED",
+      "resolution": "Fresh-root doctor completed cleanly and recovered external dependency-cache publication. No product assertions were run.",
+      "genericObservation": "A fresh-root doctor can establish cache readiness independently from a later execution outcome.",
+      "improvementProposal": "Retain doctor sidecars with execution sidecars so cache-readiness and command-result evidence remain distinguishable."
+    },
+    {
+      "id": "encounter-019-firebase-execution-transport-timeout",
+      "recordedAtBangkok": "2026-08-12T14:30:00+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.4.0",
+      "target": { "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased", "head": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e", "worktreeClean": true },
+      "command": "node scripts/harness/run-tool.mjs firebase . emulators:exec --only database,firestore \"node node_modules/vitest/vitest.mjs run src/__tests__/security/prd0040-security.emulator.test.ts --maxWorkers=1 --passWithNoTests=false\"",
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2, "phase": "execution" },
+      "externalCache": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/dependencies/d5e92ac96a2897a0c39bfd06648f04f0ac44dff5d2c22f9026bf8bb6fbd49761",
+      "sidecar": { "path": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-execution.json", "sha256": "940a5f917ff765f5db3110cb8081d3701c1383908e501e96921e2321fbbb9445" },
+      "counts": { "collected": null, "executed": null, "passed": null, "failed": null, "skipped": null },
+      "classification": "HARNESS_TRANSPORT_FAILURE_TOOL_TIMEOUT",
+      "resolution": "The sidecar records exit 124/TOOL_TIMEOUT with null counts. Separately hashed emulator logs corroborate Firebase/emulator/Vitest startup but do not establish a product verdict or timeout cause. No rerun or timeout widening was performed.",
+      "genericObservation": "When transport times out after tool startup and result counts are null, preserve the startup boundary but do not infer a product result.",
+      "improvementProposal": "Use sidecar timing and partial output to identify the smallest affected command before considering a timeout adjustment."
+    },
+    {
+      "id": "encounter-020-orchestration-role-model-correction",
+      "recordedAtBangkok": "2026-08-12T14:30:00+07:00",
+      "skill": "orchestration-role-model",
+      "target": { "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased", "head": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e" },
+      "classification": "APPEND_ONLY_ROLE_MODEL_CORRECTION",
+      "resolution": "Primary orchestration is Sol Advisor; routine and advisor lanes use native roles, with Luna/xhigh used for a bounded supporting task. This is an execution-role observation only.",
+      "genericObservation": "Record role and escalation choices as operational context, separate from reusable technical-skill requirements.",
+      "improvementProposal": "Keep model-role notes generic and avoid encoding project-specific acceptance claims into reusable skills."
+    },
+    {
+      "id": "encounter-021-external-dependency-context-semantics-correction",
+      "recordedAtBangkok": "2026-08-12T14:30:00+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.4.0",
+      "target": { "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased", "head": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e" },
+      "classification": "APPEND_ONLY_HISTORICAL_SEMANTICS_CORRECTION",
+      "resolution": "Historical encounters 012 and 013 are preserved, but their cleanup/removal framing is superseded: an external node_modules link is an invalid live-Vite dependency context, not a cleanup target. No unlink or removal is required or proposed.",
+      "genericObservation": "Dependency-context validation and filesystem cleanup authority are separate concerns; a context failure must not imply deletion is necessary.",
+      "improvementProposal": "Keep remediation wording fail-closed and explicitly state when an invalid external dependency context requires a valid local context rather than cleanup of the external link."
+    },
+    {
+      "id": "encounter-022-timeout-boundary-consultation-and-discovery",
+      "recordedAtBangkok": "2026-08-12T15:20:00+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.4.0",
+      "target": { "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased", "head": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e" },
+      "command": "read-only inspection of the preserved execution workspace, emulator logs, exact run-owned processes, and observed emulator ports",
+      "sidecars": [
+        { "path": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-doctor.json", "sha256": "2bb7c0cd5c4709e7a3b8efee85a19a9c4acfd06adfd4462e327879fc185bab87" },
+        { "path": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-execution.json", "sha256": "940a5f917ff765f5db3110cb8081d3701c1383908e501e96921e2321fbbb9445" }
+      ],
+      "classification": "DIAGNOSTIC_STOP_BOUNDARY_NO_RERUN",
+      "resolution": "The clean timeout is sufficient provisional stop evidence. No timeout increase or rerun was performed. Preserved logs were hashed; cleanup readback found no run-owned process or observed emulator listener. Default jsdom/MSW setup remains an unmeasured repository test-configuration confounder.",
+      "genericObservation": "A timeout after startup requires phase timing, durable partial output, and configuration-isolated measurement before adapting the timeout; warnings alone do not establish causality.",
+      "improvementProposal": "Record per-phase duration and a hashed bounded partial-output artifact for TOOL_TIMEOUT while keeping application test-framework details outside reusable harness logic."
     }
   ]
 }

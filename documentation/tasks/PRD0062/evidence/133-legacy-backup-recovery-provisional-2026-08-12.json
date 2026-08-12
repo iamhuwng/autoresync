@@ -32,7 +32,7 @@
     "cloudflareDoctor": { "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler", "status": "PASS_EXIT_0", "classification": "completed", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json" },
     "productCampaignExecuted": false,
     "positiveActivation": "HELD_UNTIL_126_APPROVED_AND_ACTIVE",
-    "nodeModules": { "root": "pre-existing junction; not used by harness; cleanup policy blocked", "cloudflare": "absent" },
+    "nodeModules": { "root": "pre-existing external junction; not used by harness; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
   "verdict": "PROVISIONAL BLOCKED; the bounded #133 recovery slice passed its campaign-owned local recovery assertions at the exact commit, but this is not ticket acceptance: three #118 failures remain baseline-identical legacy expectations transferred to #133 and #126 remains inactive.",
