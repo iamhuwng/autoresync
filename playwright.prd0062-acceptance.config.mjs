@@ -65,6 +65,9 @@ const webServer = acceptanceRole === 'teacher'
     }, {
       command: 'node scripts/harness/run-tool.mjs vite-node . scripts/prd0062-ticket87-proof-server.ts',
       url: 'http://localhost:5187/__proof/health',
+      env: {
+        CODEX_HARNESS_EVIDENCE_FILE: 'artifacts/prd0062-acceptance/proof-server-harness.json',
+      },
       reuseExistingServer: true,
       timeout: 120_000,
     }]
