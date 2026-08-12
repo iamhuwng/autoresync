@@ -3,11 +3,11 @@
   "schemaVersion": 1,
   "status": "exact-activation-packet-awaiting-explicit-approval-not-activated",
   "approvalBoundary": {
-    "candidateApplicationCommit": "36f29698f67bb658134510c94cbb8e0827009bcb",
-    "implementationCommit": "36f29698f67bb658134510c94cbb8e0827009bcb",
-    "priorEvidenceCheckpointCommit": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
-    "remoteMutation": false,
-    "deployment": false,
+    "candidateApplicationCommit": "98778f1f47b36f06671e53ab6b9f49f9b5843be3",
+    "implementationCommit": "98778f1f47b36f06671e53ab6b9f49f9b5843be3",
+    "priorEvidenceCheckpointCommit": "35a83fbb234a7a831c53901cdcae0b033f74466a",
+    "remoteMutation": true,
+    "deployment": true,
     "activation": false,
     "push": false,
     "pullRequest": false
@@ -55,9 +55,9 @@
     "identityPath": "documentation/tasks/PRD0062/evidence/126-activation-identity.json",
     "identitySha256": "4a864864beb1a7363c249945331ad882789f80596bc25dcb25aca00ba7b9c5cf",
     "activationConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
-    "activationConfigSha256": "6d79c5a44dc124fdc39877481087bbf563f98c206a88392e0a261a6ae19481ba",
+    "activationConfigSha256": "9363894e003cfb8643b8f1fe08126b78776f77d3b70be2d5d515bfc79148525e",
     "rollbackConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
-    "rollbackConfigSha256": "f6f8b6e39bb2d82e36c898175820262822113f7547b8dfe115da6a556507888b",
+    "rollbackConfigSha256": "134be28594853d0a839d97395ef4fddbbdb17d92854d4435a5ae7a58d9ac2b25",
     "pathRegisterPath": "documentation/tasks/PRD0062/evidence/126-trusted-path-register.json",
     "pathRegisterSha256": "c75fdeaa57e592c100373fc61aeac3049097eb2a22e253e6b84bdd9f4a7b93cf",
     "scope": "exactly one existing teacher + one deterministic new Book + one deterministic new Book Homework assignment + one existing student",
@@ -81,7 +81,7 @@
       "enabled": ["BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED", "BOOK_ASSEMBLY_ROUTES_ENABLED", "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED", "BOOK_SOURCE_UPLOAD_ROUTES_ENABLED", "BOOK_DELIVERY_ROUTES_ENABLED", "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED", "BOOK_HOMEWORK_ROUTES_ENABLED", "BOOK_HOMEWORK_READ_ROUTES_ENABLED", "BOOK_RUNTIME_ROUTES_ENABLED", "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED"],
       "unrelatedRemainDisabled": true
     },
-    "default": "current deployed state remains all route gates disabled and six action operations deny; activation artifact enables only the listed normal Book workflow gates",
+    "default": "current deployed rollback state has all route gates disabled and six action operations deny; the corrected activation artifact enables only the listed normal Book workflow gates and binds source control to https://kahut1.web.app",
     "rollback": "restore the all-deny bookRolloutGateConfig, keep every route gate disabled, set scope enforcement disabled, and retain mandatory fail-closed enforcement/config-invalid denial"
   },
   "trustedPathProof": {
@@ -302,7 +302,7 @@
       }
   },
   "configurationReadiness": {
-    "status": "native-wsl-verified-credentials-staged-undeployed-awaiting-activation-approval",
+    "status": "native-wsl-corrected-and-verified-rollback-active-awaiting-renewed-activation-approval",
     "activationActions": "all six allow in activation companion only",
     "rollbackActions": "all six deny",
     "rollbackScopeEnforcement": "disabled so the mandatory guard denies with enforcement_disabled before side effects",
@@ -330,38 +330,55 @@
     },
     "credentialStaging": {
       "cloudflareWorker": "r2-upload-signer",
-      "versionId": "6000e9d0-5406-4b5a-93dd-7813566089b0",
-      "deployed": false,
-      "activeDeploymentUnchanged": "5cdecbb3-9869-4a11-acc6-d2b760ffffea at 100 percent",
+      "completeCredentialVersionId": "634ccc29-3a95-4ab9-88ec-3ca1010484d1",
+      "deployed": true,
+      "activeRollbackVersion": "46937368-cfa0-4061-876c-fdc063f8ea58 at 100 percent",
       "secretNames": [
+        "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
         "FIREBASE_WEB_API_KEY",
+        "BOOK_DELIVERY_GOOGLE_SA_KEY",
         "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+        "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
         "BOOK_HOMEWORK_GOOGLE_SA_KEY",
-        "BOOK_RUNTIME_GOOGLE_SA_KEY"
+        "BOOK_RUNTIME_GOOGLE_SA_KEY",
+        "BOOK_SOURCE_B2_PRIVATE_BUCKET_ID",
+        "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID",
+        "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY",
+        "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID",
+        "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY",
+        "BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID",
+        "BOOK_SOURCE_B2_READ_APPLICATION_KEY"
       ],
       "secretValuesPersistedLocally": false,
-      "keyLifecycle": "one active key created for each new identity; local key files securely removed after encrypted undeployed-version staging"
+      "keyLifecycle": "bounded keys were created only for the seven exact Google and Backblaze identities, inserted through encrypted deployment secrets, and local key files were securely removed"
+    },
+    "activationAttemptAndRollback": {
+      "approvedActivationVersion": "55a11425-f01f-47c0-ae69-3e1f885229af",
+      "result": "source begin failed closed with source_upload_invalid_deployment because the approved activation config omitted BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN",
+      "sideEffects": "the governed deterministic private Book exists as draft-empty; no source reservation or bytes and no assignment were created",
+      "rollbackVersion": "46937368-cfa0-4061-876c-fdc063f8ea58",
+      "rollbackStatus": "verified active at 100 percent with every relevant route disabled and all six actions denied",
+      "correctiveChange": "candidate commit 98778f1f47b36f06671e53ab6b9f49f9b5843be3 adds the exact production origin binding and a config-level regression test; no Reading V2 product code changed"
     },
     "dryRun": {
       "status": "native-wsl-exact-dry-runs-pass-no-deployment",
-      "source": "mounted authoritative checkout at application commit 36f29698f67bb658134510c94cbb8e0827009bcb plus the committed exact configs",
-      "executionCopy": "/tmp/prd0062-126-final.UrpgSh",
-      "copyVerification": "rsync checksum comparison reported no differences before dependency installation",
+      "source": "mounted authoritative checkout at application commit 98778f1f47b36f06671e53ab6b9f49f9b5843be3 with the committed corrected configs",
+      "executionCopy": "/tmp/prd0062-126-origin-fix.KOW18d/repo",
+      "copyVerification": "6750 regular tracked source files matched the mounted checkout with aggregate SHA-256 4e710c8dc3150cb36c401ab76d3170a65e8098bbec89a375977c12f298a40b36 before dependency installation; gitlinks, dependencies, caches, logs, and build outputs were excluded",
       "rootLockSha256": "29653d348ffc03afe0f8605e107c2f9199cc637736af0f3a878dcfa1c089e885",
       "cloudflareLockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0",
-      "runtime": "native WSL Node plus Wrangler 4.103.0 and Java 21.0.11",
+      "runtime": "native WSL Node v22.22.0, npm 10.9.4, and Wrangler 4.103.0 installed from cloudflare/package-lock.json",
       "activation": "wrangler deploy --dry-run with the exact activation config exited 0; 1618.25 KiB upload / 303.43 KiB gzip; no deployment occurred",
       "rollback": "wrangler deploy --dry-run with the exact rollback config exited 0; 1618.25 KiB upload / 303.43 KiB gzip; no deployment occurred",
-      "focusedApplication": "root 46/46 and Cloudflare 98/98 passed",
+      "focusedApplication": "Cloudflare scope, source-control, and reconciliation slice passed 32/32 across 6 files; the exact activation-origin regression passed",
       "firestoreRules": "Homework Firestore rules emulator 10/10 passed under Java 21",
       "bounded132": "isolated RTDB plus Firestore emulator suite 9/9 passed under Java 21",
       "protectedState": "mounted checkout has no Linux dependencies, generated emulator logs, or build output; package manifests and locks are unchanged"
     },
     "blockers": [
-      "Worker deployment and pilot activation remain unapproved against this exact application/configuration tuple",
-      "existing source, delivery, assembly, and Backblaze B2 deployment-only secret values must be supplied through the approved activation operation and are not committed",
+      "corrected Worker deployment and pilot activation require renewed explicit approval against this exact application/configuration tuple",
       "Book Source remains isolated from the public kahoot-media R2 binding. Accepted lineage already proves the private Backblaze B2 bookpdf source boundary; the activation must use only its deployment-only credentials and exact saved storage identity.",
-      "the time-bounded activation and rollback configurations expire at 2026-08-13T21:48:05.000Z and must be regenerated and rehashed if approval occurs after expiry"
+      "the time-bounded activation and rollback configurations expire at 2026-08-13T22:40:00.000Z and must be regenerated and rehashed if approval occurs after expiry"
     ]
   },
   "unresolvedApproval": "Explicit activation approval is required against the exact application commit and hashes in this packet. Approval must authorize Worker deployment/activation and the governed creation/readback workflow only; it does not authorize #134, #135, push, PR, new student accounts, or scope expansion."
