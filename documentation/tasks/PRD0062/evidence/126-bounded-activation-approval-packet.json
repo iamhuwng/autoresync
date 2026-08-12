@@ -1,10 +1,10 @@
 {
   "artifactKind": "prd0062-126-bounded-activation-approval-packet",
   "schemaVersion": 1,
-  "status": "engineering-proof-only-not-approved-not-activated",
+  "status": "exact-activation-packet-awaiting-explicit-approval-not-activated",
   "approvalBoundary": {
-    "candidateApplicationCommit": "44aeded7bc86cc04225ac8f157d4d1bc3389a128",
-    "implementationCommit": "44aeded7bc86cc04225ac8f157d4d1bc3389a128",
+    "candidateApplicationCommit": "36f29698f67bb658134510c94cbb8e0827009bcb",
+    "implementationCommit": "36f29698f67bb658134510c94cbb8e0827009bcb",
     "priorEvidenceCheckpointCommit": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
     "remoteMutation": false,
     "deployment": false,
@@ -53,11 +53,11 @@
     "templatePath": "documentation/tasks/PRD0062/evidence/126-bounded-pilot-scope.template.json",
     "templateSha256": "e703f4ea369eb84643f4f687a9b32a53611eefcd651d0141deba77e41cea70b8",
     "identityPath": "documentation/tasks/PRD0062/evidence/126-activation-identity.json",
-    "identitySha256": "457abda7a50584445c2dee9dbbdf13873d0458506b148906b2c70f33743c5da0",
+    "identitySha256": "4a864864beb1a7363c249945331ad882789f80596bc25dcb25aca00ba7b9c5cf",
     "activationConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
-    "activationConfigSha256": "6f8e336757fb0e5ab5e507b62a3a8e63f165c672a954825e80dcba2f4d7810c2",
+    "activationConfigSha256": "6d79c5a44dc124fdc39877481087bbf563f98c206a88392e0a261a6ae19481ba",
     "rollbackConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
-    "rollbackConfigSha256": "d388f328aae5e3b3a95b4b47ae9088f0f4e0e0b813e6c5ab11fb1b816d1f44da",
+    "rollbackConfigSha256": "f6f8b6e39bb2d82e36c898175820262822113f7547b8dfe115da6a556507888b",
     "pathRegisterPath": "documentation/tasks/PRD0062/evidence/126-trusted-path-register.json",
     "pathRegisterSha256": "c75fdeaa57e592c100373fc61aeac3049097eb2a22e253e6b84bdd9f4a7b93cf",
     "scope": "exactly one existing teacher + one deterministic new Book + one deterministic new Book Homework assignment + one existing student",
@@ -302,7 +302,7 @@
       }
   },
   "configurationReadiness": {
-    "status": "locally-reviewable-fail-closed-not-deployed",
+    "status": "native-wsl-verified-credentials-staged-undeployed-awaiting-activation-approval",
     "activationActions": "all six allow in activation companion only",
     "rollbackActions": "all six deny",
     "rollbackScopeEnforcement": "disabled so the mandatory guard denies with enforcement_disabled before side effects",
@@ -319,33 +319,50 @@
         "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com": ["roles/firebasedatabase.viewer", "roles/datastore.viewer"],
         "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com": []
       },
-      "missingAccounts": [
-        "dedicated Book activity-authoring runtime",
-        "dedicated Book homework runtime",
-        "dedicated Book student runtime"
+      "createdAccounts": [
+        "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+        "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+        "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com"
       ],
-      "mutationPerformed": false,
-      "decision": "Do not reuse the source admin identity or silently grant broader roles. Provisioning names, least-privilege roles, key lifecycle, and secret insertion require explicit security/operator approval."
+      "missingAccounts": [],
+      "mutationPerformed": true,
+      "leastPrivilegeDecision": "The three new identities have no project IAM data roles. Activity authoring, Homework, Delivery, Assembly publication, student runtime, and exact Activity reads use Firebase custom-token claims bounded by the accepted data rules; no broad source identity or Firebase admin role is reused."
+    },
+    "credentialStaging": {
+      "cloudflareWorker": "r2-upload-signer",
+      "versionId": "6000e9d0-5406-4b5a-93dd-7813566089b0",
+      "deployed": false,
+      "activeDeploymentUnchanged": "5cdecbb3-9869-4a11-acc6-d2b760ffffea at 100 percent",
+      "secretNames": [
+        "FIREBASE_WEB_API_KEY",
+        "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+        "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+        "BOOK_RUNTIME_GOOGLE_SA_KEY"
+      ],
+      "secretValuesPersistedLocally": false,
+      "keyLifecycle": "one active key created for each new identity; local key files securely removed after encrypted undeployed-version staging"
     },
     "dryRun": {
-      "status": "temporary-diagnostic-pass-not-deployment-evidence",
-      "activation": "The exact activation config bundled successfully with Wrangler 4.103.0 against the live Cloudflare source using a fresh external WSL npm-ci dependency context; exit 0, 1483.99 KiB upload / 278.08 KiB gzip, no deployment occurred",
-      "rollback": "The exact rollback config bundled successfully through the same temporary external WSL context; exit 0, all Book route gates disabled and scope enforcement disabled, no deployment occurred",
-      "protectedState": "package.json and package-lock.json unchanged",
-      "evidence": [
-        "C:\\Users\\The Lord\\AppData\\Local\\codex-harness-v3\\evidence\\a9cce6be-634e-48e4-a74e-cad4489dc029.json",
-        "C:\\Users\\The Lord\\AppData\\Local\\codex-harness-v3\\evidence\\4392c8ef-6335-4d83-aec7-0836ee93c86f.json"
-      ],
-      "classificationCorrection": "The historical Harness 3.5 product_failure classification remains non-authoritative because its protocol-2 WSL cache lacked selected-project dependencies. A separately authorized temporary diagnostic copied the exact selected manifest and lock to a unique external WSL directory, verified both hashes, installed 87 locked packages with npm ci, verified Wrangler 4.103.0 and jose presence, and ran only the two exact dry-runs with process-scoped NODE_PATH/PATH.",
-      "temporaryBoundary": "TEMPORARY_DIAGNOSTIC_ONLY; not accepted #126 deployment evidence and not reusable as Harness 3.5 evidence. Repository package.json, package-lock.json, and node_modules remained unchanged. The external directory was validated, found unowned, and removed after each diagnostic (3423 entries each; not recoverable).",
-      "rerun": "before deployment, execute the exact configs through an accepted supported dependency context and capture authoritative clean sidecars"
+      "status": "native-wsl-exact-dry-runs-pass-no-deployment",
+      "source": "mounted authoritative checkout at application commit 36f29698f67bb658134510c94cbb8e0827009bcb plus the committed exact configs",
+      "executionCopy": "/tmp/prd0062-126-final.UrpgSh",
+      "copyVerification": "rsync checksum comparison reported no differences before dependency installation",
+      "rootLockSha256": "29653d348ffc03afe0f8605e107c2f9199cc637736af0f3a878dcfa1c089e885",
+      "cloudflareLockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0",
+      "runtime": "native WSL Node plus Wrangler 4.103.0 and Java 21.0.11",
+      "activation": "wrangler deploy --dry-run with the exact activation config exited 0; 1618.25 KiB upload / 303.43 KiB gzip; no deployment occurred",
+      "rollback": "wrangler deploy --dry-run with the exact rollback config exited 0; 1618.25 KiB upload / 303.43 KiB gzip; no deployment occurred",
+      "focusedApplication": "root 46/46 and Cloudflare 98/98 passed",
+      "firestoreRules": "Homework Firestore rules emulator 10/10 passed under Java 21",
+      "bounded132": "isolated RTDB plus Firestore emulator suite 9/9 passed under Java 21",
+      "protectedState": "mounted checkout has no Linux dependencies, generated emulator logs, or build output; package manifests and locks are unchanged"
     },
     "blockers": [
-      "Read-only Google Cloud inspection at project temp-a1437 found active existing source, delivery, and assembly accounts, but no authoritative existing Book activity-authoring, homework, or runtime service accounts. Creating and granting those least-privilege identities requires separate security-sensitive operator authority; they must not be invented or silently collapsed into an unrelated account.",
-      "required Google service-account and Backblaze B2 values are deployment-only secrets and are not committed",
+      "Worker deployment and pilot activation remain unapproved against this exact application/configuration tuple",
+      "existing source, delivery, assembly, and Backblaze B2 deployment-only secret values must be supplied through the approved activation operation and are not committed",
       "Book Source remains isolated from the public kahoot-media R2 binding. Accepted lineage already proves the private Backblaze B2 bookpdf source boundary; the activation must use only its deployment-only credentials and exact saved storage identity.",
-      "the successful temporary dry-runs are diagnostic only; accepted deployment evidence still requires a supported exact dependency context"
+      "the time-bounded activation and rollback configurations expire at 2026-08-13T21:48:05.000Z and must be regenerated and rehashed if approval occurs after expiry"
     ]
   },
-  "unresolvedApproval": "Canonical identities are recorded, but deployment authority must separately approve and deploy the exact activation config, then verify positive and negative readback. This task performed no activation, deployment, remote mutation, or push."
+  "unresolvedApproval": "Explicit activation approval is required against the exact application commit and hashes in this packet. Approval must authorize Worker deployment/activation and the governed creation/readback workflow only; it does not authorize #134, #135, push, PR, new student accounts, or scope expansion."
 }

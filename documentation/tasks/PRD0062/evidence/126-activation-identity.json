@@ -1,8 +1,8 @@
 {
   "artifactKind": "prd0062-126-bounded-activation-identity",
   "schemaVersion": 1,
-  "status": "canonical-identities-recorded-not-approved-not-activated",
-  "sourceCommit": "44aeded7bc86cc04225ac8f157d4d1bc3389a128",
+  "status": "canonical-identities-recorded-awaiting-explicit-activation-approval",
+  "sourceCommit": "36f29698f67bb658134510c94cbb8e0827009bcb",
   "scope": {
     "teacher": {
       "email": "teacher@test.com",
