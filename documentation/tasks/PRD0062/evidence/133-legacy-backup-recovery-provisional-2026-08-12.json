@@ -8,6 +8,7 @@
     "checkpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
     "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
     "applicationCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "latestEvidenceCommit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
     "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.3.0", "protocol": 1 }
   },
   "downstreamVerification": {
@@ -80,14 +81,18 @@
     }
   ],
   "execution": {
-    "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts",
-    "runtime": "Windows ARM64 host; x64 Node v24.18.0; Vitest v3.2.4",
+    "command": "npm run test:prd0062:legacy-backup-recovery",
+    "runtime": "Windows ARM64 host; harness 3.3.0; isolated x64 Node; exact runtime in evidence sidecar",
+    "commit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
     "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
+    "classification": "completed",
     "counts": { "files": 1, "tests": 1, "passed": 1, "failed": 0, "skipped": 0 },
-    "duration": "2.68s",
+    "duration": "59.14s",
+    "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/98f71299-6088-49c0-b981-e5587729f450.json",
     "supersededHarnessHistory": [
       { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts scripts/prd0062-legacy-backup-recovery.test.ts", "status": "NO_TEST_FILES_FOUND", "currentBlocker": false },
-      { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "environment": "Luna sandbox", "status": "PRELOAD_SHARED_MIRROR_ACCESS_DENIED", "currentBlocker": false }
+      { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "environment": "Luna sandbox", "status": "PRELOAD_SHARED_MIRROR_ACCESS_DENIED", "currentBlocker": false },
+      { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "status": "PASS_LOCAL_RECOVERY_ASSERTIONS", "duration": "2.68s", "supersededBy": "npm run test:prd0062:legacy-backup-recovery at 48bf9b38" }
     ]
   },
   "scope": ["legacy compatibility", "metadata-only inventory", "no PDF bytes", "restore fencing", "two-pass deterministic recovery", "zero new side effects"],

@@ -16,10 +16,11 @@
   },
   "target": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
-    "head": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+    "head": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
     "branch": "codex/prd0062-lane-c-campaign",
     "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
-    "toolingBaseMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870"
+    "toolingBaseMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+    "latestEvidenceCommit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88"
   },
   "toolingTarget": {
     "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/prd0062-tooling-base/luyentap-writing-import-rebased",
@@ -29,7 +30,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 12,
+  "entryCount": 14,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -526,6 +527,80 @@
         "commandFriction": "Environment policy blocked the narrowly scoped unlink before execution; no workaround or destructive cleanup was attempted."
       },
       "improvementProposal": "Add a read-only junction ownership/target report and an explicit operator-approved cleanup handoff instead of allowing tooling verification to infer cleanup authority."
+    },
+    {
+      "id": "encounter-013-exact-commit-playwright-collection",
+      "recordedAtBangkok": "2026-08-12T11:42:17.287+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.3.0",
+      "skillFingerprintSha256": "7944CFE8143DB8A8F174D6ABC464119F65B579B86CCD84FD3CDAD1807C7F99D8",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+        "head": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+        "branch": "codex/prd0062-lane-c-campaign"
+      },
+      "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --list",
+      "cwd": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+      "runner": "run-tool.mjs -> isolated Playwright collection",
+      "config": "unscoped listing; direct live-checkout npm run dev route retained for execution; no server started by --list",
+      "nativeNode": "isolated Windows x64 Node; exact runtime in sidecar",
+      "harness": "evidence C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/3c12eaeb-4e3d-4872-b2c0-12aae350fbf1.json",
+      "counts": {
+        "discovered": 9,
+        "executed": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "files": 4
+      },
+      "runtimeDependencies": ["harness 3.3.0", "Playwright collection only"],
+      "outcome": "COLLECTION_PASS_9_TESTS_4_FILES_AUTHENTICATED_EXECUTION_HELD",
+      "classification": "COMPLETED_COLLECTION_AUTH_BLOCKED_FOR_PRODUCT_RUN",
+      "resolution": "Collection passed at the exact commit. Authenticated browser execution remains held because the pre-existing root node_modules junction cannot be removed under environment policy and using it would violate the updated skill.",
+      "usefulness": "Proved the direct live-checkout config collects all accepted campaign projects without starting a role server.",
+      "friction": {
+        "skillFriction": "none; the direct npm dev route follows the updated skill",
+        "commandFriction": "environment policy prevents safe removal of the pre-existing root dependency junction required for authenticated execution"
+      },
+      "improvementProposal": "Add a fail-closed preflight message that distinguishes collection readiness from authenticated execution blocked by an externally owned dependency junction."
+    },
+    {
+      "id": "encounter-014-exact-commit-legacy-recovery",
+      "recordedAtBangkok": "2026-08-12T11:42:17.287+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.3.0",
+      "skillFingerprintSha256": "7944CFE8143DB8A8F174D6ABC464119F65B579B86CCD84FD3CDAD1807C7F99D8",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+        "head": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+        "branch": "codex/prd0062-lane-c-campaign"
+      },
+      "command": "npm run test:prd0062:legacy-backup-recovery",
+      "cwd": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased",
+      "runner": "package route -> run-tool.mjs -> isolated Vitest",
+      "config": "exact commit 48bf9b38; root Vitest config; src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+      "nativeNode": "isolated Windows x64 Node; exact runtime in sidecar",
+      "harness": "evidence C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/98f71299-6088-49c0-b981-e5587729f450.json",
+      "counts": {
+        "discovered": 1,
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "files": 1,
+        "tests": 1,
+        "durationSeconds": 59.14
+      },
+      "runtimeDependencies": ["harness 3.3.0", "isolated run workspace"],
+      "outcome": "AC_LR_001_PASS_LOCAL_RECOVERY_ASSERTIONS_EXACT_COMMIT",
+      "classification": "COMPLETED",
+      "resolution": "This exact package-route run supersedes the earlier campaign-owned legacy-harness AC-LR-001 run. #133 remains provisional because three transferred baseline-identical #118 legacy cases and inactive #126 still block closure.",
+      "usefulness": "Proved the supported package route collects and passes the recovery assertion at the exact merged campaign commit.",
+      "friction": {
+        "skillFriction": "none in the accepted run",
+        "commandFriction": "none"
+      },
+      "improvementProposal": "Keep package-route evidence linked to the exact commit and preserve prior focused-run history as superseded rather than replacing it silently."
     }
   ]
 }
