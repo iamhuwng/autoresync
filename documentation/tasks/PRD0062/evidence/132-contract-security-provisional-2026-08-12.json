@@ -2,7 +2,23 @@
   "schemaVersion": 1,
   "ticket": "#132",
   "lane": "non-duplicated contract/security; #118 tuple reuse",
-  "status": "PROVISIONAL_BLOCKED",
+  "status": "PASS_LOCAL_BOUNDED_SECURITY_ACCEPTANCE",
+  "latest35Execution": {
+    "sourceCommit": "64c20fde088077207f095ccf305867eae83f5a79",
+    "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+    "configuration": "vitest.prd0040-security-emulator.config.ts",
+    "configurationBoundary": "Node environment, exact PRD-0040 security file, no browser/MSW setup, serial workers, existing 30-second test/hook limits",
+    "command": "node scripts/harness/run-tool.mjs firebase . emulators:exec --only database,firestore 'node node_modules/vitest/vitest.mjs run --config vitest.prd0040-security-emulator.config.ts --maxWorkers=1 --passWithNoTests=false'",
+    "status": "PASS_EXIT_0",
+    "classification": "completed",
+    "counts": { "files": 1, "collected": 9, "executed": 9, "passed": 9, "failed": 0, "skipped": 0 },
+    "vitestDuration": "4.87s",
+    "evidence": "C:/Users/The Lord/AppData/Local/codex-prd0062-132-integrated.json",
+    "evidenceSha256": "7b56b5aacd361ad639a60e5f733ff38cd676e56da65538b8a09d61b45e7b75ca",
+    "evidenceValidation": "PASS exact clean commit; protected package.json, package-lock.json, and node_modules metadata unchanged",
+    "readingV2Touched": false,
+    "duplicate118Run": false
+  },
   "latest34ToolingIdentity": {
     "commit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
     "contract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
@@ -77,7 +93,7 @@
     "nodeModules": { "root": "pre-existing external junction; not used by harness; invalid live-Vite dependency context, not a cleanup target", "cloudflare": "absent" },
     "manifestHashesUnchanged": true
   },
-  "verdict": "The corrected #118 tuple is accepted all-green and reusable. The bounded #132-owned non-duplicated execution remains a sidecar-supported harness transport timeout with null counts. Separately hashed logs corroborate tool startup only; no #132 product verdict is authoritative, and this is not full AC-SC-001 or ticket closure.",
+  "verdict": "The corrected #118 tuple remains accepted and was reused without rerun. The bounded non-duplicated #132 RTDB+Firestore security file passed 9/9 on the clean integrated commit after isolating it from browser/MSW setup. This is authoritative local bounded security acceptance; deployed and #126-activation-dependent security remain separately gated.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
     "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
@@ -105,9 +121,9 @@
     "remoteProof": "none"
   },
   "cases": [
-    { "id": "AC-SC-001", "status": "HARNESS_TRANSPORT_FAILURE_NO_AUTHORITATIVE_PRODUCT_VERDICT", "blockers": ["corrected #118 tuple reused without duplicate rerun in #132", "latest bounded #132-owned execution has a sidecar-supported harness transport timeout with all result counts null; separately hashed logs corroborate startup only", "#126 remains engineering-proof-only and not active"] }
+    { "id": "AC-SC-001", "status": "PASS_LOCAL_BOUNDED_SECURITY_ACCEPTANCE", "blockers": ["deployed and positive-activation-dependent security remains held until #126 is approved and active"] }
   ],
   "scope": ["trusted writes", "ancestor/root/cross-user negatives", "stale/replay/privacy boundaries", "assembled-rule contract", "non-duplicated security cases"],
   "productDefect": null,
-  "nextGate": "Keep the corrected #118 tuple unchanged. Assess the bounded #132 transport timeout from its sidecar before any materially changed retry; do not widen the timeout without understanding expected duration. #133's former transferred legacy cases are resolved."
+  "nextGate": "Keep the corrected #118 tuple unchanged. Reuse the clean 9/9 bounded #132 result; do not rerun it unless the security file, emulator config, rules tuple, or application identity changes. Remaining deployed security is #126-gated."
 }

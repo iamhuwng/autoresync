@@ -40,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 29,
+  "entryCount": 30,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -1065,6 +1065,38 @@
       "resolution": "The missing source hierarchy export was restored and verified. Both exact #126 configs bundle through the explicitly temporary external dependency context. No deployment, activation, remote mutation, repository dependency change, or account/data creation occurred.",
       "cleanup": "Two unique external diagnostic directories were each validated outside checkouts/cache identities, checked for escaping symlinks and owning processes, and removed (3423 entries each; not recoverable).",
       "genericObservation": "When an accepted harness cannot represent a required live dependency context, a separately authorized diagnostic must preserve exact input hashes, isolate dependencies externally, scope environment changes to the child, and remain explicitly non-acceptance evidence."
+    },
+    {
+      "id": "encounter-030-132-emulator-config-and-131-companion-boundary",
+      "recordedAtBangkok": "2026-08-13T01:24:00+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.5.0",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/prd0062-campaign-clean/luyentap-writing-import-rebased",
+        "head": "64c20fde088077207f095ccf305867eae83f5a79",
+        "worktreeCleanBeforeAcceptedInvocation": true
+      },
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "selectedProjects": [".", "playwright acceptance project"],
+      "selectedTools": ["firebase", "vitest", "playwright"],
+      "originalCommands": [
+        "node scripts/harness/run-tool.mjs firebase . emulators:exec --only database,firestore 'node node_modules/vitest/vitest.mjs run --config vitest.prd0040-security-emulator.config.ts --maxWorkers=1 --passWithNoTests=false'",
+        "focused #131 companion Playwright collection and two bounded execution attempts"
+      ],
+      "resource": {
+        "discovered": "Java 21, Firebase RTDB+Firestore emulators, x64 Vitest cache, compatible Chromium, and existing accepted #131 sidecar",
+        "reused": "Harness 3.5 caches and frozen #131 1/1 automated evidence",
+        "adapted": "added a project-owned Node/no-setup PRD-0040 emulator Vitest config; the unverified #131 companion edits were reverted after two identical transport timeouts",
+        "installed": null
+      },
+      "evidence": {
+        "ticket132": { "path": "C:/Users/The Lord/AppData/Local/codex-prd0062-132-integrated.json", "sha256": "7b56b5aacd361ad639a60e5f733ff38cd676e56da65538b8a09d61b45e7b75ca", "classification": "completed", "counts": { "files": 1, "executed": 9, "passed": 9, "failed": 0, "skipped": 0 } },
+        "ticket131Accepted": { "sha256": "2778490996ccf2ae9e1018e294a26841a83e75270ffdcdd69f1319a722f833c6", "counts": "1/1 passed", "reused": true },
+        "ticket131Companion": { "collection": "1 collected / 0 executed", "executionAttempts": 2, "classification": "harness_transport_failure", "failureCode": "TOOL_TIMEOUT", "durations": ["180.731s", "180.797s"], "counts": null, "productVerdict": null, "committed": false }
+      },
+      "classification": "132_COMPLETED_131_COMPANION_TRANSPORT_BLOCKED",
+      "resolution": "The bounded #132 security file passed 9/9 after removing browser/MSW setup from its project-owned test config. #131 retained its accepted 1/1 evidence; the proposed companion produced no assertions and was reverted, leaving native screen-reader/true-zoom and companion automation unclaimed.",
+      "genericObservation": "Environment-specific emulator suites should own a Node/no-browser setup config. Browser acceptance additions must not be committed when the harness reaches no assertion boundary after two identical transport timeouts."
     }
   ]
 }

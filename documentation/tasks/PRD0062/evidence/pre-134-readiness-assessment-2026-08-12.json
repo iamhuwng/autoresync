@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "artifactKind": "prd0062-pre-134-readiness-assessment",
   "status": "NOT_READY_STOP_BEFORE_134",
-  "assessedSourceHead": "6f7767d92b6c53a840dc20ad188128079b2ba878",
-  "acceptedApplicationBuildCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
-  "branch": "detached clean campaign worktree",
+  "assessedSourceHead": "64c20fde088077207f095ccf305867eae83f5a79",
+  "acceptedApplicationBuildCommit": "64c20fde088077207f095ccf305867eae83f5a79",
+  "branch": "codex/prd0062-campaign-126",
   "scopeBoundary": "Local evidence convergence only. This artifact is not the #134 readiness packet and grants no deployment, activation, remote mutation, push, pull-request, or #134 authority.",
   "identityContext": {
-    "applicationCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
-    "latestEvidenceCheckpoint": "b461cd753317b57e6679df630c11199647c22a3f",
+    "applicationCommit": "64c20fde088077207f095ccf305867eae83f5a79",
+    "latestEvidenceCheckpoint": "the Git commit containing this assessment; intentionally not self-referential",
     "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
     "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
-    "featureGateTemplateSha256": "bb7ee79cb3b71e19b381dea843a5d78457a28677b386c7529b667bebe3a65406",
+    "featureGateTemplateSha256": "e703f4ea369eb84643f4f687a9b32a53611eefcd651d0141deba77e41cea70b8",
     "accepted127MatrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
     "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0",
     "historicalCampaignTooling": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2, "scope": "preserved #128-#133 evidence where unchanged" },
@@ -36,24 +36,24 @@
   "group2": {
     "ticket127": { "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY", "artifact": "documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-12.json", "artifactSha256": "63daa9f79534a25c548899ca0236de1567afaf02b530bb2be680bbc9d3774a16", "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4", "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0" },
     "ticket126": {
-      "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_NOT_ACTIVATED",
-      "approvalPacket": { "path": "documentation/tasks/PRD0062/evidence/126-bounded-activation-approval-packet.json", "sha256": "66d35d1302cc3289fbc1448b32796f9a8b34d6ce944689a3370e3f80fde5b7bc" },
-      "scope": "exactly one named teacher, one named book, one named assignment, and no more than 30 named students",
-      "unresolvedIdentities": ["teacherId", "bookId", "assignmentId", "studentIds"],
-      "activationIdentitySha256": null,
+      "status": "EXACT_SCOPE_FROZEN_NOT_APPROVED_NOT_ACTIVATED",
+      "approvalPacket": { "path": "documentation/tasks/PRD0062/evidence/126-bounded-activation-approval-packet.json", "sha256": "f137fae2c890eb45e1e59bc4f6204f18b6f94ddf26a6a0afe7702ea797d18cdd" },
+      "scope": "one existing teacher, one deterministic Vocab-U1 Book, one deterministic Book Homework assignment, one existing student, maximum 30 students",
+      "unresolvedIdentities": ["BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY", "BOOK_HOMEWORK_SERVICE_IDENTITY", "BOOK_RUNTIME_SERVICE_IDENTITY", "their deployment-only service-account keys"],
+      "activationIdentitySha256": "457abda7a50584445c2dee9dbbdf13873d0458506b148906b2c70f33743c5da0",
       "positiveNegativeReadback": "NOT_RUN",
-      "requiredGate": "Deployment authority must fill the exact identities, approve the exact packet, activate only that scope, and verify positive and negative readback."
+      "requiredGate": "Security/operator authority must provision and grant the three missing least-privilege service identities, generate a fresh <=24h deployment copy, approve its exact hashes, activate only the frozen scope, and verify positive/negative readback."
     }
   },
   "group3Verdicts": [
     { "ticket": 128, "status": "PASS_LOCAL_NON_ACTIVATION_CASES", "artifact": "documentation/tasks/PRD0062/evidence/128-teacher-authoring-assignment-provisional-2026-08-12.json", "artifactSha256": "8dfa10159af4ce5292e59fb029a58efbdc28ce03387464277be025aded76b124", "gate": "positive activated workflow waits for #126 exact approval, activation, and readback" },
     { "ticket": 129, "status": "PASS_LOCAL_ACCEPTANCE", "artifact": "documentation/tasks/PRD0062/evidence/129-teacher-updates-results-provisional-2026-08-12.json", "artifactSha256": "0d85649ded219c2c2d9fa98e2316cf25dc519615319be9e832d574922c4ea1fd", "gate": null },
     { "ticket": 130, "status": "PASS_LOCAL_ACCEPTANCE", "artifact": "documentation/tasks/PRD0062/evidence/130-student-runtime-provisional-2026-08-12.json", "artifactSha256": "f7eef2111e27b7fee34f179566bc732e3c15a452d42676e869eba465a20313b7", "gate": "activated/deployed delivery waits for #126" },
-    { "ticket": 131, "status": "PASS_LOCAL_AUTOMATED_MANUAL_PENDING", "artifact": "documentation/tasks/PRD0062/evidence/131-accessibility-device-provisional-2026-08-12.json", "artifactSha256": "8b7b1c33f219e157bf0ee74b3fc82843b95a5d4fac49f8adc55b8b28ccd6014b", "gate": "native screen-reader announcement/order verification remains manual and unclaimed" },
-    { "ticket": 132, "status": "PROVISIONAL_BLOCKED", "artifact": "documentation/tasks/PRD0062/evidence/132-contract-security-provisional-2026-08-12.json", "artifactSha256": "6d1b2b7254d03ce85472df727c6a5ba3853499469291be181d8afa302ad5c6fb", "gate": "#118 is all-green and reused; the non-duplicated #132 execution remains a 3.4 TOOL_TIMEOUT with no product verdict" },
+    { "ticket": 131, "status": "PASS_LOCAL_AUTOMATED_COMPANION_AND_MANUAL_PENDING", "artifact": "documentation/tasks/PRD0062/evidence/131-accessibility-device-provisional-2026-08-12.json", "artifactSha256": "8b7b1c33f219e157bf0ee74b3fc82843b95a5d4fac49f8adc55b8b28ccd6014b", "gate": "accepted 1/1 automation is reusable; attempted companion execution timed out before assertions and was reverted; native screen-reader/true-zoom and remaining companion coverage are unclaimed" },
+    { "ticket": 132, "status": "PASS_LOCAL_BOUNDED_SECURITY_ACCEPTANCE", "artifact": "documentation/tasks/PRD0062/evidence/132-contract-security-provisional-2026-08-12.json", "artifactSha256": "c26cee8215f3aa2339aac1347dd8615cd89f08ed4fda430b088b3e8871cfd61a", "gate": "deployed and #126-positive security remains activation-gated; #118 tuple reused unchanged" },
     { "ticket": 133, "status": "PASS_LOCAL_ACCEPTANCE", "artifact": "documentation/tasks/PRD0062/evidence/133-legacy-backup-recovery-provisional-2026-08-12.json", "artifactSha256": "f41df69ad791e63c71e7f9b1682979e44fe27e1086593de6098387e39949de80", "gate": null }
   ],
-  "campaignManifest": { "path": "documentation/tasks/PRD0062/evidence/acceptance-campaign-manifest-2026-08-12.json", "sha256": "d692b29cae8aaa59205aa4aa12805b79ae952c80dda6f0247463fdc4dcfe7a1b" },
+  "campaignManifest": { "path": "documentation/tasks/PRD0062/evidence/acceptance-campaign-manifest-2026-08-12.json", "sha256": "f74981ad1a144f7491f090eafeaf32cbf1c83f8b3a1a53936fe19914456b0bd4" },
   "deployedDrillScope": { "status": "NOT_AUTHORIZED_NOT_RUN", "intendedBoundary": "the exact approved #126 scope only", "ticket134": "SEPARATE_APPROVAL_REQUIRED" },
   "providerOperationLimits": {
     "remoteMutation": false,
@@ -91,9 +91,9 @@
     "ticket126ActiveAndReadBack": false,
     "tickets128Through133ClosedOnSameBuild": false,
     "ticket133LocalAcceptance": true,
-    "unresolvedP0P1": "#132 lacks an authoritative product verdict. #128's activated workflow and #130 deployed delivery remain #126-gated; #131 native screen-reader verification is manual. No new rules P0/P1 remains after the #118 correction.",
+    "unresolvedP0P1": "#132 now has an authoritative 9/9 local bounded product verdict. #128's activated workflow and #130 deployed delivery remain #126-gated; #131 companion automation and native screen-reader/true-zoom verification remain unclaimed. #126 requires three new least-privilege service identities before approval/activation.",
     "rollbackCleanupLocallyRehearsedWherePossible": "PARTIAL_PLAN_ONLY",
     "ticket135LocalHarnessPrepared": true
   },
-  "verdict": "NOT READY FOR #134. Stop before #134. #118, #127, #129, #130, #133, and the automated #131 slice are locally accepted, and #128's non-activation slice passes. #126 still lacks exact approved identities/activation/readback, #128's positive workflow is held, #132 has no authoritative product verdict, and native screen-reader verification remains unclaimed."
+  "verdict": "NOT READY FOR #134. Stop before #134. #118, #127, #129, #130, #132 bounded security, #133, and the original automated #131 slice are locally accepted; #128's non-activation slice passes. #126 exact user/content scope is frozen but three least-privilege service identities, approval, activation, and readback remain outstanding. #128's positive workflow is held, and #131 companion/native assistive-technology evidence remains unclaimed."
 }

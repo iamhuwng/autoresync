@@ -320,9 +320,9 @@
       "rerun": "before deployment, execute the exact configs through an accepted supported dependency context and capture authoritative clean sidecars"
     },
     "blockers": [
-      "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY, BOOK_ASSEMBLY_SERVICE_IDENTITY, BOOK_HOMEWORK_SERVICE_IDENTITY, and BOOK_RUNTIME_SERVICE_IDENTITY are not supplied by an authoritative production config",
+      "Read-only Google Cloud inspection at project temp-a1437 found active existing source, delivery, and assembly accounts, but no authoritative existing Book activity-authoring, homework, or runtime service accounts. Creating and granting those least-privilege identities requires separate security-sensitive operator authority; they must not be invented or silently collapsed into an unrelated account.",
       "required Google service-account and Backblaze B2 values are deployment-only secrets and are not committed",
-      "the repository's current public kahoot-media R2 binding is not approved for Book Source; the private source binding requires separate operator/remote proof",
+      "Book Source remains isolated from the public kahoot-media R2 binding. Accepted lineage already proves the private Backblaze B2 bookpdf source boundary; the activation must use only its deployment-only credentials and exact saved storage identity.",
       "the successful temporary dry-runs are diagnostic only; accepted deployment evidence still requires a supported exact dependency context"
     ]
   },

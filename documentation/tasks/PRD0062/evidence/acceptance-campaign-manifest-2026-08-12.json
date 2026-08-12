@@ -39,13 +39,13 @@
       "version": "prd0062-118-assembled-rules-matrix-v4"
     },
     "ticket126": {
-      "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE",
-      "commit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
-      "activationIdentitySha256": null
+      "status": "EXACT_SCOPE_FROZEN_NOT_APPROVED_OR_ACTIVE",
+      "commit": "44aeded7bc86cc04225ac8f157d4d1bc3389a128",
+      "activationIdentitySha256": "457abda7a50584445c2dee9dbbdf13873d0458506b148906b2c70f33743c5da0"
     },
     "featureGateTemplate": {
       "path": "documentation/tasks/PRD0062/evidence/126-bounded-pilot-scope.template.json",
-      "sha256": "bb7ee79cb3b71e19b381dea843a5d78457a28677b386c7529b667bebe3a65406"
+      "sha256": "e703f4ea369eb84643f4f687a9b32a53611eefcd651d0141deba77e41cea70b8"
     },
     "trustedWorkerConfigManifest": {
       "algorithm": "sha256(JSON.stringify(ordered [{path, sha256}] entries))",
@@ -115,8 +115,8 @@
     { "id": "AC-TU-001", "ticket": "#129", "fixture": "F-VOCAB-65", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
     { "id": "AC-TR-001", "ticket": "#129", "fixture": "F-PDF-EDGE", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
     { "id": "AC-SR-001", "ticket": "#130", "fixture": "F-VOCAB-60", "role": "student", "status": "HARNESS_BLOCKED_NOT_EXECUTED" },
-    { "id": "AC-AD-001", "ticket": "#131", "fixture": "F-VOCAB-65", "role": "student", "status": "HARNESS_BLOCKED_NOT_EXECUTED" },
-    { "id": "AC-SC-001", "ticket": "#132", "fixture": "F-PDF-EDGE", "role": "service", "status": "HARNESS_TRANSPORT_FAILURE_NO_AUTHORITATIVE_PRODUCT_VERDICT" },
+    { "id": "AC-AD-001", "ticket": "#131", "fixture": "F-VOCAB-65", "role": "student", "status": "PASS_LOCAL_AUTOMATED_MANUAL_AND_COMPANION_GAPS_REMAIN" },
+    { "id": "AC-SC-001", "ticket": "#132", "fixture": "F-PDF-EDGE", "role": "service", "status": "PASS_LOCAL_BOUNDED_SECURITY_ACCEPTANCE" },
     { "id": "AC-LR-001", "ticket": "#133", "fixture": "F-GRAMMAR-65", "role": "service", "status": "PASS_BOUNDED_LOCAL_RECOVERY_ASSERTIONS_NOT_TICKET_ACCEPTANCE" }
   ],
   "harnessInventory": {
@@ -473,11 +473,32 @@
       },
       "identityReuse": "Later commits were limited to student runtime/accessibility and acceptance orchestration. Earlier teacher cases were not rerun because their affected slices and #118/#127 identities did not change.",
       "externalGates": [
-        "#126 exact teacher/book/assignment/student allowlist identities remain incomplete and activation is not approved or active",
-        "#132 remains provisional at its recorded harness timeout boundary",
-        "#131 native screen-reader verification is manual and unclaimed",
+        "#126 exact teacher/book/assignment/student identities are frozen, but required authoring/homework/runtime service identities are not provisioned and activation is not approved or active",
+        "#131 native screen-reader/true-zoom verification remains manual and the attempted companion automation stopped at a Harness transport timeout before assertions",
         "#134 remains separately approval-gated"
       ],
+      "remoteMutation": false,
+      "deployment": false,
+      "activation": false
+    },
+    {
+      "name": "3.5 integrated #132 bounded security acceptance and #131 gap audit",
+      "status": "PARTIAL_GROUP3_CONVERGENCE",
+      "applicationCommit": "64c20fde088077207f095ccf305867eae83f5a79",
+      "ticket132": {
+        "status": "PASS_LOCAL_BOUNDED_SECURITY_ACCEPTANCE",
+        "command": "Firebase RTDB+Firestore emulators with vitest.prd0040-security-emulator.config.ts",
+        "counts": { "files": 1, "executed": 9, "passed": 9, "failed": 0, "skipped": 0 },
+        "sidecarSha256": "7b56b5aacd361ad639a60e5f733ff38cd676e56da65538b8a09d61b45e7b75ca",
+        "rulesReuse": "#118 tuple reused unchanged; no duplicate rules matrix run",
+        "readingV2Touched": false
+      },
+      "ticket131": {
+        "acceptedAutomated": "existing 1/1 sidecar retained",
+        "companionCollection": "1 test collected, 0 executed",
+        "companionExecution": "two Harness 3.5 TOOL_TIMEOUT results at approximately 180.7s, counts null, no assertion result; unverified changes reverted and no commit",
+        "remaining": "AX-tree/keyboard-order/320-375/touch/true-zoom companion proof plus native screen-reader verification"
+      },
       "remoteMutation": false,
       "deployment": false,
       "activation": false
