@@ -18,6 +18,7 @@ const loginStudent = async (page: Page) => {
 
 test('AC-AD-001 keeps Book runtime keyboard, touch, focus, zoom, and overflow contracts', async ({ page }, testInfo) => {
   const fixture = createPrd0062StudentAccessibilityDeviceFixture();
+  await page.setViewportSize({ width: 1440, height: 900 });
   await loginStudent(page);
   await page.goto(`${origin}${fixtureUrl}&pageGroup=group-1&activity=activity-choice`, {
     waitUntil: 'networkidle',
@@ -36,6 +37,8 @@ test('AC-AD-001 keeps Book runtime keyboard, touch, focus, zoom, and overflow co
   await page.getByRole('button', { name: 'Page Group 2' }).click();
   await expect(page.getByRole('heading', { name: 'Written response', exact: true })).toBeVisible();
 
+  await page.setViewportSize({ width: 393, height: 727 });
+  await page.getByRole('tab', { name: 'Activity' }).click();
   const controls = page.getByTestId('book-runtime-shell').getByRole('button');
   const sizes = await controls.evaluateAll((buttons) => buttons.map((button) => {
     const box = button.getBoundingClientRect();
