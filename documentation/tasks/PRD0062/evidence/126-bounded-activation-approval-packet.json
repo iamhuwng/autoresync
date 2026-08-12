@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "status": "engineering-proof-only-not-approved-not-activated",
   "approvalBoundary": {
-    "candidateApplicationCommit": "487d091a46c53bfd16fbc72575a0f73f14fdcd18",
-    "implementationCommit": "17bc474ce5d346fe17914b158e225ab2ec953656",
+    "candidateApplicationCommit": "44aeded7bc86cc04225ac8f157d4d1bc3389a128",
+    "implementationCommit": "44aeded7bc86cc04225ac8f157d4d1bc3389a128",
     "priorEvidenceCheckpointCommit": "729ea21346f9ca8bc7bae832c79f07fd4aebee0b",
     "remoteMutation": false,
     "deployment": false,
@@ -51,9 +51,9 @@
   },
   "configuration": {
     "templatePath": "documentation/tasks/PRD0062/evidence/126-bounded-pilot-scope.template.json",
-    "templateSha256": "c0014dd3a20dcb3be91b671bcab1f30301f14e5c24f1fff26b0565812c7bb506",
+    "templateSha256": "e703f4ea369eb84643f4f687a9b32a53611eefcd651d0141deba77e41cea70b8",
     "identityPath": "documentation/tasks/PRD0062/evidence/126-activation-identity.json",
-    "identitySha256": "f86f04cf3214fc08a9723ba03dc4f9996cffd0fa0b11dac27f64c4688922f1b9",
+    "identitySha256": "457abda7a50584445c2dee9dbbdf13873d0458506b148906b2c70f33743c5da0",
     "activationConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
     "activationConfigSha256": "6f8e336757fb0e5ab5e507b62a3a8e63f165c672a954825e80dcba2f4d7810c2",
     "rollbackConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
@@ -103,7 +103,8 @@
       "JSONC parse of both #126 Wrangler artifacts with the repository-supported parser",
       "git merge-base --is-ancestor checks for 104, post104, 125 after this amendment",
       "source PDF SHA-256 matches the supplied evidence; source bytes are not committed",
-      "immutable #118 and accepted #127 hashes and bytes remain unchanged"
+      "immutable #118 and accepted #127 hashes and bytes remain unchanged",
+      "integrated source hierarchy guard tests passed 4/4 and teacher assembly authority consumer tests passed 22/22 through Harness 3.5"
     ],
     "priorVerificationNotCarried": [
       "root policy, guard/registry, source-control/reconciliation, activity-authoring, runtime, Ticket 05, and route suites retain their exact prior green results; they were not rerun because the final validator edits were type-narrowing only and did not touch those paths"
@@ -306,22 +307,23 @@
     "rollbackActions": "all six deny",
     "rollbackScopeEnforcement": "disabled so the mandatory guard denies with enforcement_disabled before side effects",
     "dryRun": {
-      "status": "harness-blocked-no-product-verdict",
-      "activation": "Harness 3.5 could not supply the selected Cloudflare project's locked dependency graph to live Wrangler; bundling never established a valid product dependency context and no deployment occurred",
-      "rollback": "Harness 3.5 could not supply the selected Cloudflare project's locked dependency graph to live Wrangler; bundling never established a valid product dependency context and no deployment occurred",
+      "status": "temporary-diagnostic-pass-not-deployment-evidence",
+      "activation": "The exact activation config bundled successfully with Wrangler 4.103.0 against the live Cloudflare source using a fresh external WSL npm-ci dependency context; exit 0, 1483.99 KiB upload / 278.08 KiB gzip, no deployment occurred",
+      "rollback": "The exact rollback config bundled successfully through the same temporary external WSL context; exit 0, all Book route gates disabled and scope enforcement disabled, no deployment occurred",
       "protectedState": "package.json and package-lock.json unchanged",
       "evidence": [
         "C:\\Users\\The Lord\\AppData\\Local\\codex-harness-v3\\evidence\\a9cce6be-634e-48e4-a74e-cad4489dc029.json",
         "C:\\Users\\The Lord\\AppData\\Local\\codex-harness-v3\\evidence\\4392c8ef-6335-4d83-aec7-0836ee93c86f.json"
       ],
-      "classificationCorrection": "The emitted product_failure classification is not authoritative at this boundary. Tooling-authority inspection confirmed a generic Harness 3.5 defect: the protocol-2 WSL cache installs only Wrangler while cloudflare/node_modules remains absent, so selected-project imports cannot resolve. Treat as harness_startup_failure / WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING.",
-      "rerun": "blocked until an accepted protocol-bumped generic harness fix is integrated; then rerun the exact activation and rollback dry-runs once"
+      "classificationCorrection": "The historical Harness 3.5 product_failure classification remains non-authoritative because its protocol-2 WSL cache lacked selected-project dependencies. A separately authorized temporary diagnostic copied the exact selected manifest and lock to a unique external WSL directory, verified both hashes, installed 87 locked packages with npm ci, verified Wrangler 4.103.0 and jose presence, and ran only the two exact dry-runs with process-scoped NODE_PATH/PATH.",
+      "temporaryBoundary": "TEMPORARY_DIAGNOSTIC_ONLY; not accepted #126 deployment evidence and not reusable as Harness 3.5 evidence. Repository package.json, package-lock.json, and node_modules remained unchanged. The external directory was validated, found unowned, and removed after each diagnostic (3423 entries each; not recoverable).",
+      "rerun": "before deployment, execute the exact configs through an accepted supported dependency context and capture authoritative clean sidecars"
     },
     "blockers": [
       "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY, BOOK_ASSEMBLY_SERVICE_IDENTITY, BOOK_HOMEWORK_SERVICE_IDENTITY, and BOOK_RUNTIME_SERVICE_IDENTITY are not supplied by an authoritative production config",
       "required Google service-account and Backblaze B2 values are deployment-only secrets and are not committed",
       "the repository's current public kahoot-media R2 binding is not approved for Book Source; the private source binding requires separate operator/remote proof",
-      "Harness 3.5 cannot provide selected-project dependencies to live Wrangler; integrate an accepted generic protocol-bumped tooling fix before any activation or rollback proof"
+      "the successful temporary dry-runs are diagnostic only; accepted deployment evidence still requires a supported exact dependency context"
     ]
   },
   "unresolvedApproval": "Canonical identities are recorded, but deployment authority must separately approve and deploy the exact activation config, then verify positive and negative readback. This task performed no activation, deployment, remote mutation, or push."

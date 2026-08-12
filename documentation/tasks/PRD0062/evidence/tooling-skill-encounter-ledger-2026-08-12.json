@@ -40,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 28,
+  "entryCount": 29,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -1031,6 +1031,40 @@
       "resolution": "Tooling-authority read-only inspection confirmed that Harness 3.5 installs only Wrangler into the WSL cache while the live selected project has no repository node_modules. The prior encounter-027 product-failure interpretation is corrected append-only: those bundling failures are harness-boundary evidence. The rejected source experiment is not accepted or integrated, and activation remains blocked pending an accepted protocol-bumped generic harness fix.",
       "genericObservation": "A dependency-cache identity must bind and install the same selected-project dependency graph it claims to represent, and the runner must expose that immutable graph to live-source module resolution without mutating the checkout.",
       "improvementProposal": "Bump the WSL cache protocol; bind manifest and lock hashes; install the selected lock with npm ci; expose only the matching immutable cache through process-scoped resolution; make doctor fail closed before tool startup when that context is incomplete."
+    },
+    {
+      "id": "encounter-029-126-source-hierarchy-and-temporary-wrangler-diagnostic",
+      "recordedAtBangkok": "2026-08-13T01:06:25+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.5.0",
+      "target": {
+        "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/prd0062-campaign-clean/luyentap-writing-import-rebased",
+        "head": "44aeded7bc86cc04225ac8f157d4d1bc3389a128",
+        "worktreeCleanBeforeAcceptedInvocations": true
+      },
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "selectedProjects": [".", "cloudflare"],
+      "selectedTools": ["vitest", "wrangler"],
+      "originalCommands": [
+        "node scripts/harness/run-tool.mjs vitest . run src/services/book-assembly/sourceSet.service.test.ts --maxWorkers=1 --passWithNoTests=false",
+        "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-teacher-assembly-authority.test.ts --maxWorkers=1 --passWithNoTests=false",
+        "temporary external WSL Wrangler 4.103.0 deploy --dry-run for the exact activation and rollback configs"
+      ],
+      "resource": {
+        "discovered": "Harness 3.5 remained authoritative for isolated tests but could not supply live Wrangler selected-project dependencies",
+        "reused": "Harness 3.5 immutable x64 Vitest caches",
+        "adapted": "user-authorized temporary diagnostic only: copied exact Cloudflare manifest+lock to a unique external WSL directory, verified SHA-256, ran npm ci, and supplied process-scoped NODE_PATH/PATH",
+        "installed": "87 locked packages in the temporary external WSL directory; repository node_modules remained absent"
+      },
+      "evidence": {
+        "rootFocused": { "path": "C:/Users/The Lord/AppData/Local/codex-prd0062-126-source-hierarchy/root.json", "sha256": "495209e23adf18f677e92b90bdfb52a4504721cc5ace511b2e9e6df6cc6eb1c5", "classification": "completed", "counts": "4/4" },
+        "cloudflareFocused": { "path": "C:/Users/The Lord/AppData/Local/codex-prd0062-126-source-hierarchy/cloudflare.json", "sha256": "fb68f08363b92c7b2f9d73fd7f083f9deffb72715deb27fe1d9cbff1eb01bd41", "classification": "completed", "counts": "22/22" },
+        "temporaryWrangler": { "classification": "TEMPORARY_DIAGNOSTIC_ONLY", "activationExit": 0, "rollbackExit": 0, "wrangler": "4.103.0", "packageSha256": "97b776a5caaf90299bbd46be9388d88e4a751cdf7c0af7d306136ce378965a88", "lockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0", "productVerdict": "both exact configs bundle", "deploymentEvidence": false }
+      },
+      "classification": "FOCUSED_PRODUCT_FIX_PASS_TEMPORARY_WRANGLER_DIAGNOSTIC_PASS",
+      "resolution": "The missing source hierarchy export was restored and verified. Both exact #126 configs bundle through the explicitly temporary external dependency context. No deployment, activation, remote mutation, repository dependency change, or account/data creation occurred.",
+      "cleanup": "Two unique external diagnostic directories were each validated outside checkouts/cache identities, checked for escaping symlinks and owning processes, and removed (3423 entries each; not recoverable).",
+      "genericObservation": "When an accepted harness cannot represent a required live dependency context, a separately authorized diagnostic must preserve exact input hashes, isolate dependencies externally, scope environment changes to the child, and remain explicitly non-acceptance evidence."
     }
   ]
 }
