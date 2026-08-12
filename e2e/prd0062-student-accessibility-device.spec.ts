@@ -24,8 +24,9 @@ test('AC-AD-001 keeps Book runtime keyboard, touch, focus, zoom, and overflow co
     timeout: 120_000,
   });
   await expect(page.getByTestId('book-runtime-shell')).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole('heading', { name: 'Main claim', exact: true })).toBeVisible();
   await expect(page.getByTestId('reference-only-pdf')).toBeVisible();
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  await expect(page.getByRole('heading', { name: 'Main claim', exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Collapse page navigator' }).focus();
   await expect(page.getByRole('button', { name: 'Collapse page navigator' })).toBeFocused();
