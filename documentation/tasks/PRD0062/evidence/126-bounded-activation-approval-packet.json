@@ -306,6 +306,27 @@
     "activationActions": "all six allow in activation companion only",
     "rollbackActions": "all six deny",
     "rollbackScopeEnforcement": "disabled so the mandatory guard denies with enforcement_disabled before side effects",
+    "readOnlyIamDiscovery": {
+      "project": "temp-a1437",
+      "activeOperatorAccountObserved": "iamhuwng@gmail.com",
+      "existingAccounts": [
+        "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
+        "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+        "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com"
+      ],
+      "observedProjectRoles": {
+        "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com": ["roles/firebasedatabase.admin"],
+        "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com": ["roles/firebasedatabase.viewer", "roles/datastore.viewer"],
+        "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com": []
+      },
+      "missingAccounts": [
+        "dedicated Book activity-authoring runtime",
+        "dedicated Book homework runtime",
+        "dedicated Book student runtime"
+      ],
+      "mutationPerformed": false,
+      "decision": "Do not reuse the source admin identity or silently grant broader roles. Provisioning names, least-privilege roles, key lifecycle, and secret insertion require explicit security/operator approval."
+    },
     "dryRun": {
       "status": "temporary-diagnostic-pass-not-deployment-evidence",
       "activation": "The exact activation config bundled successfully with Wrangler 4.103.0 against the live Cloudflare source using a fresh external WSL npm-ci dependency context; exit 0, 1483.99 KiB upload / 278.08 KiB gzip, no deployment occurred",

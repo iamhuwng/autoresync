@@ -37,12 +37,12 @@
     "ticket127": { "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY", "artifact": "documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-12.json", "artifactSha256": "63daa9f79534a25c548899ca0236de1567afaf02b530bb2be680bbc9d3774a16", "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4", "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0" },
     "ticket126": {
       "status": "EXACT_SCOPE_FROZEN_NOT_APPROVED_NOT_ACTIVATED",
-      "approvalPacket": { "path": "documentation/tasks/PRD0062/evidence/126-bounded-activation-approval-packet.json", "sha256": "f137fae2c890eb45e1e59bc4f6204f18b6f94ddf26a6a0afe7702ea797d18cdd" },
+      "approvalPacket": { "path": "documentation/tasks/PRD0062/evidence/126-bounded-activation-approval-packet.json", "sha256": "484c7af7fa298233dcc927a2597c539eda9a9889f1198bc441eaa72bca3dcec4" },
       "scope": "one existing teacher, one deterministic Vocab-U1 Book, one deterministic Book Homework assignment, one existing student, maximum 30 students",
       "unresolvedIdentities": ["BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY", "BOOK_HOMEWORK_SERVICE_IDENTITY", "BOOK_RUNTIME_SERVICE_IDENTITY", "their deployment-only service-account keys"],
       "activationIdentitySha256": "457abda7a50584445c2dee9dbbdf13873d0458506b148906b2c70f33743c5da0",
       "positiveNegativeReadback": "NOT_RUN",
-      "requiredGate": "Security/operator authority must provision and grant the three missing least-privilege service identities, generate a fresh <=24h deployment copy, approve its exact hashes, activate only the frozen scope, and verify positive/negative readback."
+      "requiredGate": "Security/operator authority must provision and grant three missing least-privilege service identities (activity authoring, homework, runtime), approve key lifecycle and secret insertion, generate a fresh <=24h deployment copy, approve its exact hashes, activate only the frozen scope, and verify positive/negative readback. Existing read-only IAM evidence must not be widened by silently reusing the source admin identity."
     }
   },
   "group3Verdicts": [
