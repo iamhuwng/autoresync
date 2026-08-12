@@ -1,5 +1,19 @@
 import { expect, test } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { createPrd0062StudentRuntimePersistenceFixture } from './prd0062-student-runtime-persistence.fixture.mjs';
+
+const saveAcceptanceArtifact = async (proof: string[]) => {
+  const executionId = process.env.PRD0062_EXECUTION_ID ?? 'local';
+  const directory = path.resolve(`artifacts/prd0062-acceptance/AC-SR-001/${executionId}`);
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, 'result.json'), JSON.stringify({
+    caseId: 'AC-SR-001',
+    status: 'PASS_LOCAL_SMOKE_ASSERTIONS',
+    proof,
+    activation: 'not claimed; #126 remains disabled',
+  }, null, 2));
+};
 
 test('51C1 fixture is deterministic and retains normal-use student runtime IDs', () => {
   const first = createPrd0062StudentRuntimePersistenceFixture('AC-SR-001');
@@ -110,6 +124,12 @@ test('28B student runtime saves, resumes, retries, and preserves conflicts', asy
     path: 'artifacts/prd0062-ticket-75/browser/student-runtime-persistence.png',
     fullPage: true,
   });
+  await saveAcceptanceArtifact([
+    'response state persists across reload',
+    'transient failure retries without losing local input',
+    'stale conflict preserves local input until explicit resolution',
+    'server state is restored after explicit local discard',
+  ]);
 });
 
 test('30 personal timer stays local, accessible, and isolated from runtime', async ({ page }) => {
