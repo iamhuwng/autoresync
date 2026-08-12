@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { BookSourceVersionAuthority, SourceSetCandidate } from '../../types/bookAssembly.types';
-import { validateSourceSetCandidate } from './sourceSet.service';
+import type { BookContentTreeNodeCandidate, BookSourceVersionAuthority, SourceSetCandidate } from '../../types/bookAssembly.types';
+import { sourceMayBeUsedByNode, validateSourceSetCandidate } from './sourceSet.service';
 
 const authority = (overrides: Record<string, { bookId: string; physicalPageCount: number; verifiedUsable: boolean }> = {}): BookSourceVersionAuthority => ({
   getSourceVersion: (sourceVersionId) => {
@@ -49,5 +49,44 @@ describe('validateSourceSetCandidate', () => {
     expect(validateSourceSetCandidate({ sourceStrategy: 'component_pdfs', sources: [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1 }] }, {
       bookId: 'book-1', sourceVersionAuthority: authority(),
     }).errors).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'invalid-owner' })]));
+  });
+});
+
+describe('sourceMayBeUsedByNode', () => {
+  const nodes: readonly BookContentTreeNodeCandidate[] = [
+    { nodeKey: 'root', parentNodeKey: null, nodeType: 'section', order: 1 },
+    { nodeKey: 'section-a', parentNodeKey: 'root', nodeType: 'section', order: 1 },
+    { nodeKey: 'unit-a', parentNodeKey: 'section-a', nodeType: 'unit', order: 1 },
+    { nodeKey: 'section-b', parentNodeKey: 'root', nodeType: 'section', order: 2 },
+    { nodeKey: 'unit-b', parentNodeKey: 'section-b', nodeType: 'unit', order: 1 },
+  ];
+
+  it('allows full-PDF sources everywhere and component sources only in their branch', () => {
+    const full: SourceSetCandidate['sources'][number] = {
+      sourceKey: 'full', sourceVersionId: 'full-v1', sourceOrder: 1,
+    };
+    const component: SourceSetCandidate['sources'][number] = {
+      sourceKey: 'component', sourceVersionId: 'component-v1', sourceOrder: 1, ownerNodeKey: 'section-a',
+    };
+
+    expect(sourceMayBeUsedByNode(full, nodes, 'unit-b')).toBe(true);
+    expect(sourceMayBeUsedByNode(component, nodes, 'section-a')).toBe(true);
+    expect(sourceMayBeUsedByNode(component, nodes, 'unit-a')).toBe(true);
+    expect(sourceMayBeUsedByNode(component, nodes, 'unit-b')).toBe(false);
+  });
+
+  it('fails closed for missing nodes, owners, and cyclic parent chains', () => {
+    const component: SourceSetCandidate['sources'][number] = {
+      sourceKey: 'component', sourceVersionId: 'component-v1', sourceOrder: 1, ownerNodeKey: 'section-a',
+    };
+    expect(sourceMayBeUsedByNode(component, nodes, 'missing-unit')).toBe(false);
+    expect(sourceMayBeUsedByNode(component, nodes, 'unit-a')).toBe(true);
+    expect(sourceMayBeUsedByNode({ ...component, ownerNodeKey: 'other-owner' }, [
+      { nodeKey: 'section-a', parentNodeKey: 'unit-a', nodeType: 'section', order: 1 },
+      { nodeKey: 'unit-a', parentNodeKey: 'section-a', nodeType: 'unit', order: 1 },
+      { nodeKey: 'other-owner', parentNodeKey: null, nodeType: 'section', order: 2 },
+    ], 'unit-a')).toBe(false);
+    expect(sourceMayBeUsedByNode({ ...component, ownerNodeKey: 'missing-owner' }, nodes, 'unit-a')).toBe(false);
+    expect(sourceMayBeUsedByNode({ ...component, ownerNodeKey: undefined } as unknown as SourceSetCandidate['sources'][number], nodes, 'unit-a')).toBe(false);
   });
 });

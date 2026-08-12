@@ -3,6 +3,7 @@ import {
   BOOK_SOURCE_STRATEGIES,
   type BookAssemblyValidationError,
   type BookAssemblyValidationResult,
+  type BookContentTreeNodeCandidate,
   type BookSourceVersionAuthority,
   type SourceSetCandidate,
 } from '../../types/bookAssembly.types';
@@ -23,6 +24,33 @@ const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boo
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
   return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+};
+
+/**
+ * Checks whether a Source Set entry can be used by a node in the Book tree.
+ * Full-PDF sources are Book-wide; component sources are limited to their
+ * owner node and descendants.
+ */
+export const sourceMayBeUsedByNode = (
+  source: SourceSetCandidate['sources'][number],
+  nodes: readonly BookContentTreeNodeCandidate[],
+  nodeKey: string,
+): boolean => {
+  if (!('ownerNodeKey' in source)) return true;
+  if (typeof source.ownerNodeKey !== 'string') return false;
+
+  const parents = new Map(nodes.map((node) => [node.nodeKey, node.parentNodeKey]));
+  if (!parents.has(nodeKey) || !parents.has(source.ownerNodeKey)) return false;
+
+  const seen = new Set<string>();
+  let current: string | null | undefined = nodeKey;
+  while (current !== null && current !== undefined) {
+    if (current === source.ownerNodeKey) return true;
+    if (seen.has(current)) return false;
+    seen.add(current);
+    current = parents.get(current);
+  }
+  return false;
 };
 
 /**
