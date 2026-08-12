@@ -394,6 +394,7 @@ const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
     records[key] = {
       schemaVersion: 1,
       bindingId: payload.bindingId,
+      bindingRevision: payload.bindingRevision,
       recipientId: deliveryProjection.recipientId,
       contextId: payload.contextId,
       placementId: payload.placementId,
