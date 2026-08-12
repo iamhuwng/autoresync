@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "ticket": "#133",
+  "lane": "legacy/metadata backup/no-PDF/restore/deterministic recovery",
+  "status": "PROVISIONAL_BLOCKED",
+  "verdict": "PROVISIONAL BLOCKED; AC-LR-001 passed its campaign-owned local recovery assertions, while three #118 failures remain baseline-identical legacy expectations transferred to #133 and #126 remains inactive.",
+  "authority": {
+    "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
+    "rulesSuiteSha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
+    "ticket126": { "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE", "commit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2", "activationIdentitySha256": null },
+    "ticket127": {
+      "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY",
+      "commit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
+      "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+      "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+    }
+  },
+  "classificationSource": {
+    "path": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
+    "proofClass": "local composition plus RTDB emulator/security proof",
+    "tupleUnchanged": true,
+    "freshRerun": false,
+    "reasonFreshRerunNotRequired": "the supplied #118 tuple remains unchanged; #132 reuses it and #133 owns only the three baseline-identical classifications"
+  },
+  "baselineIdenticalCases": [
+    {
+      "id": "LEGACY-118-MATERIAL-CATALOG-SUMMARY",
+      "testFile": "src/__tests__/security/materialCatalogFirebaseRules.test.ts",
+      "title": "Material Catalog Firebase rule contract defines versioned universal summary ownership, public-read, and schema rules",
+      "assembledStatus": "failed",
+      "rollbackStatus": "failed",
+      "classification": "#133_OWNED_BASELINE_IDENTICAL_LEGACY",
+      "failure": "TypeError: Cannot read properties of undefined (reading '.validate') at line 380:21",
+      "correction": "Reclassified as pre-existing baseline expectation; no product or test source changed."
+    },
+    {
+      "id": "LEGACY-118-READING-V2-SOFT-REMOVE-WITHOUT-CLEANUP",
+      "testFile": "src/__tests__/security/readingV2FirebaseRules.test.ts",
+      "title": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove Reading V2 masters when material summary cleanup rows are absent",
+      "assembledStatus": "failed",
+      "rollbackStatus": "failed",
+      "classification": "#133_OWNED_BASELINE_IDENTICAL_LEGACY",
+      "failure": "PERMISSION_DENIED: Permission denied",
+      "correction": "Reclassified as pre-existing baseline expectation; Reading V2 source was not edited."
+    },
+    {
+      "id": "LEGACY-118-READING-V2-THIN-MASTER-SOFT-REMOVE",
+      "testFile": "src/__tests__/security/readingV2FirebaseRules.test.ts",
+      "title": "Reading V2 Firebase rule emulator behavior allows owners to soft-remove thin legacy Reading V2 masters without passage refs",
+      "assembledStatus": "failed",
+      "rollbackStatus": "failed",
+      "classification": "#133_OWNED_BASELINE_IDENTICAL_LEGACY",
+      "failure": "PERMISSION_DENIED: Permission denied",
+      "correction": "Reclassified as pre-existing baseline expectation; Reading V2 source was not edited."
+    }
+  ],
+  "cases": [
+    {
+      "id": "AC-LR-001",
+      "fixture": "F-GRAMMAR-65",
+      "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
+      "blockers": ["three #118 baseline-identical legacy cases remain unresolved/transferred to #133", "#126 remains engineering-proof-only and not active"]
+    }
+  ],
+  "execution": {
+    "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+    "runtime": "Windows ARM64 host; x64 Node v24.18.0; Vitest v3.2.4",
+    "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
+    "counts": { "files": 1, "tests": 1, "passed": 1, "failed": 0, "skipped": 0 },
+    "duration": "2.68s",
+    "supersededHarnessHistory": [
+      { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts scripts/prd0062-legacy-backup-recovery.test.ts", "status": "NO_TEST_FILES_FOUND", "currentBlocker": false },
+      { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "environment": "Luna sandbox", "status": "PRELOAD_SHARED_MIRROR_ACCESS_DENIED", "currentBlocker": false }
+    ]
+  },
+  "scope": ["legacy compatibility", "metadata-only inventory", "no PDF bytes", "restore fencing", "two-pass deterministic recovery", "zero new side effects"],
+  "productDefect": null,
+  "nextGate": "Resolve the three transferred #118 baseline-identical legacy cases under #133 and obtain separate #126 approval/activation; do not claim closure from AC-LR-001 alone."
+}

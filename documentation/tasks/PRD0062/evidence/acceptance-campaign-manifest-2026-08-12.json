@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "prd0062-acceptance-campaign-manifest",
+  "status": "PROVISIONAL",
+  "generatedBy": "scripts/prd0062-acceptance-campaign.mjs",
+  "generatedByMode": "--manifest",
+  "sourcePolicy": "product-source-read-only",
+  "repository": {
+    "head": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "branch": "codex/prd0062-lane-c-campaign",
+    "cleanBeforeCampaignChanges": true,
+    "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987"
+  },
+  "frozenTuple": {
+    "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987",
+    "generatedRules": {
+      "path": "database.rules.json",
+      "sha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3"
+    },
+    "assembledRulesSuite": {
+      "path": "scripts/prd0062-118-assembled-rules-matrix.mjs",
+      "sha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
+      "version": "prd0062-118-assembled-rules-matrix-v4"
+    },
+    "ticket126": {
+      "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE",
+      "commit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+      "activationIdentitySha256": null
+    },
+    "featureGateTemplate": {
+      "path": "documentation/tasks/PRD0062/evidence/126-bounded-pilot-scope.template.json",
+      "sha256": "bb7ee79cb3b71e19b381dea843a5d78457a28677b386c7529b667bebe3a65406"
+    },
+    "trustedWorkerConfigManifest": {
+      "algorithm": "sha256(JSON.stringify(ordered [{path, sha256}] entries))",
+      "sha256": "93e4cdc71cba87853397c68db902ba02faac0bc3cae3af18dfb5e8b5672ae0a4",
+      "paths": [
+        { "path": "cloudflare/src/upload-worker/book-activity-authoring/worker.ts", "sha256": "257bab428346d6dfd05ee12c1f27e7015dd5fe164a09ec027c530c3ed3bd1b38" },
+        { "path": "cloudflare/src/upload-worker/book-source/worker.ts", "sha256": "79c3092fa729c12d152ab1bb6f74f4a0338a34173cf5b0784e607ed077472836" },
+        { "path": "cloudflare/src/book-source-worker/control-host.ts", "sha256": "d643a1cfcf0c409a45a93c2e68fbbb76d9a10a5c8afe6dba19606659c41d2944" },
+        { "path": "cloudflare/src/book-source-worker/control-worker.ts", "sha256": "442d463bf2ef21058eef7befaf90dcc247c202805b157c001bf9bb603852d36e" },
+        { "path": "cloudflare/src/book-source-worker/reconciliation-worker.ts", "sha256": "3a3a66459caaee11b88fce09fba51b8284fc3197676b66ef02a7ed2960619246" },
+        { "path": "cloudflare/src/upload-worker/book-assembly/worker.ts", "sha256": "3cb10453114e830738fee7093c8396219f6c2879a8de3940572e2c7fe17101e6" },
+        { "path": "cloudflare/src/upload-worker/book-assembly/publication-route-handlers.ts", "sha256": "18548c00f06fbdd2bc59a4b97100e804d0f68402a131c4524432050f55cdb679" },
+        { "path": "cloudflare/src/upload-worker/book-delivery/worker.ts", "sha256": "b2eba75fbf721a46b2d4d4c30b2eecfc69ddb94b1deb6757df5f50f319f27829" },
+        { "path": "cloudflare/src/upload-worker/book-homework/worker.ts", "sha256": "aac3c0ce29949baca786e56b853f573bcad546a51b7f07c6a3ec32de7fb2fc59" },
+        { "path": "cloudflare/src/upload-worker/book-runtime/worker.ts", "sha256": "74ab7b31357acede6ef818c0a29103cab3877e063731a58e5620d4e8b4cbe2de" },
+        { "path": "cloudflare/src/upload-worker/book-runtime-launch/worker.ts", "sha256": "26a6551df7ed68cec8a2b059588c0e5aa2147b6dbad8aa37b7120e679a05bda5" },
+        { "path": "cloudflare/src/upload-worker/book-router.ts", "sha256": "803323d497bfe932c2cc84255a869df8ff64df88420076d2e24c216fd79f5e7c" },
+        { "path": "cloudflare/src/upload-worker/book-route-handlers.ts", "sha256": "012a21f7c25aeab1361b5b9b647388aa940bade72ab61cfa37a34d57805657d3" },
+        { "path": "cloudflare/src/book-pilot-scope.ts", "sha256": "ca0cb51ff4cb8cc7f65279f6ab7a4e34d81093821feacbcee87800cb17f4158e" },
+        { "path": "src/config/bookActivityRolloutGates.ts", "sha256": "8f6e0d1ab03fa9e325d6a57d8359d670394bfdb5a36cea5e01b6cf0fb56b3aca" }
+      ]
+    },
+    "ticket127": {
+      "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY",
+      "commit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
+      "sha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+      "fixtureManifest": {
+        "path": "scripts/fixtures/prd0062-51a-acceptance-fixture-manifest.json",
+        "sha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+      },
+      "candidateMatrix": {
+        "path": "documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json",
+        "sha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+        "state": "PRIMARY_ACCEPTED_DEFINITION_ONLY"
+      }
+    }
+  },
+  "accounts": {
+    "teacher": {
+      "email": "teacher@test.com",
+      "auth": "built-in dev quick-login: Teacher",
+      "origin": "http://localhost:5173"
+    },
+    "student": {
+      "email": "student@test.com",
+      "auth": "built-in dev quick-login: Student",
+      "origin": "http://localhost:5174"
+    },
+    "credentialPolicy": "No password or token is stored in source or evidence."
+  },
+  "fixturePolicy": {
+    "seed": "prd0062-acceptance-seed-v1",
+    "cleanupRoot": "prd0062_acceptance/",
+    "artifactRoot": "artifacts/prd0062-acceptance/<case-id>/<execution-id>/",
+    "pdfBytes": "not stored",
+    "idGeneration": "SHA-256(seed|case-id|fixture-id), no clock or randomness",
+    "cleanupMode": "plan-only; no fixture state was written",
+    "fixtureCount": 8,
+    "acceptedManifestEntryCount": 33,
+    "acceptedManifestVersion": "2026-08-12.1",
+    "cleanupTargetCount": 40,
+    "determinismCheck": "PASS"
+  },
+  "cases": [
+    { "id": "AC-TA-001", "ticket": "#128", "fixture": "F-GRAMMAR-65", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
+    { "id": "AC-TA-002", "ticket": "#128", "fixture": "F-VOCAB-60", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
+    { "id": "AC-TU-001", "ticket": "#129", "fixture": "F-VOCAB-65", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
+    { "id": "AC-TR-001", "ticket": "#129", "fixture": "F-PDF-EDGE", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
+    { "id": "AC-SR-001", "ticket": "#130", "fixture": "F-VOCAB-60", "role": "student", "status": "HARNESS_BLOCKED_NOT_EXECUTED" },
+    { "id": "AC-AD-001", "ticket": "#131", "fixture": "F-VOCAB-65", "role": "student", "status": "HARNESS_BLOCKED_NOT_EXECUTED" },
+    { "id": "AC-SC-001", "ticket": "#132", "fixture": "F-PDF-EDGE", "role": "service", "status": "REUSED_118_NOT_RERUN" },
+    { "id": "AC-LR-001", "ticket": "#133", "fixture": "F-GRAMMAR-65", "role": "service", "status": "PASS_LOCAL_RECOVERY_ASSERTIONS" }
+  ],
+  "harnessInventory": {
+    "windows": "win32 arm64; Node v22.17.1 ARM64",
+    "missingPaths": [],
+    "presentPaths": [
+      "scripts/harness/run-tool.mjs",
+      "scripts/harness/run-x64.ps1",
+      "scripts/validate-prd0062-acceptance-matrix.mjs",
+      "scripts/fixtures/prd0062-51a-acceptance-fixture-manifest.json",
+      "scripts/fixtures/prd0062-51a-acceptance-fixtures.mjs",
+      "scripts/cleanup-prd0062-acceptance-fixtures.mjs",
+      "e2e/prd0062-acceptance-fixtures.mjs",
+      "e2e/prd0062-teacher-authoring-assignment.fixture.mjs",
+      "e2e/prd0062-teacher-updates-replacement-results.fixture.mjs",
+      "e2e/prd0062-student-runtime-persistence.fixture.mjs",
+      "e2e/prd0062-student-accessibility-device.fixture.mjs",
+      "e2e/prd0062-student-runtime-persistence.spec.ts",
+      "playwright.prd0062-acceptance.config.mjs",
+      "e2e/prd0062-teacher-authoring-assignment.spec.ts",
+      "e2e/prd0062-teacher-updates-replacement-results.spec.ts",
+      "e2e/prd0062-student-accessibility-device.spec.ts",
+      "src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+      "package.json#scripts.test:prd0062:legacy-backup-recovery"
+    ],
+      "dependencies": {
+      "node_modules": true,
+      "firebaseCli": true,
+      "vitestCli": true
+    },
+      "acceptanceCli": "PRESENT: scripts/validate-prd0062-acceptance-matrix.mjs",
+    "playwrightRoleSelector": "PRD0062_ACCEPTANCE_ROLE=teacher|student for execution; --list without selector exposes all projects without starting a server",
+    "downstreamFixtureModules": "PRESENT: accepted #127 fixture modules and campaign consumer specs"
+  },
+  "execution": [
+    {
+      "name": "accepted #127 matrix validator",
+      "command": "node --input-type=module -e import/load/validate candidate matrix",
+      "status": "PASS_PRIMARY_ACCEPTED_DEFINITION_ONLY",
+      "discovered": "matrix JSON and validator library loaded",
+      "executed": "schema/source/coverage/case checks",
+      "skipped": "browser and product execution; #126 stacked commit convergence"
+    },
+    {
+      "name": "accepted #127 conformance suite",
+      "command": "node --test scripts/__tests__/prd0062-acceptance-conformance.test.mjs",
+      "status": "HARNESS_BLOCKED_SHARED_MIRROR_ACCESS",
+      "failure": "Five of eight tests failed before project-code load: x64 mirror could not read the parent directory and emitted empty/invalid JSON protocol output; no product or #127 failure inferred",
+      "discovered": "definition-only conformance process completed",
+      "executed": "TAP 8 tests: 3 passed, 5 failed; failures were pre-product shared-mirror access/protocol failures",
+      "skipped": "no broad product/browser execution; no rerun in this timebox"
+    },
+    {
+      "name": "accepted Stage-0 lineage validator",
+      "command": "node scripts/validate-prd0062-stage-0-baseline.mjs --repo . --manifest documentation/tasks/PRD0062/supporting/stage-0-accepted-baseline.manifest.json",
+      "status": "PASS",
+      "discovered": "5 settled commits and 6 required paths",
+      "executed": "ancestry and Git-tree checks",
+      "skipped": "browser, remote and activation"
+    },
+    {
+      "name": "Stage-0 validator tests",
+      "command": "node --test scripts/__tests__/validate-prd0062-stage-0-baseline.test.mjs",
+      "status": "PASS",
+      "counts": { "tests": 4, "passed": 4, "failed": 0, "skipped": 0 }
+    },
+    {
+      "name": "pre-#127 Full-V1 acceptance test (historical)",
+      "command": "node --test scripts/__tests__/prd0062-acceptance-matrix.test.mjs",
+      "status": "HARNESS_BLOCKED",
+      "failure": "ERR_MODULE_NOT_FOUND: e2e/prd0062-acceptance-fixtures.mjs",
+      "historicalAt": "f710653948462bcd948d59a7db007bc2a870e987 before accepted #127 fixture addition",
+      "discovered": "0 test suites; collection failed",
+      "executed": 0,
+      "skipped": "all acceptance assertions"
+    },
+    {
+      "name": "pre-campaign #118 assembled-rules runner (historical)",
+      "command": "node scripts/prd0062-118-assembled-rules-matrix.mjs",
+      "status": "HARNESS_BLOCKED",
+      "failure": "Required repository test dependencies are missing",
+      "historicalAt": "f710653948462bcd948d59a7db007bc2a870e987 before task-local dependency junction",
+      "discovered": "runner preflight only",
+      "executed": 0,
+      "skipped": "all emulator assertions"
+    },
+    {
+      "name": "campaign-owned AC-LR-001 focused runner",
+      "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+      "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
+      "runtime": "Windows ARM64 host; x64 Node v24.18.0; Vitest v3.2.4",
+      "counts": { "files": 1, "tests": 1, "passed": 1, "failed": 0, "skipped": 0 },
+      "duration": "2.68s",
+      "discovered": "campaign-owned runner collected under the root src/** include glob",
+      "executed": "one file, one test, one passed",
+      "supersededHarnessHistory": [
+        { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts scripts/prd0062-legacy-backup-recovery.test.ts", "status": "NO_TEST_FILES_FOUND", "currentBlocker": false },
+        { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "environment": "Luna sandbox", "status": "PRELOAD_SHARED_MIRROR_ACCESS_DENIED", "currentBlocker": false }
+      ],
+      "skipped": "no AC-LR-001 assertions; historical harness failures are superseded"
+    },
+    {
+      "name": "campaign-owned syntax checks",
+      "command": "node --check playwright.prd0062-acceptance.config.mjs; node --check scripts/prd0062-acceptance-campaign.mjs; node --check e2e/prd0062-acceptance-fixtures.mjs and accepted fixture modules",
+      "status": "PASS",
+      "executed": "all checked JavaScript modules parsed successfully",
+      "skipped": "TypeScript/browser execution"
+    },
+    {
+      "name": "campaign Playwright collection history",
+      "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --list",
+      "status": "PASS_COLLECTION_9_TESTS_4_FILES",
+      "observed": "0 tests because e2e/prd0062-student-runtime-persistence.spec.ts imported nonexistent ./prd0062-student-runtime-persistence-fixtures.mjs; the subsequent collection exposed obsolete buildStudentRuntimeFixturePlan/STUDENT_RUNTIME_* exports",
+      "correction": "spec now imports createPrd0062StudentRuntimePersistenceFixture and asserts the exact AC-SR-001 normal-use fields",
+      "counts": { "tests": 9, "files": 4 },
+      "supersededConcurrentServerHistory": {
+        "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs",
+        "status": "TIMEOUT_SUPERSEDED",
+        "duration": "604s",
+        "cause": "teacher and student webServer commands started concurrently against one shared x64 mirror",
+        "artifactsCompleted": false,
+        "ownedProcessesStopped": true,
+        "portsClear": [5173, 5174],
+        "currentBlocker": false
+      },
+      "currentBlocker": false,
+      "browserExecuted": false,
+      "browserExecutionPending": "primary serial teacher/student runs"
+    },
+    {
+      "name": "primary serial teacher campaign run",
+      "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium",
+      "environment": "PRD0062_ACCEPTANCE_ROLE=teacher",
+      "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS",
+      "counts": { "tests": 4, "passed": 0, "failed": 4, "skipped": 0 },
+      "failures": ["app rendered and quick-login was found/clicked in all four tests, but URL stayed / for 60s because dummy Firebase could not authenticate; no product assertions completed"],
+      "productDefect": null,
+      "supersededCampaignDefects": ["lowercase cleanupRoot expectations", "missing seven dummy VITE_FIREBASE_* web-server values"],
+      "rerun": "pending with inherited credential environment"
+    }
+  ],
+  "executionPolicy": {
+    "positiveActivation": "HOLD_UNTIL_126_APPROVED_AND_ACTIVE",
+    "downstreamCases": "PROVISIONAL_UNTIL_126_FINAL_STACKED_APPLICATION",
+    "remoteMutation": false,
+    "deployment": false,
+    "push": false,
+    "ticket134": "OUT_OF_SCOPE"
+  }
+}

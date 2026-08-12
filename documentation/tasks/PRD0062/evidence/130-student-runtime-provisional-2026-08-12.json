@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "ticket": "#130",
+  "lane": "Solo/Homework/Course/Class runtime/persistence/submission/results/isolation/reload/invalidation",
+  "status": "PROVISIONAL_BLOCKED",
+  "verdict": "PROVISIONAL BLOCKED; the accepted runtime spec and campaign config are present, but authenticated browser execution was not completed because the Windows x64 mirror failed before application load. Positive activation remains held.",
+  "authority": {
+    "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
+    "rulesSuiteSha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
+    "ticket126": { "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE", "commit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2", "activationIdentitySha256": null },
+    "ticket127": {
+      "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY",
+      "commit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
+      "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+      "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+    }
+  },
+  "cases": [
+    { "id": "AC-SR-001", "fixture": "F-VOCAB-60", "status": "HARNESS_BLOCKED_NOT_EXECUTED", "blockers": ["x64 mirror access denied before Vite application load; authenticated browser QA not completed", "#126 remains engineering-proof-only and not active"] }
+  ],
+  "collectionHistory": {
+    "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --list",
+    "status": "PASS_COLLECTION_9_TESTS_4_FILES",
+    "observed": "0 tests because the campaign spec imported nonexistent ./prd0062-student-runtime-persistence-fixtures.mjs; the subsequent collection exposed obsolete buildStudentRuntimeFixturePlan/STUDENT_RUNTIME_* exports",
+    "correction": "spec now imports createPrd0062StudentRuntimePersistenceFixture and asserts the exact AC-SR-001 normal-use fields",
+    "counts": { "tests": 9, "files": 4 },
+    "supersededConcurrentServerHistory": {
+      "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs",
+      "status": "TIMEOUT_SUPERSEDED",
+      "duration": "604s",
+      "cause": "teacher and student webServer commands started concurrently against one shared x64 mirror",
+      "artifactsCompleted": false,
+      "ownedProcessesStopped": true,
+      "portsClear": [5173, 5174],
+      "currentBlocker": false
+    },
+    "currentBlocker": false,
+    "browserExecuted": false,
+    "browserExecutionPending": "primary serial teacher/student runs"
+  },
+  "scope": ["Solo", "Homework", "Course", "Class", "autosave/reload", "submission/results", "schedules/notifications", "context isolation", "replacement invalidation"],
+  "evidence": {
+    "sharedManifest": "documentation/tasks/PRD0062/evidence/acceptance-campaign-manifest-2026-08-12.json",
+    "setup": "plan-only; no fixture state or user action was created",
+    "productDefect": null,
+    "remoteProof": "not authorized and not attempted"
+  },
+  "nextGate": "Run AC-SR-001 on student port 5174 after the x64 mirror/cache access issue is repaired; preserve the accepted runtime spec and use a fresh role-owned server."
+}

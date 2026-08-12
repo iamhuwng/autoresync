@@ -1,81 +1,25 @@
 import { expect, test } from '@playwright/test';
-import {
-  buildStudentRuntimeFixturePlan,
-  STUDENT_RUNTIME_CASES,
-  STUDENT_RUNTIME_CONTRACTS,
-  STUDENT_RUNTIME_METRIC_IDS,
-} from './prd0062-student-runtime-persistence-fixtures.mjs';
+import { createPrd0062StudentRuntimePersistenceFixture } from './prd0062-student-runtime-persistence.fixture.mjs';
 
-const EXPECTED_CANONICAL_SOURCES = [
-  {
-    sourceName: 'IELTS Grammar for Bands 6.5 and Above',
-    fixtureId: 'canonical-grammar-structured-full',
-    interactionNotes: [
-      'Listening note-completion must be inspected when present; title alone never proves support.',
-      'Reading matching must be inspected when present; title alone never proves support.',
-      'Reading Yes/No/Not Given must be inspected when present; title alone never proves support.',
-    ],
-  },
-  {
-    sourceName: 'IELTS Vocabulary up to Band 6.0',
-    fixtureId: 'canonical-vocab-under6-source-assisted-components',
-    interactionNotes: [
-      'Listening note-completion is an explicit inspection target; do not infer it from the source title.',
-      'Reading matching is an explicit inspection target; do not infer it from the source title.',
-      'Reading Yes/No/Not Given is an explicit inspection target; do not infer it from the source title.',
-    ],
-  },
-  {
-    sourceName: 'IELTS Vocabulary for Bands 6.5 and Above',
-    fixtureId: 'canonical-vocab-high-reference-pages',
-    interactionNotes: [
-      'Inspect the supplied Listening note-completion practice explicitly; title inference is prohibited.',
-      'Inspect the supplied Reading matching practice explicitly; title inference is prohibited.',
-      'Inspect the supplied Reading Yes/No/Not Given practice explicitly; title inference is prohibited.',
-    ],
-  },
-] as const;
-
-test('51C1 fixture plan is deterministic and retains student runtime contracts', () => {
-  const first = buildStudentRuntimeFixturePlan();
-  const second = buildStudentRuntimeFixturePlan();
+test('51C1 fixture is deterministic and retains normal-use student runtime IDs', () => {
+  const first = createPrd0062StudentRuntimePersistenceFixture('AC-SR-001');
+  const second = createPrd0062StudentRuntimePersistenceFixture('AC-SR-001');
 
   expect(first).toEqual(second);
-  expect(first.caseIds).toEqual(STUDENT_RUNTIME_CASES.map(({ id }) => id));
-  expect(first.caseIds).toEqual([
-    'student-desktop-runtime',
-    'student-mobile-runtime',
-    'student-autosave-resume',
-    'student-submit-results',
-    'cross-feature-launch-results',
-  ]);
-  expect(first.contracts).toEqual(STUDENT_RUNTIME_CONTRACTS);
-  expect(first.canonicalSources).toEqual(EXPECTED_CANONICAL_SOURCES);
-  expect(first.interactionNotes).toEqual(EXPECTED_CANONICAL_SOURCES.flatMap(
-    ({ sourceName, interactionNotes }) => interactionNotes.map((note) => ({ sourceName, note })),
-  ));
-  expect(first.metricIds).toEqual(STUDENT_RUNTIME_METRIC_IDS);
-  expect(first.metricIds).toEqual(expect.arrayContaining([
-    'correction-rate',
-    'unsupported-interaction-patterns',
-    'import-errors',
-    'runtime-issues',
-    'teacher-effort',
-    'upload-latency',
-    'stream-start-latency',
-    'pdf-range-payload',
-    'autosave-write-ack',
-    'worker-b2-operations',
-    'cache-behavior',
-  ]));
-  expect(first.retryContract.replayCount).toBe(2);
-  expect(first.fixtures.every(({ cleanup }) => (
-    cleanup.every((target) => target.startsWith('prd0062-51a/'))
-  ))).toBe(true);
-  expect(first.rollout).toEqual({
-    mode2: 'disabled-by-default',
-    mutation: 'denied',
-    proof: 'safe-preflight-only',
+  expect(first).toMatchObject({
+    caseId: 'AC-SR-001',
+    seed: 'prd0062-51a:AC-SR-001:student-runtime-persistence:v1',
+    activityId: 'activity-ac-sr-001',
+    activityVersionId: 'activity-ac-sr-001_v1',
+    placementId: 'placement-ac-sr-001',
+    entitlementId: 'entitlement-ac-sr-001',
+    launch: {
+      url: '/student/practice/activity-ac-sr-001?entitlement=entitlement-ac-sr-001',
+      role: 'student',
+    },
+    response: { interactionId: 'interaction-1', value: 'deterministic-response' },
+    submission: { attemptId: 'attempt-ac-sr-001-v1', revision: 1 },
+    schedule: { placementId: 'placement-ac-sr-001', startsAt: '2026-08-12T00:00:00.000Z' },
   });
 });
 

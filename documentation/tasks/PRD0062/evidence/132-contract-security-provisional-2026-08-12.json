@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "ticket": "#132",
+  "lane": "non-duplicated contract/security; #118 tuple reuse",
+  "status": "PROVISIONAL_BLOCKED",
+  "verdict": "#118 tuple is unchanged and reusable; #132's own final non-duplicated matrix was not executed.",
+  "authority": {
+    "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
+    "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
+    "rulesSuiteSha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
+    "ticket126": { "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE", "commit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2", "activationIdentitySha256": null },
+    "ticket127": {
+      "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY",
+      "commit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
+      "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+      "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+    }
+  },
+  "tupleVerification": {
+    "status": "PASS",
+    "method": "live file hashes and HEAD verification",
+    "proof": "database.rules.json and scripts/prd0062-118-assembled-rules-matrix.mjs match the supplied #118 hashes",
+    "duplicate118Run": false
+  },
+  "reused118Evidence": {
+    "path": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
+    "proofClass": "local composition plus RTDB emulator/security proof",
+    "status": "accepted-no-new-regressions",
+    "counts": { "resultFiles": 7, "totalTests": 85, "passedTests": 82, "failedTests": 3, "skippedTests": 0 },
+    "legacyFailuresTransferredTo": "#133",
+    "remoteProof": "none"
+  },
+  "cases": [
+    { "id": "AC-SC-001", "status": "REUSED_118_NOT_RERUN", "blockers": ["#118 tuple reused without assembled-rules rerun", "campaign security command was not run because the shared x64 harness is unavailable before application/test load", "#126 remains engineering-proof-only and not active"] }
+  ],
+  "scope": ["trusted writes", "ancestor/root/cross-user negatives", "stale/replay/privacy boundaries", "assembled-rule contract", "non-duplicated security cases"],
+  "productDefect": null,
+  "nextGate": "Keep the #118 generated-rules and assembled-suite tuple unchanged; run only the non-duplicated AC-SC-001 slice after the shared x64 harness is repaired, retaining the three baseline-identical legacy failures under #133."
+}
