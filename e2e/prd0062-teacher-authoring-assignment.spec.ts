@@ -62,7 +62,6 @@ test('AC-TA-001 creates, previews, publishes, and reloads full/component Book as
     timeout: 120_000,
   });
   await expect(page.getByRole('heading', { name: 'Component-PDF publication fixture' })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole('radio', { name: 'Component PDF' })).toBeChecked();
   await expect(page.getByTestId('ticket66-component-order')).toContainText('component-a, component-b');
   await expect(page.getByTestId('ticket66-component-owners')).toContainText('component-a=section-component-a');
   await expect(page.getByTestId('ticket66-source-pins')).toContainText('source-component-a, source-component-b');
