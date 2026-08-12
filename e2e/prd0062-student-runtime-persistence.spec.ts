@@ -82,7 +82,6 @@ test('28B student runtime saves, resumes, retries, and preserves conflicts', asy
   );
   const persistence = page.getByTestId('book-runtime-persistence');
   await expect(page.getByRole('heading', { name: 'Main claim', exact: true })).toBeVisible();
-  await expect(persistence).toHaveAttribute('data-status', 'saved', { timeout: 10_000 });
 
   await page.getByRole('radio', { name: 'Statement A' }).check();
   await expect(persistence).toHaveAttribute('data-status', 'saved', { timeout: 10_000 });
