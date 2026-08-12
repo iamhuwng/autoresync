@@ -40,7 +40,7 @@
     "status": "clean"
   },
   "recordedAtBangkok": "2026-08-12T11:03:58.346+07:00",
-  "entryCount": 23,
+  "entryCount": 24,
   "entries": [
     {
       "id": "encounter-001-skill-3-3-0-authority-receipt",
@@ -831,6 +831,46 @@
       "resolution": "Contract reported 3.5.0/protocol 3; all 30 focused harness tests passed; git diff --check passed; package manifests, lockfiles, and product files were not changed. Historical 3.4 evidence remains unchanged.",
       "genericObservation": "A versioned harness upgrade should be accepted as one complete repository lineage with a focused contract/self-test proof before any downstream product-tool reuse.",
       "improvementProposal": "Keep the self-test count and global/repository skill byte identity in the integration record while preserving older sidecars under their original contract versions."
+    },
+    {
+      "id": "encounter-024-prd0062-rules-composer-dirty-development-loop",
+      "recordedAtBangkok": "2026-08-12T19:51:06.5783632+07:00",
+      "skill": "run-windows-arm64-tools",
+      "skillVersion": "3.5.0",
+      "target": { "worktreeRoot": "C:/Users/The Lord/.codex/worktrees/c50d/luyentap-writing-import-rebased", "head": "02ba421359bbceb3255cd2fa64098036db83ac43", "worktreeCleanBeforeInvocation": false },
+      "harness": { "contractName": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "selectedProjects": [".", "cloudflare"],
+      "selectedTools": ["vite-node", "vitest"],
+      "doctorCommands": [
+        "node scripts/harness/run-tool.mjs --doctor . vite-node",
+        "node scripts/harness/run-tool.mjs --doctor cloudflare vitest"
+      ],
+      "originalCommands": [
+        "node scripts/harness/run-tool.mjs vite-node . --mode test scripts/compose-prd0062-118-rules.ts --write",
+        "node scripts/harness/run-tool.mjs vitest cloudflare run test/generated-book-rules-composer.test.ts --reporter=verbose"
+      ],
+      "resource": {
+        "discovered": "repository-local Harness 3.5.0/protocol 3 and compatible Windows x64 Node",
+        "reused": "immutable root and Cloudflare dependency caches after scoped doctors",
+        "adapted": "composer source-hash checks changed from filesystem reconstruction to Vite raw imports after the isolated path retained an encoded space",
+        "installed": "root and Cloudflare dependencies only in external immutable harness caches"
+      },
+      "evidence": {
+        "sidecars": [
+          { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-vite-node-doctor-dirty.json", "sha256": "42df1c17983cb8081014350786ed2ee8db90c2930e69cfe5216a627dd7bfb9ed", "classification": "completed", "phase": "doctor" },
+          { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-compose-dirty.json", "sha256": "7c45523520569855820e43072554f73d40d44e8147ff3d389b9e81729cdd7a63", "classification": "completed", "phase": "execution", "counts": null },
+          { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-cloudflare-vitest-doctor-dirty.json", "sha256": "0dcc0a8c68dbe68fae4c648984e4ce3cd487a7c78a1f603bc09f34d1d109946c", "classification": "completed", "phase": "doctor" },
+          { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-composer-focused-dirty.json", "sha256": "494ed11b436e4cb3c2b7e6be134904c1561945b93c34ab7fb0c55ebd4a11df9b", "classification": "product_failure", "counts": { "collected": 13, "executed": 13, "passed": 12, "failed": 1, "skipped": 0 } },
+          { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-composer-focused-dirty-rerun.json", "sha256": "d2feb942dec472135983082628b49e778da584a04e820ceba1410d9749a5d85f", "classification": "product_failure", "counts": { "collected": 13, "executed": 13, "passed": 12, "failed": 1, "skipped": 0 } },
+          { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-composer-focused-dirty-rerun2.json", "sha256": "9226588afb23bc2ebef7341904ed094508b0d1f0bff8155b308f031a14f45c6e", "classification": "product_failure", "counts": { "collected": 13, "executed": 13, "passed": 12, "failed": 1, "skipped": 0 } },
+          { "path": "C:/Users/The Lord/AppData/Local/ch35/prd0062-118-composer-focused-dirty-raw-import.json", "sha256": "5c125fd1a52be55ffcdd52ee3e4ee2eb649863e9dacbb6793d76832ff447eef5", "classification": "completed", "counts": { "collected": 13, "executed": 13, "passed": 13, "failed": 0, "skipped": 0 } }
+        ],
+        "acceptanceBoundary": "Dirty development evidence only; none of these sidecars is the immutable #118 acceptance proof."
+      },
+      "classification": "COMPLETED_DIRTY_DEVELOPMENT_LOOP",
+      "resolution": "Both scoped doctors completed. The rules-composition assertions passed after replacing a Windows/Vite virtual-URL filesystem helper with raw imports. The vite-node snapshot write was intentionally not treated as a live-checkout mutation or acceptance evidence; the final rules artifact was updated through reviewed repository patches and is verified by exact composer equality.",
+      "genericObservation": "Snapshot tools must not imply that arbitrary source writes are published back to the live checkout; test helpers should consume module bytes through the bundler rather than reconstructing filesystem paths from transformed module URLs.",
+      "improvementProposal": "Document that source-mirror writes are invocation-local unless a tool declares a published output, and include a path-with-spaces raw-import fixture in harness-adjacent repository tests without adding application-specific behavior to the harness."
     }
   ]
 }

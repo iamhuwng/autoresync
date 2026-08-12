@@ -1,12 +1,17 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import generatedRules from '../../database.rules.json';
 import databaseRules from '../../firebase.prd0062-118-rules.rollback.json';
+import trustedReportSource from '../../src/services/book-activity/bookIntegrityReport.service.ts?raw';
+import trustedPreviewSource from '../src/upload-worker/book-activity-integrity/ticket91-preview-rtdb.ts?raw';
 import fragment04 from '../src/upload-worker/book-rules/fragments/04.json';
+import fragment20ARaw from '../src/upload-worker/book-rules/fragments/20A.json?raw';
+import fragment37ARaw from '../src/upload-worker/book-rules/fragments/37A.json?raw';
+import fragment37BRaw from '../src/upload-worker/book-rules/fragments/37B.json?raw';
 import fragment42A from '../src/upload-worker/book-rules/fragments/42A.json';
+import fragment44Raw from '../src/upload-worker/book-rules/fragments/44.json?raw';
 import fragment49D from '../src/upload-worker/book-rules/fragments/49D.json';
+import fragment49DRaw from '../src/upload-worker/book-rules/fragments/49D.json?raw';
 import {
   discoverGeneratedBookRuleFragmentManifest,
   validateGeneratedBookRuleFragment,
@@ -118,13 +123,8 @@ const readRule = (root: Record<string, unknown>, location: string): unknown => {
   return (cursor as Record<string, unknown>)[rule];
 };
 
-const readSource = (relativePath: string): string => readFileSync(
-  fileURLToPath(new URL(relativePath, import.meta.url)),
-  'utf8',
-);
-
-const sourceSha256 = (relativePath: string): string => createHash('sha256')
-  .update(readSource(relativePath))
+const sourceSha256 = (sourceText: string): string => createHash('sha256')
+  .update(sourceText)
   .digest('hex');
 
 const flattenRuleLeaves = (
@@ -213,20 +213,18 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(forward.operations.every((operation) => hasBalancedParentheses(operation.expression))).toBe(true);
     expect(forward.operations.every((operation) => !operation.expression.includes('numChildren'))).toBe(true);
     expect(JSON.stringify(currentFragment('49D'))).toBe(JSON.stringify(fragment49D));
-    expect(sourceSha256('../src/upload-worker/book-rules/fragments/37A.json'))
+    expect(sourceSha256(fragment37ARaw))
       .toBe('e42c84793e4c763ef732994afd8166d28f8be2f9d77d47e7bc662ccd48282852');
-    expect(sourceSha256('../src/upload-worker/book-rules/fragments/37B.json'))
+    expect(sourceSha256(fragment37BRaw))
       .toBe('a2152e623f058de22c107ba1b629c48397e84f46cd5664e6faf56f3e255b456e');
-    expect(sourceSha256('../src/upload-worker/book-rules/fragments/49D.json'))
+    expect(sourceSha256(fragment49DRaw))
       .toBe('48bcfe6ed11a5acbc8901498664a4d6e21cf90933f4ae7be866b40237ad922a0');
-    expect(sourceSha256('../src/upload-worker/book-rules/fragments/44.json'))
+    expect(sourceSha256(fragment44Raw))
       .toBe('014a0e5fd104be06b9627ac5e2281b3d36825b5eab2eb6927f474d03310dc2fc');
-    expect(sourceSha256('../src/upload-worker/book-rules/fragments/20A.json'))
+    expect(sourceSha256(fragment20ARaw))
       .toBe('d288db0c09572b43f212c94a3082fe9519b6eeccff73ad7f24172c3a612db160');
-    const trustedPreviewSource = readSource('../src/upload-worker/book-activity-integrity/ticket91-preview-rtdb.ts');
     expect(trustedPreviewSource).toContain('Object.keys(events).length <= 64');
     expect(trustedPreviewSource).toContain('Object.keys(sessions).length <= 4');
-    const trustedReportSource = readSource('../../src/services/book-activity/bookIntegrityReport.service.ts');
     expect(trustedReportSource).toContain('source.highRiskSignals.length <= BOOK_INTEGRITY_SIGNAL_TYPES.length');
     expect(trustedReportSource).toContain('source.highRiskSignals.every');
     expect(trustedReportSource).toContain('eventRefs.length !== Number(source.totalEventCount)');
@@ -402,6 +400,32 @@ describe('generated Book RTDB rule manifest and composer', () => {
       'material_catalog/material_summary_indexes/v1/by_material_kind/$materialKind/$materialId/$other/.validate',
       'material_catalog/material_summary_indexes/v1/by_test_type/$testTypeId/$materialId/$other/.validate',
     ]) expect(readRule(candidate.rules, location)).toBe(false);
+
+    for (const rowPath of [
+      'material_catalog/material_summary_indexes/v1/by_id/$materialId',
+      'material_catalog/material_summary_indexes/v1/by_owner/$ownerId/$materialId',
+      'material_catalog/material_summary_indexes/v1/by_visibility/$visibility/$materialId',
+      'material_catalog/material_summary_indexes/v1/by_material_kind/$materialKind/$materialId',
+      'material_catalog/material_summary_indexes/v1/by_test_type/$testTypeId/$materialId',
+    ]) {
+      expect(readRule(candidate.rules, `${rowPath}/hasStudentSafeProjection/.validate`))
+        .toBe('newData.isBoolean()');
+      expect(readRule(candidate.rules, `${rowPath}/deliveryProjectionReady/.validate`))
+        .toBe('newData.isBoolean()');
+      expect(readRule(candidate.rules, `${rowPath}/studentSafeProjectionReady/.validate`))
+        .toBe('newData.isBoolean()');
+      expect(readRule(candidate.rules, `${rowPath}/passageRefCount/.validate`))
+        .toBe('newData.isNumber() && newData.val() >= 0');
+    }
+
+    expect(String(readRule(
+      candidate.rules,
+      'material_catalog/material_summary_indexes/v1/by_owner/$ownerId/$materialId/.write',
+    ))).toContain("root.child('reading_v2').child('material_metadata').child($materialId).child('ownerId').val() === auth.uid");
+    expect(String(readRule(
+      candidate.rules,
+      'reading_v2/full_test_compositions/$compositionId/.validate',
+    ))).toContain("newData.child('state').val() === 'removed' || newData.hasChildren(['passageRefs'])");
 
     const bookWrite = String(readRule(candidate.rules, 'material_catalog/books/$bookId/.write'));
     expect(bookWrite).not.toContain('auth == null || auth.token.pbcf.s != true');
