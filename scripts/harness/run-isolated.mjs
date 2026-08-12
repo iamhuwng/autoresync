@@ -14,6 +14,10 @@ const contentHash = (value) => hash(Buffer.isBuffer(value) ? value.toString('utf
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const commandResult = (command, args, options = {}) => spawnSync(command, args, { encoding: 'utf8', shell: false, ...options });
 const failure = (code, message) => Object.assign(new Error(message), { code });
+const evidenceTimestamp = () => new Date().toISOString();
+const EVIDENCE_PHASES = Object.freeze(['dependencyPreparation', 'capabilityPreparation', 'sourceMirror', 'toolExecution', 'finalization']);
+const FORWARDED_OUTPUT_TAIL_BYTES = 4 * 1024 * 1024;
+const TIMEOUT_OUTPUT_TAIL_BYTES = 256 * 1024;
 export function selectedNodeEnvironment(source = process.env) {
   const environment = {
     ...source,
@@ -320,6 +324,27 @@ async function acquireInstallLock(lockDirectory) {
   }
 }
 
+function systemErrorDetails(error) {
+  return Object.fromEntries(['name', 'code', 'message', 'errno', 'syscall', 'path', 'dest']
+    .filter((name) => error?.[name] !== undefined)
+    .map((name) => [name, error[name]]));
+}
+
+export function publishDependencyCache(staging, root, rename = fs.renameSync) {
+  try {
+    rename(staging, root);
+  } catch (error) {
+    const publication = failure('DEPENDENCY_CACHE_PUBLISH_FAILED', `unable to atomically publish immutable dependency cache: ${root}`);
+    publication.dependencyCachePublication = {
+      operation: 'staging_to_immutable_rename',
+      staging,
+      immutableRoot: root,
+      systemError: systemErrorDetails(error),
+    };
+    throw publication;
+  }
+}
+
 async function ensureDependencies(project, cacheBase, source) {
   const npm = npmInvocation();
   const npmVersionResult = commandResult(npm.command, [...npm.prefix, '--version']);
@@ -359,7 +384,7 @@ async function ensureDependencies(project, cacheBase, source) {
         if (install.stdout) process.stderr.write(install.stdout);
         if (install.stderr) process.stderr.write(install.stderr);
         if (install.status !== 0) throw failure('DEPENDENCY_INSTALL_FAILED', `npm ci exited ${install.status}; staging preserved at ${staging}`);
-        fs.renameSync(staging, root);
+        publishDependencyCache(staging, root);
         for (const [name, value] of Object.entries(packageDependencies(project.manifest))) {
           if (typeof value !== 'string' || !value.startsWith('file:')) continue;
           const relative = value.slice('file:'.length);
@@ -467,13 +492,110 @@ function publishOutputs(tool, command, executionProjectRoot, projectRoot) {
 function evidencePath(cacheBase, runId) {
   const explicit = process.env.CODEX_HARNESS_EVIDENCE_FILE;
   const file = explicit ? path.resolve(explicit) : path.join(cacheBase, 'evidence', `${runId}.json`);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   return file;
 }
 
-function writeEvidence(file, evidence) {
-  fs.writeFileSync(file, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
-  process.stderr.write(`HARNESS_EVIDENCE ${file}\n`);
+function writeAtomically(file, content) {
+  const temporary = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, content, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(temporary, file);
+  } finally {
+    if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
+  }
+}
+
+function writeEvidence(file, evidence, announce = false) {
+  writeAtomically(file, `${JSON.stringify(evidence, null, 2)}\n`);
+  if (announce) process.stderr.write(`HARNESS_EVIDENCE ${file}\n`);
+}
+
+function newPhaseTimings() {
+  return Object.fromEntries(EVIDENCE_PHASES.map((name) => [name, { status: 'not_started', startedAt: null, endedAt: null, durationMs: null }]));
+}
+
+function beginEvidencePhase(evidence, name, evidenceFile) {
+  const phase = evidence.phaseTimings[name];
+  if (phase.status !== 'not_started') return;
+  phase.status = 'in_progress';
+  phase.startedAt = evidenceTimestamp();
+  evidence.lifecycle.updatedAt = phase.startedAt;
+  writeEvidence(evidenceFile, evidence);
+}
+
+function endEvidencePhase(evidence, name, evidenceFile, status = 'completed') {
+  const phase = evidence.phaseTimings[name];
+  if (phase.status !== 'in_progress') return;
+  phase.status = status;
+  phase.endedAt = evidenceTimestamp();
+  phase.durationMs = Math.max(0, Date.parse(phase.endedAt) - Date.parse(phase.startedAt));
+  evidence.lifecycle.updatedAt = phase.endedAt;
+  writeEvidence(evidenceFile, evidence);
+}
+
+function closeOpenEvidencePhases(evidence) {
+  for (const name of EVIDENCE_PHASES) {
+    const phase = evidence.phaseTimings[name];
+    if (phase.status !== 'in_progress') continue;
+    phase.status = 'aborted';
+    phase.endedAt = evidenceTimestamp();
+    phase.durationMs = Math.max(0, Date.parse(phase.endedAt) - Date.parse(phase.startedAt));
+  }
+}
+
+function finalizeEvidence(file, evidence, project) {
+  beginEvidencePhase(evidence, 'finalization', file);
+  if (project) finalizeProtectedState(evidence, project);
+  endEvidencePhase(evidence, 'finalization', file);
+  evidence.lifecycle.status = 'final';
+  evidence.lifecycle.finalizedAt = evidenceTimestamp();
+  evidence.lifecycle.updatedAt = evidence.lifecycle.finalizedAt;
+  writeEvidence(file, evidence);
+}
+
+function utf8SafeTail(buffer) {
+  let start = 0;
+  while (start < buffer.length && (buffer[start] & 0b11000000) === 0b10000000) start += 1;
+  let end = start;
+  while (end < buffer.length) {
+    const leading = buffer[end];
+    const width = leading < 0x80 ? 1 : (leading & 0b11100000) === 0b11000000 ? 2 : (leading & 0b11110000) === 0b11100000 ? 3 : (leading & 0b11111000) === 0b11110000 ? 4 : 1;
+    if (end + width > buffer.length) break;
+    end += width;
+  }
+  return buffer.subarray(start, end);
+}
+
+function appendTimeoutTail(current, chunk) {
+  const combined = Buffer.concat([current, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
+  return combined.subarray(Math.max(0, combined.length - TIMEOUT_OUTPUT_TAIL_BYTES));
+}
+
+function timeoutArtifactFailure(error) {
+  return { code: 'TIMEOUT_OUTPUT_ARTIFACT_PUBLISH_FAILED', systemError: systemErrorDetails(error) };
+}
+
+export function publishTimeoutOutputArtifact(cacheBase, runId, result, { write = writeAtomically } = {}) {
+  const stdout = utf8SafeTail(result.timeoutStdoutTail ?? Buffer.alloc(0));
+  const stderr = utf8SafeTail(result.timeoutStderrTail ?? Buffer.alloc(0));
+  const content = Buffer.concat([Buffer.from('--- stdout tail ---\n'), stdout, Buffer.from('\n--- stderr tail ---\n'), stderr]);
+  const file = path.join(cacheBase, 'artifacts', `${runId}.tool-timeout.log`);
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    write(file, content);
+    return {
+      artifact: {
+        path: file,
+        sha256: hash(content),
+        bytes: content.length,
+        retainedTailBytes: { stdout: stdout.length, stderr: stderr.length },
+      },
+      failure: null,
+    };
+  } catch (error) {
+    return { artifact: null, failure: timeoutArtifactFailure(error) };
+  }
 }
 
 function attachRemediation(evidence, code, tool = evidence.invocation.tool) {
@@ -494,18 +616,25 @@ function forwardedResult(command, args, options) {
   return new Promise((resolve) => {
     const { timeout, inheritStdin = false, suppressStderrLine, ...spawnOptions } = options;
     const child = spawn(command, args, { ...spawnOptions, shell: false, stdio: [inheritStdin ? 'inherit' : 'ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
+    let stdoutBytes = Buffer.alloc(0);
+    let stderrBytes = Buffer.alloc(0);
     let pendingStderr = '';
     const suppressedStderrLines = [];
     let settled = false;
     let timedOut = false;
     let timeoutHandle = null;
-    const append = (current, chunk) => `${current}${chunk}`.slice(-4 * 1024 * 1024);
-    child.stdout.on('data', (chunk) => { process.stdout.write(chunk); stdout = append(stdout, chunk); });
+    const append = (current, chunk) => {
+      const combined = Buffer.concat([current, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
+      return combined.subarray(Math.max(0, combined.length - FORWARDED_OUTPUT_TAIL_BYTES));
+    };
+    const resultOutput = () => ({ stdout: utf8SafeTail(stdoutBytes).toString('utf8'), stderr: utf8SafeTail(stderrBytes).toString('utf8') });
+    let timeoutStdoutTail = Buffer.alloc(0);
+    let timeoutStderrTail = Buffer.alloc(0);
+    child.stdout.on('data', (chunk) => { process.stdout.write(chunk); stdoutBytes = append(stdoutBytes, chunk); timeoutStdoutTail = appendTimeoutTail(timeoutStdoutTail, chunk); });
     child.stderr.on('data', (chunk) => {
       const text = chunk.toString();
-      stderr = append(stderr, text);
+      stderrBytes = append(stderrBytes, chunk);
+      timeoutStderrTail = appendTimeoutTail(timeoutStderrTail, chunk);
       if (!suppressStderrLine) {
         process.stderr.write(chunk);
         return;
@@ -522,7 +651,7 @@ function forwardedResult(command, args, options) {
       if (settled) return;
       settled = true;
       if (timeoutHandle) clearTimeout(timeoutHandle);
-      resolve({ status: null, error, stdout, stderr, timedOut: false });
+      resolve({ status: null, error, ...resultOutput(), timeoutStdoutTail, timeoutStderrTail, timedOut: false });
     });
     child.on('close', (status, signal) => {
       if (settled) return;
@@ -532,7 +661,7 @@ function forwardedResult(command, args, options) {
         if (suppressStderrLine?.test(pendingStderr.trimEnd())) suppressedStderrLines.push(pendingStderr.trimEnd());
         else process.stderr.write(pendingStderr);
       }
-      resolve({ status, signal, error: timedOut ? Object.assign(new Error('tool timed out'), { code: 'ETIMEDOUT' }) : null, stdout, stderr, timedOut, suppressedStderrLines });
+      resolve({ status, signal, error: timedOut ? Object.assign(new Error('tool timed out'), { code: 'ETIMEDOUT' }) : null, ...resultOutput(), timeoutStdoutTail, timeoutStderrTail, timedOut, suppressedStderrLines });
     });
     if (timeout > 0) timeoutHandle = setTimeout(() => {
       if (settled) return;
@@ -607,8 +736,8 @@ async function main() {
   const invocation = JSON.parse(Buffer.from(invocationRaw, 'base64').toString('utf8'));
   const cacheBase = path.resolve(process.env.CODEX_HARNESS_ROOT || path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'codex-harness-v3'));
   const runId = crypto.randomUUID();
-  const project = projectContext(invocation.relativeProjectPath);
   const evidenceFile = evidencePath(cacheBase, runId);
+  let project = null;
   let source = null;
   const evidence = {
     harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion },
@@ -626,14 +755,22 @@ async function main() {
     capabilities: [],
     dependencyCache: null,
     executionWorkspace: null,
+    storage: { privateRoot: cacheBase, artifactRoot: path.join(cacheBase, 'artifacts'), sidecar: evidenceFile, access: 'owner-only-best-effort' },
     proof: proofFor(proofPhase(invocation)),
-    protectedState: { before: protectedProjectState(project), after: null },
+    protectedState: { before: null, after: null },
+    lifecycle: { status: 'in_progress', startedAt: evidenceTimestamp(), updatedAt: null, finalizedAt: null },
+    phaseTimings: newPhaseTimings(),
     exitCode: 2,
     classification: 'harness_preflight_failure',
     failureCode: null,
   };
+  evidence.lifecycle.updatedAt = evidence.lifecycle.startedAt;
+  writeEvidence(evidenceFile, evidence, true);
   let remediationTool = invocation.tool;
   try {
+    project = projectContext(invocation.relativeProjectPath);
+    evidence.protectedState.before = protectedProjectState(project);
+    writeEvidence(evidenceFile, evidence);
     source = sourceIdentity();
     evidence.source = source;
     if (invocation.mode === 'doctor') {
@@ -641,35 +778,44 @@ async function main() {
       remediationTool = requested[0] || 'doctor';
       for (const name of requested) if (!toolNames.includes(name)) throw failure('TOOL_UNSUPPORTED', `unsupported doctor capability: ${name}`);
       const windowsTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'windows-x64');
+      if (windowsTools.length) beginEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
       const dependency = windowsTools.length ? await ensureDependencies(project, cacheBase, source) : null;
+      if (windowsTools.length) endEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
+      beginEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
       if (dependency) for (const name of windowsTools) evidence.capabilities.push(...preflightTool(project, dependency, name, null, cacheBase).resources);
       const wslTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'wsl');
       for (const name of wslTools) {
         assertToolDeclared(project, name);
         evidence.capabilities.push(discoverWslRuntime(name));
       }
+      endEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
       evidence.dependencyCache = dependency ? { identity: dependency.identity, root: dependency.root, npmVersion: dependency.npmVersion } : null;
       evidence.exitCode = 0;
       evidence.classification = 'completed';
-      if (!finalizeProtectedState(evidence, project)) evidence.exitCode = 2;
-      writeEvidence(evidenceFile, evidence);
+      finalizeEvidence(evidenceFile, evidence, project);
       process.stdout.write(`${JSON.stringify({ ok: evidence.classification === 'completed', project: invocation.relativeProjectPath, tools: requested, evidence: evidenceFile })}\n`);
       return evidence.exitCode;
     }
 
     const declaredTool = assertToolDeclared(project, invocation.tool);
     assertInvocationMode(invocation.tool, declaredTool, invocation.toolArguments);
+    if (declaredTool.runtime === 'windows-x64') beginEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
     const dependency = declaredTool.runtime === 'windows-x64' ? await ensureDependencies(project, cacheBase, source) : null;
+    if (declaredTool.runtime === 'windows-x64') endEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
+    beginEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
     let prepared = null;
     if (dependency) prepared = preflightTool(project, dependency, invocation.tool, invocation.toolArguments[0], cacheBase);
     if (prepared) evidence.capabilities.push(...prepared.resources);
     if (declaredTool.runtime === 'wsl') evidence.capabilities.push(discoverWslRuntime(invocation.tool));
+    endEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
     const executionRoot = path.join(cacheBase, 'runs', runId);
     let executionRepositoryRoot = repositoryRoot;
     let executionProjectRoot = project.projectRoot;
     if (declaredTool.sourceMode === 'snapshot') {
       executionRepositoryRoot = path.join(executionRoot, 'repository');
+      beginEvidencePhase(evidence, 'sourceMirror', evidenceFile);
       mirrorRepository(executionRepositoryRoot);
+      endEvidencePhase(evidence, 'sourceMirror', evidenceFile);
       executionProjectRoot = invocation.relativeProjectPath === '.' ? executionRepositoryRoot : path.join(executionRepositoryRoot, invocation.relativeProjectPath);
       if (dependency) linkDependencies(executionProjectRoot, dependency.root);
     } else {
@@ -678,6 +824,7 @@ async function main() {
     evidence.dependencyCache = dependency ? { identity: dependency.identity, root: dependency.root, npmVersion: dependency.npmVersion } : null;
     evidence.executionWorkspace = { identity: runId, mode: declaredTool.sourceMode, root: executionRoot, repository: executionRepositoryRoot, project: executionProjectRoot };
     process.stderr.write(`harness ${HARNESS_CONTRACT.version}: ${invocation.tool} project=${invocation.relativeProjectPath} run=${runId}\n`);
+    beginEvidencePhase(evidence, 'toolExecution', evidenceFile);
     let result;
     if (declaredTool.runtime === 'wsl') {
       const version = project.lock.packages[`node_modules/${declaredTool.package}`].version;
@@ -696,6 +843,7 @@ async function main() {
       evidence.toolRuntime = result.harnessRuntime;
       if (result.harnessRuntime.dependencyCache) evidence.dependencyCache = result.harnessRuntime.dependencyCache;
     }
+    endEvidencePhase(evidence, 'toolExecution', evidenceFile);
     if (exitCode === 0 && declaredTool.sourceMode === 'snapshot') publishOutputs(declaredTool, invocation.toolArguments[0], executionProjectRoot, project.projectRoot);
     evidence.exitCode = exitCode;
     evidence.proof.counts = proofCountsFromResult({
@@ -709,21 +857,26 @@ async function main() {
       wslRuntimeMetadata: declaredTool.runtime === 'wsl' ? result.wslRuntimeMetadata : undefined,
     });
     const wslFailureCode = declaredTool.runtime === 'wsl' ? wslFailureCodeFromStderr(result.stderr) : null;
-    if (result.timedOut) attachRemediation(evidence, 'TOOL_TIMEOUT');
+    if (result.timedOut) {
+      attachRemediation(evidence, 'TOOL_TIMEOUT');
+      const artifactPublication = publishTimeoutOutputArtifact(cacheBase, runId, result);
+      evidence.timeoutOutputArtifact = artifactPublication.artifact;
+      if (artifactPublication.failure) evidence.timeoutOutputArtifactFailure = artifactPublication.failure;
+    }
     else if (wslFailureCode) attachRemediation(evidence, wslFailureCode);
     else if (evidence.classification === 'zero_tests_collected') attachRemediation(evidence, 'ZERO_TESTS_COLLECTED');
     else if (evidence.classification === 'harness_startup_failure') attachRemediation(evidence, 'TOOL_STARTUP_FAILED');
-    const protectedUnchanged = finalizeProtectedState(evidence, project);
-    writeEvidence(evidenceFile, evidence);
+    finalizeEvidence(evidenceFile, evidence, project);
     writeRemediation(evidence.remediation);
-    return protectedUnchanged ? exitCode : 2;
+    return evidence.failureCode === 'PROTECTED_STATE_CHANGED' ? 2 : exitCode;
   } catch (error) {
     attachRemediation(evidence, error.code || 'HARNESS_UNEXPECTED_FAILURE', remediationTool);
     evidence.message = error.message;
+    if (error.dependencyCachePublication) evidence.dependencyCachePublication = error.dependencyCachePublication;
     if (error.discovery) evidence.discovery = mergeEvidenceDiscovery(evidence.discovery, error.discovery);
     if (evidence.executionWorkspace) evidence.classification = 'harness_transport_failure';
-    finalizeProtectedState(evidence, project);
-    writeEvidence(evidenceFile, evidence);
+    closeOpenEvidencePhases(evidence);
+    finalizeEvidence(evidenceFile, evidence, project);
     process.stderr.write(`harness preflight: ${evidence.failureCode}: ${error.message}\n`);
     writeRemediation(evidence.remediation);
     return 2;

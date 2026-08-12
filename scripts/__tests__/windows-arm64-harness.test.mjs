@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -25,6 +26,8 @@ import {
   verifyCapabilities,
   proofPhase,
   proofCountsFromResult,
+  publishDependencyCache,
+  publishTimeoutOutputArtifact,
   protectedProjectState,
   wslFailureCodeFromStderr,
 } from '../harness/run-isolated.mjs';
@@ -56,6 +59,21 @@ const evidencePathFrom = (result) => {
 };
 
 const evidenceFrom = (result) => JSON.parse(fs.readFileSync(evidencePathFrom(result), 'utf8'));
+
+const finalEvidenceLifecycle = () => ({
+  lifecycle: { status: 'final', startedAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:02.000Z', finalizedAt: '2026-01-01T00:00:02.000Z' },
+  phaseTimings: Object.fromEntries([
+    ['dependencyPreparation', 'not_started'],
+    ['sourceMirror', 'not_started'],
+    ['capabilityPreparation', 'completed'],
+    ['toolExecution', 'not_started'],
+    ['finalization', 'completed'],
+  ].map(([name, status]) => [name, status === 'not_started'
+    ? { status, startedAt: null, endedAt: null, durationMs: null }
+    : name === 'finalization'
+      ? { status, startedAt: '2026-01-01T00:00:01.000Z', endedAt: '2026-01-01T00:00:02.000Z', durationMs: 1000 }
+      : { status, startedAt: '2026-01-01T00:00:00.000Z', endedAt: '2026-01-01T00:00:01.000Z', durationMs: 1000 }])),
+});
 
 const copyHarnessFixture = (destination) => {
   fs.mkdirSync(path.join(destination, 'scripts', 'harness'), { recursive: true });
@@ -92,6 +110,8 @@ test('contract is executable, generic, and self-describing', () => {
   assert.deepEqual(HARNESS_CONTRACT.tools.firebase.capabilities[0].commands, ['emulators:exec', 'emulators:start']);
   assert.deepEqual(HARNESS_CONTRACT.tools.playwright.capabilities[0].commands, ['test', 'show-report']);
   assert.deepEqual(HARNESS_CONTRACT.resolutionOrder, ['discover', 'reuse', 'adapt', 'install', 'verify']);
+  assert.equal(HARNESS_CONTRACT.version, '3.5.0');
+  assert.equal(HARNESS_CONTRACT.protocolVersion, 3);
   assert.equal(HARNESS_CONTRACT.dependencyCacheProtocolVersion, 2);
   const skill = fs.readFileSync(path.join(repositoryRoot, '.agents/skills/run-windows-arm64-tools/SKILL.md'), 'utf8');
   for (const required of ['scripts/harness/validate-evidence.mjs', 'scripts/harness/live-vite-doctor.mjs']) assert.match(skill, new RegExp(required.replaceAll('.', '\\.')));
@@ -120,6 +140,27 @@ test('doctor remediation names the requested capability, not the dispatcher', as
   const evidence = evidenceFrom(result);
   assert.equal(evidence.failureCode, 'PROJECT_DEPENDENCY_MISSING');
   assert.match(evidence.remediation.stages.verify[0], /--doctor \. wrangler$/u);
+});
+
+test('invalid project context still has an attributable early evidence sidecar', async () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-early-sidecar-'));
+  const cache = path.join(temporary, 'cache');
+  try {
+    copyHarnessFixture(temporary);
+    const invocation = Buffer.from(JSON.stringify({ mode: 'run', tool: 'vite-node', relativeProjectPath: 'missing-project', toolArguments: [] })).toString('base64');
+    const result = await run(process.execPath, [path.join(temporary, 'scripts', 'harness', 'run-isolated.mjs')], temporary, {
+      CODEX_HARNESS_INVOCATION_B64: invocation,
+      CODEX_HARNESS_ROOT: cache,
+    });
+    assert.equal(result.status, 2);
+    const evidence = evidenceFrom(result);
+    assert.equal(evidence.failureCode, 'PROJECT_CONTEXT_INVALID');
+    assert.equal(evidence.lifecycle.status, 'final');
+    assert.equal(evidence.source, null);
+    assert.equal(evidence.protectedState.before, null);
+    assert.equal(evidence.runtime.executable, process.execPath);
+    assert.equal(evidence.invocation.project, 'missing-project');
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
 
 test('Java discovery reuses a compatible existing runtime after rejecting older candidates', () => {
@@ -244,6 +285,45 @@ test('classifications separate zero collection, startup transport, product failu
   assert.equal(classifyResult({ error: Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }), exitCode: 124 }), 'harness_transport_failure');
 });
 
+test('immutable dependency cache publication has a stable rename failure with raw structured system details', () => {
+  let publication;
+  assert.throws(() => {
+    try {
+      publishDependencyCache('C:/cache/staging', 'C:/cache/immutable', () => {
+        throw Object.assign(new Error('access denied by test filesystem'), { code: 'EACCES', errno: -4092, syscall: 'rename', path: 'C:/cache/staging', dest: 'C:/cache/immutable' });
+      });
+    } catch (error) {
+      publication = error;
+      throw error;
+    }
+  }, { code: 'DEPENDENCY_CACHE_PUBLISH_FAILED' });
+  assert.deepEqual(publication.dependencyCachePublication, {
+    operation: 'staging_to_immutable_rename',
+    staging: 'C:/cache/staging',
+    immutableRoot: 'C:/cache/immutable',
+    systemError: { name: 'Error', code: 'EACCES', message: 'access denied by test filesystem', errno: -4092, syscall: 'rename', path: 'C:/cache/staging', dest: 'C:/cache/immutable' },
+  });
+  const remediation = remediationFor('DEPENDENCY_CACHE_PUBLISH_FAILED', 'fixture-project', 'vite-node');
+  for (const stage of HARNESS_CONTRACT.resolutionOrder) assert.ok(remediation.stages[stage].length, stage);
+  assert.match(remediation.stages.adapt[0], /CODEX_HARNESS_ROOT/u);
+});
+
+test('timeout artifact publication failure remains secondary to TOOL_TIMEOUT', () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-artifact-failure-'));
+  try {
+    const publication = publishTimeoutOutputArtifact(temporary, 'synthetic', {
+      timeoutStdoutTail: Buffer.from('safe output'), timeoutStderrTail: Buffer.from('safe diagnostics'),
+    }, {
+      write: () => { throw Object.assign(new Error('simulated artifact publication failure'), { code: 'EACCES', syscall: 'rename' }); },
+    });
+    assert.equal(publication.artifact, null);
+    assert.deepEqual(publication.failure, {
+      code: 'TIMEOUT_OUTPUT_ARTIFACT_PUBLISH_FAILED',
+      systemError: { name: 'Error', code: 'EACCES', message: 'simulated artifact publication failure', syscall: 'rename' },
+    });
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+});
+
 test('proof phases separate doctor, collection, and execution without inventing product counts', () => {
   assert.equal(proofPhase({ mode: 'doctor', tool: 'doctor', toolArguments: [] }), 'doctor');
   assert.equal(proofPhase({ mode: 'run', tool: 'playwright', toolArguments: ['test', '--list'] }), 'collection');
@@ -284,7 +364,7 @@ test('evidence validator fails closed for commit, dirty-source, and collection/e
   const sidecar = path.join(temporary, 'sidecar.json');
   const commit = 'a'.repeat(40);
   const protectedState = { packageJson: { kind: 'file', sha256: 'b'.repeat(64) }, packageLock: { kind: 'file', sha256: 'c'.repeat(64) }, nodeModules: { kind: 'absent' } };
-  const evidence = { harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion }, invocation: { cwd: temporary, project: '.', tool: 'playwright', command: ['node', 'scripts/harness/run-tool.mjs', 'playwright', '.', 'test', '--list'], arguments: ['test', '--list'] }, source: { commit, dirty: false, dirtyFingerprint: 'd'.repeat(64) }, proof: { phase: 'collection', counts: { collected: 1, executed: 0, passed: 0, failed: 0, skipped: 0 } }, protectedState: { before: protectedState, after: protectedState }, classification: 'completed', failureCode: null, exitCode: 0 };
+  const evidence = { harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion }, invocation: { cwd: temporary, project: '.', tool: 'playwright', command: ['node', 'scripts/harness/run-tool.mjs', 'playwright', '.', 'test', '--list'], arguments: ['test', '--list'] }, source: { commit, dirty: false, dirtyFingerprint: 'd'.repeat(64) }, proof: { phase: 'collection', counts: { collected: 1, executed: 0, passed: 0, failed: 0, skipped: 0 } }, protectedState: { before: protectedState, after: protectedState }, classification: 'completed', failureCode: null, exitCode: 0, ...finalEvidenceLifecycle() };
   try {
     fs.writeFileSync(sidecar, JSON.stringify(evidence));
     let result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', 'e'.repeat(40), sidecar], repositoryRoot);
@@ -292,7 +372,11 @@ test('evidence validator fails closed for commit, dirty-source, and collection/e
     evidence.source.commit = commit; evidence.source.dirty = true; fs.writeFileSync(sidecar, JSON.stringify(evidence));
     result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, '--expect-clean', sidecar], repositoryRoot);
     assert.equal(result.status, 1); assert.match(result.stderr, /dirty/u);
-    evidence.source.dirty = false; evidence.proof.phase = 'execution'; fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    evidence.source.dirty = false; evidence.lifecycle.status = 'in_progress'; evidence.lifecycle.finalizedAt = null; fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /unfinished/u);
+    Object.assign(evidence, finalEvidenceLifecycle());
+    evidence.proof.phase = 'execution'; fs.writeFileSync(sidecar, JSON.stringify(evidence));
     result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
     assert.equal(result.status, 1); assert.match(result.stderr, /list-only/u);
     evidence.proof.phase = 'collection'; evidence.failureCode = 'TOOL_TIMEOUT'; fs.writeFileSync(sidecar, JSON.stringify(evidence));
@@ -306,6 +390,29 @@ test('evidence validator fails closed for commit, dirty-source, and collection/e
     evidence.proof = { phase: 'execution', counts: { collected: 2, executed: 2, passed: 1, failed: 0, skipped: 0 } }; fs.writeFileSync(sidecar, JSON.stringify(evidence));
     result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
     assert.equal(result.status, 1); assert.match(result.stderr, /internally inconsistent/u);
+    evidence.proof.counts = { collected: null, executed: null, passed: null, failed: null, skipped: null };
+    evidence.classification = 'harness_transport_failure'; evidence.failureCode = 'DEPENDENCY_CACHE_PUBLISH_FAILED'; evidence.exitCode = 2;
+    evidence.dependencyCachePublication = { operation: 'staging_to_immutable_rename', staging: 'staging', immutableRoot: 'immutable', systemError: { code: '', message: '', syscall: '' } };
+    fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /cache publication facts/u);
+    evidence.classification = 'harness_preflight_failure';
+    evidence.dependencyCachePublication.systemError = { code: 'EACCES', message: 'access denied', syscall: 'rename' };
+    fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 0, result.stderr);
+    evidence.classification = 'completed'; evidence.failureCode = null; evidence.exitCode = 0;
+    fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /publication facts are only valid/u);
+    delete evidence.dependencyCachePublication;
+    evidence.lifecycle.updatedAt = '2025-12-31T23:59:59.000Z';
+    evidence.phaseTimings.capabilityPreparation.startedAt = '2025-12-31T23:59:59.000Z';
+    evidence.phaseTimings.capabilityPreparation.endedAt = '2026-01-01T00:00:01.000Z';
+    evidence.phaseTimings.capabilityPreparation.durationMs = 2000;
+    fs.writeFileSync(sidecar, JSON.stringify(evidence));
+    result = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', commit, sidecar], repositoryRoot);
+    assert.equal(result.status, 1); assert.match(result.stderr, /terminal timestamps|outside lifecycle bounds/u);
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
 
@@ -563,6 +670,13 @@ test('parallel worktrees share immutable dependencies but use attributable isola
     assert.equal(alphaEvidence.runtime.nodeAbi, process.versions.modules);
     assert.equal(typeof alphaEvidence.source.dirtyFingerprint, 'string');
     assert.equal(alphaEvidence.exitCode, 0);
+    assert.equal(alphaEvidence.lifecycle.status, 'final');
+    for (const name of ['dependencyPreparation', 'capabilityPreparation', 'sourceMirror', 'toolExecution', 'finalization']) {
+      assert.equal(alphaEvidence.phaseTimings[name].status, 'completed', name);
+      assert.ok(Number.isInteger(alphaEvidence.phaseTimings[name].durationMs), name);
+    }
+    const accepted = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', alphaEvidence.source.commit, evidencePathFrom(alpha)], repositoryRoot);
+    assert.equal(accepted.status, 0, accepted.stderr);
 
     const zero = await invokeSynthetic(primary, cache, 'alpha', ['--simulate-zero']);
     const startup = await invokeSynthetic(primary, cache, 'alpha', ['--simulate-startup']);
@@ -580,6 +694,73 @@ test('parallel worktrees share immutable dependencies but use attributable isola
   } finally {
     fs.rmSync(container, { recursive: true, force: true });
   }
+});
+
+test('timeout evidence publishes a bounded hashed output artifact while preserving tool stdout', { timeout: 30_000 }, async () => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-timeout-artifact-'));
+  const worktree = path.join(container, 'worktree');
+  const cache = path.join(container, 'cache');
+  try {
+    fs.mkdirSync(worktree);
+    copyHarnessFixture(worktree);
+    fs.writeFileSync(path.join(worktree, 'fixture-project', 'fake-vite-node', 'vite-node.mjs'), `import fs from 'node:fs';
+import path from 'node:path';
+if (process.argv.includes('--simulate-timeout')) {
+  process.stdout.write('OUT' + '€'.repeat(100000));
+  process.stderr.write('ERR' + '€'.repeat(100000));
+  setInterval(() => {}, 1000);
+} else {
+  process.stdout.write(JSON.stringify({ marker: fs.readFileSync(path.join(process.cwd(), 'source-marker.txt'), 'utf8').trim(), arguments: process.argv.slice(2) }) + '\\n');
+}
+`);
+    git(worktree, ['init']);
+    git(worktree, ['add', '.']);
+    git(worktree, ['commit', '-m', 'timeout fixture']);
+    const result = await invokeSynthetic(worktree, cache, 'base', ['--simulate-timeout'], { CODEX_HARNESS_TIMEOUT_MS: '300' });
+    assert.equal(result.status, 124, result.stderr);
+    assert.match(result.stdout, /^OUT/u);
+    assert.doesNotMatch(result.stdout, /HARNESS_EVIDENCE|harness remediation|harness preflight/u);
+    const evidence = evidenceFrom(result);
+    assert.equal(evidence.lifecycle.status, 'final');
+    assert.equal(evidence.failureCode, 'TOOL_TIMEOUT');
+    assert.ok(evidence.timeoutOutputArtifact);
+    const artifact = evidence.timeoutOutputArtifact;
+    const artifactContent = fs.readFileSync(artifact.path);
+    assert.equal(crypto.createHash('sha256').update(artifactContent).digest('hex'), artifact.sha256);
+    assert.equal(artifact.bytes, artifactContent.length);
+    assert.ok(artifact.retainedTailBytes.stdout <= 256 * 1024);
+    assert.ok(artifact.retainedTailBytes.stderr <= 256 * 1024);
+    assert.ok(artifact.bytes <= (2 * 256 * 1024) + 64);
+    assert.equal(JSON.stringify(evidence).includes('OUTOUTOUT'), false, 'the sidecar references output without embedding it');
+    assert.equal(artifactContent.toString('utf8').includes('\uFFFD'), false, 'bounded raw byte tails preserve complete UTF-8 characters');
+    const validation = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', evidence.source.commit, evidencePathFrom(result)], repositoryRoot);
+    assert.equal(validation.status, 0, validation.stderr);
+    const receipt = JSON.parse(validation.stdout).sidecars[0].authoritative;
+    assert.deepEqual(receipt.timeoutOutputArtifact, artifact);
+    assert.deepEqual(receipt.lifecycle, evidence.lifecycle);
+    assert.deepEqual(receipt.phaseTimings, evidence.phaseTimings);
+    assert.deepEqual(receipt.storage, evidence.storage);
+    const sidecarPath = evidencePathFrom(result);
+    const originalSidecar = fs.readFileSync(sidecarPath, 'utf8');
+    const originalArtifactPath = evidence.timeoutOutputArtifact.path;
+    evidence.timeoutOutputArtifact.path = path.join(evidence.storage.artifactRoot, 'wrong-run-id.tool-timeout.log');
+    fs.writeFileSync(sidecarPath, JSON.stringify(evidence));
+    const wrongRun = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', evidence.source.commit, sidecarPath], repositoryRoot);
+    assert.equal(wrongRun.status, 1); assert.match(wrongRun.stderr, /filename.*execution workspace/u);
+    fs.writeFileSync(sidecarPath, originalSidecar);
+    evidence.timeoutOutputArtifact.path = originalArtifactPath;
+    const escaped = path.join(container, 'escaped-timeout.log');
+    fs.copyFileSync(artifact.path, escaped);
+    fs.rmSync(artifact.path);
+    fs.symlinkSync(escaped, artifact.path, 'file');
+    const linked = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', evidence.source.commit, sidecarPath], repositoryRoot);
+    assert.equal(linked.status, 1); assert.match(linked.stderr, /symbolic-link\/reparse/u);
+    fs.rmSync(artifact.path);
+    fs.copyFileSync(escaped, artifact.path);
+    fs.appendFileSync(artifact.path, 'tamper');
+    const tampered = await run(process.execPath, [path.join(repositoryRoot, 'scripts/harness/validate-evidence.mjs'), '--expect-commit', evidence.source.commit, evidencePathFrom(result)], repositoryRoot);
+    assert.equal(tampered.status, 1); assert.match(tampered.stderr, /byte length|SHA-256/u);
+  } finally { fs.rmSync(container, { recursive: true, force: true }); }
 });
 
 test('supported root and Cloudflare package scripts route through the harness', () => {

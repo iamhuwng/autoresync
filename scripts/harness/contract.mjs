@@ -1,7 +1,7 @@
 export const HARNESS_CONTRACT = Object.freeze({
   name: 'luyentap-windows-arm64-harness',
-  version: '3.4.0',
-  protocolVersion: 2,
+  version: '3.5.0',
+  protocolVersion: 3,
   dependencyCacheProtocolVersion: 2,
   defaultSnapshotTimeoutMs: 180000,
   grammar: 'node scripts/harness/run-tool.mjs <tool> <project> [...args]',
@@ -40,6 +40,7 @@ export const HARNESS_CONTRACT = Object.freeze({
     PROJECT_LOCK_ENTRY_MISSING: { summary: 'Repair the selected project lockfile from its manifest.', actions: ['Regenerate only that project lockfile with the approved npm version; review the lockfile diff before retrying.'], verify: 'node scripts/harness/run-tool.mjs --doctor <project> <tool>' },
     NPM_UNAVAILABLE: { summary: 'Reuse npm shipped with the selected x64 Node before installing anything.', discover: ['Inspect the selected Node directory for node_modules\\npm\\bin\\npm-cli.js and npm.cmd.'], reuse: ['Run that npm with the selected x64 Node.'], adapt: ['Place the selected x64 Node directory first on the harness PATH only.'], install: ['Repair or replace the user-local x64 Node distribution only when it does not include npm.'], verify: '& $env:CODEX_X64_NODE "$([IO.Path]::GetDirectoryName($env:CODEX_X64_NODE))\\node_modules\\npm\\bin\\npm-cli.js" --version' },
     DEPENDENCY_INSTALL_FAILED: { summary: 'Use the preserved npm output and staging directory to repair the declared dependency set.', actions: ['Inspect the evidence and npm error first; correct the manifest/lockfile only when they are inconsistent, otherwise retry with a fresh isolated cache root.'], verify: 'node scripts/harness/run-tool.mjs --doctor <project> <tool>' },
+    DEPENDENCY_CACHE_PUBLISH_FAILED: { summary: 'The completed staging cache could not be atomically published as its immutable cache entry.', discover: ['Read dependencyCachePublication.systemError and confirm whether another process, scanner, or filesystem condition blocked the exact staging-to-cache rename.'], reuse: ['Use a complete matching immutable cache entry only if it already exists; do not alter the failed staging directory.'], adapt: ['Set CODEX_HARNESS_ROOT to a fresh isolated cache root for the next invocation.'], install: ['After discovery records the cause, rerun the selected command so npm installs only into a new staging directory; do not delete the failed staging directory or widen permissions.'], verify: 'node scripts/harness/run-tool.mjs --doctor <project> <tool>' },
     DEPENDENCY_CACHE_INCOMPLETE: { summary: 'Prove cache corruption with a fresh cache before removing anything.', actions: ['Set CODEX_HARNESS_ROOT to a new directory and rerun doctor; remove only the exact incomplete cache identity after validating its resolved path.'], verify: 'node scripts/harness/run-tool.mjs --doctor <project> <tool>' },
     DEPENDENCY_CACHE_IDENTITY_MISMATCH: { summary: 'Stop using the stale cache entry and rebuild the exact identity.', actions: ['Rerun with a fresh CODEX_HARNESS_ROOT, then remove only the validated mismatched cache entry.'], verify: 'node scripts/harness/run-tool.mjs --doctor <project> <tool>' },
     DEPENDENCY_LOCK_TIMEOUT: { summary: 'Determine whether another dependency installation is active or abandoned.', actions: ['Inspect running harness/npm processes and the exact lock directory; wait for an active owner, or validate the abandoned exact lock before removing it.'], verify: 'node scripts/harness/run-tool.mjs --doctor <project> <tool>' },

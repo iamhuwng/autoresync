@@ -7,9 +7,17 @@ import { HARNESS_CONTRACT } from './contract.mjs';
 const CLASSIFICATIONS = new Set(HARNESS_CONTRACT.classifications);
 const PHASES = new Set(['doctor', 'collection', 'execution']);
 const PRODUCT_COUNT_NAMES = ['executed', 'passed', 'failed', 'skipped'];
+const TIMING_PHASES = ['dependencyPreparation', 'capabilityPreparation', 'sourceMirror', 'toolExecution', 'finalization'];
+const MAX_TIMEOUT_OUTPUT_TAIL_BYTES = 256 * 1024;
+const TIMEOUT_ARTIFACT_ENVELOPE_BYTES = Buffer.byteLength('--- stdout tail ---\n') + Buffer.byteLength('\n--- stderr tail ---\n');
 const sha256 = (raw) => crypto.createHash('sha256').update(raw).digest('hex');
 const isFullSha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/iu.test(value);
 const isHash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/iu.test(value);
+const isTimestamp = (value) => typeof value === 'string' && Number.isFinite(Date.parse(value));
+const isInside = (parent, candidate) => {
+  const relative = path.relative(parent, candidate);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+};
 
 function parseArguments(argv) {
   const result = { expectCommit: null, expectClean: false, sidecars: [] };
@@ -47,6 +55,112 @@ function protectedPathValid(state, label, errors) {
   if (state.kind === 'link' && (typeof state.target !== 'string' || typeof state.resolvedTarget !== 'string')) errors.push(`${label} link target is incomplete`);
 }
 
+function lifecycleAndTimingValid(evidence, errors) {
+  const lifecycle = evidence.lifecycle;
+  if (!lifecycle || typeof lifecycle !== 'object') {
+    errors.push('evidence lifecycle is missing');
+  } else {
+    if (lifecycle.status !== 'final') errors.push('evidence lifecycle is unfinished and cannot be accepted');
+    if (!isTimestamp(lifecycle.startedAt) || !isTimestamp(lifecycle.updatedAt) || !isTimestamp(lifecycle.finalizedAt)) errors.push('evidence lifecycle timestamps are incomplete');
+    else if (Date.parse(lifecycle.startedAt) > Date.parse(lifecycle.updatedAt) || lifecycle.updatedAt !== lifecycle.finalizedAt) errors.push('evidence lifecycle terminal timestamps are inconsistent');
+  }
+  const timings = evidence.phaseTimings;
+  if (!timings || typeof timings !== 'object') {
+    errors.push('phase timings are missing');
+    return;
+  }
+  let previousEndedAt = null;
+  for (const name of TIMING_PHASES) {
+    const phase = timings[name];
+    if (!phase || typeof phase !== 'object' || !['not_started', 'completed', 'aborted'].includes(phase.status)) {
+      errors.push(`phase timing ${name} is incomplete`);
+      continue;
+    }
+    if (phase.status === 'not_started') {
+      if (phase.startedAt !== null || phase.endedAt !== null || phase.durationMs !== null) errors.push(`phase timing ${name} not_started state is inconsistent`);
+      continue;
+    }
+    if (!isTimestamp(phase.startedAt) || !isTimestamp(phase.endedAt) || !Number.isInteger(phase.durationMs) || phase.durationMs < 0) {
+      errors.push(`phase timing ${name} is invalid`);
+      continue;
+    }
+    const startedAt = Date.parse(phase.startedAt);
+    const endedAt = Date.parse(phase.endedAt);
+    if (endedAt < startedAt || phase.durationMs !== endedAt - startedAt) errors.push(`phase timing ${name} duration is inconsistent`);
+    if (lifecycle && isTimestamp(lifecycle.startedAt) && isTimestamp(lifecycle.finalizedAt) && (startedAt < Date.parse(lifecycle.startedAt) || endedAt > Date.parse(lifecycle.finalizedAt))) errors.push(`phase timing ${name} falls outside lifecycle bounds`);
+    if (previousEndedAt !== null && startedAt < previousEndedAt) errors.push(`phase timing ${name} overlaps a prior phase`);
+    previousEndedAt = endedAt;
+  }
+  if (timings.finalization?.status !== 'completed') errors.push('finalization timing is not completed');
+  if (lifecycle && isTimestamp(lifecycle.startedAt) && isTimestamp(lifecycle.finalizedAt)) {
+    if (Date.parse(lifecycle.finalizedAt) < Date.parse(lifecycle.startedAt)) errors.push('evidence lifecycle bounds are inconsistent');
+    if (previousEndedAt !== null && Date.parse(lifecycle.finalizedAt) < previousEndedAt) errors.push('evidence lifecycle finalized before phase completion');
+  }
+}
+
+function timeoutArtifactValid(evidence, errors) {
+  const hasArtifact = evidence.timeoutOutputArtifact !== undefined && evidence.timeoutOutputArtifact !== null;
+  const hasTimeoutOutputMaterial = hasArtifact || evidence.timeoutOutputArtifactFailure !== undefined;
+  const timeoutSemantics = evidence.lifecycle?.status === 'final'
+    && evidence.classification === 'harness_transport_failure'
+    && evidence.exitCode === 124
+    && evidence.failureCode === 'TOOL_TIMEOUT'
+    && evidence.proof?.phase === 'execution';
+  if (hasTimeoutOutputMaterial && !timeoutSemantics) errors.push('timeout output artifact is only valid for final TOOL_TIMEOUT transport evidence');
+  if (evidence.failureCode !== 'TOOL_TIMEOUT') return;
+  if (!timeoutSemantics) errors.push('TOOL_TIMEOUT evidence must be final harness_transport_failure exit 124 with execution proof');
+  if (evidence.timeoutOutputArtifactFailure !== undefined && (!evidence.timeoutOutputArtifactFailure || evidence.timeoutOutputArtifactFailure.code !== 'TIMEOUT_OUTPUT_ARTIFACT_PUBLISH_FAILED' || !evidence.timeoutOutputArtifactFailure.systemError || typeof evidence.timeoutOutputArtifactFailure.systemError !== 'object')) errors.push('TOOL_TIMEOUT artifact publication failure facts are invalid');
+  const artifact = evidence.timeoutOutputArtifact;
+  if (!artifact || typeof artifact.path !== 'string' || !isHash(artifact.sha256) || !Number.isInteger(artifact.bytes) || artifact.bytes < 0) {
+    errors.push('TOOL_TIMEOUT evidence lacks a valid output artifact reference');
+    return;
+  }
+  if (!artifact.retainedTailBytes || !Number.isInteger(artifact.retainedTailBytes.stdout) || !Number.isInteger(artifact.retainedTailBytes.stderr) || artifact.retainedTailBytes.stdout < 0 || artifact.retainedTailBytes.stderr < 0 || artifact.retainedTailBytes.stdout > MAX_TIMEOUT_OUTPUT_TAIL_BYTES || artifact.retainedTailBytes.stderr > MAX_TIMEOUT_OUTPUT_TAIL_BYTES || artifact.bytes !== artifact.retainedTailBytes.stdout + artifact.retainedTailBytes.stderr + TIMEOUT_ARTIFACT_ENVELOPE_BYTES) errors.push('TOOL_TIMEOUT artifact retained-tail bounds are invalid');
+  const storage = evidence.storage;
+  if (!storage || !path.isAbsolute(storage.privateRoot || '') || !path.isAbsolute(storage.artifactRoot || '') || !path.isAbsolute(artifact.path)) {
+    errors.push('TOOL_TIMEOUT artifact storage roots are invalid');
+    return;
+  }
+  const privateRoot = path.resolve(storage.privateRoot);
+  const artifactRoot = path.resolve(storage.artifactRoot);
+  const artifactPath = path.resolve(artifact.path);
+  if (!isInside(privateRoot, artifactRoot) || !isInside(artifactRoot, artifactPath)) {
+    errors.push('TOOL_TIMEOUT artifact path escapes the recorded private harness root');
+    return;
+  }
+  const runId = evidence.executionWorkspace?.identity;
+  if (typeof runId !== 'string' || !runId || path.basename(artifactPath) !== `${runId}.tool-timeout.log`) errors.push('TOOL_TIMEOUT artifact filename is not bound to the execution workspace identity');
+  try {
+    const artifactRootMetadata = fs.lstatSync(artifactRoot);
+    const artifactMetadata = fs.lstatSync(artifactPath);
+    if (artifactRootMetadata.isSymbolicLink() || artifactMetadata.isSymbolicLink()) errors.push('TOOL_TIMEOUT artifact root or file is a symbolic-link/reparse path');
+    if (!artifactMetadata.isFile()) errors.push('TOOL_TIMEOUT artifact is not a regular file');
+    const realPrivateRoot = fs.realpathSync.native(privateRoot);
+    const realArtifactRoot = fs.realpathSync.native(artifactRoot);
+    const realArtifactPath = fs.realpathSync.native(artifactPath);
+    if (!isInside(realPrivateRoot, realArtifactRoot) || !isInside(realArtifactRoot, realArtifactPath)) errors.push('TOOL_TIMEOUT artifact resolves outside the recorded private harness root');
+    const raw = fs.readFileSync(realArtifactPath);
+    if (raw.length !== artifact.bytes) errors.push('TOOL_TIMEOUT artifact byte length does not match evidence');
+    if (sha256(raw) !== artifact.sha256) errors.push('TOOL_TIMEOUT artifact SHA-256 does not match evidence');
+  } catch (error) {
+    errors.push(`TOOL_TIMEOUT artifact is unreadable: ${error.message}`);
+  }
+}
+
+function cachePublicationValid(evidence, errors) {
+  const hasPublication = evidence.dependencyCachePublication !== undefined && evidence.dependencyCachePublication !== null;
+  const publicationSemantics = evidence.lifecycle?.status === 'final'
+    && evidence.classification === 'harness_preflight_failure'
+    && evidence.failureCode === 'DEPENDENCY_CACHE_PUBLISH_FAILED'
+    && Number.isInteger(evidence.exitCode)
+    && evidence.exitCode !== 0;
+  if (hasPublication && !publicationSemantics) errors.push('dependency cache publication facts are only valid for final dependency-cache preflight failure evidence');
+  if (evidence.failureCode !== 'DEPENDENCY_CACHE_PUBLISH_FAILED') return;
+  if (!publicationSemantics) errors.push('DEPENDENCY_CACHE_PUBLISH_FAILED evidence has invalid classification or exitCode');
+  const publication = evidence.dependencyCachePublication;
+  if (!publication || publication.operation !== 'staging_to_immutable_rename' || typeof publication.staging !== 'string' || !publication.staging || typeof publication.immutableRoot !== 'string' || !publication.immutableRoot || !publication.systemError || typeof publication.systemError !== 'object' || typeof publication.systemError.code !== 'string' || !publication.systemError.code || typeof publication.systemError.message !== 'string' || !publication.systemError.message || typeof publication.systemError.syscall !== 'string' || !publication.systemError.syscall) errors.push('dependency cache publication facts are incomplete');
+}
+
 function validateSidecar(sidecar, options) {
   const errors = [];
   let raw;
@@ -66,6 +180,9 @@ function validateSidecar(sidecar, options) {
     if (options.expectClean && evidence.source.dirty) errors.push('source is dirty but --expect-clean was required');
   }
   if (!CLASSIFICATIONS.has(evidence.classification)) errors.push('classification is not stable');
+  lifecycleAndTimingValid(evidence, errors);
+  timeoutArtifactValid(evidence, errors);
+  cachePublicationValid(evidence, errors);
   if (!Number.isInteger(evidence.exitCode) || evidence.exitCode < 0) errors.push('exitCode is invalid');
   if (evidence.classification === 'completed' && (evidence.exitCode !== 0 || evidence.failureCode !== null)) errors.push('completed evidence must have exitCode 0 and no failureCode');
   if (evidence.classification === 'product_failure' && (evidence.exitCode === 0 || evidence.failureCode !== null)) errors.push('product_failure evidence must have a nonzero exitCode and no failureCode');
@@ -120,6 +237,12 @@ function validateSidecar(sidecar, options) {
       source: evidence.source,
       proof: evidence.proof,
       protectedState: evidence.protectedState,
+      lifecycle: evidence.lifecycle,
+      phaseTimings: evidence.phaseTimings,
+      storage: evidence.storage,
+      timeoutOutputArtifact: evidence.timeoutOutputArtifact ?? null,
+      timeoutOutputArtifactFailure: evidence.timeoutOutputArtifactFailure ?? null,
+      dependencyCachePublication: evidence.dependencyCachePublication ?? null,
       classification: evidence.classification,
       failureCode: evidence.failureCode,
       exitCode: evidence.exitCode,

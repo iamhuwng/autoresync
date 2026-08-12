@@ -5,7 +5,7 @@ description: Run, diagnose, and resolve this repository's test, build, dev, brow
 
 # Run Windows ARM64 Tools
 
-Use the repository-versioned harness contract. Contract version `3.4.0`, this
+Use the repository-versioned harness contract. Contract version `3.5.0`, this
 skill, and `scripts/harness/` must land in the same commit lineage.
 
 ## Fail-closed lineage preflight
@@ -23,7 +23,7 @@ exact root, require all of:
 - `scripts/harness/run-wsl-wrangler.mjs`.
 
 Run `node scripts/harness/run-tool.mjs --contract` and require name
-`luyentap-windows-arm64-harness`, version `3.4.0`, protocol `2`, and grammar
+`luyentap-windows-arm64-harness`, version `3.5.0`, protocol `3`, and grammar
 `<tool> <project> [...args]`. If any file or value differs, report
 `HARNESS_CONTRACT_MISMATCH` with the checkout root. Do not borrow a runner or
 skill from another checkout or fall back to repository `node_modules`.
@@ -105,11 +105,14 @@ Common recovery paths are executable contract data rather than duplicated prose:
 ## Evidence and result truth
 
 Harness diagnostics use stderr. Tool stdout is preserved. Every started invocation
-writes a JSON evidence sidecar and prints its `HARNESS_EVIDENCE <path>` locator
-with concise diagnostics to stderr. The record identifies contract/protocol, command/cwd/project,
+atomically publishes and announces an `in_progress` JSON evidence sidecar before
+dependency preparation, source mirroring, or tool work, then atomically marks it
+`final` at completion. An interrupted in-progress sidecar is diagnostic only and
+cannot be accepted as evidence. The record identifies contract/protocol, command/cwd/project,
 source commit and dirty fingerprint, Node architecture/version/ABI, immutable
 dependency cache, unique execution workspace, exit code, and classification.
-Every sidecar also records `proof.phase` as `doctor`, `collection`, or
+Every sidecar also records phase timestamps/durations for dependency preparation,
+source mirroring, capability/tool work, and finalization; `proof.phase` as `doctor`, `collection`, or
 `execution`, plus protected selected-project state before and after for
 `package.json`, `package-lock.json`, and `node_modules`. Playwright `test
 --list` is collection only: it is not product execution and its product counts
@@ -134,6 +137,14 @@ It requires direct Vite package-script routing and project-local dependency
 context. A `node_modules` link resolving outside the selected project is an
 invalid context, not a cleanup target. With a URL, TCP listener and HTTP
 response readiness are separate observations.
+
+For `TOOL_TIMEOUT`, the final sidecar references a hash-verified bounded tail
+artifact containing forwarded child output. Its content is never repeated in the
+sidecar because tool output can contain secrets.
+Timeout artifacts and sidecars are written with owner-only intent where the
+platform supports it. They are sensitive local diagnostics: retain them only as
+long as the investigation needs them, then manually remove the exact validated
+cache root. The harness never deletes artifacts automatically.
 
 Stable classifications are:
 
