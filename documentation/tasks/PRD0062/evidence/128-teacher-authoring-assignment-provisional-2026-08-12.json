@@ -30,7 +30,7 @@
   "verdict": "PROVISIONAL BLOCKED; the latest primary serial teacher run reached four tests but produced no authenticated product assertions. The earlier mirror/cache defect is superseded; current browser execution requires an operator-provided clean checkout with project-local dependencies and valid authenticated test context. Positive activation remains held by #126.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
-    "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
+    "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
     "rulesSuiteSha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
     "ticket126": { "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE", "commit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2", "activationIdentitySha256": null },
     "ticket127": {

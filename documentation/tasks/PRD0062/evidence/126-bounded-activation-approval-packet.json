@@ -39,11 +39,11 @@
     },
     "generatedRules": {
       "path": "database.rules.json",
-      "sha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3"
+      "sha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b"
     },
     "rollbackRules": {
       "path": "firebase.prd0062-118-rules.rollback.json",
-      "sha256": "eee439945765b7e9cd8ce22ca11802cf3c1632c92f8324fba8c5b01da322a25a"
+      "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
     },
     "rulesTupleChanged": false
   },

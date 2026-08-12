@@ -80,7 +80,7 @@
   "verdict": "#118 tuple is unchanged and reusable. Fresh-root doctor recovered cache publication, but the bounded #132 execution ended in a sidecar-supported harness transport timeout with null counts. Separately hashed logs corroborate tool startup only; no product verdict is authoritative, and this is not full AC-SC-001 or ticket closure.",
   "authority": {
     "appCommit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2",
-    "generatedRulesSha256": "0d2a0448d4759fcbccbfaf0bab686160eaebc2494bec3be3a25e4178b803a3f3",
+    "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
     "rulesSuiteSha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
     "ticket126": { "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE", "commit": "2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2", "activationIdentitySha256": null },
     "ticket127": {
