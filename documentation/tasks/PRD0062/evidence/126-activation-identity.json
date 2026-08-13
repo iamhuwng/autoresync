@@ -1,7 +1,7 @@
 {
   "artifactKind": "prd0062-126-bounded-activation-identity",
   "schemaVersion": 1,
-  "status": "canonical-identities-recorded-awaiting-explicit-activation-approval",
+  "status": "canonical-identities-used-for-approved-attempt-rollback-active",
   "sourceCommit": "36f29698f67bb658134510c94cbb8e0827009bcb",
   "scope": {
     "teacher": {
@@ -19,7 +19,10 @@
       "identityKind": "deterministic-new-book",
       "sourcePdfPath": "C:\\Users\\The Lord\\Downloads\\Documents\\Vocab-U1.pdf",
       "sourcePdfSha256": "d43935c735245dc82de93ae7068f4a556560be366299a7609649d2f0960a0266",
-      "bytesCommitted": false
+      "bytesCommitted": true,
+      "sourceVersionId": "source-version-05dc3edf26be3f6b",
+      "physicalPageCountObservedByInspection": 4,
+      "privateSourceBoundary": "backblaze-b2-bookpdf"
     },
     "assignment": {
       "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
@@ -52,10 +55,13 @@
     }
   },
   "activation": {
-    "approved": false,
+    "approved": true,
     "activated": false,
-    "remoteMutation": false,
-    "deployment": false,
-    "remoteReadback": "not-performed"
+    "remoteMutation": true,
+    "deployment": true,
+    "remoteReadback": "source-verified-publication-failed-closed-rollback-verified",
+    "assignmentCreated": false,
+    "studentAccountCreated": false,
+    "currentState": "all-deny-rollback-active"
   }
 }

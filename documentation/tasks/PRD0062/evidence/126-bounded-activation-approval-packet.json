@@ -1,14 +1,14 @@
 {
   "artifactKind": "prd0062-126-bounded-activation-approval-packet",
   "schemaVersion": 1,
-  "status": "exact-activation-packet-awaiting-explicit-approval-not-activated",
+  "status": "approved-activation-executed-publication-blocked-rollback-active",
   "approvalBoundary": {
     "candidateApplicationCommit": "98778f1f47b36f06671e53ab6b9f49f9b5843be3",
     "implementationCommit": "98778f1f47b36f06671e53ab6b9f49f9b5843be3",
     "priorEvidenceCheckpointCommit": "35a83fbb234a7a831c53901cdcae0b033f74466a",
     "remoteMutation": true,
     "deployment": true,
-    "activation": false,
+    "activation": true,
     "push": false,
     "pullRequest": false
   },
@@ -53,7 +53,7 @@
     "templatePath": "documentation/tasks/PRD0062/evidence/126-bounded-pilot-scope.template.json",
     "templateSha256": "e703f4ea369eb84643f4f687a9b32a53611eefcd651d0141deba77e41cea70b8",
     "identityPath": "documentation/tasks/PRD0062/evidence/126-activation-identity.json",
-    "identitySha256": "4a864864beb1a7363c249945331ad882789f80596bc25dcb25aca00ba7b9c5cf",
+    "identitySha256": "0309ab3fff79707606385dd6cb1ec559572894db73d9e8f7e4383ff61b978253",
     "activationConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
     "activationConfigSha256": "9363894e003cfb8643b8f1fe08126b78776f77d3b70be2d5d515bfc79148525e",
     "rollbackConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
@@ -360,6 +360,29 @@
       "rollbackStatus": "verified active at 100 percent with every relevant route disabled and all six actions denied",
       "correctiveChange": "candidate commit 98778f1f47b36f06671e53ab6b9f49f9b5843be3 adds the exact production origin binding and a config-level regression test; no Reading V2 product code changed"
     },
+    "approvedCorrectedActivationOutcome": {
+      "approvalPacketSha256": "f386107be420fec23b9a889df553b770828d47444d02a29b21223f4930777b78",
+      "activationVersion": "3e30f523-a11f-4133-af9d-ea4cd77bd3d1",
+      "activationStatus": "verified active at 100 percent for the exact approved corrected configuration before governed workflow execution",
+      "sourceUpload": {
+        "status": "verified_completed",
+        "bookId": "book-vocab-u1-d43935c735245dc8",
+        "sourceVersionId": "source-version-05dc3edf26be3f6b",
+        "privateBoundary": "accepted private Backblaze B2 Book source only; no public kahoot-media source route",
+        "physicalPageCountObservedByInspection": 4,
+        "assignmentCreated": false
+      },
+      "publicationPreflight": {
+        "status": 503,
+        "code": "book_full_pdf_publication_dependencies_unavailable",
+        "mutation": false,
+        "rootCause": "canonical #59 production composition lacks trusted Book/Source Version authority, durable preview approval, Activity projection, and source-readiness adapters; the accepted #118 rules expose no production-safe path to derive those authorities"
+      },
+      "rollbackVersion": "e465c35e-44e7-46af-9ba8-47038ed952b0",
+      "rollbackStatus": "verified active at 100 percent with every relevant route disabled and all six actions denied",
+      "retainedRemoteState": "the deterministic private draft Book and verified private Source Version remain; no Book Homework assignment or student account was created",
+      "decision": "stop before changing the immutable #118 tuple or reactivating; repair the upstream trusted authority contracts and regenerate an exact approval packet"
+    },
     "dryRun": {
       "status": "native-wsl-exact-dry-runs-pass-no-deployment",
       "source": "mounted authoritative checkout at application commit 98778f1f47b36f06671e53ab6b9f49f9b5843be3 with the committed corrected configs",
@@ -376,10 +399,11 @@
       "protectedState": "mounted checkout has no Linux dependencies, generated emulator logs, or build output; package manifests and locks are unchanged"
     },
     "blockers": [
-      "corrected Worker deployment and pilot activation require renewed explicit approval against this exact application/configuration tuple",
+      "the approved corrected activation was executed and rolled back after the canonical full-PDF publication route failed closed before publication or assignment mutation",
+      "Component 02/03 and #59 trusted authority contracts require repair; any resulting #118 or configuration identity change requires a new exact packet and explicit activation approval",
       "Book Source remains isolated from the public kahoot-media R2 binding. Accepted lineage already proves the private Backblaze B2 bookpdf source boundary; the activation must use only its deployment-only credentials and exact saved storage identity.",
       "the time-bounded activation and rollback configurations expire at 2026-08-13T22:40:00.000Z and must be regenerated and rehashed if approval occurs after expiry"
     ]
   },
-  "unresolvedApproval": "Explicit activation approval is required against the exact application commit and hashes in this packet. Approval must authorize Worker deployment/activation and the governed creation/readback workflow only; it does not authorize #134, #135, push, PR, new student accounts, or scope expansion."
+  "unresolvedApproval": "The approval represented by this packet was consumed by the recorded corrected activation attempt and rollback. It does not authorize a rules/schema/configuration repair, another activation, #134, #135, push, PR, new student accounts, or scope expansion."
 }
