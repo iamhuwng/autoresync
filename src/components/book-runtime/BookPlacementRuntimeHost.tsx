@@ -20,7 +20,8 @@ import { useNavigation } from '../../hooks/useNavigation';
 
 export interface BookPlacementRuntimeHostProps {
   readonly projection: BookRuntimeDeliveryProjection;
-  readonly activityClient?: Pick<BookActivityLaunchBrowserClient, 'readActivities'>;
+  readonly activityClient?: Pick<BookActivityLaunchBrowserClient, 'readActivities'>
+    & Partial<Pick<BookActivityLaunchBrowserClient, 'readHomeworkActivities'>>;
   readonly registry?: ActivityRendererRegistry;
   readonly viewer?: BookRuntimeViewerAdapter;
   readonly launchError?: string | null;
@@ -150,7 +151,17 @@ export const BookPlacementRuntimeHost = ({
     setActivities([]);
     setResponses({});
 
-    void client.readActivities(launchInput)
+    const load = projection.context.kind === 'homework'
+      ? client.readHomeworkActivities?.({
+        assignmentId: projection.context.contextId,
+        placements: projection.activities.map((activity) => ({
+          placementId: activity.placementId,
+          activityId: activity.activityId,
+          activityVersionId: activity.activityVersionId,
+        })),
+      }) ?? Promise.reject(new Error('book_homework_context_unavailable'))
+      : client.readActivities(launchInput);
+    void load
       .then((loaded) => {
         if (!mounted) return;
         setActivities(loaded);
@@ -165,7 +176,7 @@ export const BookPlacementRuntimeHost = ({
     return () => {
       mounted = false;
     };
-  }, [client, launchError, launchInput]);
+  }, [client, launchError, launchInput, projection]);
 
   if (loading) {
     return <StateView title="Loading Book" message="Loading the published Activities for this Book." onReturn={returnToEntry} />;

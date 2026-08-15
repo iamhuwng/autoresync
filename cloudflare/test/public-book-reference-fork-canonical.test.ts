@@ -782,7 +782,15 @@ describe('canonical fork rule composition', () => {
       'replace-exact-deny',
     );
     expect(canonicalRead.expression).not.toContain('newData');
-    expect(canonicalRead.expression).not.toContain('!data.exists()');
+    expect(canonicalRead.expression).toContain(
+      "auth.token.book_activity_publication_writer_service == true && !data.exists()",
+    );
+    expect(canonicalRead.expression).toContain(
+      'auth.token.book_activity_publication_writer_activityId == $activityId',
+    );
+    expect(canonicalRead.expression).toContain(
+      'auth.token.book_activity_publication_writer_activityVersionId == $versionId',
+    );
     expect(canonical.expression).toContain("!data.exists()");
     expect(canonical.expression).toContain("newData.hasChildren(['schemaVersion', 'lifecycle', 'activityId'");
     expect(canonical.expression).toContain("newData.child('activityVersion').val() == 1");

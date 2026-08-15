@@ -14,6 +14,8 @@ import {
 } from '../services/homeworkSubmissionService';
 import { getHomeworkById } from '../services/homeworkManager';
 import type { HomeworkSubmission, HomeworkAssignment } from '../types/homework.types';
+import type { ClassSummary } from '../types/class.types';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 
 // ============================================================================
 // TYPES
@@ -123,9 +125,11 @@ export function useHomeworkSubmission({
         : false;
 
     const hasInProgressAttempt = currentSubmission !== null;
+    const isBookHomework = isBookHomeworkCompatibilityProjection(homework);
 
     const canStartAttempt =
         homework !== null &&
+        !isBookHomework &&
         homework.status !== 'closed' &&
         isAvailable &&
         !hasInProgressAttempt &&
@@ -144,20 +148,27 @@ export function useHomeworkSubmission({
             setIsLoading(true);
             setError(null);
 
-            // Load homework and submissions in parallel
-            const [homeworkData, submissionsData] = await Promise.all([
-                getHomeworkById(homeworkId),
-                getStudentSubmissionsForHomework(homeworkId, studentId)
-            ]);
+            const homeworkData = await getHomeworkById(homeworkId);
 
             if (!isMounted.current) return;
 
             if (!homeworkData) {
+                // Preserve the ordinary missing-record submission read performed
+                // by the legacy parallel loader. Only a validated Book shell
+                // suppresses the legacy submission boundary.
+                await getStudentSubmissionsForHomework(homeworkId, studentId);
+                if (!isMounted.current) return;
                 setError('Homework not found');
                 setHomework(null);
                 setAllSubmissions([]);
                 return;
             }
+
+            const submissionsData = isBookHomeworkCompatibilityProjection(homeworkData)
+                ? []
+                : await getStudentSubmissionsForHomework(homeworkId, studentId);
+
+            if (!isMounted.current) return;
 
             setHomework(homeworkData);
             // Sort by attemptNumber descending (most recent first)
@@ -302,6 +313,8 @@ export interface UseStudentHomeworkListReturn {
 
 export interface UseStudentHomeworkListOptions {
     enabled?: boolean;
+    /** Canonical shell-owned membership input. Omit for callers outside the shell provider. */
+    studentClasses?: readonly Pick<ClassSummary, 'id'>[];
 }
 
 export function useStudentHomeworkList(
@@ -313,6 +326,7 @@ export function useStudentHomeworkList(
     const [isLoading, setIsLoading] = useState(Boolean(studentId) && enabled);
     const [error, setError] = useState<string | null>(null);
     const isMounted = useRef(true);
+    const lastSuccessfulStudentIdRef = useRef<string | null>(null);
 
     const loadData = useCallback(async () => {
         if (!enabled || !studentId) {
@@ -325,12 +339,15 @@ export function useStudentHomeworkList(
         }
 
         try {
-            setIsLoading(true);
+            setIsLoading(lastSuccessfulStudentIdRef.current !== studentId);
             setError(null);
 
-            // Import dynamically to avoid circular dependency
-            const { getStudentHomeworkList } = await import('../services/homeworkSubmissionService');
-            const items = await getStudentHomeworkList(studentId);
+            const { getBookCompatibleStudentHomeworkList } = await import(
+                '../services/book-homework/bookHomeworkStudentList.service'
+            );
+            const items = await getBookCompatibleStudentHomeworkList(studentId, {
+                studentClasses: options.studentClasses,
+            });
 
             if (!isMounted.current) return;
 
@@ -375,6 +392,7 @@ export function useStudentHomeworkList(
             });
 
             setHomeworkItems(transformedItems);
+            lastSuccessfulStudentIdRef.current = studentId;
         } catch (err) {
             if (!isMounted.current) return;
             console.error('Error loading student homework list:', err);
@@ -384,13 +402,14 @@ export function useStudentHomeworkList(
                 setIsLoading(false);
             }
         }
-    }, [enabled, studentId]);
+    }, [enabled, options.studentClasses, studentId]);
 
     useEffect(() => {
         isMounted.current = true;
         if (enabled && studentId) {
             void loadData();
         } else {
+            lastSuccessfulStudentIdRef.current = null;
             setHomeworkItems([]);
             setError(null);
             setIsLoading(false);

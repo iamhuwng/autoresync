@@ -25,6 +25,7 @@ import {
     getTeacherBookHomeworkProgress,
     resetStudentHomework,
 } from '../services/homeworkSubmissionService';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import { isBookHomeworkAssignment } from '../services/book-homework/bookHomeworkManifest.service';
 import { updateHomework, updateStudentOverride } from '../services/homeworkManager';
 import { sendTrustedHomeworkReminderNotification } from '../services/notificationProducerClient';
@@ -79,7 +80,7 @@ export function TeacherBookHomeworkProgressPanel({
     onGradeActivity,
     onViewIntegrity,
 }: {
-    rows: readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null;
+    rows: readonly { studentId: string; completion: BookHomeworkProgressProjection | null }[] | null;
     error: string | null;
     studentNames: ReadonlyMap<string, string>;
     onBack: () => void;
@@ -134,7 +135,9 @@ export function TeacherBookHomeworkProgressPanel({
             ) : (
                 <div style={{ display: 'grid', gap: '0.85rem' }}>
                     {rows.map(({ studentId, completion }) => {
-                        const completionLabel = getBookCompletionLabel(completion.completion.status);
+                        const completionLabel = completion
+                            ? getBookCompletionLabel(completion.completion.status)
+                            : 'Book progress unavailable';
                         return (
                             <article
                                 key={studentId}
@@ -162,6 +165,8 @@ export function TeacherBookHomeworkProgressPanel({
                                     </span>
                                 </div>
 
+                                {completion ? (
+                                <>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '0.65rem' }}>
                                     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '0.7rem' }}>
                                         <div style={{ color: '#64748b', fontSize: '0.78rem' }}>Activities submitted</div>
@@ -234,6 +239,13 @@ export function TeacherBookHomeworkProgressPanel({
                                                 </div>
                                             ))}
                                         </div>
+                                    </div>
+                                )}
+                                </>
+                                ) : (
+                                    <div role="status" style={{ color: '#475569', lineHeight: 1.5 }}>
+                                        <strong style={{ color: '#334155' }}>Book progress unavailable</strong>
+                                        <p style={{ margin: '0.35rem 0 0' }}>No authoritative completion projection is available for this student yet.</p>
                                     </div>
                                 )}
                             </article>
@@ -352,7 +364,7 @@ function TeacherHomeworkDetailPage() {
     const [noteTarget, setNoteTarget] = useState<HomeworkSubmissionTableRow | null>(null);
     // PRD-0036: Integrity detail panel state
     const [selectedIntegrity, setSelectedIntegrity] = useState<{ report: HomeworkIntegrity; studentName: string } | null>(null);
-    const [bookProgressRows, setBookProgressRows] = useState<readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null>(null);
+    const [bookProgressRows, setBookProgressRows] = useState<readonly { studentId: string; completion: BookHomeworkProgressProjection | null }[] | null>(null);
     const [bookProgressLoading, setBookProgressLoading] = useState(false);
     const [bookProgressError, setBookProgressError] = useState<string | null>(null);
     const [bookProgressAttempted, setBookProgressAttempted] = useState(false);
@@ -369,15 +381,18 @@ function TeacherHomeworkDetailPage() {
     } | null>(null);
     const bookProgressRequestRef = useRef<{
         key: string;
-        promise: Promise<readonly { studentId: string; completion: BookHomeworkProgressProjection }[] | null>;
+        promise: Promise<readonly { studentId: string; completion: BookHomeworkProgressProjection | null }[] | null>;
     } | null>(null);
 
-    const isBookHomework = Boolean(
+    const homeworkCandidate: unknown = homework;
+    const isBookCompatibilityHomework = isBookHomeworkCompatibilityProjection(homeworkCandidate);
+    const isExistingBookHomework = Boolean(
         homework
         && isBookHomeworkAssignment(
             homework as unknown as Parameters<typeof isBookHomeworkAssignment>[0],
         ),
     );
+    const isBookHomework = isBookCompatibilityHomework || isExistingBookHomework;
     const bookEvaluationPresentationEnabled = isBookActivityEvaluationPresentationEnabled();
 
     // Book Homework progress is a single trusted batch projection. It is
@@ -417,6 +432,11 @@ function TeacherHomeworkDetailPage() {
                 if (!cancelled) {
                     setBookProgressRows(projectionRows);
                     if (!projectionRows) {
+                        // A missing projection is transient/unavailable, not a cacheable success.
+                        if (bookProgressRequestRef.current?.key === requestKey
+                            && bookProgressRequestRef.current.promise === progressRequest) {
+                            bookProgressRequestRef.current = null;
+                        }
                         setBookProgressError('Book progress is not available for this assignment.');
                     }
                 }
@@ -561,7 +581,7 @@ function TeacherHomeworkDetailPage() {
         const inProgressCount = eligibleRows.filter((row) => row.status === 'in_progress').length;
         const notStartedCount = eligibleRows.filter((row) => row.status === 'not_started').length;
         const exemptedCount = rows.filter((row) => row.isExempted).length;
-        const totalAssigned = eligibleRows.length || homework?.stats.totalAssigned || 0;
+        const totalAssigned = eligibleRows.length || homework?.stats?.totalAssigned || 0;
         const onTimeCount = submittedRows.filter((row) => !row.isLate).length;
         const lateCount = submittedRows.filter((row) => row.isLate).length;
         const completionRate = totalAssigned > 0
@@ -569,7 +589,7 @@ function TeacherHomeworkDetailPage() {
             : 0;
         const averageScore = scoredRows.length > 0
             ? Math.round(scoredRows.reduce((sum, row) => sum + (row.score ?? 0), 0) / scoredRows.length)
-            : typeof homework?.stats.averageScore === 'number'
+            : typeof homework?.stats?.averageScore === 'number'
                 ? Math.round(homework.stats.averageScore)
                 : null;
         const needsAttentionCount = rows.filter((row) => {
@@ -982,6 +1002,7 @@ function TeacherHomeworkDetailPage() {
                             }}
                             onRetry={() => {
                                 trackAction('bookHomeworkProgressRetry', { role: 'teacher' });
+                                bookProgressRequestRef.current = null;
                                 setBookProgressRetry((value) => value + 1);
                             }}
                             onGradeActivity={bookEvaluationPresentationEnabled && bookManifest

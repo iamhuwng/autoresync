@@ -1,0 +1,107 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-reconciliation-checkpoint",
+  "schemaVersion": 1,
+  "status": "inactive-versions-validated-ready-to-reconcile",
+  "createdAt": "2026-08-13T23:26:00Z",
+  "expiresAt": "2026-08-14T11:25:00Z",
+  "standingAuthority": {
+    "path": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md",
+    "scope": "Phases A through D production-normal recovery",
+    "productionRecoveryAuthority": true,
+    "fullPrdCompletionAuthority": false
+  },
+  "predecessors": [
+    "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v15-retry-checkpoint-2026-08-14.json",
+    "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v15-publication-failure-result-2026-08-14.json"
+  ],
+  "sourceIdentity": {
+    "gitCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "modifiedPathCountBeforeCheckpoint": 64,
+    "untrackedPathCountBeforeCheckpoint": 115,
+    "dirtyStatusSha256BeforeCheckpoint": "a7d8bb4e247080ee0a94f8b4204d0591b792b2ad5faa82385923fada7538858e",
+    "binaryDiffSha256BeforeCheckpointExcludingUnrelatedJson": "7e6727e71b33c9f5d84e8eb8fc56f0b54f174247e575e49706ed381af697756f",
+    "untrackedPathListSha256BeforeCheckpoint": "b573f6063d7fcfcdf95f2420c363ea1b42cc935e3684917940fd474f11c05458",
+    "unrelatedDirtyPathExcluded": "json"
+  },
+  "workerArtifact": {
+    "entrypointSha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+    "bundlePath": "tmp/prd0062-v16-final2-activation-dryrun-20260814/worker.js",
+    "bundleSha256": "74917da167dc65554f08d0f5b8613f20c49aaf227bdc88a6337c1af9d9d8848d",
+    "bundleSizeBytes": 1792094,
+    "bundleGzipSha256": "66f2738040a3aaa73836d720fc9dfb3c9e7465971bc245b4f0098ff0cb2bf437",
+    "bundleGzipSizeBytes": 334726,
+    "cloudflareScriptEtag": "30c50973ad77498177a640a183d8eaeb916e21a53abc290d8bce72a6c23ab0ee",
+    "activationConfigSha256": "2783c4d9e131cb40d5e6f8d25f35e8a8c1f53b4214652cc57c85082a0bbec77c",
+    "rollbackConfigSha256": "0d740ecdb09f12bb1bf65b189193947e3a8eb4fb3cf8af5658be42e7cbcd5e18",
+    "activationRolloutSha256": "c22646a905ab3f05cafef6c42628f3030d0397cc7917a46a7d3676f0ac64c6c1",
+    "activationPilotSha256": "c57511b2caca2c00fd372a6286a475a42f56ec9d4b0cf950085efb13fce93597",
+    "rollbackRolloutSha256": "c6edfedcd4455039378b4131ce324812417a545aafc2a204ee378a32e6a4c354",
+    "rollbackPilotSha256": "69314904674a3db627496962d61f9b7fce53cafbb95dbf21098eea907a80fc4c",
+    "rolloutIssuedAt": "2026-08-13T23:25:00.000Z",
+    "rolloutExpiresAt": "2026-08-14T11:25:00.000Z"
+  },
+  "rulesArtifact": {
+    "generatedRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rulesChangedSinceV15": false
+  },
+  "inactiveVersions": {
+    "rollbackVersionId": "ec126063-d96e-41c3-a8c9-77dd2726fa7c",
+    "activationVersionId": "e7ec5c5f-6896-46b4-bf5c-378fa89e0e65",
+    "sharedScriptEtag": "30c50973ad77498177a640a183d8eaeb916e21a53abc290d8bce72a6c23ab0ee",
+    "exactVersionPreflight": { "rollback": 204, "activation": 204 },
+    "productionTrafficDuringValidation": {
+      "versionId": "0221adb5-056f-4727-8581-25ad16e13da1",
+      "percentage": 100
+    },
+    "currentZeroPercentVersionId": "e7ec5c5f-6896-46b4-bf5c-378fa89e0e65"
+  },
+  "durableCurrent": {
+    "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+    "publicationRevision": 1,
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "operationId": "842f671d-ae7f-4cc7-b08c-2beb922e0b5d",
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "activityVersion": 1,
+    "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+    "binding": "candidate complete; missing activityVersionId and activityVersion"
+  },
+  "boundedCleanupTarget": {
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "orphanActivityVersionId": "activity-version-activity-vocab-u1-38ddde86-1165-41c4-8c27-e558d685347e",
+    "createdByFailedReplayOperationId": "7a7268f1-06fb-480c-b2c9-d444d49fa510",
+    "deleteOnlyAfter": [
+      "current publication and all publication activity-version references still point exclusively to activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+      "binding reconciliation succeeds and reads back that same referenced version",
+      "orphan remains unreferenced by publication, binding, placement, projection, delivery, and assignment roots"
+    ]
+  },
+  "verification": {
+    "publicationRouteFocused": "11/11",
+    "ticket59": "57/57",
+    "defaultWorkerRealRtdbEmulator": "2/2 with exact versioned binding readback and enrichment PUT",
+    "activationDryRun": "exit 0",
+    "rollbackDryRun": "exit 0",
+    "diffCheck": "exit 0"
+  },
+  "executionOrder": [
+    "deploy exact generated rules and verify byte identity",
+    "activate exact V16 activation version",
+    "issue a fresh exact approval for unchanged preview inputs",
+    "submit the fully validated publication request and reconcile only the trusted persisted current publication",
+    "verify no third canonical Activity version exists and exact binding references the committed version",
+    "prove the known failed-replay canonical version is unreferenced, then delete only that exact leaf",
+    "create the frozen assignment and verify teacher and student consumption"
+  ],
+  "rollback": {
+    "workerVersionId": "ec126063-d96e-41c3-a8c9-77dd2726fa7c",
+    "rulesPath": "firebase.prd0062-118-rules.rollback.json",
+    "order": [
+      "activate exact rollback Worker version immediately",
+      "restore exact rollback rules file",
+      "read active Worker and rules identities",
+      "preserve durable partial state"
+    ]
+  }
+}

@@ -26,6 +26,7 @@ import type {
 } from './runtime.ts';
 import {
   BookHomeworkRuntimeUnavailableError,
+  resolveBookHomeworkProductionFetch,
 } from './runtime.ts';
 import {
   BookPilotScopeDeniedError,
@@ -34,6 +35,7 @@ import {
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 import { BookHomeworkCanonicalResolverError } from './canonical-resolver.ts';
+import type { BookHomeworkContextResolverPort } from './context-resolver.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_RECIPIENTS = 30;
@@ -41,7 +43,9 @@ const MAX_NODE_OVERRIDES = 256;
 const MAX_STUDENT_EXTENSIONS = MAX_RECIPIENTS * MAX_NODE_OVERRIDES;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const ROUTE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
+const ASSIGNMENT_ROUTE_ID = /^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const PRESENTATION_TEXT_MAX_LENGTH = 512;
 
 export interface BookHomeworkWorkerEnv {
   readonly [key: string]: unknown;
@@ -60,6 +64,10 @@ export type BookHomeworkSagaPort = BookHomeworkTrustedSaga;
 export interface BookHomeworkWorkerHandlersOptions {
   readonly saga?: BookHomeworkSagaPort;
   readonly sagaFactory?: BookHomeworkTrustedSagaFactory;
+  readonly contextResolver?: BookHomeworkContextResolverPort;
+  readonly contextResolverFactory?: (
+    env: BookHomeworkWorkerEnv,
+  ) => BookHomeworkContextResolverPort | Promise<BookHomeworkContextResolverPort>;
   readonly notificationRepositoryFactory?: (
     env: BookHomeworkNotificationEnvironment,
   ) => NotificationCommandRepository;
@@ -165,6 +173,13 @@ const routeId = (value: unknown, label: string): string => {
   return value;
 };
 
+const assignmentRouteId = (value: unknown): string => {
+  if (typeof value !== 'string' || !ASSIGNMENT_ROUTE_ID.test(value)) {
+    throw new BookHomeworkWorkerError('invalid_assignment_id');
+  }
+  return value;
+};
+
 const recipients = (value: unknown): readonly string[] => {
   if (!Array.isArray(value) || value.length === 0 || value.length > MAX_RECIPIENTS) {
     throw new BookHomeworkWorkerError('invalid_selected_recipient_ids');
@@ -187,8 +202,25 @@ const canonicalIso = (value: unknown, label: string): string => {
   return value;
 };
 
-const parseIntent = (value: unknown): BookHomeworkSagaAssignmentIntent => {
-  const input = exact(value, ['bookId', 'target', 'schedule', 'policy', 'expectedPublication']);
+const presentationText = (value: unknown, label: string, required: boolean): string | undefined => {
+  if (value === undefined) {
+    if (required) throw new BookHomeworkWorkerError(`invalid_${label}`);
+    return undefined;
+  }
+  if (typeof value !== 'string') throw new BookHomeworkWorkerError(`invalid_${label}`);
+  const normalized = value.trim();
+  if (!normalized) {
+    if (required) throw new BookHomeworkWorkerError(`invalid_${label}`);
+    return undefined;
+  }
+  if (normalized.length > PRESENTATION_TEXT_MAX_LENGTH) {
+    throw new BookHomeworkWorkerError(`invalid_${label}`);
+  }
+  return normalized;
+};
+
+export const parseBookHomeworkAssignmentIntent = (value: unknown): BookHomeworkSagaAssignmentIntent => {
+  const input = exact(value, ['bookId', 'target', 'schedule', 'policy', 'expectedPublication', 'presentation']);
   const bookId = safeId(input.bookId, 'book_id');
   const targetValue = exactOptional(input.target, ['kind', 'bookId', 'classId'], ['nodeKey', 'activityId', 'placementId']);
   const targetBookId = safeId(targetValue.bookId, 'target_book_id');
@@ -290,6 +322,9 @@ const parseIntent = (value: unknown): BookHomeworkSagaAssignmentIntent => {
   if (!Number.isSafeInteger(expected.publicationRevision) || Number(expected.publicationRevision) < 1) {
     throw new BookHomeworkWorkerError('invalid_publication_revision');
   }
+  const presentationValue = exactOptional(input.presentation, ['title'], ['description']);
+  const title = presentationText(presentationValue.title, 'presentation_title', true) as string;
+  const description = presentationText(presentationValue.description, 'presentation_description', false);
   return {
     bookId,
     target,
@@ -310,6 +345,10 @@ const parseIntent = (value: unknown): BookHomeworkSagaAssignmentIntent => {
       publicationRevision: Number(expected.publicationRevision),
       manifestVersionId: safeId(expected.manifestVersionId, 'publication_manifest_version_id'),
     },
+    presentation: {
+      title,
+      ...(description === undefined ? {} : { description }),
+    },
   };
 };
 
@@ -326,7 +365,7 @@ const parseCommand = (
     'intent',
     'selectedRecipientIds',
   ]);
-  const assignmentId = routeId(input.assignmentId, 'assignment_id');
+  const assignmentId = assignmentRouteId(input.assignmentId);
   if (assignmentId !== pathAssignmentId) {
     throw new BookHomeworkWorkerError('assignment_id_mismatch', 409);
   }
@@ -339,7 +378,7 @@ const parseCommand = (
     throw new BookHomeworkWorkerError('invalid_operation_id');
   }
   const manifestVersionId = safeId(input.manifestVersionId, 'manifest_version_id');
-  const intent = parseIntent(input.intent);
+  const intent = parseBookHomeworkAssignmentIntent(input.intent);
   if (intent.expectedPublication.manifestVersionId !== manifestVersionId) {
     throw new BookHomeworkWorkerError('manifest_version_mismatch', 409);
   }
@@ -376,14 +415,17 @@ export const createBookHomeworkOwnerReader = (
   if (!serviceAccountJson || !serviceIdentity || !firebaseProjectId || !firebaseWebApiKey) {
     throw new BookHomeworkWorkerError('actor_reader_unavailable', 503);
   }
+  const fetchImpl = resolveBookHomeworkProductionFetch();
   const tokenProvider = createFirebaseClaimTokenProvider({
     serviceAccountJson,
     serviceIdentity,
     firebaseProjectId,
     firebaseWebApiKey,
+    fetchImpl,
   });
   const client = new FirebaseRtdbRestClient({
     env,
+    fetchImpl,
     firebaseAuthToken: true,
     getFirebaseAuthToken: () => tokenProvider({ service: 'book_homework', ownerId }),
   });
@@ -399,6 +441,7 @@ const assertTeacher = async (env: BookHomeworkWorkerEnv, uid: string): Promise<v
 const statusFor = (status: BookHomeworkSagaResult['status']): number => {
   if (status === 'committed') return 200;
   if (status === 'compensated' || status === 'failed_terminal') return 409;
+  if (status === 'committed_projection_pending') return 202;
   return 202;
 };
 
@@ -432,6 +475,10 @@ export const createBookHomeworkWorkerHandlers = (
     env: BookHomeworkWorkerEnv,
   ): Promise<BookHomeworkSagaPort | undefined> =>
     options.saga ?? await options.sagaFactory?.(env);
+  const resolveContextResolver = async (
+    env: BookHomeworkWorkerEnv,
+  ): Promise<BookHomeworkContextResolverPort | undefined> =>
+    options.contextResolver ?? await options.contextResolverFactory?.(env);
   const resolveCompletionProjection = options.resolveCompletionProjection
     ?? (async (input: Parameters<NonNullable<BookHomeworkWorkerHandlersOptions['resolveCompletionProjection']>>[0]) => {
       try {
@@ -462,7 +509,7 @@ export const createBookHomeworkWorkerHandlers = (
       await assertTeacher(input.env, input.uid);
       const command = parseCommand(
         await readBody(input.request),
-        routeId(input.assignmentId, 'assignment_id'),
+        assignmentRouteId(input.assignmentId),
         input.request.headers.get('idempotency-key'),
       );
       await enforceBookPilotScopeIfConfigured({
@@ -502,6 +549,14 @@ export const createBookHomeworkWorkerHandlers = (
             ownerId: input.uid,
             createdAt: now(),
           });
+          if (result.status === 'committed_projection_pending' && result.projectionDiagnostic) {
+            console.error('book_homework_committed_projection_pending', {
+              assignmentId: result.record.assignmentId,
+              operationId: result.record.operationId,
+              stage: result.projectionDiagnostic.stage,
+              errorClass: result.projectionDiagnostic.errorClass,
+            });
+          }
           return {
             body: resultBody(result),
             init: { status: statusFor(result.status) },
@@ -546,7 +601,7 @@ export const createBookHomeworkWorkerHandlers = (
     readonly teacherRead: boolean;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     try {
-      const assignmentId = routeId(input.assignmentId, 'assignment_id');
+      const assignmentId = assignmentRouteId(input.assignmentId);
       const studentId = safeId(input.studentId, 'student_id');
       if (input.teacherRead) await assertTeacher(input.env ?? {}, input.uid);
       const saga = await resolveSaga(input.env ?? {});
@@ -612,7 +667,7 @@ export const createBookHomeworkWorkerHandlers = (
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     try {
       await assertTeacher(input.env ?? {}, input.uid);
-      const assignmentId = routeId(input.assignmentId, 'assignment_id');
+      const assignmentId = assignmentRouteId(input.assignmentId);
       const saga = await resolveSaga(input.env ?? {});
       if (!saga?.resolveTeacherProjections) {
         return { body: { code: 'book_homework_teacher_projection_unavailable' }, init: { status: 503 } };
@@ -625,16 +680,22 @@ export const createBookHomeworkWorkerHandlers = (
         return { body: { code: 'book_homework_not_found' }, init: { status: 404 } };
       }
       const students = await Promise.all(resolutions.map(async (resolution) => {
-        const completion = await resolveCompletionProjection({
-          assignmentId,
-          studentId: resolution.studentId,
-          authority: resolution.completionAuthority,
-          delivery: resolution.delivery,
-          env: input.env ?? {},
-        });
-        if (!completion
-          || !completionMatchesContext(completion, assignmentId, resolution.studentId, resolution.delivery.record.binding)) {
-          throw new BookHomeworkWorkerError('book_homework_completion_missing', 503);
+        let completion: Record<string, unknown> | null = null;
+        try {
+          const candidate = await resolveCompletionProjection({
+            assignmentId,
+            studentId: resolution.studentId,
+            authority: resolution.completionAuthority,
+            delivery: resolution.delivery,
+            env: input.env ?? {},
+          });
+          if (candidate
+            && completionMatchesContext(candidate, assignmentId, resolution.studentId, resolution.delivery.record.binding)) {
+            completion = candidate;
+          }
+        } catch {
+          // Completion is derived enrichment. Preserve the already-validated
+          // committed recipient row, but never expose an untrusted completion.
         }
         return { studentId: resolution.studentId, completion };
       }));
@@ -647,11 +708,61 @@ export const createBookHomeworkWorkerHandlers = (
     }
   };
 
+  const homeworkStudentLaunch = async (input: {
+    readonly request: Request;
+    readonly assignmentId: string;
+    readonly uid: string;
+    readonly env?: BookHomeworkWorkerEnv;
+  }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
+    try {
+      const assignmentId = assignmentRouteId(input.assignmentId);
+      const requestBody = exact(await readBody(input.request), ['placementIds']);
+      if (!Array.isArray(requestBody.placementIds)
+        || requestBody.placementIds.length < 1
+        || requestBody.placementIds.length > 64) {
+        throw new BookHomeworkWorkerError('invalid_placement_ids');
+      }
+      const placementIds = requestBody.placementIds.map((value) => safeId(value, 'placement_id'));
+      if (new Set(placementIds).size !== placementIds.length) {
+        throw new BookHomeworkWorkerError('duplicate_placement_id');
+      }
+      const resolver = await resolveContextResolver(input.env ?? {});
+      if (!resolver) throw new BookHomeworkWorkerError('book_homework_context_unavailable', 503);
+      const contexts = await Promise.all(placementIds.map((placementId) => resolver.resolve({
+        assignmentId,
+        actorUid: safeId(input.uid, 'student_id'),
+        action: { kind: 'student-launch', placementId },
+      })));
+      if (contexts.some((context) => context === null)) {
+        return { body: { code: 'book_homework_launch_denied' }, init: { status: 403 } };
+      }
+      return {
+        body: {
+          activities: contexts.map((context) => ({
+            activityId: context!.activityId,
+            activityVersionId: context!.activityVersionId,
+            projection: context!.trustedBookProjection,
+          })),
+        },
+        init: { status: 200, headers: { 'Cache-Control': 'no-store' } },
+      };
+    } catch (error) {
+      if (error instanceof BookHomeworkWorkerError) {
+        return { body: { code: error.code }, init: { status: error.status } };
+      }
+      if (error instanceof BookHomeworkRuntimeUnavailableError) {
+        return { body: { code: error.code }, init: { status: error.status } };
+      }
+      return { body: { code: 'book_homework_context_failed' }, init: { status: 503 } };
+    }
+  };
+
   return {
     homeworkAssignmentCommand,
     homeworkStudentProjection,
     homeworkTeacherStudentProjection,
     homeworkTeacherProjection,
+    homeworkStudentLaunch,
   };
 };
 

@@ -223,6 +223,12 @@ describe('component-PDF publication command boundary', () => {
 
     const receipt = await command(request());
 
+    expect(approvalPorts.readPreviewApproval).toHaveBeenLastCalledWith({
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      approvalId: 'approval-1',
+    });
+
     expect(receipt).toMatchObject({
       operationId,
       manifestVersionId: 'manifest-version:candidate-1',
@@ -297,6 +303,16 @@ describe('component-PDF publication command boundary', () => {
       ...request(),
       previewApproval: approval('2026-07-27T12:59:59.000Z'),
     })).rejects.toThrow('component_pdfs_preview_approval_invalid');
+
+    await expect(createComponentPdfPublicationCommand({
+      ...basePorts,
+      readPreviewApproval: vi.fn(async () => ({ ...currentApproval(), bookRevision: 6 })),
+    })(request())).rejects.toThrow('component_pdfs_preview_approval_invalid');
+
+    await expect(createComponentPdfPublicationCommand({
+      ...basePorts,
+      readPreviewApproval: vi.fn(async () => ({ ...currentApproval(), unitKey: 'unit-2' })),
+    })(request())).rejects.toThrow('component_pdfs_preview_approval_invalid');
 
     await expect(createComponentPdfPublicationCommand({
       ...basePorts,

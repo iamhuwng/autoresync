@@ -146,12 +146,18 @@ describe('createCandidateUnitPreview', () => {
     const approval = createPreviewApproval({
       approvalId: 'approval-1', approvalRevision: 1, actorId: 'teacher-1',
       approvedAt: '2026-07-27T00:00:00.000Z', expiresAt: '2026-07-27T01:00:00.000Z', preview,
+      canonicalActivitiesByKey: { 'activity-1': activity() },
     });
     expect(approval).toMatchObject({
-      candidateId: 'candidate-1', candidateRevision: 5, sourceSetRevision: 4,
-      registryVersion: 'registry-v1', actorId: 'teacher-1',
+      bookId: 'book-1', bookRevision: 3, unitKey: 'unit-1', candidateId: 'candidate-1',
+      candidateRevision: 5, sourceSetRevision: 4, registryVersion: 'registry-v1', actorId: 'teacher-1',
     });
     expect(approval.inputFingerprint).toMatch(/^fnv1a64:/u);
+    expect(approval.canonicalActivityFingerprintsByKey).toEqual({
+      'activity-1': expect.stringMatching(/^fnv1a64:/u),
+    });
+    expect(JSON.stringify(approval)).not.toContain('answerKey');
+    expect(JSON.stringify(approval)).not.toContain('providerUrl');
     const sourceMutation = createCandidateUnitPreview({
       ...input(), candidate: { ...candidate(), sourceSetRevision: 5 },
     });
@@ -159,11 +165,27 @@ describe('createCandidateUnitPreview', () => {
     expect(approval.inputFingerprint).not.toBe(createPreviewApproval({
       approvalId: 'approval-2', approvalRevision: 1, actorId: 'teacher-1',
       approvedAt: '2026-07-27T00:00:00.000Z', expiresAt: '2026-07-27T01:00:00.000Z', preview: sourceMutation,
+      canonicalActivitiesByKey: { 'activity-1': activity() },
     }).inputFingerprint);
     expect(approval.inputFingerprint).not.toBe(createPreviewApproval({
       approvalId: 'approval-3', approvalRevision: 1, actorId: 'teacher-1',
       approvedAt: '2026-07-27T00:00:00.000Z', expiresAt: '2026-07-27T01:00:00.000Z', preview: registryMutation,
+      canonicalActivitiesByKey: { 'activity-1': activity() },
     }).inputFingerprint);
+  });
+
+  it('requires complete canonical activity bindings and a current Book revision', () => {
+    const preview = createCandidateUnitPreview(input());
+    expect(() => createPreviewApproval({
+      approvalId: 'approval-missing-canonical', approvalRevision: 1, actorId: 'teacher-1',
+      approvedAt: '2026-07-27T00:00:00.000Z', expiresAt: '2026-07-27T01:00:00.000Z',
+      preview, canonicalActivitiesByKey: {},
+    })).toThrowError(new UnitPreviewError('approval-invalid', 'Preview approval identity, binding, fingerprint, or expiry is invalid.'));
+    expect(() => createPreviewApproval({
+      approvalId: 'approval-missing-book-revision', approvalRevision: 1, actorId: 'teacher-1',
+      approvedAt: '2026-07-27T00:00:00.000Z', expiresAt: '2026-07-27T01:00:00.000Z',
+      preview: { ...preview, bookRevision: undefined } as never, canonicalActivitiesByKey: { 'activity-1': activity() },
+    })).toThrowError('Preview approval identity, binding, fingerprint, or expiry is invalid.');
   });
 
   it('keeps every shared runtime registry registration resolvable in candidate preview', () => {
@@ -172,7 +194,9 @@ describe('createCandidateUnitPreview', () => {
       `activity-${index + 1}`,
       activityForRegistration(registration, `interaction-${index + 1}`),
     ]));
-    const parityCandidate = candidate();
+    const parityCandidate = { ...candidate() } as BookAssemblyCandidateRecord & {
+      manifest: NonNullable<BookAssemblyCandidateRecord['manifest']>;
+    };
     const unit = parityCandidate.manifest!.units[0]!;
     parityCandidate.manifest = {
       ...parityCandidate.manifest!,

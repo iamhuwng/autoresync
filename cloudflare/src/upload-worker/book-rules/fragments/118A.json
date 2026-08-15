@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "118A",
+  "owner": {
+    "ticketId": "118A",
+    "issue": 118,
+    "generatedRuleLocations": [
+      "material_catalog/books/$bookId/.read",
+      "material_catalog/books/$bookId/bookRevision/.validate",
+      "material_catalog/books/$bookId/sourceSetRevision/.validate",
+      "material_catalog/books/$bookId/sourceSet/.validate",
+      "material_catalog/books/$bookId/sourceSet/$other/.validate",
+      "material_catalog/books/$bookId/sourceSet/sourceStrategy/.validate",
+      "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/.validate",
+      "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/$other/.validate",
+      "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/sourceKey/.validate",
+      "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/sourceVersionId/.validate",
+      "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/sourceOrder/.validate",
+      "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/ownerNodeKey/.validate"
+    ]
+  },
+  "operations": [
+    { "path": "material_catalog/books/$bookId", "rule": ".read", "merge": "conjoin-existing-authorization", "requiresExistingRule": true, "expression": "auth != null && auth.token.book_assembly_service == true && auth.token.book_assembly_bookId == $bookId && auth.token.book_assembly_ownerId == data.child('ownerId').val() && data.child('bookId').val() == $bookId && data.child('bookMode').val() == 'pdf'" },
+    { "path": "material_catalog/books/$bookId/bookRevision", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.isNumber() && newData.val() >= 1" },
+    { "path": "material_catalog/books/$bookId/sourceSetRevision", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.isNumber() && newData.val() >= 1" },
+    { "path": "material_catalog/books/$bookId/sourceSet", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.hasChildren(['sourceStrategy', 'sources']) && newData.child('sources').hasChildren() && (newData.child('sourceStrategy').val() == 'full_pdf' || newData.child('sourceStrategy').val() == 'component_pdfs')" },
+    { "path": "material_catalog/books/$bookId/sourceSet/$other", "rule": ".validate", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "$other == 'sourceStrategy' || $other == 'sources'" },
+    { "path": "material_catalog/books/$bookId/sourceSet/sourceStrategy", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.val() == 'full_pdf' || newData.val() == 'component_pdfs'" },
+    { "path": "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.hasChildren(['sourceKey', 'sourceVersionId', 'sourceOrder']) && ((newData.parent().parent().child('sourceStrategy').val() == 'component_pdfs' && newData.child('ownerNodeKey').isString()) || (newData.parent().parent().child('sourceStrategy').val() == 'full_pdf' && !newData.child('ownerNodeKey').exists()))" },
+    { "path": "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/$other", "rule": ".validate", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "$other == 'sourceKey' || $other == 'sourceVersionId' || $other == 'sourceOrder' || $other == 'ownerNodeKey'" },
+    { "path": "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/sourceKey", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.isString()" },
+    { "path": "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/sourceVersionId", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.isString()" },
+    { "path": "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/sourceOrder", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.isNumber() && newData.val() >= 1" },
+    { "path": "material_catalog/books/$bookId/sourceSet/sources/$sourceIndex/ownerNodeKey", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "newData.isString()" }
+  ]
+}

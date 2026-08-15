@@ -30,6 +30,8 @@ import type {
     StudentOverride
 } from '../types/homework.types';
 import type { AntiCheatConfig } from '../types/integrity.types';
+import type { ClassSummary } from '../types/class.types';
+import { isBookHomeworkCompatibilityProjection } from './book-homework/bookHomeworkCompatibilityProjection.service';
 
 const HOMEWORK_COLLECTION = 'homework_assignments';
 
@@ -110,6 +112,10 @@ function stripUndefinedFields<T>(value: T): T {
 }
 
 function normalizeHomeworkAssignment(homework: HomeworkAssignment): HomeworkAssignment {
+    if (isBookHomeworkCompatibilityProjection(homework)) {
+        return homework as unknown as HomeworkAssignment;
+    }
+
     return {
         ...homework,
         tags: homework.tags ?? [],
@@ -311,9 +317,17 @@ export async function getHomeworkByClass(classId: string): Promise<HomeworkAssig
 /**
  * Get homework assignments for a specific student
  */
-export async function getHomeworkForStudent(studentId: string): Promise<HomeworkAssignment[]> {
+export interface GetHomeworkForStudentOptions {
+    /** Shell-owned membership summaries. Omit only outside StudentShellDataProvider. */
+    studentClasses?: readonly Pick<ClassSummary, 'id'>[];
+}
+
+export async function getHomeworkForStudent(
+    studentId: string,
+    options: GetHomeworkForStudentOptions = {},
+): Promise<HomeworkAssignment[]> {
     try {
-        const studentClasses = await getStudentClasses(studentId);
+        const studentClasses = options.studentClasses ?? await getStudentClasses(studentId);
         const studentQuery = query(
             collection(db, HOMEWORK_COLLECTION),
             where('target.studentIds', 'array-contains', studentId)
@@ -671,6 +685,9 @@ export async function propagateTestMetadataToHomework(
 
         snapshot.docs.forEach((docSnap) => {
             const data = docSnap.data();
+            if (isBookHomeworkCompatibilityProjection(data)) {
+                return;
+            }
             // Only update if the title actually changed
             if (updates.materialTitle && data.materialTitle !== updates.materialTitle) {
                 batch.update(docSnap.ref, { materialTitle: updates.materialTitle });

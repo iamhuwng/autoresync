@@ -175,12 +175,12 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(JSON.stringify(reverse)).toBe(JSON.stringify(forward));
   });
 
-  it('discovers the complete 38-fragment producer manifest in stable order', () => {
+  it('discovers the complete 43-fragment producer manifest in stable order', () => {
     const sources = currentFragmentSources();
     const forward = discoverGeneratedBookRuleFragmentManifest(sources);
     const reverse = discoverGeneratedBookRuleFragmentManifest([...sources].reverse());
 
-    expect(forward).toHaveLength(38);
+    expect(forward).toHaveLength(43);
     expect(forward.map((entry) => entry.fragmentId)).toEqual([...FINAL_BOOK_RULE_FRAGMENT_IDS]);
     expect(JSON.stringify(reverse)).toBe(JSON.stringify(forward));
     expect(forward.map((entry) => entry.sourcePath)).toEqual(expect.arrayContaining([
@@ -209,7 +209,7 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(forward.fragmentIds).toContain('49C');
     expect(forward.fragmentIds).toContain('49D');
     expect(forward.composerVersion).toBe(GENERATED_BOOK_RULE_COMPOSER_VERSION);
-    expect(forward.operations).toHaveLength(368);
+    expect(forward.operations).toHaveLength(416);
     expect(forward.operations.every((operation) => hasBalancedParentheses(operation.expression))).toBe(true);
     expect(forward.operations.every((operation) => !operation.expression.includes('numChildren'))).toBe(true);
     expect(JSON.stringify(currentFragment('49D'))).toBe(JSON.stringify(fragment49D));
@@ -358,8 +358,20 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(readRule(forward.rules, 'courses/.read')).toBe(readRule(databaseRules.rules, 'courses/.read'));
     expect(readRule(forward.rules, 'material_catalog/books/.write')).toBe('false');
     expect(String(readRule(forward.rules, 'material_catalog/books/$bookId/.write'))).toContain('pbcf');
+    const materialBookRead = String(readRule(forward.rules, 'material_catalog/books/$bookId/.read'));
+    expect(materialBookRead).toContain('auth.token.book_assembly_service == true');
+    expect(materialBookRead).toContain('auth.token.book_assembly_bookId == $bookId');
+    expect(materialBookRead).toContain("auth.token.book_assembly_ownerId == data.child('ownerId').val()");
     expect(readRule(forward.rules, 'material_catalog/material_summary_indexes/v1/.write')).toBeUndefined();
     expect(readRule(forward.rules, 'material_catalog/material_summary_indexes/v1/by_id/$materialId/.write')).toContain('pbcf');
+    expect(String(readRule(forward.rules, 'material_catalog/books/$bookId/$other/.validate')))
+      .toContain("$other == 'sourceSet'");
+    expect(forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey/.write'])
+      .toMatchObject({ fragmentId: '118B', operationIndex: 7 });
+    expect(forward.byLocation['book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey/.write'])
+      .toMatchObject({ fragmentId: '118C', operationIndex: 9 });
+    expect(forward.byLocation['book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId/.write'])
+      .toMatchObject({ fragmentId: '15B', operationIndex: 7 });
     expect(JSON.stringify(forward.rules)).toBe(JSON.stringify(generatedRules.rules));
 
     const baseLeaves = flattenRuleLeaves(databaseRules.rules);

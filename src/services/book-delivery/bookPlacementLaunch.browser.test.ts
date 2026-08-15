@@ -6,12 +6,14 @@ import type { BookRuntimeDeliveryProjection } from './bookDelivery.types';
 import {
   parseBookPlacementLaunchQuery,
   resolveBookPlacementLaunch,
+  createBookHomeworkPlacementBrowserClient,
 } from './bookPlacementLaunch.browser';
 
 const courseQuery = '?bookSurface=course&courseMaterialId=course-material-1&bindingId=binding-1';
 const classQuery = '?bookSurface=class&classId=class-1&copyId=copy-1&classPlacementId=placement-1&classCourseMaterialId=course-material-1&bindingId=binding-1';
+const homeworkQuery = '?bookSurface=homework&homeworkId=homework-1';
 
-const projection = (kind: 'course' | 'class', contextId: string, overrides: Partial<BookRuntimeDeliveryProjection> = {}): BookRuntimeDeliveryProjection => ({
+const projection = (kind: 'course' | 'class' | 'homework', contextId: string, overrides: Partial<BookRuntimeDeliveryProjection> = {}): BookRuntimeDeliveryProjection => ({
   schemaVersion: 1,
   projectionKind: 'book-runtime-delivery',
   bindingId: 'binding-1',
@@ -20,7 +22,7 @@ const projection = (kind: 'course' | 'class', contextId: string, overrides: Part
   context: {
     contextId,
     kind,
-    entitlementBasis: kind === 'course' ? 'enrollment' : 'membership',
+    entitlementBasis: kind === 'course' ? 'enrollment' : kind === 'class' ? 'membership' : 'assignment',
   },
   book: {
     bookId: 'book-1',
@@ -48,6 +50,7 @@ describe('Book placement launch boundary', () => {
   it.each([
     [courseQuery, 'course'],
     [classQuery, 'class'],
+    [homeworkQuery, 'homework'],
   ])('parses exact valid %s launch identity', (query, kind) => {
     expect(parseBookPlacementLaunchQuery(query)).toMatchObject({ kind, explicit: true });
   });
@@ -136,5 +139,74 @@ describe('Book placement launch boundary', () => {
       studentId: 'student-1',
       clients: { class: { resolveCurrent: vi.fn(async () => ({ projectionKind: 'class-book-delivery-v1' })) } },
     })).resolves.toMatchObject({ status: 'blocked', reason: 'legacy-projection' });
+  });
+
+  it('resolves Homework only from the exact canonical assignment context', async () => {
+    const launch = parseBookPlacementLaunchQuery(homeworkQuery);
+    if (launch.kind !== 'homework') throw new Error('fixture parse failed');
+    const current = vi.fn(async () => projection('homework', 'homework-1'));
+
+    await expect(resolveBookPlacementLaunch({
+      launch,
+      studentId: 'student-1',
+      clients: { homework: { current } },
+    })).resolves.toMatchObject({ status: 'resolved', projection: { context: { kind: 'homework' } } });
+    expect(current).toHaveBeenCalledWith('homework-1');
+
+    await expect(resolveBookPlacementLaunch({
+      launch,
+      studentId: 'student-1',
+      clients: { homework: { current: vi.fn(async () => projection('course', 'homework-1')) } },
+    })).resolves.toMatchObject({ status: 'blocked', reason: 'context-mismatch' });
+
+    await expect(resolveBookPlacementLaunch({
+        launch,
+        studentId: 'other-student',
+        clients: { homework: { current } },
+    })).resolves.toMatchObject({ status: 'blocked', reason: 'recipient-mismatch' });
+
+    await expect(resolveBookPlacementLaunch({
+        launch,
+        studentId: 'student-1',
+        clients: {
+            homework: {
+                current: vi.fn(async () => ({ projectionKind: 'book-homework-delivery-v1' })),
+            },
+        },
+    })).resolves.toMatchObject({ status: 'blocked', reason: 'legacy-projection' });
+
+    await expect(resolveBookPlacementLaunch({
+        launch,
+        studentId: 'student-1',
+        clients: {
+            homework: {
+                current: vi.fn(async () => ({ projectionKind: 'book-runtime-delivery' } as unknown as BookRuntimeDeliveryProjection)),
+            },
+        },
+    })).resolves.toMatchObject({ status: 'blocked', reason: 'projection-kind-mismatch' });
+});
+
+  it('reads the exact Homework Delivery route with the authenticated recipient', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(projection('homework', 'homework-1')), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    const client = createBookHomeworkPlacementBrowserClient({
+      baseUrl: 'https://worker.example.test',
+      fetchImpl,
+      getIdToken: async () => 'token-1',
+      getCurrentUserId: () => 'student-1',
+    });
+
+    await expect(client.current('homework-1')).resolves.toMatchObject({
+      context: { contextId: 'homework-1', kind: 'homework' },
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://worker.example.test/book-delivery/current/student-1/homework-1',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer token-1' }),
+      }),
+    );
   });
 });

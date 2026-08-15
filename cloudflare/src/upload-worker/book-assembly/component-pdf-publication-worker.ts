@@ -182,7 +182,11 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
     },
   ) => Promise<Readonly<Record<string, ComponentPdfValidatedActivityPayload>>>;
   readonly readPreviewApproval: (
-    approvalId: string,
+    input: {
+      readonly bookId: string;
+      readonly unitKey: string;
+      readonly approvalId: string;
+    },
   ) => Promise<(BookAssemblyPreviewApprovalRecord & { readonly revoked?: boolean }) | null>;
   readonly sourceIsPreviewReady: (
     input: { readonly bookId: string; readonly sourceVersionId: string },

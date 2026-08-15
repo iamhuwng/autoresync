@@ -36,6 +36,8 @@ export interface ActivityAuthoringService {
     evidenceRefs?: string[];
     sourceEvidenceRefs?: string[];
     answerEvidenceRefs?: string[];
+    /** Optional server-verified Book Assembly slot context. */
+    unitActivityBinding?: { readonly unitKey: string; readonly activityKey: string };
   }): Promise<ActivitySaveDraftResult>;
   discard(input: {
     candidateId: string;

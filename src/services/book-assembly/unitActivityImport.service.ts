@@ -1,4 +1,5 @@
-import type { ActivityAuthoringService, ActivityStageResult } from '../book-activity/activityAuthoring.service';
+import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
+import type { ActivityStageResult } from '../book-activity/activityAuthoring.repository';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
 import { UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
 
@@ -227,7 +228,30 @@ export const stageUnitActivityImportBundle = async ({
         sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
         answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
       });
-      staged.push(result);
+      const validated = await activityAuthoring.validate({
+        candidateId: result.candidateId,
+        expectedRevision: result.revision,
+        evidenceRefs: [...(slot.evidenceRefs ?? [])],
+        sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
+        answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
+      });
+      if (validated.status !== 'validated' || validated.lifecycle !== 'validated') {
+        throw new UnitActivityImportError('activity-binding-validation-failed', `Activity slot ${slot.activityKey} is not validated.`);
+      }
+      const saved = await activityAuthoring.saveDraft({
+        candidateId: result.candidateId,
+        expectedRevision: validated.revision,
+        evidenceRefs: [...(slot.evidenceRefs ?? [])],
+        sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
+        answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
+        unitActivityBinding: { unitKey, activityKey: slot.activityKey },
+      });
+      if (saved.status !== 'saved' || saved.activityId !== result.targetActivityId) {
+        throw new UnitActivityImportError('activity-binding-save-failed', `Activity slot ${slot.activityKey} was not saved.`);
+      }
+      // Rollback must address the persisted candidate state, not the initial
+      // staging revision that validate/save have superseded.
+      staged.push({ ...result, revision: saved.candidateRevision });
       if (signal?.aborted) {
         throw new UnitActivityImportError('canceled', 'Import was canceled.');
       }

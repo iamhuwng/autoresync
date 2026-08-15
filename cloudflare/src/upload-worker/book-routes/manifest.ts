@@ -3,6 +3,7 @@ import {
 } from '../book-activity-authoring/route.ts';
 import {
   bookAssemblyRouteDescriptors,
+  bookAssemblyPreviewRouteDescriptors,
   bookAssemblyMigrationRouteDescriptors,
   bookAssemblyPublicationRouteDescriptors,
   bookAssemblySuccessorRouteDescriptors,
@@ -143,6 +144,25 @@ const assemblyRoutes = bookAssemblyRouteDescriptors.map((route) => contributor({
   identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
   credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
   contributorTicket: '#55',
+}));
+
+const assemblyPreviewRoutes = bookAssemblyPreviewRouteDescriptors.map((route) => contributor({
+  id: `book.assembly.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#63',
+  domain: 'assembly',
+  handler: `bookAssembly.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-teacher',
+  rateClass: 'book-control',
+  // Reuse the existing disabled Assembly gate; no additional deployment toggle
+  // is introduced for this unpublished capability.
+  gateEnv: 'BOOK_ASSEMBLY_ROUTES_ENABLED',
+  requestBodyBytes: MAX_ASSEMBLY_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+  contributorTicket: '#63',
 }));
 
 const assemblyMigrationRoutes = bookAssemblyMigrationRouteDescriptors.map((route) => contributor({
@@ -382,6 +402,21 @@ const futureRoutes: BookRouteManifest = [
     credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
   }),
   future({
+    id: 'book.homework.student-launch',
+    methods: ['POST'],
+    pathTemplate: '/book-homework/assignments/:assignmentId/launch',
+    owner: '#126',
+    domain: 'homework',
+    handler: 'futureSeam.homeworkStudentLaunch',
+    firebaseAuth: 'firebase-id-token-student',
+    rateClass: 'book-future',
+    gateEnv: 'BOOK_HOMEWORK_READ_ROUTES_ENABLED',
+    requestBodyBytes: MAX_CONTROL_REQUEST_BYTES,
+    responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+    identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
+    credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
+  }),
+  future({
     id: 'book.homework.teacher-student-projection',
     methods: ['GET'],
     pathTemplate: '/book-homework/assignments/:assignmentId/students/:studentId/projection',
@@ -512,6 +547,7 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...deliveryRoutes,
   ...activityAuthoringRoutes,
   ...assemblyRoutes,
+  ...assemblyPreviewRoutes,
   ...assemblyMigrationRoutes,
   ...assemblyPublicationRoutes,
   ...assemblySuccessorRoutes,

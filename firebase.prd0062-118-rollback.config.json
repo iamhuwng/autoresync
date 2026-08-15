@@ -1,0 +1,5 @@
+{
+  "database": {
+    "rules": "firebase.prd0062-118-rules.rollback.json"
+  }
+}

@@ -57,12 +57,14 @@ const createHarness = (options: {
   readonly staleCompletion?: boolean;
   readonly crashAfterCompletion?: boolean;
   readonly recoveryContext?: BookSourceRecoveryContext;
+  readonly onVerified?: SourceUploadControlDependencies['onVerified'];
 } = {}) => {
   let gateAllowed = options.gate ?? true;
   let state: BookSourceUploadAccountState = {
     revision: 0,
     capacity: { trackedAccountBytes: 0, temporaryBytes: 0 },
     operations: {},
+    assemblyBooks: {},
   };
   const reserve = vi.fn(async (input: Parameters<NonNullable<SourceUploadControlDependencies['repository']>['reserve']>[0]) => {
     if (options.reserveError) throw new SourceUploadConflictError(options.reserveError);
@@ -85,7 +87,33 @@ const createHarness = (options: {
     if (input.expectedRevision !== state.revision) throw new SourceUploadConflictError('source upload compare-and-set conflict.');
     const operation = state.operations[input.reservationId];
     if (!operation) throw new SourceUploadConflictError('upload reservation does not exist.');
-    if (operation.status === 'verified_completed') return state;
+    if (operation.status === 'verified_completed') {
+      const existing = state.assemblyBooks?.[operation.bookId]?.[operation.sourceKey];
+      if (existing
+        && existing.sourceVersionId === operation.sourceVersionId
+        && existing.ownerId === operation.ownerId
+        && existing.physicalPageCount === operation.ownerAttestedPhysicalPageCount
+        && existing.verifiedUsable === true) return state;
+      state = {
+        ...state,
+        revision: state.revision + 1,
+        assemblyBooks: {
+          ...(state.assemblyBooks ?? {}),
+          [operation.bookId]: {
+            ...(state.assemblyBooks?.[operation.bookId] ?? {}),
+            [operation.sourceKey]: {
+              ownerId: operation.ownerId,
+              bookId: operation.bookId,
+              sourceKey: operation.sourceKey,
+              sourceVersionId: operation.sourceVersionId,
+              physicalPageCount: operation.ownerAttestedPhysicalPageCount!,
+              verifiedUsable: true,
+            },
+          },
+        },
+      };
+      return state;
+    }
     const completed: BookSourceUploadOperation = {
       ...operation,
       status: 'verified_completed',
@@ -96,6 +124,20 @@ const createHarness = (options: {
       revision: state.revision + 1,
       capacity: { trackedAccountBytes: state.capacity.trackedAccountBytes + operation.byteSize, temporaryBytes: 0 },
       operations: { ...state.operations, [input.reservationId]: completed },
+      assemblyBooks: {
+        ...(state.assemblyBooks ?? {}),
+        [operation.bookId]: {
+          ...(state.assemblyBooks?.[operation.bookId] ?? {}),
+          [operation.sourceKey]: {
+            ownerId: operation.ownerId,
+            bookId: operation.bookId,
+            sourceKey: operation.sourceKey,
+            sourceVersionId: operation.sourceVersionId,
+            physicalPageCount: operation.ownerAttestedPhysicalPageCount!,
+            verifiedUsable: true,
+          },
+        },
+      },
     };
     if (options.crashAfterCompletion) throw new Error('simulated response-path crash after atomic commit');
     return state;
@@ -140,6 +182,7 @@ const createHarness = (options: {
     provider,
     clock: { now: () => new Date(NOW) },
     recoveryContext: options.recoveryContext,
+    onVerified: options.onVerified,
   };
   return {
     control: createSourceUploadControl(dependencies),
@@ -174,6 +217,10 @@ describe('provider-neutral Source Upload control domain', () => {
     expect(first.status).toBe('reserved');
     expect(replay.status).toBe('replayed');
     expect(replay.uploadUrl).toBe(first.uploadUrl);
+    await expectCode(harness.control.begin({
+      ...BEGIN_INPUT,
+      claim: { ...CLAIM, physicalPageCount: CLAIM.physicalPageCount + 1 },
+    }), 'idempotency_conflict');
     expect(Object.keys(first).sort()).toEqual(['expiresAt', 'requiredHeaders', 'reservationId', 'sourceVersionId', 'status', 'uploadUrl']);
     expect(JSON.stringify(first)).not.toMatch(/(?:bucket|location|objectKey|credential|secret|bytes)/iu);
   });
@@ -368,6 +415,41 @@ describe('provider-neutral Source Upload control domain', () => {
     const replay = await harness.control.complete(input);
     expect(replay).toEqual(first);
     expect(harness.completeVerified).toHaveBeenCalledTimes(1);
+  });
+
+  it('repairs a missing provider-free projection during completion replay', async () => {
+    const harness = createHarness();
+    const begin = await harness.control.begin(BEGIN_INPUT);
+    const input = completionInput(begin.reservationId);
+    await harness.control.complete(input);
+    harness.setState({ ...harness.state(), assemblyBooks: {} });
+
+    await expect(harness.control.complete(input)).resolves.toMatchObject({
+      status: 'verified_completed',
+      sourceVersionId: begin.sourceVersionId,
+    });
+    expect(harness.completeVerified).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(harness.state().assemblyBooks)).not.toMatch(
+      /(?:bucket|location|objectKey|providerFile|providerKind)/iu,
+    );
+  });
+
+  it('runs the trusted completion continuation on fresh completion and replay repair', async () => {
+    const onVerified = vi.fn(async () => undefined);
+    const harness = createHarness({ onVerified });
+    const begin = await harness.control.begin(BEGIN_INPUT);
+    const input = completionInput(begin.reservationId);
+
+    await harness.control.complete(input);
+    expect(onVerified).toHaveBeenCalledTimes(1);
+    expect(onVerified).toHaveBeenLastCalledWith(
+      expect.objectContaining({ bookId: BEGIN_INPUT.bookId, sourceVersionId: begin.sourceVersionId }),
+      { ownerId: BEGIN_INPUT.actorId },
+    );
+
+    harness.setState({ ...harness.state(), assemblyBooks: {} });
+    await harness.control.complete(input);
+    expect(onVerified).toHaveBeenCalledTimes(2);
   });
 
   it('fails closed for wrong owner and safely recovers after a response-path crash', async () => {

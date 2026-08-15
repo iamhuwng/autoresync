@@ -7,6 +7,17 @@ import type {
 export const BOOK_HOMEWORK_AUTHORITY_SCHEMA_VERSION = 1 as const;
 export const BOOK_HOMEWORK_SCHEDULE_RESOLVER_VERSION = 1 as const;
 
+/**
+ * The complete identity boundary for one per-recipient Book Homework
+ * authority. `authorityId` names the Firestore document; `assignmentId` is
+ * the root assignment/saga identity.
+ */
+export interface BookHomeworkAuthorityScope {
+  readonly authorityId: string;
+  readonly assignmentId: string;
+  readonly ownerId: string;
+}
+
 export type BookHomeworkSagaState = 'prepared' | 'committed' | 'compensating';
 export type BookHomeworkStudentState = 'not-started' | 'in-progress' | 'submitted';
 
@@ -83,6 +94,7 @@ export interface BookHomeworkAuthorityRecord {
 }
 
 export interface BookHomeworkCreateCommand {
+  readonly scope: BookHomeworkAuthorityScope;
   readonly assignmentId: string;
   readonly ownerId: string;
   readonly manifest: BookHomeworkManifest;
@@ -96,6 +108,7 @@ export interface BookHomeworkCreateCommand {
 }
 
 export interface BookHomeworkScheduleCommand {
+  readonly scope: BookHomeworkAuthorityScope;
   readonly assignmentId: string;
   readonly ownerId: string;
   readonly schedule: BookHomeworkAuthoritySchedule;
@@ -107,6 +120,7 @@ export interface BookHomeworkScheduleCommand {
 }
 
 export interface BookHomeworkStudentExtensionCommand {
+  readonly scope: BookHomeworkAuthorityScope;
   readonly assignmentId: string;
   readonly ownerId: string;
   readonly studentId: string;
@@ -119,6 +133,7 @@ export interface BookHomeworkStudentExtensionCommand {
 }
 
 export interface BookHomeworkVisibilityCommand {
+  readonly scope: BookHomeworkAuthorityScope;
   readonly assignmentId: string;
   readonly ownerId: string;
   readonly state: Extract<BookHomeworkSagaState, 'committed' | 'compensating'>;
@@ -129,6 +144,7 @@ export interface BookHomeworkVisibilityCommand {
 }
 
 export interface BookHomeworkRecoveryCommand {
+  readonly scope: BookHomeworkAuthorityScope;
   readonly assignmentId: string;
   readonly ownerId: string;
   readonly state: Extract<BookHomeworkSagaState, 'committed' | 'compensating'>;

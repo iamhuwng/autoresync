@@ -54,7 +54,7 @@ export interface BookHomeworkProgressRequestOptions {
 
 export interface TeacherBookHomeworkProgressRow {
     readonly studentId: string;
-    readonly completion: BookHomeworkProgressProjection;
+    readonly completion: BookHomeworkProgressProjection | null;
 }
 
 export class BookHomeworkProgressReadError extends Error {
@@ -217,7 +217,7 @@ export async function getTeacherBookHomeworkProgress(
         || rows.some((row) => !isRecord(row)
             || typeof row.studentId !== 'string'
             || !BOOK_HOMEWORK_READ_ID.test(row.studentId)
-            || !isBookHomeworkProgressProjection(row.completion))) {
+            || (row.completion !== null && !isBookHomeworkProgressProjection(row.completion)))) {
         throw new BookHomeworkProgressReadError(
             String(responseBody.message ?? responseBody.code ?? 'Book Homework progress is unavailable.'),
             response.ok ? 502 : response.status,
@@ -228,10 +228,11 @@ export async function getTeacherBookHomeworkProgress(
     }
     const seen = new Set<string>();
     return rows.map((row) => {
-        const typed = row as { studentId: string; completion: BookHomeworkProgressProjection };
+        const typed = row as { studentId: string; completion: BookHomeworkProgressProjection | null };
         if (seen.has(typed.studentId)
-            || typed.completion.recipientId !== typed.studentId
-            || typed.completion.contextId !== homeworkId) {
+            || (typed.completion !== null
+                && (typed.completion.recipientId !== typed.studentId
+                    || typed.completion.contextId !== homeworkId))) {
             throw new BookHomeworkProgressReadError(
                 'Book Homework progress response is inconsistent.',
                 502,
@@ -730,15 +731,7 @@ export async function getBestSubmission(
 // HOMEWORK VIEW FOR STUDENTS
 // ============================================================================
 
-/**
- * Get homework assignments for a student with their status
- * 
- * @param studentId - Student ID
- * @returns Array of homework with student status
- */
-export async function getStudentHomeworkList(
-    studentId: string
-): Promise<Array<{
+export interface StudentHomeworkListRecord {
     homework: HomeworkAssignment;
     submission: HomeworkSubmission | null;
     attemptsUsed: number;
@@ -751,15 +744,13 @@ export async function getStudentHomeworkList(
     lastRemindedAt?: number;
     reminderCount: number;
     isExempted: boolean;
-}>> {
-    // Import here to avoid circular dependency
-    const { getHomeworkForStudent } = await import('./homeworkManager');
+}
 
-    // Get all homework assigned to this student
-    const homeworks = await getHomeworkForStudent(studentId);
-
-    // Get all submissions for this student
-    const allSubmissions = await getStudentSubmissions(studentId);
+export function buildStudentHomeworkListRecords(
+    homeworks: HomeworkAssignment[],
+    allSubmissions: HomeworkSubmission[],
+    studentId: string,
+): StudentHomeworkListRecord[] {
     const submissionsByHomework = new Map<string, HomeworkSubmission[]>();
 
     for (const submission of allSubmissions) {
@@ -837,6 +828,26 @@ export async function getStudentHomeworkList(
             isExempted
         };
     });
+}
+
+/**
+ * Get homework assignments for a student with their status
+ *
+ * @param studentId - Student ID
+ * @returns Array of homework with student status
+ */
+export async function getStudentHomeworkList(
+    studentId: string
+): Promise<StudentHomeworkListRecord[]> {
+    // Import here to avoid circular dependency
+    const { getHomeworkForStudent } = await import('./homeworkManager');
+
+    // Get all homework assigned to this student
+    const homeworks = await getHomeworkForStudent(studentId);
+
+    // Get all submissions for this student
+    const allSubmissions = await getStudentSubmissions(studentId);
+    return buildStudentHomeworkListRecords(homeworks, allSubmissions, studentId);
 }
 
 // ============================================================================

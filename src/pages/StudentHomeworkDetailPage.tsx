@@ -18,7 +18,9 @@ import { FEATURE_IDS } from '../config/featureRegistry';
 import { getTestFromFirebase, TestData } from '../services/testStorage';
 import { database } from '../services/firebase';
 import { getBookHomeworkProgress } from '../services/homeworkSubmissionService';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import { isBookHomeworkAssignment } from '../services/book-homework/bookHomeworkManifest.service';
+import { buildBookPlacementPracticeRouteParams } from '../services/book-delivery/bookPlacementLaunch.browser';
 import type {
     BookHomeworkProgressActivity,
     BookHomeworkProgressProjection,
@@ -690,6 +692,7 @@ export function BookHomeworkProgressPanel({
     isMobile,
     onBack,
     onRetry,
+    onLaunch,
 }: {
     progress: BookHomeworkProgressProjection | null;
     error: string | null;
@@ -697,6 +700,7 @@ export function BookHomeworkProgressPanel({
     isMobile: boolean;
     onBack: () => void;
     onRetry?: () => void;
+    onLaunch?: () => void;
 }) {
     const completionLabel = progress
         ? getBookCompletionLabel(progress.completion.status)
@@ -864,6 +868,25 @@ export function BookHomeworkProgressPanel({
                     >
                         Back to Homework List
                     </button>
+                    {onLaunch ? (
+                        <button
+                            type="button"
+                            onClick={onLaunch}
+                            style={{
+                                minHeight: 44,
+                                marginTop: '0.75rem',
+                                border: 0,
+                                borderRadius: studentTokens.radiusSoft,
+                                background: studentTokens.accent,
+                                color: '#ffffff',
+                                cursor: 'pointer',
+                                padding: '0.6rem 1rem',
+                                fontWeight: 700,
+                            }}
+                        >
+                            Open Book Activities
+                        </button>
+                    ) : null}
                 </div>
             </section>
         </div>
@@ -922,12 +945,14 @@ export const StudentHomeworkDetailPage: React.FC = () => {
         studentName: resolvedStudentName,
     });
 
-    const isBookHomework = Boolean(
+    const isBookCompatibilityHomework = isBookHomeworkCompatibilityProjection(homework);
+    const isExistingBookHomework = Boolean(
         homework
         && isBookHomeworkAssignment(
             homework as unknown as Parameters<typeof isBookHomeworkAssignment>[0],
         ),
     );
+    const isBookHomework = isBookCompatibilityHomework || isExistingBookHomework;
 
     // Book Homework has its own completion projection. A missing legacy shell
     // is also a supported path because Book assignments are owned by the Book
@@ -1115,6 +1140,23 @@ export const StudentHomeworkDetailPage: React.FC = () => {
         }
     };
 
+    const handleLaunchBookHomework = () => {
+        if (!homeworkId || !user?.uid) return;
+        trackAction('bookHomeworkStudentLaunchRequested', {
+            homeworkId,
+            source: 'student_homework_detail',
+        });
+        navigateTo(
+            'STUDENT_PRACTICE',
+            buildBookPlacementPracticeRouteParams(homeworkId, {
+                kind: 'homework',
+                surface: 'homework',
+                homeworkId,
+            }),
+            { force: true, reason: 'student_book_homework_runtime_launch' },
+        );
+    };
+
     // PRD-0039 Task 9.7: Redirect to academic-record slide panel
     const handleViewResult = (resultId: string) => {
         setSelectedResultId(resultId);
@@ -1197,6 +1239,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         trackAction('bookHomeworkProgressRetry', { role: 'student' });
                         setBookProgressRetry((value) => value + 1);
                     }}
+                    onLaunch={isBookCompatibilityHomework ? handleLaunchBookHomework : undefined}
                 />
             );
 

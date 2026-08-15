@@ -1,0 +1,112 @@
+{
+  "artifactKind": "prd0062-126-production-normal-activity-wire-codec-execution-result",
+  "schemaVersion": 1,
+  "status": "failed-safe-rolled-back",
+  "consumedApprovalPacket": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-activity-wire-codec-approval-packet-2026-08-14.json",
+    "sha256": "5a1f8f8dec752f6c181a7d0951ceeb339be97779442555472efe50f370882fb0"
+  },
+  "execution": {
+    "authenticationBeforeMutation": {
+      "firebasePasswordSignIn": "succeeded",
+      "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "origin": "http://localhost:5173",
+      "referer": "http://localhost:5173"
+    },
+    "preparation": {
+      "inactiveRollbackVersion": "ebf3c69d-2de1-4da5-b549-b86ffae5498d",
+      "inactiveActivationVersion": "47985054-ab75-4539-a1ea-3b5ffef7847f",
+      "scriptEtag": "9165f96f0acb609386644b4d233a734c3e147967e3b3a90ddd77eaef0ed28996",
+      "requiredSecretsPresent": true,
+      "exactFlagsValidated": true,
+      "frozenForwardRulesPutHttpStatus": 200,
+      "frozenForwardRulesCanonicalReadbackSha256": "b0d15607bc5402eee8a9699c934e8249e2b20634ad6750248e902a0b00a2ecd9"
+    },
+    "activation": {
+      "deploymentId": "eac18cc2-65a6-4a31-9142-a1cfed24adb3",
+      "version": "47985054-ab75-4539-a1ea-3b5ffef7847f",
+      "percentage": 100,
+      "createdOn": "2026-08-13T20:40:53.282499Z"
+    },
+    "activityWorkflow": {
+      "validate": {
+        "operationId": "884a9a09-94dd-4964-a86f-3ff1e9641759",
+        "httpStatus": 200,
+        "candidateId": "candidate-63a7b569-aaa1-4fca-9297-2b284f88415c",
+        "revision": 2,
+        "lifecycle": "validated",
+        "valid": true,
+        "errors": []
+      },
+      "saveDraftBindingReplay": {
+        "operationId": "62e20638-b575-4f12-8d10-243a356103c3",
+        "expectedRevision": 2,
+        "binding": {
+          "unitKey": "unit-vocab-u1",
+          "activityKey": "activity-vocab-u1"
+        },
+        "httpStatus": 500,
+        "errorCode": "book_activity_authoring_failed"
+      },
+      "downstreamWorkflowOccurred": false
+    },
+    "rollback": {
+      "automatic": true,
+      "deploymentId": "7157278b-f38e-4e9c-a734-137c0b6e598b",
+      "version": "ebf3c69d-2de1-4da5-b549-b86ffae5498d",
+      "percentage": 100,
+      "message": "prd0062-126-production-normal-activity-codec-auto-rollback-v11",
+      "rulesCanonicalSha256": "e813cef379c9246db6492ad9ee7dd7e3697fb66e133b7f7d644db4b273a7ffc0"
+    }
+  },
+  "postFailureTrustedReadback": {
+    "candidate": {
+      "candidateId": "candidate-63a7b569-aaa1-4fca-9297-2b284f88415c",
+      "revision": 3,
+      "lifecycle": "saved",
+      "valid": true
+    },
+    "activity": {
+      "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+      "revision": 1,
+      "lifecycle": "draft",
+      "exists": true
+    },
+    "exactTupleBindingLeaf": null,
+    "previewApprovalPublicationAssignmentDeliveryOccurred": false
+  },
+  "causalAssessment": {
+    "classification": "demonstrated-root-cause",
+    "observedFacts": {
+      "ruleContract": "#118C exact binding leaf read requires an existing data identity",
+      "firstCreateCas": "requires an ETag GET of the absent binding leaf",
+      "scopedReadResult": "denied before the allowed PUT",
+      "evidence": [
+        "118C.json leaf .read",
+        "generated database.rules"
+      ]
+    },
+    "inference": "The missing exact tuple binding was caused by the #118C rule contract: first-create CAS cannot read the absent leaf before PUT. This is not an Activity codec or repository architecture defect."
+  },
+  "currentProduction": {
+    "worker": "r2-upload-signer",
+    "deploymentId": "7157278b-f38e-4e9c-a734-137c0b6e598b",
+    "version": "ebf3c69d-2de1-4da5-b549-b86ffae5498d",
+    "percentage": 100,
+    "rulesCanonicalSha256": "e813cef379c9246db6492ad9ee7dd7e3697fb66e133b7f7d644db4b273a7ffc0",
+    "safeState": true
+  },
+  "durableRemoteState": {
+    "candidateRevision3": "saved and valid",
+    "activityRevision1": "draft exists",
+    "exactTupleBinding": "missing; leaf is null",
+    "approvalPublicationAssignmentDelivery": "none"
+  },
+  "disposition": {
+    "packet": "consumed",
+    "workflow": "failed-and-rolled-back",
+    "deploymentAuthorizationCarriedForward": false,
+    "activationAuthorizationCarriedForward": false,
+    "reconciliation": "Replay the existing save operation 62e20638-b575-4f12-8d10-243a356103c3 under a new approved packet to reconcile the missing binding without another Activity revision."
+  }
+}

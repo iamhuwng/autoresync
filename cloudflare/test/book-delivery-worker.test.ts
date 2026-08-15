@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { InMemoryBookAssemblyPublicationRepository } from '../../src/services/book-assembly/publicationRepository';
+import { bookAssemblyActivityVersionScopeKey } from '../../src/services/book-assembly/publicationTransaction.service';
 import { InMemoryBookDeliveryRepository } from '../../src/services/book-delivery/bookDelivery.entitlementRepository';
 import { BOOK_DELIVERY_SCHEMA_VERSION } from '../../src/services/book-delivery/bookDelivery.types';
 import fragment08B from '../src/upload-worker/book-rules/fragments/08B.json';
-import { createBookDeliveryWorkerHandlers } from '../src/upload-worker/book-delivery/worker';
+import {
+  BookDeliveryWorkerError,
+  createBookDeliveryWorkerHandlers,
+  createTrustedBookDeliveryPublication,
+} from '../src/upload-worker/book-delivery/worker';
 import {
   makeBookAssemblyPublicationScope,
   makeBookDeliveryIssuanceIntent,
@@ -185,6 +190,85 @@ describe('Book Delivery Worker contract', () => {
       body: { code: 'book-delivery-not-found' },
       init: { status: 404 },
     });
+  });
+
+  it('accepts composite activity-version keys and semantically equivalent insertion order', () => {
+    const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    const activityVersion = scope.activityVersions['activity-1-v1'];
+    delete scope.activityVersions['activity-1-v1'];
+    scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')] = {
+      ...activityVersion,
+      sourcePages: [{ physicalPageNumber: 1, sourceVersionId: 'source-v1', sourceKey: 'full' }],
+    };
+    scope.versions['manifest-1'].manifest.sourceSet = {
+      sources: [{ sourceOrder: 1, sourceVersionId: 'source-v1', sourceKey: 'full' }],
+      sourceStrategy: 'full_pdf',
+    };
+    scope.deliveryPlans['delivery-plan-1'].sourceSet = {
+      sources: [{ sourceVersionId: 'source-v1', sourceKey: 'full', sourceOrder: 1 }],
+      sourceStrategy: 'full_pdf',
+    };
+    scope.placements['placement-1'].sourcePages = [{
+      physicalPageNumber: 1,
+      sourceVersionId: 'source-v1',
+      sourceKey: 'full',
+    }];
+    scope.activitySafeProjections['projection-1'].sourcePages = [{
+      physicalPageNumber: 1,
+      sourceVersionId: 'source-v1',
+      sourceKey: 'full',
+    }];
+
+    expect(createTrustedBookDeliveryPublication(
+      makeBookDeliveryIssuanceIntent(),
+      scope,
+      { policyId: 'schedule-1', policyRevision: 1, basis: 'immutable-reference' },
+    )).toMatchObject({
+      manifestVersionId: 'manifest-1',
+      publicationId: 'publication-1',
+      placements: [{ activityVersionId: 'activity-1-v1', sourcePageScopes: [{ sourceKey: 'full', pages: [1] }] }],
+    });
+  });
+
+  it('accepts a preserved Activity Version stored under a composite key', () => {
+    const scope = makeMappingRevisionPublicationScope() as any;
+    const activityVersion = scope.activityVersions['activity-1-v1'];
+    delete scope.activityVersions['activity-1-v1'];
+    scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')] = activityVersion;
+
+    expect(createTrustedBookDeliveryPublication(
+      {
+        ...makeBookDeliveryIssuanceIntent(),
+        publicationId: 'publication-2',
+        publicationRevision: 5,
+      },
+      scope,
+      { policyId: 'schedule-1', policyRevision: 1, basis: 'immutable-reference' },
+    )).toMatchObject({
+      manifestVersionId: 'manifest-2',
+      publicationId: 'publication-2',
+      placements: [{ activityVersionId: 'activity-1-v1', activityVersion: 1 }],
+    });
+  });
+
+  it.each([
+    ['malformed activity version', (scope: any) => { scope.activityVersions['activity-1-v1'].activityVersionId = ''; }],
+    ['wrong manifest', (scope: any) => { scope.activityVersions['activity-1-v1'].manifestVersionId = 'manifest-other'; }],
+  ])('rejects %s activity-version state', (_label, corrupt) => {
+    const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    let error: unknown;
+    corrupt(scope);
+    try {
+      createTrustedBookDeliveryPublication(
+        makeBookDeliveryIssuanceIntent(),
+        scope,
+        { policyId: 'schedule-1', policyRevision: 1, basis: 'immutable-reference' },
+      );
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(BookDeliveryWorkerError);
+    expect(error).toMatchObject({ code: 'book_delivery_activity_version_invalid' });
   });
 
   it('keeps placement-scoped component delivery limited to selected source keys', async () => {

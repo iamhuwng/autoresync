@@ -13,7 +13,7 @@ const {
   updateHomeworkMock,
   sendHomeworkReminderNotificationMock,
   getTeacherBookHomeworkProgressMock,
-  isBookHomeworkAssignmentMock,
+  isBookHomeworkCompatibilityProjectionMock,
   refreshReadingV2MasterAssignmentFromLatestMock,
   trackActionMock,
 } = vi.hoisted(() => ({
@@ -26,7 +26,7 @@ const {
   updateHomeworkMock: vi.fn(),
   sendHomeworkReminderNotificationMock: vi.fn(),
   getTeacherBookHomeworkProgressMock: vi.fn(),
-  isBookHomeworkAssignmentMock: vi.fn(),
+  isBookHomeworkCompatibilityProjectionMock: vi.fn(),
   refreshReadingV2MasterAssignmentFromLatestMock: vi.fn(),
   trackActionMock: vi.fn(),
 }));
@@ -134,8 +134,8 @@ vi.mock('../services/homeworkSubmissionService', () => ({
   getTeacherBookHomeworkProgress: (...args: unknown[]) => getTeacherBookHomeworkProgressMock(...args),
 }));
 
-vi.mock('../services/book-homework/bookHomeworkManifest.service', () => ({
-  isBookHomeworkAssignment: (...args: unknown[]) => isBookHomeworkAssignmentMock(...args),
+vi.mock('../services/book-homework/bookHomeworkCompatibilityProjection.service', () => ({
+  isBookHomeworkCompatibilityProjection: (...args: unknown[]) => isBookHomeworkCompatibilityProjectionMock(...args),
 }));
 
 vi.mock('../services/homeworkManager', () => ({
@@ -200,6 +200,43 @@ const homeworkAssignment = {
   createdAt: now - 120_000,
   tags: [],
   studentOverrides: {},
+};
+
+const bookCompatibilityHomework = {
+  schemaVersion: 1,
+  assignmentKind: 'book_homework_compatibility',
+  id: 'hw-1',
+  createdBy: 'teacher-1',
+  createdAt: now - 120_000,
+  updatedAt: now,
+  materialId: 'book-material-1',
+  materialTitle: 'Vocabulary Book',
+  materialType: 'book',
+  materialSkill: 'mixed',
+  title: 'Vocabulary Book Homework',
+  target: { type: 'students', studentIds: ['student-1'] },
+  scheduling: { dueDate: now + 86_400_000 },
+  config: {
+    timerMinutes: null,
+    maxAttempts: null,
+    feedbackTiming: 'never',
+    lateSubmissionAllowed: false,
+  },
+  visibility: {
+    showTimer: false,
+    showAttempts: false,
+    showDueDate: true,
+    showQuestionCount: false,
+    showDuration: false,
+  },
+  archived: false,
+  tags: [],
+  bookHomeworkCompatibility: {
+    schemaVersion: 1,
+    assignmentId: 'hw-1',
+    sourceSagaRevision: 7,
+    sourceFingerprint: 'fnv1a64:cc3d88a5107df2b5',
+  },
 };
 
 const legacyIntegrityReport = {
@@ -298,7 +335,7 @@ describe('TeacherHomeworkDetailPage', () => {
     });
     sendHomeworkReminderNotificationMock.mockResolvedValue(undefined);
     getTeacherBookHomeworkProgressMock.mockResolvedValue(null);
-    isBookHomeworkAssignmentMock.mockReturnValue(false);
+    isBookHomeworkCompatibilityProjectionMock.mockReturnValue(false);
   });
 
   it('normalizes legacy session-style integrity reports into homework summary details', async () => {
@@ -435,7 +472,7 @@ describe('TeacherHomeworkDetailPage', () => {
   });
 
   it('renders one bounded Book progress batch with exact student rows and no aggregate grade', async () => {
-    isBookHomeworkAssignmentMock.mockReturnValue(true);
+    isBookHomeworkCompatibilityProjectionMock.mockReturnValue(true);
     const progress = (studentId: string, submittedCount: number, status: 'in_progress' | 'completed', pendingReviewCount: number) => ({
       schemaVersion: 1 as const,
       manifestVersionId: 'manifest-1',
@@ -504,9 +541,82 @@ describe('TeacherHomeworkDetailPage', () => {
     expect(getTeacherBookHomeworkProgressMock).toHaveBeenCalledWith('hw-1');
   });
 
-  it('composes grading for the exact trusted terminal without changing Book completion', async () => {
+  it('retries a missing Book progress read with a fresh request', async () => {
+    isBookHomeworkCompatibilityProjectionMock.mockReturnValue(true);
+    let requestCount = 0;
+    getTeacherBookHomeworkProgressMock
+      .mockImplementation(async () => {
+        requestCount += 1;
+        return requestCount === 1 ? null : [{
+          studentId: 'student-1',
+          completion: {
+            schemaVersion: 1,
+            manifestVersionId: 'manifest-1',
+            recipientId: 'student-1',
+            contextId: 'hw-1',
+            deliveryBindingId: 'delivery-1',
+            bindingRevision: 1,
+            completion: {
+              submittedCount: 1,
+              requiredCount: 1,
+              status: 'completed',
+              isComplete: true,
+            },
+            grading: {
+              scoredCount: 0,
+              pendingReviewCount: 0,
+              ungradedSubmittedCount: 0,
+            },
+            activities: [],
+            excludedHistoricalRows: [],
+          },
+        }];
+      });
+    useHomeworkDetailMock.mockReturnValue({
+      homework: bookCompatibilityHomework,
+      submissions: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Book progress is not available for this assignment.')).toBeInTheDocument();
+    expect(getTeacherBookHomeworkProgressMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Book progress' }));
+
+    expect(await screen.findByTestId('teacher-book-student-student-1')).toBeInTheDocument();
+    expect(getTeacherBookHomeworkProgressMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders a student row when authoritative Book completion is unavailable', async () => {
+    isBookHomeworkCompatibilityProjectionMock.mockReturnValue(true);
+    getTeacherBookHomeworkProgressMock.mockResolvedValue([{
+      studentId: 'student-1',
+      completion: null,
+    }]);
+    useHomeworkDetailMock.mockReturnValue({
+      homework: bookCompatibilityHomework,
+      submissions: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    const row = await screen.findByTestId('teacher-book-student-student-1');
+    expect(row).toHaveTextContent('student-1');
+    expect(row).toHaveTextContent('Book progress unavailable');
+    expect(row).toHaveTextContent('No authoritative completion projection is available for this student yet.');
+    expect(row).not.toHaveTextContent('Activities submitted');
+  });
+
+  it('suppresses grading and integrity actions without a trusted Book locator', async () => {
     vi.stubEnv('VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION', 'enabled');
-    isBookHomeworkAssignmentMock.mockReturnValue(true);
+    isBookHomeworkCompatibilityProjectionMock.mockReturnValue(true);
     getTeacherBookHomeworkProgressMock.mockResolvedValue([{
       studentId: 'student-1',
       completion: {
@@ -543,11 +653,7 @@ describe('TeacherHomeworkDetailPage', () => {
       },
     }]);
     useHomeworkDetailMock.mockReturnValue({
-      homework: {
-        ...homeworkAssignment,
-        assignmentKind: 'book_activity_bundle',
-        bookManifest: { book: { bookId: 'book-1' } },
-      },
+      homework: bookCompatibilityHomework,
       submissions: [],
       loading: false,
       error: null,
@@ -558,23 +664,16 @@ describe('TeacherHomeworkDetailPage', () => {
     const progress = await screen.findByTestId('teacher-book-homework-progress');
     expect(progress).toHaveTextContent('1 of 2');
     expect(progress).toHaveTextContent('Pending review');
-    fireEvent.click(screen.getByRole('button', { name: 'Grade Activity' }));
-
-    expect(screen.getByTestId('book-activity-grading-panel')).toHaveTextContent(
-      '"terminalId":"result-terminal-1"',
-    );
-    expect(screen.getByTestId('book-activity-grading-panel')).toHaveTextContent(
-      '"contextId":"hw-1"',
-    );
-    expect(screen.getByTestId('book-activity-grading-panel')).not.toHaveTextContent(
-      '"attemptId"',
-    );
+    expect(progress).not.toHaveTextContent('book-1');
+    expect(screen.queryByRole('button', { name: 'Grade Activity' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'View integrity signals' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('book-activity-grading-panel')).not.toBeInTheDocument();
     expect(progress).toHaveTextContent('1 of 2');
     expect(getTeacherBookHomeworkProgressMock).toHaveBeenCalledTimes(1);
   });
 
   it('rollback hides grading composition while preserving submitted progress', async () => {
-    isBookHomeworkAssignmentMock.mockReturnValue(true);
+    isBookHomeworkCompatibilityProjectionMock.mockReturnValue(true);
     getTeacherBookHomeworkProgressMock.mockResolvedValue([{
       studentId: 'student-1',
       completion: {

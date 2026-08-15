@@ -164,6 +164,9 @@ const operationFor = (
     && (descriptor.handler.includes('Publish') || descriptor.handler.includes('publish'))) {
     return 'publish';
   }
+  if (descriptor.domain === 'homework' && descriptor.handler.endsWith('.homeworkStudentLaunch')) {
+    return 'launch-delivery';
+  }
   if (descriptor.domain === 'delivery' || descriptor.domain === 'homework') return 'assign-place';
   if (descriptor.domain === 'runtime' && descriptor.handler.includes('Launch')) return 'launch-delivery';
   return 'mutation';
@@ -173,6 +176,9 @@ const requirementsFor = (
   descriptor: CanonicalBookRouteDescriptor,
   operation: BookPilotScopeRequest['operation'],
 ): Pick<BookPilotScopeRequest, 'requireBook' | 'requireAssignment' | 'requireStudents'> => {
+  if (descriptor.domain === 'homework' && descriptor.handler.endsWith('.homeworkStudentLaunch')) {
+    return { requireBook: false, requireAssignment: true, requireStudents: false };
+  }
   // Activation and revocation address an existing trusted binding. Their
   // direct worker boundary reads the binding before checking its exact pilot
   // subjects; the router still checks the authenticated teacher here.

@@ -4,6 +4,8 @@ import type {
   BookSourceUploadCleanupReason,
   BookSourceUploadKind,
   BookSourceUploadOperation,
+  BookSourceAssemblyBooks,
+  BookSourceAssemblyProjection,
   BookSourceProviderReconciliationContinuation,
   BookSourceProviderReconciliationSnapshot,
   BookSourceVersionStorageIdentity,
@@ -38,6 +40,7 @@ const OPERATION_KEYS = [
   'providerObjectKey',
   'kind',
   'byteSize',
+  'ownerAttestedPhysicalPageCount',
   'originalFilename',
   'expectedChecksum',
   'createdAt',
@@ -77,6 +80,13 @@ export interface ReserveSourceUploadInput {
   readonly providerObjectKey: string;
   readonly kind: BookSourceUploadKind;
   readonly byteSize: number;
+  /** Canonical persisted page-count attestation. */
+  readonly ownerAttestedPhysicalPageCount?: number;
+  /**
+   * Compatibility alias accepted only at this trusted seam. New rows always
+   * persist `ownerAttestedPhysicalPageCount`.
+   */
+  readonly physicalPageCount?: number;
   readonly originalFilename: unknown;
   readonly expectedChecksum: BookSourceChecksum;
   readonly createdAt: string;
@@ -228,6 +238,7 @@ export class SourceUploadRtdbRepository {
           providerObjectKey: input.providerObjectKey,
           kind: input.kind,
           byteSize: input.byteSize,
+          ownerAttestedPhysicalPageCount: resolveOwnerAttestedPageCount(input),
           originalFilename: normalizeBookSourceDisplayFilename(input.originalFilename),
           expectedChecksum: Object.freeze({ algorithm: 'sha-256', value: input.expectedChecksum.value.toLowerCase() }),
           createdAt: input.createdAt,
@@ -409,7 +420,7 @@ export class SourceUploadRtdbRepository {
             || operation.completedAt !== input.verifiedAt) {
             throw new SourceUploadConflictError('verified completion identity is immutable.');
           }
-          return state;
+          return ensureAssemblyProjection(state, operation);
         }
         if (operation.status !== 'reserved') throw new SourceUploadConflictError('only a reserved upload can complete.');
         const commitNow = this.now().getTime();
@@ -422,7 +433,14 @@ export class SourceUploadRtdbRepository {
         }
         assertTrustedCompletionMatchesReservation(operation, verifiedStorage);
         const completed = Object.freeze({ ...operation, status: 'verified_completed' as const, verifiedStorage, completedAt: input.verifiedAt });
-        const next = nextState(state, { ...state.operations, [input.reservationId]: completed }, state.capacity.trackedAccountBytes + operation.byteSize);
+        const completedOperations = { ...state.operations, [input.reservationId]: completed };
+        const next = nextState(
+          state,
+          completedOperations,
+          state.capacity.trackedAccountBytes + operation.byteSize,
+          state.capacity.providerReconciliation,
+          withAssemblyProjection(state.assemblyBooks, completed),
+        );
         assertBookSourceCapacityAvailable(calculateBookSourceCapacityUsage({ ...next.capacity, operations: next.operations }));
         return next;
       },
@@ -621,6 +639,7 @@ function nextState(
   operations: Readonly<Record<string, BookSourceUploadOperation>>,
   trackedAccountBytes = state.capacity.trackedAccountBytes,
   providerReconciliation = state.capacity.providerReconciliation,
+  assemblyBooks = state.assemblyBooks,
 ): BookSourceUploadAccountState {
   return Object.freeze({
     revision: state.revision + 1,
@@ -633,6 +652,9 @@ function nextState(
       // Any domain revision change invalidates an in-progress provider scan.
     }),
     operations: Object.freeze(operations),
+    ...(assemblyBooks === undefined ? {} : {
+      assemblyBooks: freezeAssemblyBooks(assemblyBooks, operations),
+    }),
   });
 }
 
@@ -652,12 +674,19 @@ function withProviderReconciliationContinuation(
         providerReconciliationContinuation: Object.freeze({ ...continuation }),
       }),
     }),
+    ...(state.assemblyBooks === undefined ? {} : {
+      assemblyBooks: freezeAssemblyBooks(state.assemblyBooks, state.operations),
+    }),
   });
 }
 
 function normalizePersistedState(value: BookSourceUploadAccountState): BookSourceUploadAccountState {
-  if (value.operations !== undefined) return value;
-  return { ...value, operations: {} };
+  if (value.operations !== undefined && value.assemblyBooks !== undefined) return value;
+  return {
+    ...value,
+    operations: value.operations ?? {},
+    assemblyBooks: value.assemblyBooks === undefined ? {} : value.assemblyBooks,
+  };
 }
 
 function requireCommitted<T>(committed: boolean, value: T | null): T {
@@ -678,6 +707,7 @@ function assertReservationInput(input: ReserveSourceUploadInput, now: Date): voi
   assertProviderObjectKey(input.providerObjectKey);
   if (input.kind !== 'initial' && input.kind !== 'replacement') throw new SourceVersionError('kind must be initial or replacement.');
   assertBookSourcePdfByteSize(input.byteSize);
+  resolveOwnerAttestedPageCount(input);
   if (input.expectedChecksum.algorithm !== 'sha-256' || !/^[a-fA-F0-9]{64}$/u.test(input.expectedChecksum.value)) {
     throw new SourceVersionError('expectedChecksum must be a SHA-256 checksum.');
   }
@@ -700,7 +730,8 @@ function assertState(state: BookSourceUploadAccountState): void {
     ? Object.keys(state.capacity)
     : [];
   if (!isPlainRecord(state) ||
-      (!hasOnlyKeys(state, ['revision', 'capacity', 'operations']) &&
+      (!hasOnlyKeys(state, ['revision', 'capacity', 'operations', 'assemblyBooks']) &&
+        !hasOnlyKeys(state, ['revision', 'capacity', 'operations']) &&
         !hasOnlyKeys(state, ['revision', 'capacity'])) ||
       !Number.isSafeInteger(state.revision) ||
       (state.revision as number) < 0 ||
@@ -747,6 +778,7 @@ function assertState(state: BookSourceUploadAccountState): void {
     || state.capacity.trackedAccountBytes < verifiedBytes) {
     throw new SourceUploadConflictError('tracked provider bytes undercount verified operations.');
   }
+  if (state.assemblyBooks !== undefined) assertAssemblyBooks(state.assemblyBooks, state.operations);
   calculateBookSourceCapacityUsage({ ...state.capacity, operations: state.operations });
 }
 
@@ -842,6 +874,9 @@ function assertOperation(value: unknown): asserts value is BookSourceUploadOpera
     throw new SourceUploadConflictError('invalid upload operation status.');
   }
   assertBookSourcePdfByteSize(value.byteSize);
+  if (value.ownerAttestedPhysicalPageCount !== undefined) {
+    assertPhysicalPageCount(value.ownerAttestedPhysicalPageCount);
+  }
   if (normalizeBookSourceDisplayFilename(value.originalFilename) !== value.originalFilename ||
       !isPlainRecord(value.expectedChecksum) ||
       !hasOnlyKeys(value.expectedChecksum, ['algorithm', 'value']) ||
@@ -1001,6 +1036,138 @@ function assertTrustedCompletionMatchesReservation(operation: BookSourceUploadOp
   ) throw new SourceUploadConflictError('trusted completion does not match immutable reservation identity.');
 }
 
+function assertPhysicalPageCount(value: unknown): asserts value is number {
+  if (typeof value !== 'number'
+    || !Number.isSafeInteger(value)
+    || value < 1
+    || value > 100_000) {
+    throw new SourceUploadConflictError('physicalPageCount must be a positive safe integer.');
+  }
+}
+
+function resolveOwnerAttestedPageCount(input: Pick<
+  ReserveSourceUploadInput,
+  'ownerAttestedPhysicalPageCount' | 'physicalPageCount'
+>): number {
+  const canonical = input.ownerAttestedPhysicalPageCount;
+  const compatibility = input.physicalPageCount;
+  if (canonical !== undefined && compatibility !== undefined && canonical !== compatibility) {
+    throw new SourceUploadConflictError('owner-attested page count identity is immutable.');
+  }
+  const count = canonical ?? compatibility;
+  assertPhysicalPageCount(count);
+  return count;
+}
+
+function freezeAssemblyBooks(
+  value: BookSourceAssemblyBooks,
+  operations: Readonly<Record<string, BookSourceUploadOperation>>,
+): BookSourceAssemblyBooks {
+  assertAssemblyBooks(value, operations);
+  return Object.freeze(Object.fromEntries(
+    Object.entries(value).map(([bookId, sources]) => [
+      bookId,
+      Object.freeze(Object.fromEntries(
+        Object.entries(sources).map(([sourceKey, projection]) => [
+          sourceKey,
+          Object.freeze({ ...projection }),
+        ]),
+      )),
+    ]),
+  ));
+}
+
+function assertAssemblyBooks(
+  value: unknown,
+  operations: Readonly<Record<string, BookSourceUploadOperation>>,
+): asserts value is BookSourceAssemblyBooks {
+  if (!isPlainRecord(value)) throw new SourceUploadConflictError('invalid Assembly source projection.');
+  for (const [bookId, sources] of Object.entries(value)) {
+    assertSafeId(bookId, 'assembly bookId');
+    if (!isPlainRecord(sources)) throw new SourceUploadConflictError('invalid Assembly source map.');
+    for (const [sourceKey, projection] of Object.entries(sources)) {
+      assertSafeId(sourceKey, 'assembly sourceKey');
+      if (!isPlainRecord(projection)
+        || !hasOnlyKeys(projection, [
+          'ownerId',
+          'bookId',
+          'sourceKey',
+          'sourceVersionId',
+          'physicalPageCount',
+          'verifiedUsable',
+        ])
+        || projection.bookId !== bookId
+        || projection.sourceKey !== sourceKey
+        || projection.verifiedUsable !== true) {
+        throw new SourceUploadConflictError('invalid Assembly source projection.');
+      }
+      assertSafeId(projection.ownerId, 'assembly ownerId');
+      assertSafeId(projection.bookId, 'assembly bookId');
+      assertSafeId(projection.sourceKey, 'assembly sourceKey');
+      assertSafeId(projection.sourceVersionId, 'assembly sourceVersionId');
+      assertPhysicalPageCount(projection.physicalPageCount);
+      const operation = Object.values(operations).find((candidate) =>
+        candidate.bookId === projection.bookId
+        && candidate.sourceKey === projection.sourceKey
+        && candidate.sourceVersionId === projection.sourceVersionId);
+      if (!operation
+        || operation.status !== 'verified_completed'
+        || operation.ownerId !== projection.ownerId
+        || operation.ownerAttestedPhysicalPageCount !== projection.physicalPageCount) {
+        throw new SourceUploadConflictError(
+          'Assembly projection requires a matching attested verified source operation.',
+        );
+      }
+    }
+  }
+}
+
+function withAssemblyProjection(
+  books: BookSourceAssemblyBooks | undefined,
+  operation: BookSourceUploadOperation,
+): BookSourceAssemblyBooks {
+  if (operation.ownerAttestedPhysicalPageCount === undefined) {
+    throw new SourceUploadConflictError('trusted assembly projection inputs are unavailable.');
+  }
+  const projection: BookSourceAssemblyProjection = Object.freeze({
+    ownerId: operation.ownerId,
+    bookId: operation.bookId,
+    sourceKey: operation.sourceKey,
+    sourceVersionId: operation.sourceVersionId,
+    physicalPageCount: operation.ownerAttestedPhysicalPageCount,
+    verifiedUsable: true,
+  });
+  return {
+    ...(books ?? {}),
+    [operation.bookId]: {
+      ...(books?.[operation.bookId] ?? {}),
+      [operation.sourceKey]: projection,
+    },
+  };
+}
+
+function ensureAssemblyProjection(
+  state: BookSourceUploadAccountState,
+  operation: BookSourceUploadOperation,
+): BookSourceUploadAccountState {
+  if (operation.ownerAttestedPhysicalPageCount === undefined) {
+    throw new SourceUploadConflictError('trusted assembly projection inputs are unavailable.');
+  }
+  const existing = state.assemblyBooks?.[operation.bookId]?.[operation.sourceKey];
+  if (existing
+    && existing.sourceVersionId === operation.sourceVersionId
+    && existing.ownerId === operation.ownerId
+    && existing.physicalPageCount === operation.ownerAttestedPhysicalPageCount
+    && existing.verifiedUsable === true) return state;
+  return nextState(
+    state,
+    state.operations,
+    state.capacity.trackedAccountBytes,
+    state.capacity.providerReconciliation,
+    withAssemblyProjection(state.assemblyBooks, operation),
+  );
+}
+
 function sameReservation(operation: BookSourceUploadOperation, input: ReserveSourceUploadInput): boolean {
   return operation.bookId === input.bookId
     && operation.sourceVersionId === input.sourceVersionId
@@ -1012,6 +1179,7 @@ function sameReservation(operation: BookSourceUploadOperation, input: ReserveSou
     && operation.providerObjectKey === input.providerObjectKey
     && operation.kind === input.kind
     && operation.byteSize === input.byteSize
+    && operation.ownerAttestedPhysicalPageCount === resolveOwnerAttestedPageCount(input)
     && operation.originalFilename === normalizeBookSourceDisplayFilename(input.originalFilename)
     && operation.expectedChecksum.value === input.expectedChecksum.value.toLowerCase()
     && operation.createdAt === input.createdAt

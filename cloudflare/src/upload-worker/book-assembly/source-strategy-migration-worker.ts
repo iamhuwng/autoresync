@@ -97,7 +97,7 @@ export const createSourceStrategyMigrationWorkerHandlers = (options: {
   isPublished?: (authority: BookAssemblyBookAuthority, repository: BookAssemblyRepositoryPort) => Promise<boolean>;
 } = {}) => {
   const now = options.now ?? (() => new Date().toISOString());
-  const repositoryFor = (env: BookAssemblyRepositoryEnv): BookAssemblyRepositoryPort => options.repository ?? new FirebaseRestBookAssemblyRepository({ env });
+  const repositoryFor = (env: BookAssemblyRepositoryEnv, ownerId: string): BookAssemblyRepositoryPort => options.repository ?? new FirebaseRestBookAssemblyRepository({ env, ownerId });
   const authorityFor = async (repository: BookAssemblyRepositoryPort, bookId: string): Promise<BookAssemblyBookAuthority | null> => options.readBookAuthority?.(repository, bookId) ?? null;
   const gate = (env: BookAssemblyRepositoryEnv): boolean => env.BOOK_ASSEMBLY_MIGRATIONS_ENABLED === 'true';
   const auth = async (repository: BookAssemblyRepositoryPort, uid: string): Promise<void> => { if (!roleAllowed(await repository.readValue(`users/${uid}`))) throw new BookAssemblyWorkerError('assembly_forbidden', 403); };
@@ -106,7 +106,7 @@ export const createSourceStrategyMigrationWorkerHandlers = (options: {
   type MutationInput = { request: Request; env: BookAssemblyRepositoryEnv; uid: string; params?: { bookId?: string; unitKey?: string; migrationCandidateId?: string } };
   const mutate = async (action: 'migrate' | 'confirm' | 'cancel', input: MutationInput) => {
     try {
-      const repository = repositoryFor(input.env);
+      const repository = repositoryFor(input.env, input.uid);
       const body = await readBody(input.request);
       await auth(repository, input.uid);
       if (!gate(input.env)) return { body: { code: 'book_assembly_migration_disabled' }, init: { status: 503 } };

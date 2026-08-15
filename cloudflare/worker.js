@@ -23,6 +23,7 @@ import { createListeningAuthoringWorkerHandlers } from './src/upload-worker/list
 import { createListeningUploadSessionHandlers } from './src/upload-worker/listening-upload-session.ts';
 import { createListeningDeliveryWorkerHandlers } from './src/upload-worker/listening-delivery.ts';
 import { createBookRouter } from './src/upload-worker/book-router.ts';
+import { createProductionBookAssemblyRouteOptions } from './src/upload-worker/book-assembly/production-composition.ts';
 
 /**
  * R2 Upload Worker with Smart Cleanup Support
@@ -75,7 +76,10 @@ export function createUploadWorker({
   bookRouter,
   bookRouteHandlers,
 } = {}) {
-  const canonicalBookRouter = bookRouter ?? createBookRouter({ firebaseVerifier, routeHandlers: bookRouteHandlers });
+  const canonicalBookRouter = bookRouter ?? createBookRouter({
+    firebaseVerifier,
+    routeHandlers: bookRouteHandlers ?? createProductionBookAssemblyRouteOptions(),
+  });
   return {
     async fetch(request, env) {
       const bookResponse = await canonicalBookRouter.fetch(request, env);

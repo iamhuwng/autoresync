@@ -1,0 +1,174 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-checkpoint",
+  "schemaVersion": 1,
+  "status": "inactive-versions-validated-ready-to-execute",
+  "createdAt": "2026-08-13T22:52:00Z",
+  "expiresAt": "2026-08-14T10:50:00Z",
+  "standingAuthority": {
+    "path": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md",
+    "scope": "Phases A through D production-normal recovery",
+    "productionRecoveryAuthority": true,
+    "fullPrdCompletionAuthority": false
+  },
+  "sourceIdentity": {
+    "gitCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "modifiedPathCountBeforeCheckpoint": 64,
+    "untrackedPathCountBeforeCheckpoint": 57,
+    "dirtyStatusSha256BeforeCheckpoint": "c583e321de844cbb73e755f2f2caf019152b8bc9a710f2c7035fbcc211dfc751",
+    "binaryDiffSha256BeforeCheckpoint": "5915edd608536eb81f25ab92b1a9534932a25cc801c45befaec8e9df568294c9",
+    "untrackedPathListSha256BeforeCheckpoint": "97c958e668c0b1b036745eb400e65b45ae85ee5b7c1435beffdd916fbc58320e",
+    "unrelatedDirtyPathExcluded": "json"
+  },
+  "workerArtifact": {
+    "entrypointSha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+    "bundleSha256": "8a18b41c6058e10f813ad1a8cc8c5fe7102a71ad31d22cee07f58867663b3dcb",
+    "bundleSizeBytes": 1786589,
+    "bundleGzipSha256": "57fbd41bb03cf345e47cc7756daf8c72df6cee842725907f8b5d1a69d15022eb",
+    "bundleGzipSizeBytes": 333880,
+    "cloudflareScriptEtag": "b3c01b291edcf825e2759a684bb16b623e8b67f2f41b72582430294df109bc0f",
+    "activationConfigSha256": "ad2e3f9b4b1ace992b80e54bd047b195ad047405a3beb3c5d7b8b662212bf7f0",
+    "rollbackConfigSha256": "368248f7774acc38e08b32765dade8a06ec5f03fb85640145a9e6e2c3840441a",
+    "activationRolloutSha256": "a36070895db862878c593849b6ae7e7924af10619ec9169bae2aad93c2d01504",
+    "activationPilotSha256": "b3f1aaa1cea5d8428d0fe9ab83ba4127223455ec84338c69ce9d5465bdf905a0",
+    "rollbackRolloutSha256": "d7034cb4415bd98ef310cf75c2a84d6ef60c8866b08962aa913f598e0a58498d",
+    "rollbackPilotSha256": "f343345936541a97c282c109c5825fd3eaebbda955c8b976d456e2bf9e3f0a1d",
+    "rolloutIssuedAt": "2026-08-13T22:50:00.000Z",
+    "rolloutExpiresAt": "2026-08-14T10:50:00.000Z"
+  },
+  "rulesArtifact": {
+    "generatedRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "producerSha256": "bf298e73d912574c5323e3fedcff7b97e0bc1c5f705fb3f936b57d057a522c4c",
+    "composerSha256": "be16b90b1f64dc31218372ec037b50fe20de8285c9436a46a95d1dcdc57446c9",
+    "fragmentHashes": {
+      "16A": "4e356bca5f5c71af06394bdba90b753d5c698319bb3cdf0b46c8b86804dcc376",
+      "118A": "6425ca819f8fc4412679ddea2dd2c95bd9b29e2e63c53e87b3b0589a896d7393",
+      "118B": "ab0d0228eb16f7de7afab36e8982f59b5b90071b1d79f4061824d3b9fbc13175",
+      "118C": "c03ece773f71ccc9f09b1715b5da2d10dc771b52792671dc515ffb88cef9afe1",
+      "118D": "2a13ce6c787b1dcd14660fcd08424d8ba285fb3b333c76c7c3e1c01acb23f357"
+    },
+    "generatorIdentity": "prd0062-118-composer-v2 43 fragments"
+  },
+  "inactiveVersions": {
+    "rollbackVersionId": "46da3a52-b763-4654-8420-f96a6c21eaad",
+    "activationVersionId": "d253f19d-bce1-46c4-a28c-98f98b0f2452",
+    "startupTimeMs": { "rollback": 28, "activation": 27 },
+    "bindingsInspected": true,
+    "exactVersionPreflight": { "rollback": 204, "activation": 204 },
+    "productionTrafficDuringValidation": {
+      "versionId": "ebf3c69d-2de1-4da5-b549-b86ffae5498d",
+      "percentage": 100
+    }
+  },
+  "configuration": {
+    "secretCount": 19,
+    "secretValuesRecorded": false,
+    "requiredServiceIdentities": [
+      "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+      "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com"
+    ],
+    "rendererRegistry": "activity-renderer-manifest-v1@sha256:6ec59a0085256e6214e448f9a16312d707699c5083d11c9d356c0b5d15e66be1",
+    "firebaseProjectId": "temp-a1437",
+    "workerOrigin": "https://kahut1.web.app",
+    "firebaseAuthentication": {
+      "origin": "http://localhost:5173",
+      "referer": "http://localhost:5173/",
+      "teacherUidVerified": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "result": "HTTP 200"
+    }
+  },
+  "frozenInputs": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "bookRevision": 2,
+    "sourceSetRevision": 2,
+    "sourceVersionId": "source-version-70f2ccf7d1a42d67",
+    "sourceUploadAccountId": "book_b2_primary",
+    "sourceKey": "full",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "assemblyCandidateId": "candidate-176b795f-6c37-457f-a41f-0a42e287eed0",
+    "assemblyCandidateRevision": 2,
+    "activityCandidateId": "candidate-63a7b569-aaa1-4fca-9297-2b284f88415c",
+    "activityCandidateRevision": 3,
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityRevision": 1,
+    "saveBindOperationId": "62e20638-b575-4f12-8d10-243a356103c3",
+    "saveBindExpectedRevision": 2,
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "assignmentOperationId": "b751bf00-e142-4338-9b93-7081d3572ef0",
+    "assignmentIdempotencyKey": "0c171038-deb4-4441-8f53-5e241398c664",
+    "dueDate": "2026-08-21T00:00:00.000Z",
+    "schedule": { "finalDueAt": "2026-08-21T00:00:00.000Z", "nodeOverrides": [] },
+    "policy": {
+      "intent": "accountable",
+      "integrityCapture": true,
+      "integrityOverride": false,
+      "activityPolicies": [{
+        "placementId": "freeze-from-final-publication-readback",
+        "maxAttempts": null,
+        "feedbackRelease": "after_completion",
+        "lateSubmissionAllowed": false
+      }]
+    },
+    "placementContext": "single unit activity slot; exact placementId is frozen from immutable publication readback before assignment"
+  },
+  "durableState": {
+    "assemblyCandidate": "validated revision 2",
+    "activityCandidate": "saved revision 3",
+    "activity": "draft revision 1",
+    "saveOperation": "saved; same-operation reconciliation required",
+    "binding": null,
+    "approval": null,
+    "publication": null,
+    "assignment": null,
+    "delivery": null
+  },
+  "verification": {
+    "ticket59": "57/57",
+    "focusedCanonicalTokenComposer": "34/34",
+    "defaultWorkerRealRtdbEmulator": "2/2",
+    "assembledRulesMatrix": "89/89; 23/23 suites; zero skipped",
+    "activationDryRun": "exit 0",
+    "rollbackDryRun": "exit 0",
+    "diffCheck": "exit 0"
+  },
+  "executionOrder": [
+    "verify this checkpoint identities and expiry",
+    "deploy exact generated rules and verify readback identity",
+    "activate exact activation version at 100 percent",
+    "replay exact save/bind operation and verify exact binding",
+    "preview and exercise stale denial; reuse accepted wrong-source denial receipt",
+    "approve A, verify preflight, revoke A, verify revoked publication denial",
+    "approve B and publish exactly once",
+    "read immutable publication identities and freeze placementId",
+    "create the one frozen assignment",
+    "verify teacher and student consumption"
+  ],
+  "rollback": {
+    "workerVersionId": "46da3a52-b763-4654-8420-f96a6c21eaad",
+    "rulesConfig": "firebase.prd0062-118-rollback.config.json",
+    "triggers": [
+      "unexpected 5xx",
+      "authentication or token-exchange failure",
+      "rules denial on intended path",
+      "missing or crossed authority",
+      "duplicate version",
+      "unreconciled partial commit",
+      "invalid readback",
+      "teacher or student delivery failure"
+    ],
+    "order": [
+      "activate exact rollback Worker version immediately",
+      "restore rollback rules",
+      "read active Worker and rules identities",
+      "preserve durable partial state and inspect the exact operation receipt"
+    ]
+  }
+}

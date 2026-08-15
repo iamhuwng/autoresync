@@ -59,5 +59,12 @@ quiz-data-extracted.json
 security-test-results.json
 .firebase/
 
+# Local recovery/runtime artifacts (not portable source)
+cloudflare/.wrangler/
+cloudflare/tmp/
+tmp/*
+!tmp/prd0062-bridge-m1-committed-state-fixture.json
+!tmp/prd0062-converged-publication.json
+
 # knowns search index (rebuilt on demand)
 .knowns/search-index/

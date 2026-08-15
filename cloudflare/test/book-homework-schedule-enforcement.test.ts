@@ -7,15 +7,37 @@ import {
   createBookHomeworkScheduleEnforcement,
 } from '../src/upload-worker/book-homework/schedule-enforcement';
 import {
+  bookHomeworkRecipientAuthorityId,
+  bookHomeworkRecipientDeliveryBindingId,
+} from '../src/upload-worker/book-homework/identity';
+import {
   resolveBookHomeworkDocumentWindow,
   resolveBookHomeworkLaunchWindows,
 } from '../src/upload-worker/book-delivery/schedule-authority';
 import { createBookRuntimeWorkerHandlers } from '../src/upload-worker/book-runtime/worker';
 import { InMemoryBookRuntimeRepository } from '../src/upload-worker/book-runtime/repository';
 
+const BINDING_ID = bookHomeworkRecipientDeliveryBindingId('homework-1', 'student-1');
+const pilotEnv = {
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1',
+    environment: 'test',
+    revision: 'book-homework-schedule-enforcement-pilot',
+    issuedAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    teacherId: 'teacher-1',
+    bookId: 'book-1',
+    assignmentId: 'homework-1',
+    studentIds: ['student-1'],
+    maxStudents: 30,
+  }),
+} as const;
+
 const binding = (): BookDeliveryBinding => ({
   schemaVersion: 3,
-  bindingId: 'binding-1',
+  bindingId: BINDING_ID,
   revision: 2,
   status: 'active',
   recipient: { recipientId: 'student-1', recipientKind: 'student' },
@@ -63,7 +85,7 @@ const binding = (): BookDeliveryBinding => ({
 });
 
 const authority = (revision = 5): BookHomeworkAuthorityRecord => ({
-  assignmentId: 'homework-1',
+  assignmentId: bookHomeworkRecipientAuthorityId('homework-1', 'student-1'),
   assignmentKind: 'book_activity_bundle',
   schemaVersion: 1,
   ownerId: 'teacher-1',
@@ -131,7 +153,7 @@ const authority = (revision = 5): BookHomeworkAuthorityRecord => ({
     },
   },
   studentExtensions: {},
-  saga: { sagaId: 'saga-1', state: 'committed', lastCommandId: 'commit-1' },
+  saga: { sagaId: 'homework-1', state: 'committed', lastCommandId: 'commit-1' },
   visibility: {
     status: 'committed',
     pointerId: 'manifest-1',
@@ -187,7 +209,7 @@ const runtimeCommand = (
   body: JSON.stringify({
     operationId,
     commandKind,
-    bindingId: 'binding-1',
+    bindingId: BINDING_ID,
     bindingRevision: 2,
     contextId: 'homework-1',
     placementId: 'placement-1',
@@ -202,10 +224,22 @@ const runtimeCommand = (
 describe('trusted Book Homework schedule enforcement', () => {
   it('resolves frozen policy and completion from durable server repositories', async () => {
     const current = authority();
+    const read = vi.fn(async (scope: {
+      readonly authorityId: string;
+      readonly assignmentId: string;
+      readonly ownerId: string;
+    }) => {
+      expect(scope).toEqual({
+        authorityId: bookHomeworkRecipientAuthorityId('homework-1', 'student-1'),
+        assignmentId: 'homework-1',
+        ownerId: 'teacher-1',
+      });
+      return { value: current, updateTime: 'firestore-5' };
+    });
     const listAttempts = vi.fn(async () => [
       {
         attemptId: 'attempt-1',
-        bindingId: 'binding-1',
+        bindingId: BINDING_ID,
         bindingRevision: 2,
         recipientId: 'student-1',
         contextId: 'homework-1',
@@ -216,7 +250,7 @@ describe('trusted Book Homework schedule enforcement', () => {
       },
       {
         attemptId: 'attempt-1',
-        bindingId: 'binding-1',
+        bindingId: BINDING_ID,
         bindingRevision: 2,
         recipientId: 'student-1',
         contextId: 'homework-1',
@@ -238,7 +272,7 @@ describe('trusted Book Homework schedule enforcement', () => {
       },
       {
         attemptId: 'attempt-historical-revision',
-        bindingId: 'binding-1',
+        bindingId: BINDING_ID,
         bindingRevision: 1,
         recipientId: 'student-1',
         contextId: 'homework-1',
@@ -249,17 +283,14 @@ describe('trusted Book Homework schedule enforcement', () => {
       },
     ] as BookRuntimeAttemptRecord[]);
     const resolver = createBookHomeworkActivitySchedulePolicyResolver({
-      authorityStore: {
-        read: async (assignmentId) => assignmentId === 'homework-1'
-          ? { value: current, updateTime: 'firestore-5' }
-          : null,
-      },
+      authorityStore: { read },
       runtimeRepository: { listAttempts },
     });
     await expect(resolver.resolve({
       assignmentId: 'homework-1',
       recipientId: 'student-1',
-      bindingId: 'binding-1',
+      ownerId: 'teacher-1',
+      bindingId: BINDING_ID,
       bindingRevision: 2,
       policyId: 'policy-1',
       policyRevision: 4,
@@ -270,11 +301,12 @@ describe('trusted Book Homework schedule enforcement', () => {
       lateSubmissionAllowed: false,
       attemptsUsed: 1,
     });
+    expect(read).toHaveBeenCalledTimes(1);
     expect(listAttempts).toHaveBeenCalledWith({
       recipientId: 'student-1',
       contextId: 'homework-1',
       placementId: 'placement-1',
-      bindingId: 'binding-1',
+      bindingId: BINDING_ID,
       bindingRevision: 2,
       limit: 50,
     });
@@ -283,7 +315,7 @@ describe('trusted Book Homework schedule enforcement', () => {
   it('keeps the canonical runtime retry-capable until the authoritative limit is exhausted', async () => {
     const runtimeRepository = new InMemoryBookRuntimeRepository();
     const authorityStore = {
-      read: async (assignmentId: string) => assignmentId === 'homework-1'
+      read: async (scope) => scope.authorityId === bookHomeworkRecipientAuthorityId('homework-1', 'student-1')
         ? { value: authority(), updateTime: 'firestore-5' }
         : null,
     };
@@ -307,7 +339,7 @@ describe('trusted Book Homework schedule enforcement', () => {
     });
     const run = (request: Request) => handlers.command({
       request,
-      env: {},
+      env: pilotEnv,
       uid: 'student-1',
     });
 
@@ -328,7 +360,8 @@ describe('trusted Book Homework schedule enforcement', () => {
     await expect(activityPolicy.resolve({
       assignmentId: 'homework-1',
       recipientId: 'student-1',
-      bindingId: 'binding-1',
+      ownerId: 'teacher-1',
+      bindingId: BINDING_ID,
       bindingRevision: 2,
       policyId: 'policy-1',
       policyRevision: 4,
@@ -382,7 +415,7 @@ describe('trusted Book Homework schedule enforcement', () => {
     const current = authority();
     const resolver = createBookHomeworkActivitySchedulePolicyResolver({
       authorityStore: {
-        read: async (assignmentId) => assignmentId === 'homework-1'
+        read: async (scope) => scope.authorityId === bookHomeworkRecipientAuthorityId('homework-1', 'student-1')
           ? { value: { ...current, activityPolicies: undefined }, updateTime: 'legacy' }
           : null,
       },
@@ -391,7 +424,8 @@ describe('trusted Book Homework schedule enforcement', () => {
     await expect(resolver.resolve({
       assignmentId: 'homework-1',
       recipientId: 'student-1',
-      bindingId: 'binding-1',
+      ownerId: 'teacher-1',
+      bindingId: BINDING_ID,
       bindingRevision: 2,
       policyId: 'policy-1',
       policyRevision: 4,
@@ -509,7 +543,7 @@ describe('trusted Book Homework schedule enforcement', () => {
   it('uses server input time and denies unreleased state/autosave/submit', async () => {
     const enforcement = createBookHomeworkScheduleEnforcement({
       authorityStore: {
-        read: async (assignmentId) => assignmentId === 'homework-1'
+        read: async (scope) => scope.authorityId === bookHomeworkRecipientAuthorityId('homework-1', 'student-1')
           ? { value: authority(), updateTime: 'firestore-1' }
           : null,
       },
@@ -540,7 +574,7 @@ describe('trusted Book Homework schedule enforcement', () => {
     let lateSubmissionAllowed = false;
     const enforcement = createBookHomeworkScheduleEnforcement({
       authorityStore: {
-        read: async (assignmentId) => assignmentId === 'homework-1'
+        read: async (scope) => scope.authorityId === bookHomeworkRecipientAuthorityId('homework-1', 'student-1')
           ? { value: authority(), updateTime: 'firestore-1' }
           : null,
       },
@@ -570,7 +604,7 @@ describe('trusted Book Homework schedule enforcement', () => {
 
   it('returns current authority and no stale allow when schedule changes during mutation', async () => {
     let current = authority();
-    const read = vi.fn(async (assignmentId: string) => assignmentId === 'homework-1'
+    const read = vi.fn(async (scope: { readonly authorityId: string }) => scope.authorityId === bookHomeworkRecipientAuthorityId('homework-1', 'student-1')
       ? { value: current, updateTime: `firestore-${current.revision}` }
       : null);
     const enforcement = createBookHomeworkScheduleEnforcement({
@@ -610,16 +644,15 @@ describe('trusted Book Homework schedule enforcement', () => {
         window: { phase: 'unreleased', outcome: 'denied' },
       },
     });
-    expect(read).toHaveBeenCalledTimes(4);
+    expect(read).toHaveBeenCalledTimes(2);
   });
 
   it('fails closed for missing policy or forged binding/target identity', async () => {
+    const read = vi.fn(async (scope: { readonly authorityId: string }) => scope.authorityId === bookHomeworkRecipientAuthorityId('homework-1', 'student-1')
+      ? { value: authority(), updateTime: 'firestore-1' }
+      : null);
     const enforcement = createBookHomeworkScheduleEnforcement({
-      authorityStore: {
-        read: async (assignmentId) => assignmentId === 'homework-1'
-          ? { value: authority(), updateTime: 'firestore-1' }
-          : null,
-      },
+      authorityStore: { read },
       activityPolicy: { resolve: async () => null },
     });
     await expect(enforcement.policy.authorize(
@@ -635,12 +668,23 @@ describe('trusted Book Homework schedule enforcement', () => {
       outcome: 'unavailable',
       code: 'runtime_schedule_authority_unavailable',
     });
+    await expect(enforcement.policy.authorize({
+      ...input('autosave', '2026-08-06T00:00:00.000Z'),
+      binding: {
+        ...binding(),
+        context: { ...binding().context, ownerId: 'teacher-other' },
+      },
+    })).resolves.toEqual({
+      outcome: 'unavailable',
+      code: 'runtime_schedule_authority_unavailable',
+    });
+    expect(read).toHaveBeenCalledTimes(2);
   });
 
   it('retains completed state and review access after a later release edit', async () => {
     const enforcement = createBookHomeworkScheduleEnforcement({
       authorityStore: {
-        read: async (assignmentId) => assignmentId === 'homework-1'
+        read: async (scope) => scope.authorityId === bookHomeworkRecipientAuthorityId('homework-1', 'student-1')
           ? {
             value: {
               ...authority(6),

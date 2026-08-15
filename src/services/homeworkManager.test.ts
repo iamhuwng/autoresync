@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+    BookHomeworkCompatibilityProjection,
     HomeworkAssignment,
     HomeworkConfig,
     HomeworkStats,
@@ -233,8 +234,10 @@ import {
     getHomeworkById,
     getHomeworkByTeacher,
     getHomeworkForStudent,
+    updateHomework,
     updateHomeworkStatus,
 } from './homeworkManager';
+import { isBookHomeworkCompatibilityProjection } from './book-homework/bookHomeworkCompatibilityProjection.service';
 
 const mockTeacherId = 'teacher-123';
 const mockMaterialId = 'material-456';
@@ -333,6 +336,46 @@ const seedHomework = (overrides: Partial<HomeworkAssignment> = {}) => {
     firestoreHarness.store.set(`homework_assignments/${homework.id}`, cloneValue(homework) as Record<string, unknown>);
     return homework;
 };
+
+const buildBookHomeworkCompatibilityProjection = (
+    overrides: Partial<BookHomeworkCompatibilityProjection> = {},
+): BookHomeworkCompatibilityProjection => ({
+    schemaVersion: 1,
+    assignmentKind: 'book_homework_compatibility',
+    id: 'book-assignment-1',
+    createdBy: mockTeacherId,
+    createdAt: 100,
+    updatedAt: 200,
+    materialId: 'book-material-1',
+    materialTitle: 'Vocabulary Book',
+    materialType: 'book',
+    materialSkill: 'mixed',
+    title: 'Vocabulary Book Homework',
+    target: { type: 'students', studentIds: [mockStudentId] },
+    scheduling: { dueDate: Date.now() + 86_400_000 },
+    config: {
+        timerMinutes: null,
+        maxAttempts: null,
+        feedbackTiming: 'never',
+        lateSubmissionAllowed: false,
+    },
+    visibility: {
+        showTimer: false,
+        showAttempts: false,
+        showDueDate: true,
+        showQuestionCount: false,
+        showDuration: false,
+    },
+    archived: false,
+    tags: [],
+    bookHomeworkCompatibility: {
+        schemaVersion: 1,
+        assignmentId: 'book-assignment-1',
+        sourceSagaRevision: 3,
+        sourceFingerprint: 'fingerprint-1',
+    },
+    ...overrides,
+});
 
 describe('homeworkManager', () => {
     beforeEach(() => {
@@ -566,6 +609,41 @@ describe('homeworkManager', () => {
             const homework = await getHomeworkForStudent(mockStudentId);
 
             expect(homework.map((item) => item.id)).toEqual(['class-assignment', 'direct-assignment']);
+        });
+
+        it('uses shell-owned class membership without a fallback membership read', async () => {
+            seedHomework({
+                id: 'class-assignment',
+                target: mockClassTarget,
+            });
+
+            const homework = await getHomeworkForStudent(mockStudentId, {
+                studentClasses: [{ id: mockClassId }],
+            });
+
+            expect(homework.map((item) => item.id)).toEqual(['class-assignment']);
+            expect(mockGetStudentClasses).not.toHaveBeenCalled();
+        });
+
+        it('preserves the compatibility shell marker without synthesizing status or stats', async () => {
+            const projection = buildBookHomeworkCompatibilityProjection();
+            expect(isBookHomeworkCompatibilityProjection(projection)).toBe(true);
+            expect(isBookHomeworkCompatibilityProjection({
+                ...projection,
+                studentOverrides: {},
+            })).toBe(false);
+            firestoreHarness.store.set(
+                `homework_assignments/${projection.id}`,
+                cloneValue(projection) as Record<string, unknown>,
+            );
+
+            const homework = await getHomeworkById(projection.id);
+
+            expect(homework).toEqual(projection);
+            expect(homework).not.toHaveProperty('status');
+            expect(homework).not.toHaveProperty('stats');
+            expect(homework).toHaveProperty('bookHomeworkCompatibility');
+            expect(isBookHomeworkCompatibilityProjection(homework)).toBe(true);
         });
     });
 

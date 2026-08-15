@@ -10,6 +10,7 @@ import type { SourceUploadRtdbTransaction } from './sourceUpload.firebaseRtdbTra
 import {
   SourceUploadRtdbRepository,
   getBookSourceUploadProviderTotals,
+  validateBookSourceUploadAccountState,
 } from './sourceUpload.rtdbRepository';
 
 describe('SourceUploadRtdbRepository', () => {
@@ -40,6 +41,21 @@ describe('SourceUploadRtdbRepository', () => {
       expectedRevision: 1, reservationId: 'reservation-2', sourceVersionId: 'source-2', providerObjectKey: 'private/book-1/source-2.pdf', kind: 'replacement',
     }));
     expect(replacement.operations['reservation-2']).toMatchObject({ sourceKey: 'unit-1', kind: 'replacement' });
+  });
+
+  it('persists the owner-attested count and rejects a changed-count replay', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const reserved = await repository.reserve(reservation({ ownerAttestedPhysicalPageCount: 7 }));
+
+    expect(reserved.operations['reservation-1']).toMatchObject({
+      ownerAttestedPhysicalPageCount: 7,
+    });
+    expect(reserved.operations['reservation-1']).not.toHaveProperty('physicalPageCount');
+    await expect(repository.reserve(reservation({
+      expectedRevision: reserved.revision,
+      ownerAttestedPhysicalPageCount: 8,
+    }))).rejects.toThrow('reservation identity is immutable');
   });
 
   it('persists bounded provider scan progress without advancing the domain revision', async () => {
@@ -355,6 +371,18 @@ describe('SourceUploadRtdbRepository', () => {
     });
     expect(completed.capacity.trackedAccountBytes).toBe(90);
     expect(completed.operations['reservation-1']).toMatchObject({ status: 'verified_completed', verifiedStorage: storage() });
+    expect(completed.assemblyBooks).toEqual({
+      'book-1': {
+        'unit-1': {
+          ownerId: 'teacher-1',
+          bookId: 'book-1',
+          sourceKey: 'unit-1',
+          sourceVersionId: 'source-1',
+          physicalPageCount: 4,
+          verifiedUsable: true,
+        },
+      },
+    });
     await expect(repository.completeVerified({
       accountId: 'account-1',
       expectedRevision: 2,
@@ -362,6 +390,106 @@ describe('SourceUploadRtdbRepository', () => {
       verifiedAt: '2026-07-23T00:01:00.000Z',
       verifiedStorage: storage({ privateBucketId: 'other-bucket' }),
     })).rejects.toThrow('verified completion identity is immutable');
+  });
+
+  it('repairs a missing projection on trusted completion replay without provider fields', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    await repository.reserve(reservation());
+    const completed = await repository.completeVerified({
+      accountId: 'account-1',
+      expectedRevision: 1,
+      reservationId: 'reservation-1',
+      verifiedAt: '2026-07-23T00:01:00.000Z',
+      verifiedStorage: storage(),
+    });
+    memory.setState({ ...completed, assemblyBooks: {} });
+
+    const repaired = await repository.completeVerified({
+      accountId: 'account-1',
+      expectedRevision: completed.revision,
+      reservationId: 'reservation-1',
+      verifiedAt: '2026-07-23T00:01:00.000Z',
+      verifiedStorage: storage(),
+    });
+    expect(repaired.assemblyBooks?.['book-1']?.['unit-1']).toEqual({
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      sourceKey: 'unit-1',
+      sourceVersionId: 'source-1',
+      physicalPageCount: 4,
+      verifiedUsable: true,
+    });
+    expect(JSON.stringify(repaired.assemblyBooks)).not.toMatch(
+      /(?:bucket|location|objectKey|providerFile|providerKind)/iu,
+    );
+  });
+
+  it('keeps legacy rows readable without making them Assembly-usable', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const current = await repository.reserve(reservation());
+    const { ownerAttestedPhysicalPageCount: _legacyCount, ...legacyOperation } =
+      current.operations['reservation-1']!;
+    memory.setState({
+      ...current,
+      operations: { 'reservation-1': legacyOperation },
+      assemblyBooks: undefined,
+    });
+
+    const readable = validateBookSourceUploadAccountState(memory.getState()!);
+    expect(readable.operations['reservation-1']?.ownerAttestedPhysicalPageCount).toBeUndefined();
+    expect(readable.assemblyBooks).toEqual({});
+  });
+
+  it('commits a replacement projection independently of the old source operation', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const initial = await repository.reserve(reservation());
+    const committedInitial = await repository.completeVerified({
+      accountId: 'account-1',
+      expectedRevision: initial.revision,
+      reservationId: 'reservation-1',
+      verifiedAt: '2026-07-23T00:01:00.000Z',
+      verifiedStorage: storage(),
+    });
+    const replacement = await repository.reserve(reservation({
+      expectedRevision: committedInitial.revision,
+      reservationId: 'reservation-2',
+      sourceVersionId: 'source-2',
+      providerObjectKey: 'private/book-1/source-2.pdf',
+      kind: 'replacement',
+      ownerAttestedPhysicalPageCount: 9,
+    }));
+    expect(replacement.operations['reservation-1']?.sourceVersionId).toBe('source-1');
+    expect(replacement.operations['reservation-1']?.ownerAttestedPhysicalPageCount).toBe(4);
+    expect(replacement.assemblyBooks?.['book-1']?.['unit-1']).toMatchObject({
+      sourceVersionId: 'source-1',
+      physicalPageCount: 4,
+      verifiedUsable: true,
+    });
+
+    const committedReplacement = await createRepository(
+      memory.transaction,
+      () => new Date('2026-07-23T00:02:00.000Z'),
+    ).completeVerified({
+      accountId: 'account-1',
+      expectedRevision: replacement.revision,
+      reservationId: 'reservation-2',
+      verifiedAt: '2026-07-23T00:02:00.000Z',
+      verifiedStorage: storage({
+        sourceVersionId: 'source-2',
+        providerObjectKey: 'private/book-1/source-2.pdf',
+        providerFileId: 'file-2',
+        providerFileVersionId: 'version-2',
+      }),
+    });
+    expect(committedReplacement.operations['reservation-1']?.sourceVersionId).toBe('source-1');
+    expect(committedReplacement.assemblyBooks?.['book-1']?.['unit-1']).toMatchObject({
+      sourceVersionId: 'source-2',
+      physicalPageCount: 9,
+      verifiedUsable: true,
+    });
   });
 
   it('derives provider totals only from canonical verified operations', async () => {
@@ -623,11 +751,13 @@ describe('SourceUploadRtdbRepository', () => {
 });
 
 function reservation(overrides: Partial<Parameters<SourceUploadRtdbRepository['reserve']>[0]> = {}) {
-  return {
+  const value = {
     accountId: 'account-1', expectedRevision: 0, reservationId: 'reservation-1', bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1', storageLocationId: 'location-1',
     providerKind: 'b2', privateBucketId: 'bucket-1', providerObjectKey: 'private/book-1/source-1.pdf', kind: 'initial' as const, byteSize: 10, originalFilename: '  lesson.PDF ',
+    ownerAttestedPhysicalPageCount: 4,
     expectedChecksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) }, createdAt: '2026-07-23T00:00:00.000Z', expiresAt: '2026-07-23T00:05:00.000Z', ...overrides,
   };
+  return value;
 }
 
 function storage(overrides: Record<string, unknown> = {}) {
@@ -643,6 +773,7 @@ function createMemoryTransaction(
 ): {
   transaction: SourceUploadRtdbTransaction;
   setState(value: BookSourceUploadAccountState): void;
+  getState(): BookSourceUploadAccountState | null;
 } {
   let state: BookSourceUploadAccountState | null = initialCapacity === null ? null : {
     revision: 0,
@@ -654,6 +785,7 @@ function createMemoryTransaction(
   };
   return {
     setState: (value) => { state = value; },
+    getState: () => state,
     transaction: async ({ expectedRevision, update }) => {
       if ((state?.revision ?? 0) !== expectedRevision) return { committed: false, value: state };
       const next = update(state);

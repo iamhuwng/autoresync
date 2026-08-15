@@ -215,7 +215,7 @@ const createPreviewSaga = (env: Ticket86PreviewEnv): BookHomeworkAssignmentSaga 
     },
     resolveAffectedStudentStates: async () => ['unknown'],
     resolveCommittedRoot: async (record: BookHomeworkAuthorityRecord) => {
-      const root = await sagaRepository.read(record.saga.sagaId);
+      const root = await sagaRepository.read(record.saga.sagaId, record.ownerId);
       return root?.state === 'committed'
         && root.visibility === 'committed'
         && root.recipients.some((recipient) =>

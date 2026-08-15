@@ -146,8 +146,30 @@ const activityAuthoring = (): ActivityAuthoringService => ({
     sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
     answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
   })),
-  validate: vi.fn(),
-  saveDraft: vi.fn(),
+  validate: vi.fn(async (input) => ({
+    status: 'validated' as const,
+    candidateId: input.candidateId,
+    revision: input.expectedRevision + 1,
+    lifecycle: 'validated' as const,
+    validation: { valid: true, errors: [] },
+    diff: null,
+    evidenceRefs: [...(input.evidenceRefs ?? [])],
+    sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+    answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+  })),
+  saveDraft: vi.fn(async (input) => ({
+    status: 'saved' as const,
+    activityId: input.candidateId.replace('candidate-', ''),
+    candidateId: input.candidateId,
+    candidateRevision: input.expectedRevision + 1,
+    revision: 1,
+    lifecycle: 'saved' as const,
+    validation: { valid: true, errors: [] },
+    diff: null,
+    evidenceRefs: [...(input.evidenceRefs ?? [])],
+    sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+    answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+  })),
   discard: vi.fn(),
   loadCandidate: vi.fn(),
 });
@@ -656,6 +678,9 @@ describe('BookAssemblyWorkspace', () => {
       sourceEvidenceRefs: ['source:full:page:2'],
       answerEvidenceRefs: ['pageGroup:pages-full-2-activity'],
     }));
+    expect(authoring.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-reading-1' },
+    }));
     expect(repo.replace).toHaveBeenCalledWith(expect.objectContaining({
       candidateId: 'candidate-1',
       expectedCandidateRevision: 1,
@@ -694,7 +719,7 @@ describe('BookAssemblyWorkspace', () => {
 
     await waitFor(() => expect(authoring.discard).toHaveBeenCalledWith({
       candidateId: 'candidate-activity-reading-1',
-      expectedRevision: 1,
+      expectedRevision: 3,
     }));
     expect(repo.replace).toHaveBeenCalled();
     expect(await screen.findByText('Assembly changed elsewhere. Imported Activities were rolled back; reload or retry.')).toBeVisible();

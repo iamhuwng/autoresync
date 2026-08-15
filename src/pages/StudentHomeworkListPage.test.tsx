@@ -347,6 +347,86 @@ describe('StudentHomeworkListPage', () => {
     expect(screen.getByText('Passage A, Passage B')).toBeInTheDocument();
   });
 
+  it('routes a Book compatibility assignment to detail without legacy submission dispatch', async () => {
+    const bookItem = makeHomeworkItem({
+      homework: {
+        schemaVersion: 1,
+        assignmentKind: 'book_homework_compatibility',
+        id: 'book-assignment-1',
+        createdBy: 'teacher-1',
+        createdAt: 100,
+        updatedAt: 200,
+        materialId: 'book-material-1',
+        materialTitle: 'Vocabulary Book',
+        materialType: 'book',
+        materialSkill: 'mixed',
+        title: 'Vocabulary Book Homework',
+        target: { type: 'students', studentIds: ['student-1'] },
+        scheduling: { dueDate: Date.now() + 60_000 },
+        config: {
+          timerMinutes: null,
+          maxAttempts: null,
+          feedbackTiming: 'never',
+          lateSubmissionAllowed: false,
+        },
+        visibility: {
+          showTimer: false,
+          showAttempts: false,
+          showDueDate: true,
+          showQuestionCount: false,
+          showDuration: false,
+        },
+        archived: false,
+        tags: [],
+        bookHomeworkCompatibility: {
+          schemaVersion: 1,
+          assignmentId: 'book-assignment-1',
+          sourceSagaRevision: 3,
+          sourceFingerprint: 'fingerprint-1',
+        },
+      },
+      canSubmit: false,
+      attemptsRemaining: null,
+      status: 'not_started',
+    });
+
+    useResolvedStudentHomeworkListMock.mockReturnValue({
+      homeworkItems: [bookItem],
+      isLoading: false,
+      error: null,
+      refreshData: vi.fn(),
+      notStarted: [bookItem],
+      inProgress: [],
+      completed: [],
+      overdue: [],
+    });
+
+    render(<StudentHomeworkListPage />);
+
+    const bookCard = screen.getByText('Vocabulary Book Homework').closest('article');
+    expect(bookCard).toHaveTextContent('Book Homework');
+    expect(bookCard).not.toHaveTextContent('Not Started');
+    expect(bookCard).not.toHaveTextContent('Attempts:');
+
+    fireEvent.click(screen.getByText('View Details'));
+
+    await waitFor(() => {
+      expect(createSubmissionMock).not.toHaveBeenCalled();
+      expect(navigateMock).toHaveBeenCalledWith(
+        'STUDENT_HOMEWORK_DETAIL',
+        { homeworkId: 'book-assignment-1' },
+        { reason: 'student_book_homework_detail' },
+      );
+      expect(trackActionMock).toHaveBeenCalledWith(
+        'bookHomeworkStudentDetailOpened',
+        {
+          homeworkId: 'book-assignment-1',
+          source: 'student_homework_list',
+        },
+      );
+    });
+  });
+
   it('stacks the homework summary and full-width actions on mobile', () => {
     useMediaQueryMock.mockReturnValue(true);
 
@@ -371,5 +451,30 @@ describe('StudentHomeworkListPage', () => {
     expect(screen.getByRole('button', { name: 'Not Started' })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
     expect(screen.getByRole('button', { name: 'Start Homework' })).toHaveStyle({ width: '100%', minHeight: '44px' });
     expect(screen.getByRole('button', { name: 'Start Homework' }).parentElement).toHaveStyle({ flexDirection: 'column' });
+  });
+
+  it('keeps last-good Homework visible when a warmed refresh fails', () => {
+    const refreshData = vi.fn();
+    const notStartedItem = makeHomeworkItem();
+    useResolvedStudentHomeworkListMock.mockReturnValue({
+      homeworkItems: [notStartedItem],
+      isLoading: false,
+      error: 'Refresh failed',
+      refreshData,
+      notStarted: [notStartedItem],
+      inProgress: [],
+      completed: [],
+      overdue: [],
+    });
+
+    render(<StudentHomeworkListPage />);
+
+    expect(screen.getByText('Reading Homework')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Refresh failed');
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }));
+    expect(refreshData).toHaveBeenCalledOnce();
+    expect(trackActionMock).toHaveBeenCalledWith('refreshHomeworkList', {
+      source: 'stale_content_error',
+    });
   });
 });

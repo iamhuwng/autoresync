@@ -118,13 +118,43 @@ export interface BookSourceUploadReservation {
   readonly providerObjectKey: string;
   readonly kind: BookSourceUploadKind;
   readonly byteSize: number;
+  /**
+   * Page count attested by the authenticated owner's PDF.js inspection. It is
+   * bound to `expectedChecksum` and `byteSize` for the lifetime of a
+   * reservation; trusted completion never replaces it with a provider hint.
+   */
+  readonly ownerAttestedPhysicalPageCount: number;
   readonly originalFilename: string;
   readonly expectedChecksum: BookSourceChecksum;
   readonly createdAt: string;
   readonly expiresAt: string;
 }
 
-export interface BookSourceUploadOperation extends BookSourceUploadReservation {
+/** Safe Assembly projection written only after trusted storage verification. */
+export interface BookSourceAssemblyProjection {
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly physicalPageCount: number;
+  readonly verifiedUsable: boolean;
+}
+
+/** Current source map for one Book, keyed by logical source key. */
+export type BookSourceAssemblySourceMap = Readonly<Record<string, BookSourceAssemblyProjection>>;
+
+/** Provider-free current Assembly projections, keyed by Book id. */
+export type BookSourceAssemblyBooks = Readonly<Record<string, BookSourceAssemblySourceMap>>;
+
+export interface BookSourceUploadOperation extends Omit<
+  BookSourceUploadReservation,
+  'ownerAttestedPhysicalPageCount'
+> {
+  /**
+   * Legacy operations may predate the owner page-count attestation. Such rows
+   * remain readable for capacity/lifecycle work but are never Assembly-usable.
+   */
+  readonly ownerAttestedPhysicalPageCount?: number;
   readonly status: BookSourceUploadStatus;
   /** Provider file/version identity is absent until trusted completion verifies it. */
   readonly verifiedStorage?: BookSourceVersionStorageIdentity;
@@ -140,4 +170,6 @@ export interface BookSourceUploadAccountState {
   readonly revision: number;
   readonly capacity: BookSourceUploadAccountCapacityState;
   readonly operations: Readonly<Record<string, BookSourceUploadOperation>>;
+  /** Atomically updated with reservations/completions in this account CAS. */
+  readonly assemblyBooks?: BookSourceAssemblyBooks;
 }

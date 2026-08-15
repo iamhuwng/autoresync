@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T11:20:05Z",
+  "status": "ready",
+  "scope": "PRD0062 Book Homework Bridge Milestone 1 bounded production-normal recovery",
+  "standingAuthority": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md and the user's accepted Milestone-1 bridge implementation and bounded recovery instruction",
+  "architectureEvidence": {
+    "path": "documentation/tasks/PRD0062/PRD0062-book-homework-bridge-contract.md",
+    "sha256": "21ad51714bc3cc124d3d7a4f8689e1fa617f7b7535769e6e4314fa17be4cb0c9",
+    "governingRule": "bidirectional interaction, unidirectional authority per fact",
+    "authorityCollection": "book_homework_authorities",
+    "compatibilityCollection": "homework_assignments",
+    "compatibilityDisposition": "derived non-authoritative projection only"
+  },
+  "source": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "dirtyContentManifestPath": "tmp/prd0062-bridge-m1-dirty-content-manifest.txt",
+    "dirtyContentManifestSha256": "e677f2116b3688791a78d7f75413ab1aefc123a9a527991491b9d9240d529d3a",
+    "dirtyContentManifestEntries": 156,
+    "workerBundleSha256": "458344df24e1245c104e5bf6b6c266c34a11ad88ab8f230744201cc687d00f1c",
+    "workerBundleBytes": 1826521,
+    "workerBundleGzipBytes": 340977,
+    "activationRollbackBundlesEqual": true,
+    "workerScriptEtag": "ce5560450f1685e7099667747778bdec826d33dc73c4fecc4882900d5734b2c5"
+  },
+  "configs": {
+    "activationPath": "cloudflare/wrangler.prd0062-bridge-m1-activation.jsonc",
+    "activationSha256": "76bfb3c4f078ac05c302e5f88d5541279716d7e5d2e31b619f0caf7d4b09a99d",
+    "rollbackPath": "cloudflare/wrangler.prd0062-bridge-m1-rollback.jsonc",
+    "rollbackSha256": "3d2aec19b738a5483d8297fbb51c9c677d2e97815c2c5ef70e9cb02c4a7f7eda",
+    "issuedAt": "2026-08-14T11:13:33.276Z",
+    "expiresAt": "2026-08-14T23:13:33.276Z",
+    "rendererRegistry": "activity-renderer-manifest-v1@sha256:6ec59a0085256e6214e448f9a16312d707699c5083d11c9d356c0b5d15e66be1"
+  },
+  "workerVersions": {
+    "currentRollbackVersionId": "bbd13106-3943-43a2-a216-9d18781b4329",
+    "currentTrafficPercent": 100,
+    "currentDeploymentId": "8535f902-4126-4170-814d-dec066182a1b",
+    "inactiveRollbackVersionId": "7f11dc93-fd77-4f33-90bf-a2d92cce828a",
+    "inactiveRollbackVersionNumber": 113,
+    "inactiveActivationVersionId": "899156dc-b8b9-44b0-8790-fc7fc956c3c2",
+    "inactiveActivationVersionNumber": 114,
+    "inactiveValidation": {
+      "rollback": "HTTP 204 exact-version OPTIONS at zero percent",
+      "activation": "HTTP 204 exact-version OPTIONS at zero percent",
+      "traffic": "bbd13106-3943-43a2-a216-9d18781b4329 remains at 100%; activation remains at 0%"
+    }
+  },
+  "rules": {
+    "rtdbActivationPath": "database.rules.json",
+    "rtdbActivationSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rtdbRollbackPath": "firebase.prd0062-118-rules.rollback.json",
+    "rtdbRollbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rtdbLivePreactivationSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rtdbLiveMatchesRollback": true,
+    "firestoreActivationPath": "firestore.rules",
+    "firestoreActivationSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+    "firestoreInactiveRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreInactiveReadbackSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+    "firestoreLiveRelease": "projects/temp-a1437/releases/cloud.firestore",
+    "firestoreLiveRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "firestoreLiveSha256": "22857e290bf2269c9999ed6ce9ca978883f9eb9a8ad2055baf11739492c58612",
+    "firestoreRollbackRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6"
+  },
+  "serviceConfiguration": {
+    "projectId": "temp-a1437",
+    "sourceUploadAccountId": "book_b2_primary",
+    "serviceIdentities": [
+      "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+      "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com"
+    ],
+    "requiredSecretsPresent": [
+      "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+      "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
+      "BOOK_DELIVERY_GOOGLE_SA_KEY",
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "BOOK_RUNTIME_GOOGLE_SA_KEY",
+      "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
+      "FIREBASE_WEB_API_KEY"
+    ],
+    "teacherBrowserAuth": "HTTP 200 from https://kahut1.web.app with exact expected UID",
+    "studentBrowserAuth": "HTTP 200 from https://kahut1.web.app with exact expected UID"
+  },
+  "frozenInputs": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "sourceKey": "full",
+    "sourceVersionId": "source-version-70f2ccf7d1a42d67",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+    "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+    "publicationRevision": 1,
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "a44aa998-02f9-46ae-96f9-2c70dea2403e",
+    "idempotencyKey": "2a7e4f82-d085-480d-be60-0bcf887734fb",
+    "finalDueAt": "2026-08-21T00:00:00.000Z",
+    "commandPath": "tmp/prd0062-bridge-m1-assignment-command.json",
+    "commandSha256": "f091187758db3e0c20e4f3ab57d5ec4aa294ae0b6e9b61e8634576c41e629d57"
+  },
+  "durablePreactivation": {
+    "reconciliationDirectory": "tmp/prd0062-m1-reconcile-20260814T111223Z",
+    "oldAssignment": "compensated, hidden, revision 5, zero committed recipients",
+    "retry1Assignment": "compensating, hidden, revision 3, zero committed recipients",
+    "oldAndRetry1Delivery": null,
+    "oldAndRetry1LegacyAuthority": "HTTP 404",
+    "oldAndRetry1NewAuthority": "HTTP 404",
+    "oldAndRetry1Compatibility": "HTTP 404",
+    "freshSaga": null,
+    "freshDelivery": null,
+    "freshAuthority": "HTTP 404",
+    "freshCompatibility": "HTTP 404",
+    "publicationSha256": "ca39aa8dbd8797e71b6661e9664d89d6e678837557685615aad9725027ae057f",
+    "canonicalActivityVersionSha256": "de3fa35d58a811ad5aad3ee1d97ec3f4bc4f9efb6a8fd2bce2dd2a137d019d6c",
+    "bindingSha256": "9e252e9143f9c1d22eb9a068250f994e3bbdaf8157c5bd2e4465d075d1992c9d",
+    "classSha256": "05225aadd56b230aa1a7e74f42febdb3ef6f97f69325f8e8e3c07922d353b044",
+    "sourceProjectionSha256": "3f18810a0e74e9166621348de987a3607048a9634c674c7abcaeb944d89f457c"
+  },
+  "proof": [
+    "Current default workerd assignment, authority create/commit, compatibility create/read/repair, replay, and teacher/student consumption: 1/1 passed",
+    "Frozen V17 workerd historical undefined .call reproduction before owner read: 1/1 passed",
+    "Focused Cloudflare Bridge core: 11 files, 78/78 passed",
+    "Marker-aware and non-Book browser regressions: 9 files, 109/109 passed",
+    "Ticket59 composition: 5 files, 57/57 passed",
+    "Firestore emulator new authority ACLs: 13/13 passed; old absent homework_assignments authority regression remains denied intentionally",
+    "RTDB production-normal real emulator workflow: 2/2 passed",
+    "Generated RTDB rules composer: 13/13 passed",
+    "Full assembled RTDB rules matrix: 23 suites, 89/89 passed",
+    "Scoped ESLint: passed with zero output",
+    "Wrangler activation and rollback dry-runs: passed; bundle identities equal",
+    "Sol Advisor final acceptance review: ship, no Milestone-1 fixes"
+  ],
+  "knownNonBlockingBaseline": "Repository-wide TypeScript exits 2 with 103 unrelated or concurrent diagnostics; none identify the reviewed Milestone-1 bridge, compatibility, or marker-aware paths.",
+  "execution": {
+    "order": [
+      "Verify this checkpoint and current rollback identities are unchanged",
+      "Update projects/temp-a1437/releases/cloud.firestore to inactive ruleset fe84ef31-a849-4f2a-a221-0947b24f5775 and verify exact source SHA-256",
+      "Deploy exact RTDB activation rules SHA-256 e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f and verify exact readback",
+      "Activate exact Worker version 899156dc-b8b9-44b0-8790-fc7fc956c3c2 at 100%",
+      "Submit exactly one frozen assignment command",
+      "Verify committed root, exact new authority, active Delivery, exact compatibility shell, teacher projection, and student projection",
+      "Keep active only on complete success and hand off https://kahut1.web.app immediately"
+    ],
+    "rollbackTrigger": "Any unexpected 5xx, authentication/token/rules/composition failure, crossed authority, missing or duplicate durable state, invalid readback, or teacher/student consumption failure",
+    "rollbackOrder": [
+      "Deploy exact deny-only Worker version 7f11dc93-fd77-4f33-90bf-a2d92cce828a at 100%",
+      "Verify deny-only Worker preflight and traffic readback",
+      "Restore RTDB rollback rules SHA-256 62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6 and verify exact readback",
+      "Restore Firestore release to projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6 and verify exact readback",
+      "Preserve durable partial state and stop without another candidate"
+    ]
+  }
+}

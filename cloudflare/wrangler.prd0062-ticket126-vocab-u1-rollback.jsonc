@@ -1,9 +1,8 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // Exact deny-only rollback companion. The policy timestamp sentinel is intentionally
-  // rejected by runtime validation. An operator must create an exact deployment copy
-  // with fresh issuedAt/expiresAt values (<=24h), approve its hash, and use deployment-only
-  // secrets recorded in the approval packet, including FIREBASE_WEB_API_KEY; no secret values are declared here.
+  // Exact standing-authority v15 recovery artifact. This file itself performs no mutation.
+  // Deployment-owned secrets are not embedded; use secrets recorded in the approval packet,
+  // including FIREBASE_WEB_API_KEY. No remote deployment or activation is performed here.
   "name": "r2-upload-signer",
   "account_id": "e41db829dabe9993f03674afdfd56510",
   "main": "worker.js",
@@ -47,8 +46,8 @@
     "BOOK_ROLLOUT_ENVIRONMENT": "production",
     "BOOK_PILOT_SCOPE_ENFORCEMENT": "disabled",
     "BOOK_PILOT_SCOPE_ENVIRONMENT": "production",
-    "BOOK_ROLLOUT_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"production\",\"revision\":\"prd0062-126-vocab-u1-all-deny-rollback-v1\",\"issuedAt\":\"2026-08-12T23:40:00.000Z\",\"expiresAt\":\"2026-08-13T22:40:00.000Z\",\"actions\":{\"create\":\"deny\",\"upload\":\"deny\",\"publish\":\"deny\",\"assign-place\":\"deny\",\"launch-delivery\":\"deny\",\"mutation\":\"deny\"}}",
-    "BOOK_PILOT_SCOPE_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"production\",\"revision\":\"prd0062-126-vocab-u1-all-deny-rollback-v1\",\"issuedAt\":\"2026-08-12T23:40:00.000Z\",\"expiresAt\":\"2026-08-13T22:40:00.000Z\",\"teacherId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"assignmentId\":\"assignment-vocab-u1-d43935c735245dc8\",\"studentIds\":[\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"],\"maxStudents\":30}",
+    "BOOK_ROLLOUT_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"production\",\"revision\":\"prd0062-126-production-normal-recovery-v18-rollback\",\"issuedAt\":\"2026-08-13T23:40:00.000Z\",\"expiresAt\":\"2026-08-14T11:40:00.000Z\",\"actions\":{\"create\":\"deny\",\"upload\":\"deny\",\"publish\":\"deny\",\"assign-place\":\"deny\",\"launch-delivery\":\"deny\",\"mutation\":\"deny\"}}",
+    "BOOK_PILOT_SCOPE_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"production\",\"revision\":\"prd0062-126-production-normal-recovery-v18-rollback\",\"issuedAt\":\"2026-08-13T23:40:00.000Z\",\"expiresAt\":\"2026-08-14T11:40:00.000Z\",\"teacherId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"assignmentId\":\"assignment-vocab-u1-d43935c735245dc8\",\"studentIds\":[\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"],\"maxStudents\":30}",
     "BOOK_SOURCE_UPLOAD_ACCOUNT_ID": "book_b2_primary",
     "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
     "BOOK_DELIVERY_SERVICE_IDENTITY": "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
@@ -63,6 +62,7 @@
     "BOOK_SOURCE_B2_OBJECT_KEY_PREFIX": "book-source/prd0062-preview-20260729/",
     "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "disabled",
     "BOOK_ASSEMBLY_ROUTES_ENABLED": "disabled",
+    "BOOK_ASSEMBLY_MUTATIONS_ENABLED": "false",
     "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED": "disabled",
     "BOOK_FULL_PDF_PUBLICATION_ENABLED": "false",
     "BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "disabled",

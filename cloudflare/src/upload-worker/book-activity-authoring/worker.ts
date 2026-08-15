@@ -23,6 +23,10 @@ import {
   BookPilotScopeDeniedError,
   enforceBookPilotScopeIfConfigured,
 } from '../../book-pilot-scope.ts';
+import type {
+  UnitActivityBinding,
+  UnitActivityBindingRepository,
+} from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CANDIDATE_RECORD_BYTES = 256 * 1024;
@@ -123,6 +127,61 @@ const evidenceRefGroups = (body: Record<string, unknown>): {
   source: evidenceRefs(body.sourceEvidenceRefs) ?? [],
   answer: evidenceRefs(body.answerEvidenceRefs) ?? [],
 });
+const unitActivityBinding = (body: Record<string, unknown>): { unitKey: string; activityKey: string } | undefined => {
+  if (body.unitActivityBinding === undefined) return undefined;
+  const value = plainRecord(body.unitActivityBinding);
+  if (!value || Object.keys(value).some((key) => key !== 'unitKey' && key !== 'activityKey')) {
+    throw new AuthoringError('invalid_unit_activity_binding');
+  }
+  return {
+    unitKey: validId(value.unitKey, 'unit_key'),
+    activityKey: validId(value.activityKey, 'activity_key'),
+  };
+};
+
+type BindingReceiptPhase = 'binding-pending' | 'complete' | 'binding-conflict';
+type BindingReceipt = UnitActivityBinding & {
+  readonly phase: BindingReceiptPhase;
+};
+
+const bindingReceipt = (value: unknown): BindingReceipt | undefined => {
+  const record = plainRecord(value);
+  if (!record || !validIdValue(record.ownerId) || !validIdValue(record.bookId)
+    || !validIdValue(record.unitKey) || !validIdValue(record.activityKey)
+    || !validIdValue(record.activityId) || !validIdValue(record.candidateId)
+    || !validRevisionValue(record.candidateRevision)
+    || record.schemaVersion !== 1 || record.candidateLifecycle !== 'saved'
+    || !['binding-pending', 'complete', 'binding-conflict'].includes(String(record.phase))) return undefined;
+  return {
+    schemaVersion: 1,
+    ownerId: record.ownerId,
+    bookId: record.bookId,
+    unitKey: record.unitKey,
+    activityKey: record.activityKey,
+    activityId: record.activityId,
+    candidateId: record.candidateId,
+    candidateRevision: record.candidateRevision,
+    candidateLifecycle: 'saved',
+    phase: record.phase as BindingReceiptPhase,
+  };
+};
+const sameBindingIdentity = (left: BindingReceipt, right: BindingReceipt): boolean => (
+  left.ownerId === right.ownerId && left.bookId === right.bookId
+  && left.unitKey === right.unitKey && left.activityKey === right.activityKey
+  && left.activityId === right.activityId && left.candidateId === right.candidateId
+  && left.candidateRevision === right.candidateRevision
+);
+const bindingWrite = (receipt: BindingReceipt): UnitActivityBinding => ({
+  schemaVersion: 1,
+  ownerId: receipt.ownerId,
+  bookId: receipt.bookId,
+  unitKey: receipt.unitKey,
+  activityKey: receipt.activityKey,
+  activityId: receipt.activityId,
+  candidateId: receipt.candidateId,
+  candidateRevision: receipt.candidateRevision,
+  candidateLifecycle: 'saved',
+});
 
 const terminal = (candidate: CandidateRecord): boolean => ['rejected', 'saved', 'discarded'].includes(candidate.lifecycle);
 const prune = (root: BookActivityAuthoringRoot, at: number): void => {
@@ -194,12 +253,12 @@ const validTimestamp = (value: unknown): value is number =>
 const isLifecycle = (value: unknown): value is Lifecycle => (
   value === 'staged' || value === 'validated' || value === 'rejected' || value === 'saved' || value === 'discarded'
 );
-const resolveOwnedPdfBookId = async (
+/** Compatibility resolver for focused tests that have no production authority port. */
+const resolveOwnedPdfBookIdFromRepository = async (
   repository: BookActivityAuthoringRepositoryPort,
   ownerId: string,
-  claimedBookId: unknown,
+  claimedBookId: string,
 ): Promise<string | undefined> => {
-  if (!validIdValue(claimedBookId)) return undefined;
   const metadata = plainRecord(await repository.readValue(MATERIAL_BOOK_PATH(claimedBookId)));
   if (!metadata
     || metadata.bookId !== claimedBookId
@@ -371,7 +430,8 @@ const validateContent = (content: unknown, previous?: NormalizedActivity): {
 };
 
 const httpStatus = (body: Record<string, unknown>): number => {
-  if (body.status === 'idempotency-conflict' || body.status === 'conflict' || body.status === 'id-collision' || body.status === 'capacity-exceeded') return 409;
+  if (body.status === 'idempotency-conflict' || body.status === 'conflict' || body.status === 'id-collision'
+    || body.status === 'capacity-exceeded' || body.status === 'binding-conflict') return 409;
   if (body.status === 'not-found') return 404;
   if (body.status === 'invalid') return 422;
   return 200;
@@ -379,10 +439,30 @@ const httpStatus = (body: Record<string, unknown>): number => {
 
 export const createBookActivityAuthoringWorkerHandlers = (options: {
   repository?: BookActivityAuthoringRepositoryPort;
+  /** Production-composed authority port; repository lookup remains test compatibility only. */
+  resolveOwnedPdfBookId?: (input: {
+    readonly env: BookActivityAuthoringRepositoryEnv;
+    readonly ownerId: string;
+    readonly claimedBookId: string;
+  }) => Promise<string | undefined>;
   now?: () => number;
   createRecordId?: () => string;
   /** Test-only trusted adapter; production reads deployment-owned input.env. */
   rolloutGate?: BookRolloutWorkerGate;
+  /** #59: only the production composition supplies this server-side CAS port. */
+  bindingRepositoryFactory?: (
+    env: BookActivityAuthoringRepositoryEnv,
+    ownerId: string,
+    bookId: string,
+    unitKey: string,
+  ) => UnitActivityBindingRepository;
+  /** Verifies the requested logical slot against the current trusted Assembly candidate. */
+  readAssemblyActivityKeys?: (input: {
+    readonly env: BookActivityAuthoringRepositoryEnv;
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly unitKey: string;
+  }) => Promise<readonly string[] | null>;
 } = {}) => {
   const now = options.now ?? nowDefault;
   const createRecordId = options.createRecordId ?? (() => crypto.randomUUID());
@@ -392,19 +472,112 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
   const authenticate = async (uid: string, repository: BookActivityAuthoringRepositoryPort): Promise<void> => {
     if (!role(await repository.readValue(`users/${uid}`))) throw new AuthoringError('authoring_forbidden', 403);
   };
+  const resolveOwnedPdfBookId = async (
+    env: BookActivityAuthoringRepositoryEnv,
+    repository: BookActivityAuthoringRepositoryPort,
+    ownerId: string,
+    claimedBookId: unknown,
+  ): Promise<string | undefined> => {
+    if (!validIdValue(claimedBookId)) return undefined;
+    const resolvedBookId = options.resolveOwnedPdfBookId
+      ? await options.resolveOwnedPdfBookId({ env, ownerId, claimedBookId })
+      : await resolveOwnedPdfBookIdFromRepository(repository, ownerId, claimedBookId);
+    // The port may only confirm the already-derived claim; it cannot select a
+    // different Book as the mutation subject.
+    return resolvedBookId === claimedBookId ? resolvedBookId : undefined;
+  };
+  const advanceBindingReceipt = async (
+    repository: BookActivityAuthoringRepositoryPort,
+    ownerId: string,
+    operationId: string,
+    fingerprint: string,
+    expected: BindingReceipt,
+    phase: Extract<BindingReceiptPhase, 'complete' | 'binding-conflict'>,
+  ): Promise<Record<string, unknown> | null> => repository.transaction(ownerId, (root) => {
+    assertPersistedRoot(root, ownerId);
+    const previous = asOperation(root.operations?.[operationId]);
+    const result = plainRecord(previous?.result);
+    const currentBinding = bindingReceipt(result?.binding);
+    if (!previous || previous.ownerId !== ownerId || previous.fingerprint !== fingerprint
+      || !result || !currentBinding || !sameBindingIdentity(currentBinding, expected)) {
+      return { outcome: null, write: false };
+    }
+    if (currentBinding.phase === phase) return { outcome: clone(result), write: false };
+    const nextResult = {
+      ...result,
+      status: phase === 'complete' ? 'saved' : 'binding-conflict',
+      binding: { ...currentBinding, phase },
+    };
+    root.operations = {
+      ...(root.operations ?? {}),
+      [operationId]: { ...previous, result: clone(nextResult) },
+    };
+    return { outcome: nextResult, next: root, write: true };
+  });
+  const upgradeLegacyBindingReceipt = async (
+    repository: BookActivityAuthoringRepositoryPort,
+    ownerId: string,
+    operationId: string,
+    fingerprint: string,
+    bookId: string,
+    requested: { unitKey: string; activityKey: string },
+  ): Promise<Record<string, unknown> | null> => repository.transaction(ownerId, (root) => {
+    assertPersistedRoot(root, ownerId);
+    const previous = asOperation(root.operations?.[operationId]);
+    const result = plainRecord(previous?.result);
+    if (!previous || previous.ownerId !== ownerId || previous.fingerprint !== fingerprint
+      || !result || result.status !== 'saved' || result.binding !== undefined
+      || !validIdValue(result.activityId) || !validIdValue(result.candidateId)
+      || !validRevisionValue(result.candidateRevision)) {
+      return { outcome: null, write: false };
+    }
+    const candidate = asCandidate(root.candidates?.[result.candidateId], result.candidateId);
+    const activity = asActivity(root.activities?.[result.activityId], result.activityId);
+    if (!candidate || !activity || candidate.ownerId !== ownerId || activity.ownerId !== ownerId
+      || candidate.bookId !== bookId || candidate.lifecycle !== 'saved'
+      || candidate.revision !== result.candidateRevision
+      || candidate.targetActivityId !== result.activityId
+      || activity.activityId !== result.activityId) {
+      return { outcome: null, write: false };
+    }
+    const receipt: BindingReceipt = {
+      schemaVersion: 1,
+      ownerId,
+      bookId,
+      unitKey: requested.unitKey,
+      activityKey: requested.activityKey,
+      activityId: result.activityId,
+      candidateId: result.candidateId,
+      candidateRevision: result.candidateRevision,
+      candidateLifecycle: 'saved',
+      phase: 'binding-pending',
+    };
+    const nextResult = { ...result, binding: receipt };
+    root.operations = {
+      ...(root.operations ?? {}),
+      [operationId]: { ...previous, result: clone(nextResult) },
+    };
+    return { outcome: { ...nextResult, replayed: true }, next: root, write: true };
+  });
+  const incompleteBindingResponse = (result: Record<string, unknown>, receipt: BindingReceipt) => ({
+    ...result,
+    status: 'binding-incomplete',
+    retryable: true,
+    binding: { ...receipt, phase: 'binding-pending' },
+  });
   const respond = async (mutation: Mutation, input: { request: Request; env: BookActivityAuthoringRepositoryEnv; uid: string }) => {
     try {
       const rolloutGate = createBookRolloutTrustedSeamGate(
         options.rolloutGate ?? createBookRolloutWorkerGate(input.env),
       );
-      const operation = mutation === 'stage' ? 'create' : 'mutation';
+      const rolloutOperation = mutation === 'stage' ? 'create' : 'mutation';
       // Validate deployment enforcement before reading any mutation subject. The
       // exact Book check follows only after the server resolves the binding.
       await enforceBookPilotScopeIfConfigured({
         env: input.env,
         uid: input.uid,
         request: input.request,
-        operation,
+        operation: rolloutOperation,
         actorKind: 'teacher',
         bookId: null,
         requireBook: false,
@@ -414,6 +587,15 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       const body = await readBody(input.request);
       await authenticate(input.uid, repository);
       const bodyRecord = plainRecord(body);
+      const saveRequest = mutation === 'save-draft'
+        ? exact(body, [
+          'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
+          'sourceEvidenceRefs', 'answerEvidenceRefs', 'unitActivityBinding',
+        ])
+        : undefined;
+      const requestedBinding = saveRequest ? unitActivityBinding(saveRequest) : undefined;
+      const saveOperationId = saveRequest ? operation(saveRequest) : undefined;
+      const saveExpectedRevision = saveRequest ? validRevision(saveRequest.expectedRevision) : undefined;
       const candidateId = mutation === 'stage'
         ? undefined
         : (validIdValue(bodyRecord?.candidateId) ? bodyRecord.candidateId : undefined);
@@ -424,23 +606,54 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       const claimedBookId = mutation === 'stage'
         ? bodyRecord?.bookId
         : persistedCandidateBookId(initialRoot ?? {}, candidateId);
-      const trustedBookId = await resolveOwnedPdfBookId(repository, input.uid, claimedBookId);
+      const trustedBookId = await resolveOwnedPdfBookId(input.env, repository, input.uid, claimedBookId);
       // The body Book ID is only a claim for stage. For later mutations the
       // candidate's persisted binding is the sole subject input.
       await enforceBookPilotScopeIfConfigured({
         env: input.env,
         uid: input.uid,
         request: input.request,
-        operation,
+        operation: rolloutOperation,
         actorKind: 'teacher',
         bookId: trustedBookId,
         requireBook: true,
       });
-      const output = await repository.transaction(input.uid, (root) => {
+      let bindingRepository: UnitActivityBindingRepository | undefined;
+      let saveBindingFingerprint: string | undefined;
+      if (requestedBinding) {
+        if (!trustedBookId || !options.bindingRepositoryFactory || !options.readAssemblyActivityKeys) {
+          throw new AuthoringError('unit_activity_binding_unavailable', 503);
+        }
+        const activityKeys = await options.readAssemblyActivityKeys({
+          env: input.env, ownerId: input.uid, bookId: trustedBookId, unitKey: requestedBinding.unitKey,
+        });
+        if (!activityKeys || !activityKeys.includes(requestedBinding.activityKey)) {
+          throw new AuthoringError('unit_activity_binding_scope_invalid', 409);
+        }
+        bindingRepository = options.bindingRepositoryFactory(input.env, input.uid, trustedBookId, requestedBinding.unitKey);
+        const candidate = asCandidate(initialRoot?.candidates?.[candidateId ?? ''], candidateId);
+        if (candidate && candidate.ownerId === input.uid && candidate.revision === saveExpectedRevision
+          && candidate.lifecycle === 'validated') {
+          const existing = await bindingRepository.read({
+            ownerId: input.uid, bookId: trustedBookId, unitKey: requestedBinding.unitKey,
+            activityKey: requestedBinding.activityKey,
+          });
+          if (existing && (existing.activityId !== candidate.targetActivityId || existing.candidateId !== candidate.candidateId
+            || existing.activityVersionId !== undefined || existing.candidateRevision > candidate.revision + 1)) {
+            throw new AuthoringError('unit_activity_binding_conflict', 409);
+          }
+        }
+        const refs = evidenceRefGroups(saveRequest!);
+        saveBindingFingerprint = stable({
+          action: 'save-draft', candidateId, expectedRevision: saveExpectedRevision,
+          evidenceRefs: refs ?? null, unitActivityBinding: requestedBinding,
+        });
+      }
+      let output = await repository.transaction(input.uid, (root) => {
         assertPersistedRoot(root, input.uid);
         if (mutation === 'stage') return stage(root, input.uid, body, now(), createRecordId, trustedBookId!);
         if (mutation === 'validate') return validate(root, input.uid, body, now());
-        if (mutation === 'save-draft') return saveDraft(root, input.uid, body, now());
+        if (mutation === 'save-draft') return saveDraft(root, input.uid, body, now(), trustedBookId!);
         return discard(root, input.uid, body, now());
       }, {
         beforeWrite: async (next) => {
@@ -450,7 +663,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
             env: input.env,
             uid: input.uid,
             request: input.request,
-            operation,
+            operation: rolloutOperation,
             actorKind: 'teacher',
             bookId: null,
             requireBook: false,
@@ -471,18 +684,72 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
               nextBookId = persisted.bookId;
             }
           }
-          const resolvedBookId = await resolveOwnedPdfBookId(repository, input.uid, nextBookId);
+          const resolvedBookId = await resolveOwnedPdfBookId(input.env, repository, input.uid, nextBookId);
           await enforceBookPilotScopeIfConfigured({
             env: input.env,
             uid: input.uid,
             request: input.request,
-            operation,
+            operation: rolloutOperation,
             actorKind: 'teacher',
             bookId: resolvedBookId,
             requireBook: true,
           });
         },
       });
+      if (requestedBinding) {
+        let saved = plainRecord(output);
+        let receipt = bindingReceipt(saved?.binding);
+        if (saved?.status === 'saved' && saved.replayed === true && !receipt
+          && trustedBookId && saveOperationId && saveBindingFingerprint) {
+          output = await upgradeLegacyBindingReceipt(
+            repository,
+            input.uid,
+            saveOperationId,
+            saveBindingFingerprint,
+            trustedBookId,
+            requestedBinding,
+          ) ?? output;
+          saved = plainRecord(output);
+          receipt = bindingReceipt(saved?.binding);
+        }
+        if (!saved || !receipt || !trustedBookId || !bindingRepository || !saveBindingFingerprint
+          || receipt.ownerId !== input.uid || receipt.bookId !== trustedBookId
+          || receipt.unitKey !== requestedBinding.unitKey || receipt.activityKey !== requestedBinding.activityKey) {
+          throw new AuthoringError('unit_activity_binding_receipt_invalid', 500);
+        }
+        if (receipt.phase === 'complete' || receipt.phase === 'binding-conflict') {
+          return { body: output, init: { status: httpStatus(output) } };
+        }
+        try {
+          const activityKeys = await options.readAssemblyActivityKeys!({
+            env: input.env, ownerId: input.uid, bookId: trustedBookId, unitKey: requestedBinding.unitKey,
+          });
+          if (!activityKeys || !activityKeys.includes(requestedBinding.activityKey)) {
+            const partial = await advanceBindingReceipt(
+              repository, input.uid, saveOperationId!, saveBindingFingerprint, receipt, 'binding-conflict',
+            );
+            return { body: partial ?? incompleteBindingResponse(saved, receipt), init: { status: partial ? 409 : 202 } };
+          }
+          const status = await bindingRepository.bindCandidate(bindingWrite(receipt));
+          if (status === 'conflict' || status === 'stale') {
+            const partial = await advanceBindingReceipt(
+              repository, input.uid, saveOperationId!, saveBindingFingerprint, receipt, 'binding-conflict',
+            );
+            return { body: partial ?? incompleteBindingResponse(saved, receipt), init: { status: partial ? 409 : 202 } };
+          }
+          const complete = await advanceBindingReceipt(
+            repository, input.uid, saveOperationId!, saveBindingFingerprint, receipt, 'complete',
+          );
+          return {
+            body: complete
+              ? { ...complete, ...(saved.replayed === true ? { replayed: true } : {}) }
+              : incompleteBindingResponse(saved, receipt),
+            init: { status: complete ? 200 : 202 },
+          };
+        } catch {
+          return { body: incompleteBindingResponse(saved, receipt), init: { status: 202 } };
+        }
+      }
       return { body: output, init: { status: httpStatus(output) } };
     } catch (error) {
       if (error instanceof BookRolloutDeniedError) {
@@ -605,15 +872,22 @@ const validate = (root: BookActivityAuthoringRoot, ownerId: string, body: unknow
   return { outcome: claimed.result, next: root, write: claimed.write };
 };
 
-const saveDraft = (root: BookActivityAuthoringRoot, ownerId: string, body: unknown, at: number) => {
+const saveDraft = (
+  root: BookActivityAuthoringRoot,
+  ownerId: string,
+  body: unknown,
+  at: number,
+  trustedBookId: string,
+) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
-    'sourceEvidenceRefs', 'answerEvidenceRefs',
+    'sourceEvidenceRefs', 'answerEvidenceRefs', 'unitActivityBinding',
   ]);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision); const refs = evidenceRefGroups(input);
   prune(root, at);
-  const fingerprint = stable({ action: 'save-draft', candidateId, expectedRevision, evidenceRefs: refs ?? null });
+  const binding = unitActivityBinding(input);
+  const fingerprint = stable({ action: 'save-draft', candidateId, expectedRevision, evidenceRefs: refs ?? null, unitActivityBinding: binding ?? null });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     const candidate = asCandidate(root.candidates?.[candidateId], candidateId);
     if (!candidate || candidate.ownerId !== ownerId) return { status: 'not-found' };
@@ -655,9 +929,22 @@ const saveDraft = (root: BookActivityAuthoringRoot, ownerId: string, body: unkno
       updatedAt: at };
     root.activities = { ...(root.activities ?? {}), [activity.activityId]: activity };
     root.candidates = { ...(root.candidates ?? {}), [candidateId]: saved };
+    const receipt: BindingReceipt | undefined = binding ? {
+      schemaVersion: 1,
+      ownerId,
+      bookId: trustedBookId,
+      unitKey: binding.unitKey,
+      activityKey: binding.activityKey,
+      activityId: activity.activityId,
+      candidateId,
+      candidateRevision: saved.revision,
+      candidateLifecycle: 'saved',
+      phase: 'binding-pending',
+    } : undefined;
     return { status: 'saved', activityId: activity.activityId, revision, candidateId, candidateRevision: saved.revision,
       lifecycle: saved.lifecycle, validation: saved.validation, diff: saved.diff, evidenceRefs: saved.evidenceRefs,
-      sourceEvidenceRefs: saved.sourceEvidenceRefs, answerEvidenceRefs: saved.answerEvidenceRefs };
+      sourceEvidenceRefs: saved.sourceEvidenceRefs, answerEvidenceRefs: saved.answerEvidenceRefs,
+      ...(receipt ? { binding: receipt } : {}) };
   });
   return { outcome: claimed.result, next: root, write: claimed.write };
 };

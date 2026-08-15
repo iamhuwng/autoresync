@@ -21,6 +21,7 @@ import {
   deriveRevokedBookSourceVersionIds,
   isBookHomeworkDocumentScheduleOpen,
 } from '../src/upload-worker/book-source/document';
+import { bookHomeworkRecipientAuthorityId, bookHomeworkRecipientDeliveryBindingId } from '../src/upload-worker/book-homework/identity';
 import {
   makeBookDeliveryTestBinding,
 } from './book-delivery.fixture';
@@ -284,6 +285,7 @@ describe('Ticket #49 canonical source document composition', () => {
   it('requires assignment start but never narrows an authorized PDF by nested schedules', () => {
     const binding = {
       ...studentBinding(),
+      bindingId: bookHomeworkRecipientDeliveryBindingId('homework-1', 'student-1'),
       context: {
         kind: 'homework',
         contextId: 'homework-1',
@@ -309,7 +311,7 @@ describe('Ticket #49 canonical source document composition', () => {
     } as BookDeliveryBinding;
     const placement = binding.placements[0]!;
     const authority: BookHomeworkAuthorityRecord = {
-      assignmentId: 'homework-1',
+      assignmentId: bookHomeworkRecipientAuthorityId('homework-1', 'student-1'),
       assignmentKind: 'book_activity_bundle',
       schemaVersion: 1,
       ownerId: 'teacher-1',
@@ -372,7 +374,7 @@ describe('Ticket #49 canonical source document composition', () => {
         }],
       },
       studentExtensions: {},
-      saga: { sagaId: 'saga-1', state: 'committed', lastCommandId: 'command-1' },
+      saga: { sagaId: 'homework-1', state: 'committed', lastCommandId: 'command-1' },
       visibility: {
         status: 'committed',
         pointerId: 'manifest-1',

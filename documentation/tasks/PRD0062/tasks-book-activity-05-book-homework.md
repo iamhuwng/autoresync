@@ -2,8 +2,11 @@
 
 Status: Draft task list. Execute only through the master orchestration packet order.
 
-Source PRD:
+Source PRD requirement body:
 - `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
+
+Accepted current amendment:
+- `documentation/tasks/PRD0062/PRD0062-architecture-and-delivery-amendment-2026-08-15.md`
 
 Master orchestration:
 - `documentation/tasks/PRD0062/tasks-book-activity-master-orchestration.md`
@@ -33,6 +36,10 @@ Master orchestration:
 - Browsing/Solo progress and Homework progress remain separate unless a future explicit product rule changes that.
 - Teacher must choose `accountable` or `practice` assignment intent. Integrity defaults ON for accountable work and OFF for practice; an explicit assignment setting may override the default.
 - Book integrity is signals-only. Reused detection hooks must sit behind a Book-specific adapter that cannot auto-submit, auto-lock, auto-zero, nullify attempts, or block completion.
+- Book Homework compatibility is an additive anti-corruption boundary over existing Homework. Ordinary Homework semantics remain unchanged; the derived compatibility shell is never Book authority.
+- Book → Homework is a bounded lossy discovery/read projection. Homework → Book is authoritative context enrichment from authenticated actor + bounded locator/intent; it is not inverse database synchronization.
+- Saga/authority/Delivery-valid recipient identity must remain separate from derived completion/progress availability. Derived enrichment may be unavailable without erasing the authoritative recipient row; identity mismatches remain fail-closed.
+- A transient/null trusted Book progress read must be genuinely retryable and must not be cached as authoritative assignment/recipient absence.
 
 ## Packet Contract And Closure Addendum
 
@@ -138,3 +145,14 @@ Before completing this component:
   - [ ] 9.3 Preserve existing homework list/detail filtering.
   - [ ] 9.4 Add regression tests for existing homework create/detail/list flows.
   - [ ] 9.5 Update findings with final Book Homework manifest, schedule, progress, and integrity owner paths.
+
+- [ ] 10.0 Preserve the accepted Book Homework compatibility and trusted-projection boundary
+  - [ ] 10.1 Discriminate Book compatibility before legacy Homework normalization or submission/stat assumptions execute.
+  - [ ] 10.2 Keep `homework_assignments` Book compatibility records derived/non-authoritative and do not synthesize legacy stats, status, submissions, attempts, scores, progress, or `studentOverrides` for Book authority.
+  - [ ] 10.3 Resolve Homework-originated Book actions from authenticated actor + bounded locator/intent through authoritative root/authority/Delivery/publication/Activity sources; fail closed on missing or crossed provenance.
+  - [ ] 10.4 Preserve existing non-Book Homework mutation, submission, attempt, status/stat, deadline, result, and list/detail semantics except for the minimum additive dispatch/ownership seam required by PRD0062.
+  - [ ] 10.5 Use the canonical student class-membership owner for Homework discovery; do not add Book-specific broad-query or hard-coded membership bypasses.
+  - [ ] 10.6 Preserve saga/authority/Delivery-valid teacher recipient rows when derived completion is unavailable, render derived state explicitly unavailable, and expose no untrusted progress/grade/review or legacy controls.
+  - [ ] 10.7 Keep crossed owner/recipient/binding/revision/authority identity fail-closed even when partial projection degradation is allowed.
+  - [ ] 10.8 Ensure unavailable/error/null Book progress reads evict or bypass stale request cache so Retry performs a fresh authoritative read.
+  - [ ] 10.9 Add focused compatibility, legacy-regression, trusted-projection, and retry tests for the amendment criteria.

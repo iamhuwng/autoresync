@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T18:32:20Z",
+  "status": "pending_independent_review",
+  "mission": "PRD0062 completion",
+  "scope": "Correct only the local replacement-replay release gate, then permit one bounded PRD0062 compatibility-shell repair execution; no adapter expansion, product-source change, new assignment, automatic retry, or Milestone 2",
+  "supersedes": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-replacement-replay-checkpoint-2026-08-14.json",
+  "priorFailure": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-replacement-replay-failure-result-2026-08-14.json",
+  "priorFailureClassification": "CLIENT_RELEASE_GATE_FAILURE_BEFORE_COMMAND_REQUEST",
+  "authorization": "One new bounded replacement execution using the corrected reviewed client; prior execution emitted zero command POST requests",
+  "source": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "productSourceChangedAfterPriorReview": false,
+    "rulesSourceChangedAfterPriorReview": false,
+    "workerSourceChangedAfterPriorReview": false,
+    "onlyExecutableChange": "tmp/prd0062-bridge-m1-replacement-replay-client.mjs iterator-result release parsing",
+    "localProofAdded": "tmp/prd0062-bridge-m1-replacement-replay-release-gate-proof.mjs"
+  },
+  "correctedReplayClient": {
+    "path": "tmp/prd0062-bridge-m1-replacement-replay-client.mjs",
+    "bytes": 5818,
+    "sha256": "43e2ccffe8b776a76c8d0000fb0f0594353bc6c235887236322a03d4edc64d85",
+    "correction": "Read next() as an iterator-result object; reject done or any value other than exact SEND before command POST",
+    "protocol": "one process; one verified teacher Firebase ID token; one keep-alive HTTPS agent; two sequential route-gate probes; explicit stdin SEND; at most one literal command POST",
+    "otherIteratorOrDestructuringErrorsInReleasePath": "none found"
+  },
+  "localReleaseGateProof": {
+    "path": "tmp/prd0062-bridge-m1-replacement-replay-release-gate-proof.mjs",
+    "bytes": 2335,
+    "sha256": "1ef47aa6880c7723e8cc56ba707b7a52fb8a36b0d4f584c8beea09d50ccac390",
+    "command": "node tmp/prd0062-bridge-m1-replacement-replay-release-gate-proof.mjs",
+    "result": {
+      "send": "done false, value SEND, exactly one simulated command POST",
+      "eof": "command_not_released, zero additional command POSTs",
+      "wrongValue": "command_not_released, zero additional command POSTs",
+      "clientCommandPostOccurrences": 1,
+      "automaticRetryPath": false,
+      "commandPostOrderedAfterReleaseCheck": true
+    },
+    "syntax": "node --check passed for client and proof"
+  },
+  "unchangedFrozenCommand": {
+    "path": "tmp/prd0062-bridge-m1-corrected-assignment-command.json",
+    "bytes": 1471,
+    "sha256": "0e3720ac38b0545fa51876a0230eec8e690a735af29654779208b80221c38583",
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "commandPostBudget": 1,
+    "automaticRetry": false
+  },
+  "unchangedProbe": {
+    "path": "tmp/prd0062-bridge-m1-route-gate-probe-262145.json",
+    "bytes": 262145,
+    "limitBytes": 262144,
+    "sha256": "502349597c660a57dad41305293197bd4066267a476cd0a6b2071e60f5e9598e",
+    "compression": "none",
+    "stateMutation": "none; body limit rejects before pilot parsing, handler, and command processing",
+    "requiredExecutionResult": "two consecutive exact HTTP 413 body_too_large responses with canonical headers, valid CF-Ray, and identical colo"
+  },
+  "exactWorkerIdentities": {
+    "entryPath": "cloudflare/worker.js",
+    "entrySha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+    "bundleSha256": "2f9fba6a01595d336a2dcf1a58d1a014d889f3c7abb40b688b688a1335b48245",
+    "bundleBytes": 1845062,
+    "bundleGzipBytes": 344220,
+    "scriptEtag": "b46fe291195c097485acbab88ff6239ddf81aeb67fff908f1c4e21e67d2ebd56",
+    "activationVersionId": "bbca331f-68cb-49a2-bb03-a65ae5ac3603",
+    "activationVersionNumber": 120,
+    "activationGate": "enabled",
+    "rollbackVersionId": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39",
+    "rollbackVersionNumber": 119,
+    "rollbackGate": "disabled"
+  },
+  "exactConfigurationIdentities": {
+    "activationPath": "cloudflare/wrangler.prd0062-bridge-m1-activation.jsonc",
+    "activationSha256": "09dd73de3d60fea73ea694166ac45bc9c97c9f8c0db693ab458e342d34a8785a",
+    "activationRevision": "prd0062-bridge-m1-replacement-replay",
+    "activationExpiresAt": "2026-08-15T05:40:00.000Z",
+    "rollbackPath": "cloudflare/wrangler.prd0062-bridge-m1-rollback.jsonc",
+    "rollbackSha256": "3d2aec19b738a5483d8297fbb51c9c677d2e97815c2c5ef70e9cb02c4a7f7eda"
+  },
+  "exactRulesIdentities": {
+    "firestoreActivationRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreRollbackRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "rtdbActivationSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rtdbRollbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+  },
+  "currentRollbackReadback": {
+    "readAt": "2026-08-14T18:32:20Z",
+    "workerVersionId": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39",
+    "workerTrafficPercent": 100,
+    "workerDeploymentCreatedAt": "2026-08-14T17:59:54.405Z",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "firestoreUpdateTime": "2026-08-14T17:59:59.249737Z",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rootSaga": "HTTP 200; committed and visible; revision 7; exact operation and idempotency; one committed recipient",
+    "authority": "HTTP 200; committed and visible; revision 2",
+    "delivery": "exact current binding and record HTTP 200; active",
+    "compatibilityShell": "HTTP 404 NOT_FOUND",
+    "durableMutationFromPriorExecution": false
+  },
+  "executionGate": {
+    "independentReviewRequired": ["Standards PASS", "Spec PASS"],
+    "preCommandOrder": [
+      "reconcile rollback state",
+      "activate and read back exact Firestore rules",
+      "activate and read back exact RTDB rules",
+      "activate and read back exact Worker",
+      "start corrected client with exact teacher authentication",
+      "require two exact gate-sensitive 413 probes with canonical headers, valid CF-Ray, and same colo",
+      "while the same client waits, reread exact Worker/rules plus unchanged root, authority, Delivery, and absent shell",
+      "provide one SEND"
+    ],
+    "failureRule": "On any probe or identity/state mismatch, do not provide SEND; rollback and stop",
+    "successRequirement": "Exactly one literal command POST repairs the existing compatibility shell without duplicating or incorrectly rewriting root, authority, or Delivery"
+  },
+  "successBoundary": {
+    "objective": "existing committed Book Homework -> compatibility shell repair -> Homework discovery/detail -> locator-only action back to authoritative Book -> real Runtime consumption -> browser handoff",
+    "afterHandoff": "Stop recovery/adapter work and return to the remaining PRD0062 acceptance delta",
+    "adapterExpansion": "forbidden unless directly mapped to a named unresolved PRD0062 requirement",
+    "milestone2BeforeBrowserHandoff": false
+  }
+}

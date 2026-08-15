@@ -6,6 +6,11 @@ import {
   createPreviewApproval,
   type BookAssemblyPreviewApprovalRecord,
 } from '../../../../src/services/book-assembly/unitPreview.service.ts';
+import type {
+  BookAssemblyPreviewApprovalRead,
+  BookAssemblyPreviewApprovalRevocationRecord,
+  PreviewApprovalRevokeStatus,
+} from '../../../../src/services/book-assembly/previewApproval.repository.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 
@@ -33,6 +38,14 @@ export interface CandidatePreviewWorkerPort {
     readonly sourceVersionId: string;
   }): Promise<boolean>;
   recordApproval(record: BookAssemblyPreviewApprovalRecord): Promise<void>;
+  readApproval?(input: {
+    readonly bookId: string;
+    readonly unitKey: string;
+    readonly approvalId: string;
+  }): Promise<BookAssemblyPreviewApprovalRead>;
+  recordRevocation?(
+    record: BookAssemblyPreviewApprovalRevocationRecord,
+  ): Promise<PreviewApprovalRevokeStatus>;
 }
 
 export class CandidatePreviewWorkerError extends Error {
@@ -73,13 +86,16 @@ interface PreviewRequest {
   readonly unitKey: string;
   readonly candidateId: string;
   readonly expectedCandidateRevision: number;
-  readonly registryVersion: string;
+}
+
+interface RevokeRequest extends PreviewRequest {
+  readonly approvalId: string;
 }
 
 const command = (input: unknown): PreviewRequest => {
   const body = plain(input);
   if (!body || Object.keys(body).some((key) => ![
-    'bookId', 'unitKey', 'candidateId', 'expectedCandidateRevision', 'registryVersion',
+    'bookId', 'unitKey', 'candidateId', 'expectedCandidateRevision',
   ].includes(key))) {
     throw new CandidatePreviewWorkerError('invalid_request');
   }
@@ -88,8 +104,32 @@ const command = (input: unknown): PreviewRequest => {
     unitKey: id(body.unitKey, 'invalid_unit_key'),
     candidateId: id(body.candidateId, 'invalid_candidate_id'),
     expectedCandidateRevision: revision(body.expectedCandidateRevision),
-    registryVersion: id(body.registryVersion, 'invalid_registry_version'),
   };
+};
+
+const revokeCommand = (input: unknown): RevokeRequest => {
+  const body = plain(input);
+  if (!body || Object.keys(body).some((key) => ![
+    'bookId', 'unitKey', 'candidateId', 'expectedCandidateRevision', 'approvalId',
+  ].includes(key))) {
+    throw new CandidatePreviewWorkerError('invalid_request');
+  }
+  return {
+    ...command({
+      bookId: body.bookId,
+      unitKey: body.unitKey,
+      candidateId: body.candidateId,
+      expectedCandidateRevision: body.expectedCandidateRevision,
+    }),
+    approvalId: id(body.approvalId, 'invalid_preview_approval_id'),
+  };
+};
+
+const configuredRegistryVersion = (value: unknown): string => {
+  if (typeof value !== 'string' || !ID.test(value)) {
+    throw new CandidatePreviewWorkerError('preview_registry_unavailable', 503);
+  }
+  return value;
 };
 
 const activityMap = (
@@ -104,6 +144,8 @@ const activityMap = (
 
 export const createCandidatePreviewWorkerHandlers = (options: {
   readonly port: CandidatePreviewWorkerPort;
+  /** Renderer registry identity is deployment configuration, never client input. */
+  readonly registryVersion?: string;
   readonly now?: () => string;
   readonly createApprovalId?: () => string;
   readonly approvalLifetimeMs?: number;
@@ -114,6 +156,7 @@ export const createCandidatePreviewWorkerHandlers = (options: {
 
   const prepare = async (uid: string, raw: unknown) => {
     const request = command(raw);
+    const registryVersion = configuredRegistryVersion(options.registryVersion);
     if (!roleAllowed(await options.port.readUser(uid))) {
       throw new CandidatePreviewWorkerError('preview_forbidden', 403);
     }
@@ -148,7 +191,7 @@ export const createCandidatePreviewWorkerHandlers = (options: {
           sourceVersions,
           sourceIsPreviewReady: (source) => readySourceVersionIds.has(source.sourceVersionId),
           activitiesByKey: activities,
-          registryVersion: request.registryVersion,
+          registryVersion,
         }),
         activities,
       };
@@ -186,6 +229,68 @@ export const createCandidatePreviewWorkerHandlers = (options: {
         if (error instanceof CandidatePreviewWorkerError) return json({ code: error.code }, error.status);
         if (error instanceof UnitPreviewError) return json({ code: error.code }, 409);
         return json({ code: 'candidate_preview_approval_failed' }, 500);
+      }
+    },
+    async revoke(input: { readonly uid: string; readonly body: unknown }) {
+      try {
+        const readApproval = options.port.readApproval;
+        const recordRevocation = options.port.recordRevocation;
+        if (!readApproval || !recordRevocation) {
+          throw new CandidatePreviewWorkerError('preview_approval_dependencies_unavailable', 503);
+        }
+        const request = revokeCommand(input.body);
+        const prepared = await prepare(input.uid, {
+          bookId: request.bookId,
+          unitKey: request.unitKey,
+          candidateId: request.candidateId,
+          expectedCandidateRevision: request.expectedCandidateRevision,
+        });
+        const approvalState = await readApproval({
+          bookId: request.bookId,
+          unitKey: request.unitKey,
+          approvalId: request.approvalId,
+        });
+        const approval = approvalState.approval;
+        if (!approval
+          || approval.actorId !== input.uid
+          || approval.bookId !== prepared.preview.bookId
+          || approval.unitKey !== prepared.preview.unitKey
+          || approval.candidateId !== prepared.preview.candidateId
+          || approval.candidateRevision !== prepared.preview.candidateRevision
+          || approval.bookRevision !== prepared.preview.bookRevision
+          || approval.sourceSetRevision !== prepared.preview.sourceSetRevision) {
+          throw new CandidatePreviewWorkerError('preview_approval_unavailable', 409);
+        }
+        if (approvalState.revocation) {
+          if (approvalState.revocation.actorId !== input.uid) {
+            throw new CandidatePreviewWorkerError('preview_approval_revoke_conflict', 409);
+          }
+          return json({ revocation: approvalState.revocation, status: 'replayed' });
+        }
+        const revocation: BookAssemblyPreviewApprovalRevocationRecord = {
+          approvalId: approval.approvalId,
+          bookId: approval.bookId,
+          unitKey: approval.unitKey,
+          actorId: input.uid,
+          revokedAt: now(),
+        };
+        const status = await recordRevocation(revocation);
+        if (status === 'conflict') {
+          const replay = await readApproval({
+            bookId: request.bookId,
+            unitKey: request.unitKey,
+            approvalId: request.approvalId,
+          });
+          if (replay.revocation?.actorId === input.uid) {
+            return json({ revocation: replay.revocation, status: 'replayed' });
+          }
+          throw new CandidatePreviewWorkerError('preview_approval_revoke_conflict', 409);
+        }
+        return json({ revocation, status });
+      } catch (error) {
+        if (error instanceof CandidatePreviewWorkerError) return json({ code: error.code }, error.status);
+        if (error instanceof UnitPreviewError) return json({ code: error.code }, 409);
+        return json({ code: 'candidate_preview_approval_revoke_failed' }, 500);
       }
     },
   };

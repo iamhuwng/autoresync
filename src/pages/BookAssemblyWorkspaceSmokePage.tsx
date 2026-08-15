@@ -600,6 +600,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
     if (!ticket63Fixture || !candidate) return null;
     return {
       bookId: BOOK_ID,
+      bookRevision: candidate.bookRevision,
       candidateId: candidate.candidateId,
       candidateRevision: candidate.revision,
       sourceSetRevision: 4,

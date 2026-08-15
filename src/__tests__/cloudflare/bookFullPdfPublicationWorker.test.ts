@@ -186,6 +186,7 @@ const worker = (
   const readAuthority = vi.fn(async () => authority());
   const readCandidate = vi.fn(async () => candidate());
   const handlers = createFullPdfPublicationWorkerHandlers({
+    readUser: (uid) => env.readDatabaseValue(`users/${uid}`),
     repository,
     activityVersionWriter,
     readAuthority,

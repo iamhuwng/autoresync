@@ -11,9 +11,10 @@ const {
   firebaseGetMock,
   firebaseRefMock,
   getBookHomeworkProgressMock,
-  isBookHomeworkAssignmentMock,
+  bookNavigateMock,
   navigateMock,
   startAttemptMock,
+  trackActionMock,
   useHomeworkSubmissionMock,
   useMediaQueryMock,
   useNavigationMock,
@@ -29,9 +30,10 @@ const {
   firebaseGetMock: vi.fn(),
   firebaseRefMock: vi.fn(),
   getBookHomeworkProgressMock: vi.fn(),
-  isBookHomeworkAssignmentMock: vi.fn(),
+  bookNavigateMock: vi.fn(),
   navigateMock: vi.fn(),
   startAttemptMock: vi.fn(),
+  trackActionMock: vi.fn(),
   useHomeworkSubmissionMock: vi.fn(),
   useMediaQueryMock: vi.fn(),
   useNavigationMock: vi.fn(),
@@ -49,12 +51,14 @@ vi.mock('../hooks/useHomeworkSubmission', () => ({
   useHomeworkSubmission: (...args: unknown[]) => useHomeworkSubmissionMock(...args),
 }));
 
-vi.mock('../services/homeworkSubmissionService', () => ({
-  getBookHomeworkProgress: (...args: unknown[]) => getBookHomeworkProgressMock(...args),
+vi.mock('../hooks/useFeatureTracking', () => ({
+  useFeatureTracking: () => ({
+    trackAction: trackActionMock,
+  }),
 }));
 
-vi.mock('../services/book-homework/bookHomeworkManifest.service', () => ({
-  isBookHomeworkAssignment: (...args: unknown[]) => isBookHomeworkAssignmentMock(...args),
+vi.mock('../services/homeworkSubmissionService', () => ({
+  getBookHomeworkProgress: (...args: unknown[]) => getBookHomeworkProgressMock(...args),
 }));
 
 vi.mock('../contexts/AuthContext', () => ({
@@ -137,6 +141,45 @@ function renderPage() {
   );
 }
 
+function buildBookCompatibilityHomework() {
+  return {
+    schemaVersion: 1,
+    assignmentKind: 'book_homework_compatibility',
+    id: 'hw-1',
+    createdBy: 'teacher-1',
+    createdAt: 100,
+    updatedAt: 200,
+    materialId: 'book-material-1',
+    materialTitle: 'Book Homework',
+    materialType: 'book',
+    materialSkill: 'mixed',
+    title: 'Book Homework',
+    target: { type: 'students', studentIds: ['student-1'] },
+    scheduling: { dueDate: Date.now() + 60_000 },
+    config: {
+      timerMinutes: null,
+      maxAttempts: null,
+      feedbackTiming: 'never',
+      lateSubmissionAllowed: false,
+    },
+    visibility: {
+      showTimer: false,
+      showAttempts: false,
+      showDueDate: true,
+      showQuestionCount: false,
+      showDuration: false,
+    },
+    archived: false,
+    tags: [],
+    bookHomeworkCompatibility: {
+      schemaVersion: 1,
+      assignmentId: 'hw-1',
+      sourceSagaRevision: 7,
+      sourceFingerprint: 'fnv1a64:cc3d88a5107df2b5',
+    },
+  };
+}
+
 describe('StudentHomeworkDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -147,7 +190,7 @@ describe('StudentHomeworkDetailPage', () => {
     };
 
     useNavigationMock.mockReturnValue({
-      navigateTo: vi.fn(),
+      navigateTo: bookNavigateMock,
     });
     useMediaQueryMock.mockReturnValue(false);
 
@@ -164,7 +207,6 @@ describe('StudentHomeworkDetailPage', () => {
       val: () => null,
     });
     getBookHomeworkProgressMock.mockResolvedValue(null);
-    isBookHomeworkAssignmentMock.mockReturnValue(false);
 
     useHomeworkSubmissionMock.mockReturnValue({
       homework: {
@@ -469,7 +511,6 @@ describe('StudentHomeworkDetailPage', () => {
   });
 
   it('renders scoped Book progress for a partial submission without a whole-Book submit action', async () => {
-    isBookHomeworkAssignmentMock.mockReturnValue(true);
     getBookHomeworkProgressMock.mockResolvedValue({
       schemaVersion: 1,
       manifestVersionId: 'manifest-1',
@@ -513,12 +554,7 @@ describe('StudentHomeworkDetailPage', () => {
       excludedHistoricalRows: [],
     });
     useHomeworkSubmissionMock.mockReturnValue({
-      homework: {
-        id: 'hw-1',
-        title: 'Book Homework',
-        assignmentKind: 'book_activity_bundle',
-        bookManifest: {},
-      },
+      homework: buildBookCompatibilityHomework(),
       currentSubmission: null,
       allSubmissions: [],
       bestSubmission: null,
@@ -545,10 +581,23 @@ describe('StudentHomeworkDetailPage', () => {
     expect(panel.querySelector('button')).toHaveTextContent('Back to Homework List');
     expect(screen.queryByRole('button', { name: /submit.*book/i })).not.toBeInTheDocument();
     expect(getBookHomeworkProgressMock).toHaveBeenCalledWith('hw-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Book Activities' }));
+    expect(bookNavigateMock).toHaveBeenCalledWith(
+      'STUDENT_PRACTICE',
+      { materialId: 'hw-1?bookSurface=homework&homeworkId=hw-1' },
+      expect.objectContaining({ reason: 'student_book_homework_runtime_launch' }),
+    );
+    expect(trackActionMock).toHaveBeenCalledWith(
+      'bookHomeworkStudentLaunchRequested',
+      {
+        homeworkId: 'hw-1',
+        source: 'student_homework_detail',
+      },
+    );
   });
 
   it('keeps completed Book completion distinct from pending review and historical rows', async () => {
-    isBookHomeworkAssignmentMock.mockReturnValue(true);
     getBookHomeworkProgressMock.mockResolvedValue({
       schemaVersion: 1,
       manifestVersionId: 'manifest-1',
@@ -600,12 +649,7 @@ describe('StudentHomeworkDetailPage', () => {
       }],
     });
     useHomeworkSubmissionMock.mockReturnValue({
-      homework: {
-        id: 'hw-1',
-        title: 'Book Homework',
-        assignmentKind: 'book_activity_bundle',
-        bookManifest: {},
-      },
+      homework: buildBookCompatibilityHomework(),
       currentSubmission: null,
       allSubmissions: [],
       bestSubmission: null,

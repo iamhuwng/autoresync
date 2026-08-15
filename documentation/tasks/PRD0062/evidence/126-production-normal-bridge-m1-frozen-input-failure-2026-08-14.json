@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-14T11:56:00Z",
+  "status": "failed-and-rolled-back",
+  "classification": "FROZEN_INPUT_CHECKPOINT_INVALID",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-recovery-checkpoint-2026-08-14.json",
+  "cause": "The exact frozen production command omitted required intent.presentation and was rejected by the canonical parser with HTTP 400 invalid_request before saga execution.",
+  "attempt": {
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "a44aa998-02f9-46ae-96f9-2c70dea2403e",
+    "idempotencyKey": "2a7e4f82-d085-480d-be60-0bcf887734fb",
+    "commandPath": "tmp/prd0062-bridge-m1-assignment-command.json",
+    "commandSha256": "f091187758db3e0c20e4f3ab57d5ec4aa294ae0b6e9b61e8634576c41e629d57",
+    "httpStatus": 400,
+    "response": { "code": "invalid_request" },
+    "responseSha256": "24850d9999a7de5830fbef40e20ba8460352d47ebe41c4e6c1d5d6101c91fe19"
+  },
+  "deterministicReproduction": {
+    "test": "cloudflare/test/book-homework-production-command-reproduction.test.ts",
+    "result": "1/1 passed",
+    "proof": "The literal omitted-presentation command throws invalid_request."
+  },
+  "durableReadback": {
+    "saga": null,
+    "authority": "HTTP 404",
+    "deliveryIndex": null,
+    "deliveryScope": null,
+    "compatibility": "HTTP 404"
+  },
+  "rollback": {
+    "workerVersionId": "7f11dc93-fd77-4f33-90bf-a2d92cce828a",
+    "workerTrafficPercent": 100,
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6"
+  },
+  "productSourceDisposition": "Milestone-1 implementation remains unchanged and eligible; only frozen command/checkpoint evidence was invalid.",
+  "nextGate": "A new literal corrected command with canonical presentation, fresh operation and idempotency identities, and full parser/route/default-runtime proof."
+}

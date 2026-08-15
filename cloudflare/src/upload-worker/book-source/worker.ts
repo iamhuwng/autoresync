@@ -14,6 +14,7 @@ import {
   sourceUploadAccountPath,
   validateBookSourceUploadAccountState,
 } from '../../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
+import { createMaterialBookSourceAttachmentService } from '../../../../src/services/book-source-delivery/materialBookSourceAttachment.service.ts';
 import type {
   BookSourceUploadAccountState,
   BookSourceUploadOperation,
@@ -28,6 +29,10 @@ import { createBookSourceControlHost, type BookSourceUploadControlService } from
 import { createBackblazeB2SourceProviderFromEnv } from '../../book-source-worker/backblaze-b2-source-provider.ts';
 import type { BookRouteHandlerInput } from '../book-route-handlers.ts';
 import { evaluateTicket49PreviewUploadGate } from './ticket49-preview-gate.ts';
+import {
+  attachVerifiedFullPdfSource,
+  createFirebaseMaterialBookSourceAttachmentRepository,
+} from './material-book-source-attachment-repository.ts';
 
 const MAX_ACCOUNT_STATE_BYTES = 32 * 1024 * 1024;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
@@ -175,6 +180,14 @@ const defaultRuntimeFactory = async (
     }),
     {},
   );
+  const materialBookSourceAttachmentRepository = createFirebaseMaterialBookSourceAttachmentRepository({
+    env: { FIREBASE_DB_URL: baseUrl },
+    accountId,
+    getAccessToken: () => accessTokenProvider.getAccessToken(),
+  });
+  const materialBookSourceAttachment = createMaterialBookSourceAttachmentService(
+    materialBookSourceAttachmentRepository,
+  );
   const readAccountState = async (): Promise<BookSourceUploadAccountState> => {
     const response = await fetch(
       `${baseUrl}/${sourceUploadAccountPath(accountId)}.json`,
@@ -228,6 +241,17 @@ const defaultRuntimeFactory = async (
     repository,
     provider: createBackblazeB2SourceProviderFromEnv(env),
     clock: { now: () => new Date() },
+    onVerified: (operation, context) => attachVerifiedFullPdfSource(
+      materialBookSourceAttachment,
+      materialBookSourceAttachmentRepository,
+      {
+        ownerId: context.ownerId,
+        bookId: operation.bookId,
+        operationId: operation.reservationId,
+        sourceKey: operation.sourceKey,
+        sourceVersionId: operation.sourceVersionId,
+      },
+    ).then(() => undefined),
   };
   const productionControl = createSourceUploadControl({
     ...commonDependencies,

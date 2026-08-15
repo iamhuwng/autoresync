@@ -1,9 +1,8 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // Review-only activation artifact. The policy timestamp sentinel is intentionally
-  // rejected by runtime validation. An operator must create an exact deployment copy
-  // with fresh issuedAt/expiresAt values (<=24h), approve its hash, and add deployment-only
-  // secrets through Wrangler secret management: BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY,
+  // Exact standing-authority v15 recovery artifact. This file itself performs no mutation.
+  // Deployment-owned secrets are not embedded; add them through Wrangler secret management:
+  // BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY,
   // FIREBASE_WEB_API_KEY, BOOK_DELIVERY_GOOGLE_SA_KEY, BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY,
   // BOOK_ASSEMBLY_GOOGLE_SA_KEY, BOOK_HOMEWORK_GOOGLE_SA_KEY, BOOK_RUNTIME_GOOGLE_SA_KEY,
   // BOOK_SOURCE_B2_PRIVATE_BUCKET_ID, BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID,
@@ -53,8 +52,8 @@
     "BOOK_ROLLOUT_ENVIRONMENT": "production",
     "BOOK_PILOT_SCOPE_ENFORCEMENT": "enabled",
     "BOOK_PILOT_SCOPE_ENVIRONMENT": "production",
-    "BOOK_ROLLOUT_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"production\",\"revision\":\"prd0062-126-vocab-u1-activation-v1\",\"issuedAt\":\"2026-08-12T23:40:00.000Z\",\"expiresAt\":\"2026-08-13T22:40:00.000Z\",\"actions\":{\"create\":\"allow\",\"upload\":\"allow\",\"publish\":\"allow\",\"assign-place\":\"allow\",\"launch-delivery\":\"allow\",\"mutation\":\"allow\"}}",
-    "BOOK_PILOT_SCOPE_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"production\",\"revision\":\"prd0062-126-vocab-u1-activation-v1\",\"issuedAt\":\"2026-08-12T23:40:00.000Z\",\"expiresAt\":\"2026-08-13T22:40:00.000Z\",\"teacherId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"assignmentId\":\"assignment-vocab-u1-d43935c735245dc8\",\"studentIds\":[\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"],\"maxStudents\":30}",
+    "BOOK_ROLLOUT_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"production\",\"revision\":\"prd0062-126-production-normal-recovery-v18\",\"issuedAt\":\"2026-08-13T23:40:00.000Z\",\"expiresAt\":\"2026-08-14T11:40:00.000Z\",\"actions\":{\"create\":\"allow\",\"upload\":\"allow\",\"publish\":\"allow\",\"assign-place\":\"allow\",\"launch-delivery\":\"allow\",\"mutation\":\"allow\"}}",
+    "BOOK_PILOT_SCOPE_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"production\",\"revision\":\"prd0062-126-production-normal-recovery-v18\",\"issuedAt\":\"2026-08-13T23:40:00.000Z\",\"expiresAt\":\"2026-08-14T11:40:00.000Z\",\"teacherId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"assignmentId\":\"assignment-vocab-u1-d43935c735245dc8\",\"studentIds\":[\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"],\"maxStudents\":30}",
     "BOOK_SOURCE_UPLOAD_ACCOUNT_ID": "book_b2_primary",
     "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
     "BOOK_DELIVERY_SERVICE_IDENTITY": "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
@@ -70,6 +69,8 @@
     "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "https://kahut1.web.app",
     "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "enabled",
     "BOOK_ASSEMBLY_ROUTES_ENABLED": "enabled",
+    "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:6ec59a0085256e6214e448f9a16312d707699c5083d11c9d356c0b5d15e66be1",
+    "BOOK_ASSEMBLY_MUTATIONS_ENABLED": "true",
     "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED": "enabled",
     "BOOK_FULL_PDF_PUBLICATION_ENABLED": "true",
     "BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "enabled",

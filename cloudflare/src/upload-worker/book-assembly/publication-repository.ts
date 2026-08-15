@@ -1,5 +1,12 @@
-import { SignJWT, importPKCS8 } from 'jose';
-import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
+import {
+  FirebaseRtdbRestClient,
+  type FirebaseRtdbAuthRequest,
+  type RepositoryEnv,
+} from '../listening-authoring/rtdb.ts';
+import {
+  createFirebaseClaimTokenProvider,
+  type BookFirebaseClaimTuple,
+} from '../book-activity-authoring/firebase-token.ts';
 import type {
   BookAssemblyPublicationRepository,
   BookAssemblyPublicationScope,
@@ -21,12 +28,6 @@ const MAX_RECORD_BYTES = 512 * 1024;
 const PATH_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const ACTIVITY_VERSION_REFERENCE_KEY = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,383}$/u;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const OAUTH2_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const FIREBASE_SCOPES = [
-  'https://www.googleapis.com/auth/firebase.database',
-  'https://www.googleapis.com/auth/datastore',
-  'https://www.googleapis.com/auth/userinfo.email',
-].join(' ');
 const SENSITIVE_KEYS = new Set([
   'answer',
   'answerkey',
@@ -43,14 +44,18 @@ const SENSITIVE_KEYS = new Set([
 ]);
 
 export interface BookAssemblyPublicationRepositoryEnv extends RepositoryEnv {
+  /** Optional publication-specific capability binding for deployments that provide one. */
+  BOOK_ASSEMBLY_PUBLICATION_SERVICE_IDENTITY?: string;
+  BOOK_ASSEMBLY_PUBLICATION_GOOGLE_SA_KEY?: string;
+  /** Existing assembly-scoped binding; never the global GOOGLE_SA_KEY fallback. */
   BOOK_ASSEMBLY_SERVICE_IDENTITY?: string;
   BOOK_ASSEMBLY_GOOGLE_SA_KEY?: string;
 }
 
-interface ServiceAccountKey {
-  client_email: string;
-  private_key: string;
-}
+export const BOOK_ASSEMBLY_PUBLICATION_IDENTITY_ENV =
+  'BOOK_ASSEMBLY_PUBLICATION_SERVICE_IDENTITY';
+export const BOOK_ASSEMBLY_PUBLICATION_KEY_ENV =
+  'BOOK_ASSEMBLY_PUBLICATION_GOOGLE_SA_KEY';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const stable = (value: unknown): string => {
@@ -64,6 +69,86 @@ const stable = (value: unknown): string => {
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   value !== null && typeof value === 'object' && !Array.isArray(value)
 );
+const hydrateOmittedEmptyArrays = (
+  value: unknown,
+  fields: readonly string[],
+): unknown => {
+  if (!isRecord(value)) return value;
+  let hydrated: Record<string, unknown> | undefined;
+  for (const field of fields) {
+    if (field in value) continue;
+    hydrated ??= { ...value };
+    hydrated[field] = [];
+  }
+  return hydrated ?? value;
+};
+const hydrateOmittedManifestNodeParents = (value: unknown): unknown => {
+  if (!isRecord(value) || !isRecord(value.manifest) || !Array.isArray(value.manifest.nodes)) {
+    return value;
+  }
+  let changed = false;
+  const nodes = value.manifest.nodes.map((node) => {
+    if (!isRecord(node) || 'parentNodeKey' in node) return node;
+    changed = true;
+    return { ...node, parentNodeKey: null };
+  });
+  return changed ? { ...value, manifest: { ...value.manifest, nodes } } : value;
+};
+const hydrateFamily = (
+  value: unknown,
+  hydrateRecord: (record: unknown) => unknown,
+): unknown => {
+  if (!isRecord(value)) return value;
+  let hydrated: Record<string, unknown> | undefined;
+  for (const [key, record] of Object.entries(value)) {
+    const next = hydrateRecord(record);
+    if (next === record) continue;
+    hydrated ??= { ...value };
+    hydrated[key] = next;
+  }
+  return hydrated ?? value;
+};
+const hydrateOperationResult = (value: unknown): unknown => {
+  if (!isRecord(value) || !isRecord(value.result)) return value;
+  const result = value.result;
+  const version = hydrateOmittedManifestNodeParents(result.version);
+  return version === result.version ? value : { ...value, result: { ...result, version } };
+};
+/**
+ * Firebase RTDB deletes object leaves whose value is null and some empty
+ * arrays. Restore only the canonical publication fields for which that loss
+ * is semantically identical; schema validation remains unchanged afterwards.
+ */
+const hydrateRtdbPublicationWire = (value: unknown): unknown => {
+  if (!isRecord(value)) return value;
+  const versions = hydrateFamily(value.versions, hydrateOmittedManifestNodeParents);
+  const activitySafeProjections = hydrateFamily(
+    value.activity_safe_projections,
+    (record) => hydrateOmittedEmptyArrays(record, ['placementIds']),
+  );
+  const unitProjections = hydrateFamily(
+    value.unit_projections,
+    (record) => hydrateOmittedEmptyArrays(record, ['placementIds']),
+  );
+  const deliveryPlans = hydrateFamily(
+    value.delivery_plans,
+    (record) => hydrateOmittedEmptyArrays(record, ['placementIds', 'unitProjectionIds']),
+  );
+  const operations = hydrateFamily(value.operations, hydrateOperationResult);
+  if (versions === value.versions
+    && activitySafeProjections === value.activity_safe_projections
+    && unitProjections === value.unit_projections
+    && deliveryPlans === value.delivery_plans
+    && operations === value.operations) return value;
+  return {
+    ...value,
+    versions,
+    activity_safe_projections: activitySafeProjections,
+    unit_projections: unitProjections,
+    delivery_plans: deliveryPlans,
+    operations,
+  };
+};
 const jsonBytes = (value: unknown): number => {
   const encoded = JSON.stringify(value);
   if (encoded === undefined) throw new Error('invalid_book_assembly_publication_json');
@@ -703,6 +788,7 @@ const parseScope = <Result>(
   value: unknown,
   bookId: string,
 ): BookAssemblyPublicationScope<Result> => {
+  value = hydrateRtdbPublicationWire(value);
   if (value === undefined || value === null) return {};
   if (!isRecord(value) || jsonBytes(value) > MAX_SCOPE_BYTES || hasSensitiveKey(value)) {
     throw new Error('invalid_book_assembly_publication_scope');
@@ -761,52 +847,28 @@ const serializeScope = <Result>(
   return serialized;
 };
 
-const tokenProvider = (
-  keyJson: string,
-  identity: string,
-  fetchImpl: typeof fetch,
-): (() => Promise<string>) => {
-  let key: ServiceAccountKey;
-  try {
-    const parsed = JSON.parse(keyJson) as unknown;
-    if (!isRecord(parsed)
-      || typeof parsed.client_email !== 'string'
-      || typeof parsed.private_key !== 'string') {
-      throw new Error('invalid_book_assembly_publication_google_sa_key');
+const assertScopeOwner = <Result>(
+  value: BookAssemblyPublicationScope<Result>,
+  ownerId: string | undefined,
+): void => {
+  if (!ownerId) return;
+  const families = [
+    value.versions,
+    value.activityVersions,
+    value.activitySafeProjections,
+    value.placements,
+    value.unitProjections,
+    value.deliveryPlans,
+    value.operations,
+    value.audits,
+  ];
+  for (const family of families) {
+    for (const record of Object.values(family ?? {})) {
+      if (isRecord(record) && record.ownerId !== ownerId) {
+        throw new Error('book_assembly_publication_owner_mismatch');
+      }
     }
-    key = parsed as unknown as ServiceAccountKey;
-  } catch {
-    throw new Error('invalid_book_assembly_publication_google_sa_key');
   }
-  if (!key.client_email || !key.private_key || key.client_email !== identity) {
-    throw new Error('book_assembly_publication_service_identity_mismatch');
-  }
-  let cached = '';
-  let expiresAt = 0;
-  return async () => {
-    if (cached && Date.now() < expiresAt - 300_000) return cached;
-    const now = Math.floor(Date.now() / 1000);
-    const assertion = await new SignJWT({
-      iss: key.client_email,
-      sub: key.client_email,
-      aud: OAUTH2_TOKEN_URL,
-      iat: now,
-      exp: now + 3600,
-      scope: FIREBASE_SCOPES,
-    }).setProtectedHeader({ alg: 'RS256' })
-      .sign(await importPKCS8(key.private_key, 'RS256'));
-    const response = await fetchImpl(OAUTH2_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=' + assertion,
-    });
-    if (!response.ok) throw new Error('book_assembly_publication_google_oauth_failed:' + response.status);
-    const body = JSON.parse(await response.text()) as { access_token?: string; expires_in?: number };
-    if (!body.access_token) throw new Error('book_assembly_publication_google_oauth_failed:invalid_response');
-    cached = body.access_token;
-    expiresAt = Date.now() + Math.max(0, (body.expires_in ?? 3600) * 1000);
-    return cached;
-  };
 };
 
 export class FirebaseRestBookAssemblyPublicationRepository
@@ -817,51 +879,125 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
   constructor(private readonly options: {
     env: BookAssemblyPublicationRepositoryEnv;
     fetchImpl?: typeof fetch;
+    /** Explicit OAuth seam retained for existing unit/compatibility callers only. */
     getAccessToken?: () => Promise<string>;
-    /** Optional least-privilege Firebase ID-token path for read-only consumers. */
-    readonly getFirebaseAuthToken?: (bookId: string) => Promise<string>;
+    /**
+     * Scoped Firebase ID-token seam. The owner is server-authenticated by the
+     * route/composition layer; the repository never accepts it from a client
+     * payload. A one-argument callback remains a read-only compatibility seam.
+     */
+    readonly getFirebaseAuthToken?: (bookId: string, ownerId: string) => Promise<string>;
+    /** Server-authenticated owner used by the production token provider. */
+    readonly ownerId?: string;
     maxRetries?: number;
   }) {
-    const identity = options.env.BOOK_ASSEMBLY_SERVICE_IDENTITY?.trim();
+    const dedicatedIdentity = options.env.BOOK_ASSEMBLY_PUBLICATION_SERVICE_IDENTITY?.trim();
+    const dedicatedKey = options.env.BOOK_ASSEMBLY_PUBLICATION_GOOGLE_SA_KEY?.trim();
+    const identity = dedicatedIdentity ?? options.env.BOOK_ASSEMBLY_SERVICE_IDENTITY?.trim();
+    const keyJson = dedicatedKey ?? options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY?.trim();
     if (!identity) throw new Error('missing_book_assembly_publication_service_identity');
     const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-    const keyJson = options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY?.trim();
-    if (!keyJson && !options.getAccessToken && !options.getFirebaseAuthToken) {
+
+    // A global key is never an accepted publication credential. Reject it
+    // explicitly before owner validation so this failure cannot be mistaken
+    // for a valid publication binding with a missing owner.
+    const hasInjectedAuth = Boolean(options.getAccessToken || options.getFirebaseAuthToken);
+    if (!keyJson && !hasInjectedAuth && options.env.GOOGLE_SA_KEY?.trim()) {
       throw new Error('missing_book_assembly_publication_google_sa_key');
     }
-    const getMutationAccessToken = options.getAccessToken
-      ?? (keyJson ? tokenProvider(keyJson, identity, fetchImpl) : async () => {
-        throw new Error('book_assembly_publication_mutation_auth_unavailable');
-      });
-    this.rtdb = new FirebaseRtdbRestClient({
-      env: { ...options.env, GOOGLE_SA_KEY: keyJson },
-      fetchImpl,
-      getAccessToken: getMutationAccessToken,
-    });
-    this.readRtdb = options.getFirebaseAuthToken
+
+    // Establish the server-authenticated owner before validating or parsing
+    // credentials. A malformed/missing key must never mask the publication
+    // scope's required owner binding. OAuth-only compatibility callers remain
+    // ownerless; every Firebase-token path requires an explicit owner except
+    // the retained one-argument callback seam, which is bound to identity.
+    const ownerId = options.ownerId?.trim() || (
+      options.getFirebaseAuthToken && options.getFirebaseAuthToken.length < 2
+        ? identity
+        : undefined
+    );
+    const requiresOwner = Boolean(options.getFirebaseAuthToken) || !options.getAccessToken;
+    if (requiresOwner && !ownerId) {
+      throw new Error('missing_book_assembly_publication_owner_id');
+    }
+
+    const hasPartialDedicatedBinding = Boolean(dedicatedIdentity || dedicatedKey) && !(
+      dedicatedIdentity && dedicatedKey
+    );
+    if (hasPartialDedicatedBinding && !options.getAccessToken && !options.getFirebaseAuthToken) {
+      throw new Error('incomplete_book_assembly_publication_binding');
+    }
+    if (!dedicatedIdentity && dedicatedKey && !options.getAccessToken && !options.getFirebaseAuthToken) {
+      throw new Error('incomplete_book_assembly_publication_binding');
+    }
+    if (!keyJson && !hasInjectedAuth) {
+      throw new Error('missing_book_assembly_publication_google_sa_key');
+    }
+
+    // Explicit injected OAuth is a compatibility/test seam. Production
+    // credentials are always converted to Firebase ID tokens with the exact
+    // publication claim tuple; the global GOOGLE_SA_KEY is never a fallback.
+    const useLegacyReadOnlyProvider = Boolean(
+      options.getFirebaseAuthToken
+      && options.getAccessToken
+      && options.getFirebaseAuthToken.length < 2
+      && !options.ownerId,
+    );
+    const firebaseProvider = options.getFirebaseAuthToken
+      ?? (identity && keyJson && (!dedicatedIdentity || Boolean(dedicatedKey))
+        ? createFirebaseClaimTokenProvider({
+            serviceAccountJson: keyJson,
+            serviceIdentity: identity,
+            firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+            firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+            fetchImpl,
+          })
+        : undefined);
+    const scopedAuth = async ({ path }: FirebaseRtdbAuthRequest = { path: '' }): Promise<string> => {
+      const prefix = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/`;
+      if (!path.startsWith(prefix)) throw new Error('invalid_book_assembly_publication_read_path');
+      const bookId = path.slice(prefix.length).split('/')[0] ?? '';
+      assertPathId(bookId, 'invalid_book_assembly_publication_book_id');
+      if (path !== scopePath(bookId) && !path.startsWith(`${scopePath(bookId)}/`)) {
+        throw new Error('invalid_book_assembly_publication_read_path');
+      }
+      if (!firebaseProvider) throw new Error('book_assembly_publication_firebase_auth_unavailable');
+      const claims: BookFirebaseClaimTuple = {
+        service: 'book_assembly_publication',
+        bookId,
+        ownerId: ownerId!,
+      };
+      if (options.getFirebaseAuthToken) return options.getFirebaseAuthToken(bookId, ownerId!);
+      return firebaseProvider(claims);
+    };
+    const scopedClient = firebaseProvider && !useLegacyReadOnlyProvider
       ? new FirebaseRtdbRestClient({
           env: { ...options.env, GOOGLE_SA_KEY: undefined },
           fetchImpl,
           firebaseAuthToken: true,
-          getFirebaseAuthToken: async ({ path } = { path: '' }) => {
-            const prefix = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/`;
-            if (!path.startsWith(prefix)) {
-              throw new Error('invalid_book_assembly_publication_read_path');
-            }
-            const bookId = path.slice(prefix.length);
-            assertPathId(bookId, 'invalid_book_assembly_publication_book_id');
-            if (scopePath(bookId) !== path) {
-              throw new Error('invalid_book_assembly_publication_read_path');
-            }
-            return options.getFirebaseAuthToken!(bookId);
-          },
+          getFirebaseAuthToken: scopedAuth,
+        })
+      : undefined;
+    this.rtdb = scopedClient ?? new FirebaseRtdbRestClient({
+      env: { ...options.env, GOOGLE_SA_KEY: options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY },
+      fetchImpl,
+      getAccessToken: options.getAccessToken,
+    });
+    this.readRtdb = firebaseProvider
+      ? new FirebaseRtdbRestClient({
+          env: { ...options.env, GOOGLE_SA_KEY: undefined },
+          fetchImpl,
+          firebaseAuthToken: true,
+          getFirebaseAuthToken: scopedAuth,
         })
       : this.rtdb;
   }
 
   async readScope(bookId: string): Promise<BookAssemblyPublicationScope<BookAssemblyPublicationResult>> {
     const value = await this.readRtdb.readWithEtag<unknown>(scopePath(bookId));
-    return parseScope<BookAssemblyPublicationResult>(value.data, bookId);
+    const parsed = parseScope<BookAssemblyPublicationResult>(value.data, bookId);
+    assertScopeOwner(parsed, this.options.ownerId?.trim());
+    return parsed;
   }
 
   async transaction<T>(
@@ -882,6 +1018,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
       const currentScope = await this.rtdb.readValue(scopePath(bookId));
       const currentPointer = await this.rtdb.readWithEtag<unknown>(childPath(bookId, 'current'));
       let parsed = parseScope<BookAssemblyPublicationResult>(currentScope, bookId);
+      assertScopeOwner(parsed, this.options.ownerId?.trim());
       parsed = {
         ...parsed,
         current: parseCurrent(currentPointer.data),
@@ -932,10 +1069,13 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
       }
 
       const visible = operationId ? this.withoutPreparedOperation(parsed, operationId) : parsed;
+      // Publication mutations intentionally update their supplied scope in
+      // place. Preserve the durable pre-mutation wire state before invoking
+      // the callback so immutable children are prepared before the pointer.
+      const currentWire = serializeScope<BookAssemblyPublicationResult>(visible, bookId);
       const mutation = mutate(visible);
       if (!mutation.write) return mutation.outcome;
       const nextScope = mutation.next ?? visible;
-      const currentWire = serializeScope<BookAssemblyPublicationResult>(visible, bookId);
       const nextWire = serializeScope<BookAssemblyPublicationResult>(nextScope, bookId);
       await this.prepareImmutableDiff(bookId, currentWire, nextWire);
 

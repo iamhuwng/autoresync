@@ -51,6 +51,7 @@ const delivery: BookRuntimeDeliveryProjection = {
 
 const source: BookHomeworkAssignmentPreviewSource = {
   delivery,
+  bookTitle: '  Preview Book  ',
   classId: 'class-1',
   identity: {
     manifestVersionId: 'manifest-v1',
@@ -124,6 +125,7 @@ describe('createBookHomeworkAssignmentIntent', () => {
         publicationRevision: 2,
         manifestVersionId: 'manifest-v1',
       },
+      presentation: { title: 'Preview Book' },
     });
     expect(command).not.toHaveProperty('ownerId');
     expect(command).not.toHaveProperty('createdAt');
@@ -140,5 +142,36 @@ describe('createBookHomeworkAssignmentIntent', () => {
       studentExtensions: [{ studentId: 'other-student', nodeKey: 'unit-1', dueAt: '2026-08-11T20:00:00.000Z' }],
       createId: () => '00000000-0000-4000-8000-000000000001',
     })).toThrow(/unselected identity/);
+  });
+
+  it('sanitizes and freezes the bounded presentation snapshot', () => {
+    const command = createBookHomeworkAssignmentIntent({
+      source: {
+        ...source,
+        presentation: {
+          title: '  Assignment title  ',
+          description: '  Assignment description  ',
+        },
+      },
+      draft: draft(),
+      createId: () => '00000000-0000-4000-8000-000000000001',
+    });
+
+    expect(command.intent.presentation).toEqual({
+      title: 'Assignment title',
+      description: 'Assignment description',
+    });
+    expect(Object.isFrozen(command.intent.presentation)).toBe(true);
+  });
+
+  it('rejects an empty required presentation title', () => {
+    expect(() => createBookHomeworkAssignmentIntent({
+      source: {
+        ...source,
+        presentation: { title: '   ' },
+      },
+      draft: draft(),
+      createId: () => '00000000-0000-4000-8000-000000000001',
+    })).toThrow(/presentation title is unavailable/iu);
   });
 });

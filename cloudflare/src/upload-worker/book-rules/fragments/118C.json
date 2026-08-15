@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "118C",
+  "owner": {
+    "ticketId": "118C",
+    "issue": 118,
+    "serviceIdentity": "book_assembly_service",
+    "leastPrivilegePaths": ["book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey"],
+    "generatedRuleLocations": [
+      "book_assembly_activity_bindings/.read",
+      "book_assembly_activity_bindings/.write",
+      "book_assembly_activity_bindings/owners/$ownerId/.read",
+      "book_assembly_activity_bindings/owners/$ownerId/.write",
+      "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/.read",
+      "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/.write",
+      "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/.read",
+      "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/.write",
+      "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey/.read",
+      "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey/.write",
+      "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey/.validate",
+      "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey/$other/.validate"
+    ]
+  },
+  "operations": [
+    { "path": "book_assembly_activity_bindings", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_assembly_activity_bindings", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId/books/$bookId", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId/books/$bookId", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "auth != null && auth.token.book_assembly_activity_binding_service == true && auth.token.book_assembly_activity_binding_ownerId == $ownerId && auth.token.book_assembly_activity_binding_bookId == $bookId && auth.token.book_assembly_activity_binding_unitKey == $unitKey && auth.token.book_assembly_activity_binding_activityKey == $activityKey && (!data.exists() || (data.child('ownerId').val() == $ownerId && data.child('bookId').val() == $bookId && data.child('unitKey').val() == $unitKey && data.child('activityKey').val() == $activityKey))" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "auth != null && auth.token.book_assembly_activity_binding_service == true && auth.token.book_assembly_activity_binding_ownerId == $ownerId && auth.token.book_assembly_activity_binding_bookId == $bookId && auth.token.book_assembly_activity_binding_unitKey == $unitKey && auth.token.book_assembly_activity_binding_activityKey == $activityKey && newData.exists() && newData.child('ownerId').val() == $ownerId && newData.child('bookId').val() == $bookId && newData.child('unitKey').val() == $unitKey && newData.child('activityKey').val() == $activityKey && ((!data.exists() && !newData.child('activityVersionId').exists() && !newData.child('activityVersion').exists()) || (data.exists() && newData.val() == data.val()) || (data.exists() && !data.child('activityVersionId').exists() && !data.child('activityVersion').exists() && !newData.child('activityVersionId').exists() && !newData.child('activityVersion').exists() && newData.child('activityId').val() == data.child('activityId').val() && newData.child('candidateRevision').val() > data.child('candidateRevision').val()) || (data.exists() && !data.child('activityVersionId').exists() && !data.child('activityVersion').exists() && newData.child('activityVersionId').isString() && newData.child('activityVersion').isNumber() && newData.child('activityVersion').val() >= 1 && newData.child('ownerId').val() == data.child('ownerId').val() && newData.child('bookId').val() == data.child('bookId').val() && newData.child('unitKey').val() == data.child('unitKey').val() && newData.child('activityKey').val() == data.child('activityKey').val() && newData.child('activityId').val() == data.child('activityId').val() && newData.child('candidateId').val() == data.child('candidateId').val() && newData.child('candidateRevision').val() == data.child('candidateRevision').val() && newData.child('candidateLifecycle').val() == data.child('candidateLifecycle').val()))" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'ownerId', 'bookId', 'unitKey', 'activityKey', 'activityId', 'candidateId', 'candidateRevision', 'candidateLifecycle']) && newData.child('schemaVersion').val() == 1 && newData.child('ownerId').val() == $ownerId && newData.child('bookId').val() == $bookId && newData.child('unitKey').val() == $unitKey && newData.child('activityKey').val() == $activityKey && newData.child('activityId').isString() && newData.child('candidateId').isString() && newData.child('candidateRevision').isNumber() && newData.child('candidateRevision').val() >= 1 && (newData.child('candidateLifecycle').val() == 'staged' || newData.child('candidateLifecycle').val() == 'validated' || newData.child('candidateLifecycle').val() == 'saved') && ((!newData.child('activityVersionId').exists() && !newData.child('activityVersion').exists()) || (newData.child('activityVersionId').isString() && newData.child('activityVersion').isNumber() && newData.child('activityVersion').val() >= 1)))" },
+    { "path": "book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey/$other", "rule": ".validate", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "$other == 'schemaVersion' || $other == 'ownerId' || $other == 'bookId' || $other == 'unitKey' || $other == 'activityKey' || $other == 'activityId' || $other == 'candidateId' || $other == 'candidateRevision' || $other == 'candidateLifecycle' || $other == 'activityVersionId' || $other == 'activityVersion'" }
+  ]
+}

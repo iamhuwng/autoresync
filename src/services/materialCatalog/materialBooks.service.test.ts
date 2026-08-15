@@ -4,6 +4,7 @@ import {
   type MaterialBookMetadata,
   type MaterialBookNode,
 } from '../../types/materialCatalog.types';
+import type { SourceSetCandidate } from '../../types/bookAssembly.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from './testTypeConfig.service';
 import { createMaterialBookSummary } from './materialSummaryAdapters.service';
 import {
@@ -16,6 +17,7 @@ import {
   listTeacherBooks,
   planMaterialBookTreeUpdate,
   rejectPublicBookReview,
+  readMaterialBookPdfAuthority,
   returnPublicBookToPrivate,
   updateBookMetadata,
   updateBookTree,
@@ -60,6 +62,11 @@ const node = (overrides: Partial<MaterialBookNode> = {}): MaterialBookNode => ({
   updatedAt: NOW,
   ...overrides,
 });
+
+const sourceSet: SourceSetCandidate = {
+  sourceStrategy: 'full_pdf',
+  sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1 }],
+};
 
 const createRepo = (
   books: readonly MaterialBookMetadata[] = [],
@@ -253,6 +260,59 @@ describe('materialBooks.service', () => {
         'material_catalog/books/pdf-book': expect.objectContaining({ bookMode: 'pdf' }),
       }),
     ]));
+    expect(materialsBook).not.toHaveProperty('bookRevision');
+    expect(pdfBook).toMatchObject({ bookRevision: 0, sourceSetRevision: 0 });
+    expect(pdfBook).not.toHaveProperty('sourceSet');
+  });
+
+  it('increments PDF Book revisions while preserving source authority', async () => {
+    const repo = createRepo([metadata({
+      bookMode: 'pdf',
+      bookRevision: 4,
+      sourceSetRevision: 2,
+      sourceSet,
+    })]);
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      now: () => NOW,
+    };
+
+    const first = await updateBookMetadata('book-1', { title: 'Renamed once' }, repo, context);
+    const second = await updateBookMetadata('book-1', { title: 'Renamed twice' }, repo, context);
+
+    expect(first).toMatchObject({ bookRevision: 5, sourceSetRevision: 2, sourceSet });
+    expect(second).toMatchObject({ bookRevision: 6, sourceSetRevision: 2, sourceSet });
+  });
+
+  it('reads only complete eligible PDF authority and fails closed otherwise', async () => {
+    const complete = metadata({
+      bookMode: 'pdf',
+      status: 'ready',
+      bookRevision: 4,
+      sourceSetRevision: 2,
+      sourceSet,
+    });
+    const repo = createRepo([complete]);
+
+    await expect(readMaterialBookPdfAuthority(repo, 'book-1')).resolves.toMatchObject({
+      bookId: 'book-1',
+      bookMode: 'pdf',
+      bookRevision: 4,
+      sourceSetRevision: 2,
+      sourceSet,
+    });
+
+    for (const incomplete of [
+      metadata({ bookMode: 'materials', status: 'ready', bookRevision: 4, sourceSetRevision: 2, sourceSet }),
+      metadata({ bookMode: 'pdf', status: 'archived', bookRevision: 4, sourceSetRevision: 2, sourceSet }),
+      metadata({ bookMode: 'pdf', status: 'ready', sourceSetRevision: 2, sourceSet }),
+      metadata({ bookMode: 'pdf', status: 'ready', bookRevision: 4, sourceSetRevision: 2 }),
+    ]) {
+      const candidateRepo = createRepo([incomplete]);
+      await expect(readMaterialBookPdfAuthority(candidateRepo, 'book-1')).resolves.toBeNull();
+    }
   });
 
   it('resolves missing legacy Book mode in read and list paths', async () => {

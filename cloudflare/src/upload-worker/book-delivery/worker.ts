@@ -17,6 +17,9 @@ import type {
   BookAssemblyPublicationRepository,
   BookAssemblyPublicationScope,
 } from '../../../../src/services/book-assembly/publicationRepository.ts';
+import type {
+  BookHomeworkAuthorityScope,
+} from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import type { BookAssemblyPublicationResult } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import {
   FirebaseRestBookAssemblyPublicationRepository,
@@ -37,6 +40,7 @@ import {
   createBookHomeworkActivitySchedulePolicyResolver,
 } from '../book-homework/schedule-enforcement.ts';
 import {
+  bookHomeworkRecipientAuthorityId,
   readBookHomeworkRecipientAuthority,
 } from '../book-homework/identity.ts';
 import {
@@ -173,8 +177,19 @@ const issuanceIntent = (value: unknown): BookDeliveryIssuanceIntent => {
   };
 };
 
+const canonicalJson = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [
+      key,
+      canonicalJson((value as Record<string, unknown>)[key]),
+    ]));
+  }
+  return value;
+};
+
 const same = (left: unknown, right: unknown): boolean => (
-  JSON.stringify(left) === JSON.stringify(right)
+  JSON.stringify(canonicalJson(left)) === JSON.stringify(canonicalJson(right))
 );
 
 export const createTrustedBookDeliveryPublication = (
@@ -351,7 +366,9 @@ export const createTrustedBookDeliveryPublication = (
   );
 
   const placements = selectedPlacements.map((placement, index) => {
-    const activityVersion = scope.activityVersions?.[placement.activityVersionId];
+    const activityVersion = Object.values(scope.activityVersions ?? {}).find((candidate) => (
+      candidate.activityVersionId === placement.activityVersionId
+    ));
     const safeProjection = Object.values(scope.activitySafeProjections ?? {}).find((projection) => (
       projection.activityVersionId === placement.activityVersionId
       && projection.activityId === placement.activityId
@@ -719,7 +736,14 @@ export const createBookDeliveryWorkerHandlers = (options: {
           ?? new FirebaseRestBookHomeworkDocumentStore({ env: input.env });
         const stored = await readBookHomeworkRecipientAuthority(
           authorityStore,
-          input.contextId,
+          {
+            authorityId: bookHomeworkRecipientAuthorityId(
+              current.record.binding.context.contextId,
+              current.record.binding.recipient.recipientId,
+            ),
+            assignmentId: current.record.binding.context.contextId,
+            ownerId: current.record.binding.issuer.ownerId,
+          } satisfies BookHomeworkAuthorityScope,
           current.record.binding.recipient.recipientId,
         );
         if (!stored) throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
@@ -732,6 +756,7 @@ export const createBookDeliveryWorkerHandlers = (options: {
           async (placement) => activitySchedulePolicy.resolve({
             assignmentId: current.record.binding.context.contextId,
             recipientId: current.record.binding.recipient.recipientId,
+            ownerId: current.record.binding.issuer.ownerId,
             bindingId: current.record.binding.bindingId,
             bindingRevision: current.record.binding.revision,
             policyId: current.record.binding.schedulePolicy.policyId,

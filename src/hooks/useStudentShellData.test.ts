@@ -68,7 +68,7 @@ describe('useStudentShellData', () => {
             ]);
     });
 
-    it('refreshes homework when class membership changes after a class refresh', async () => {
+    it('passes shell-owned classes into the Homework list loader after class resolution', async () => {
         const refreshHomeworkData = vi.fn().mockResolvedValue(undefined);
 
         vi.mocked(homeworkSubmissionHooks.useStudentHomeworkList).mockReturnValue({
@@ -97,8 +97,67 @@ describe('useStudentShellData', () => {
         });
 
         await waitFor(() => {
-            expect(refreshHomeworkData).toHaveBeenCalledTimes(1);
+            expect(homeworkSubmissionHooks.useStudentHomeworkList).toHaveBeenLastCalledWith(
+                'student-123',
+                {
+                    enabled: true,
+                    studentClasses: [expect.objectContaining({ id: 'class-1' })],
+                },
+            );
         });
+
+        expect(classManager.getStudentClasses).toHaveBeenCalledTimes(2);
+        expect(refreshHomeworkData).not.toHaveBeenCalled();
+    });
+
+    it('keeps Homework disabled until class ownership resolves again after re-enable', async () => {
+        let resolveReenabledClasses: (() => void) | undefined;
+        vi.mocked(classManager.getStudentClasses)
+            .mockReset()
+            .mockResolvedValueOnce([])
+            .mockImplementationOnce(() => new Promise((resolve) => {
+                resolveReenabledClasses = () => resolve([]);
+            }));
+        vi.mocked(homeworkSubmissionHooks.useStudentHomeworkList).mockReturnValue({
+            homeworkItems: [],
+            isLoading: false,
+            error: null,
+            refreshData: vi.fn().mockResolvedValue(undefined),
+            notStarted: [],
+            inProgress: [],
+            completed: [],
+            overdue: [],
+        });
+
+        const { rerender } = renderHook(
+            ({ enabled }) => useStudentShellData({ enabled }),
+            { initialProps: { enabled: true } },
+        );
+
+        await waitFor(() => expect(classManager.getStudentClasses).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(homeworkSubmissionHooks.useStudentHomeworkList).toHaveBeenLastCalledWith(
+            'student-123',
+            { enabled: true, studentClasses: [] },
+        ));
+
+        rerender({ enabled: false });
+        await waitFor(() => expect(homeworkSubmissionHooks.useStudentHomeworkList).toHaveBeenLastCalledWith(
+            'student-123',
+            { enabled: false, studentClasses: [] },
+        ));
+
+        rerender({ enabled: true });
+        await waitFor(() => expect(classManager.getStudentClasses).toHaveBeenCalledTimes(2));
+        expect(homeworkSubmissionHooks.useStudentHomeworkList).toHaveBeenLastCalledWith(
+            'student-123',
+            { enabled: false, studentClasses: [] },
+        );
+
+        await act(async () => resolveReenabledClasses?.());
+        await waitFor(() => expect(homeworkSubmissionHooks.useStudentHomeworkList).toHaveBeenLastCalledWith(
+            'student-123',
+            { enabled: true, studentClasses: [] },
+        ));
     });
 
     it('refreshes classes and homework when the student class projection changes', async () => {
@@ -155,7 +214,7 @@ describe('useStudentShellData', () => {
             expect(result.current.enrolledClasses).toEqual([]);
         });
 
-        expect(refreshHomeworkData).toHaveBeenCalledTimes(0);
+        expect(refreshHomeworkData).not.toHaveBeenCalled();
 
         await act(async () => {
             membershipCallback?.({
@@ -167,8 +226,16 @@ describe('useStudentShellData', () => {
         });
 
         await waitFor(() => {
-            expect(refreshHomeworkData).toHaveBeenCalledTimes(1);
+            expect(homeworkSubmissionHooks.useStudentHomeworkList).toHaveBeenLastCalledWith(
+                'student-123',
+                {
+                    enabled: true,
+                    studentClasses: [expect.objectContaining({ id: 'class-1' })],
+                },
+            );
         });
+
+        expect(refreshHomeworkData).not.toHaveBeenCalled();
     });
 
     it('keeps live sessions in sync when the underlying session status changes', async () => {

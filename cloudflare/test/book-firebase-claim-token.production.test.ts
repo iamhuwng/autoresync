@@ -1,4 +1,5 @@
 import {
+  decodeJwt,
   decodeProtectedHeader,
   importSPKI,
   jwtVerify,
@@ -63,6 +64,7 @@ const verifyCustomToken = async (
   expect(decodeProtectedHeader(token)).toMatchObject({ alg: 'RS256', typ: 'JWT' });
   expect(verified.payload.uid).toBe(
     expected.service === 'book_runtime' ? expected.recipientId
+      : expected.service === 'book_homework_authority' ? expected.ownerId
       : expected.service === 'book_homework' ? (expected.ownerId ?? expected.assignmentId)
         : expected.service === 'book_delivery' ? (expected.recipientId ?? identity)
           : expected.ownerId,
@@ -72,6 +74,49 @@ const verifyCustomToken = async (
       book_activity_authoring_service: true,
       book_activity_authoring_ownerId: expected.ownerId,
     }
+    : expected.service === 'book_assembly'
+      ? {
+        book_assembly_service: true,
+        book_assembly_bookId: expected.bookId,
+        book_assembly_unitKey: expected.unitKey,
+        book_assembly_ownerId: expected.ownerId,
+      }
+    : expected.service === 'book_assembly_activity_binding'
+      ? {
+        book_assembly_activity_binding_service: true,
+        book_assembly_activity_binding_bookId: expected.bookId,
+        book_assembly_activity_binding_unitKey: expected.unitKey,
+        book_assembly_activity_binding_activityKey: expected.activityKey,
+        book_assembly_activity_binding_ownerId: expected.ownerId,
+      }
+    : expected.service === 'book_assembly_preview'
+      ? {
+        book_assembly_preview_service: true,
+        book_assembly_preview_bookId: expected.bookId,
+        book_assembly_preview_unitKey: expected.unitKey,
+        book_assembly_preview_ownerId: expected.ownerId,
+      }
+    : expected.service === 'book_assembly_preview_approval'
+      ? {
+        book_assembly_preview_approval_service: true,
+        book_assembly_preview_approval_bookId: expected.bookId,
+        book_assembly_preview_approval_unitKey: expected.unitKey,
+        book_assembly_preview_approval_approvalId: expected.approvalId,
+        book_assembly_preview_approval_ownerId: expected.ownerId,
+      }
+    : expected.service === 'book_homework_authority'
+      ? {
+        book_homework_authority_service: true,
+        book_homework_authority_authorityId: expected.authorityId,
+        book_homework_authority_assignmentId: expected.assignmentId,
+        book_homework_authority_ownerId: expected.ownerId,
+      }
+    : expected.service === 'book_homework_compatibility'
+      ? {
+        book_homework_compatibility_service: true,
+        book_homework_compatibility_assignmentId: expected.assignmentId,
+        book_homework_compatibility_ownerId: expected.ownerId,
+      }
     : expected.service === 'book_homework'
       ? {
       book_homework_service: true,
@@ -90,6 +135,21 @@ const verifyCustomToken = async (
             book_assembly_publication_service: true,
             book_assembly_publication_bookId: expected.bookId,
             book_assembly_publication_ownerId: expected.ownerId,
+          }
+        : expected.service === 'book_activity_publication_writer'
+          ? {
+            book_activity_publication_writer_service: true,
+            book_activity_publication_writer_ownerId: expected.ownerId,
+            book_activity_publication_writer_activityId: expected.activityId,
+            book_activity_publication_writer_activityVersionId: expected.activityVersionId,
+          }
+        : expected.service === 'book_assembly_publication_approval'
+          ? {
+            book_assembly_publication_approval_service: true,
+            book_assembly_publication_approval_bookId: expected.bookId,
+            book_assembly_publication_approval_unitKey: expected.unitKey,
+            book_assembly_publication_approval_approvalId: expected.approvalId,
+            book_assembly_publication_approval_ownerId: expected.ownerId,
           }
       : expected.service === 'book_activity_runtime_reader'
         ? {
@@ -112,11 +172,16 @@ describe('Book production Firebase claim tokens', () => {
     const customTokens: string[] = [];
     const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
       expect(String(input)).toContain('identitytoolkit.googleapis.com');
+      expect(new Headers(init?.headers).get('Referer'))
+        .toBe('https://r2-upload-signer.iamhuwng.workers.dev/');
       const body = JSON.parse(String(init?.body)) as { token: string; returnSecureToken: boolean };
       expect(body.returnSecureToken).toBe(true);
       expect(body.token).toMatch(/^.+\..+\..+$/u);
       customTokens.push(body.token);
-      return new Response(JSON.stringify({ idToken: 'firebase-id-token', expiresIn: '3600' }), {
+      return new Response(JSON.stringify({
+        idToken: 'firebase-id-token',
+        expiresIn: '3600',
+      }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -142,6 +207,12 @@ describe('Book production Firebase claim tokens', () => {
       service: 'book_homework',
       ownerId: 'teacher-1',
     } as const;
+    const authority = {
+      service: 'book_homework_authority',
+      authorityId: 'assignment_1:@root--student_1:@recipient--authority',
+      assignmentId: 'assignment_1:@root',
+      ownerId: 'teacher-1',
+    } as const;
     const runtime = {
       service: 'book_runtime',
       recipientId: 'student-1',
@@ -153,9 +224,42 @@ describe('Book production Firebase claim tokens', () => {
       contextId: 'assignment-1',
     } as const;
     const assembly = {
+      service: 'book_assembly',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      ownerId: 'teacher-1',
+    } as const;
+    const assemblyPreview = {
+      service: 'book_assembly_preview',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      ownerId: 'teacher-1',
+    } as const;
+    const binding = {
+      service: 'book_assembly_activity_binding',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      activityKey: 'activity-1',
+      ownerId: 'teacher-1',
+    } as const;
+    const previewApproval = {
+      service: 'book_assembly_preview_approval',
+      bookId: 'book-1', unitKey: 'unit-1', approvalId: 'approval-1', ownerId: 'teacher-1',
+    } as const;
+    const publication = {
       service: 'book_assembly_publication',
       bookId: 'book-1',
       ownerId: 'teacher-1',
+    } as const;
+    const publicationWriter = {
+      service: 'book_activity_publication_writer',
+      ownerId: 'teacher-1',
+      activityId: 'activity-1',
+      activityVersionId: 'activity-version-1',
+    } as const;
+    const publicationApproval = {
+      service: 'book_assembly_publication_approval',
+      bookId: 'book-1', unitKey: 'unit-1', approvalId: 'approval-1', ownerId: 'teacher-1',
     } as const;
     const runtimeReader = {
       service: 'book_activity_runtime_reader',
@@ -168,18 +272,205 @@ describe('Book production Firebase claim tokens', () => {
     await expect(provider(authoring)).resolves.toBe('firebase-id-token');
     await expect(provider(authoring)).resolves.toBe('firebase-id-token');
     await expect(provider(homework)).resolves.toBe('firebase-id-token');
+    await expect(provider(authority)).resolves.toBe('firebase-id-token');
     await expect(provider(delivery)).resolves.toBe('firebase-id-token');
     await expect(provider(assembly)).resolves.toBe('firebase-id-token');
+    await expect(provider(binding)).resolves.toBe('firebase-id-token');
+    await expect(provider(assemblyPreview)).resolves.toBe('firebase-id-token');
+    await expect(provider(previewApproval)).resolves.toBe('firebase-id-token');
+    await expect(provider(publication)).resolves.toBe('firebase-id-token');
+    await expect(provider(publicationWriter)).resolves.toBe('firebase-id-token');
+    await expect(provider(publicationApproval)).resolves.toBe('firebase-id-token');
     await expect(provider(runtime)).resolves.toBe('firebase-id-token');
     await expect(provider(runtimeReader)).resolves.toBe('firebase-id-token');
-    expect(fetchImpl).toHaveBeenCalledTimes(6);
-    expect(customTokens).toHaveLength(6);
+    expect(fetchImpl).toHaveBeenCalledTimes(13);
+    expect(customTokens).toHaveLength(13);
     await verifyCustomToken(customTokens[0], authoring);
     await verifyCustomToken(customTokens[1], homework);
-    await verifyCustomToken(customTokens[2], delivery);
-    await verifyCustomToken(customTokens[3], assembly);
-    await verifyCustomToken(customTokens[4], runtime);
-    await verifyCustomToken(customTokens[5], runtimeReader);
+    await verifyCustomToken(customTokens[2], authority);
+    await verifyCustomToken(customTokens[3], delivery);
+    await verifyCustomToken(customTokens[4], assembly);
+    await verifyCustomToken(customTokens[5], binding);
+    await verifyCustomToken(customTokens[6], assemblyPreview);
+    await verifyCustomToken(customTokens[7], previewApproval);
+    await verifyCustomToken(customTokens[8], publication);
+    await verifyCustomToken(customTokens[9], publicationWriter);
+    await verifyCustomToken(customTokens[10], publicationApproval);
+    await verifyCustomToken(customTokens[11], runtime);
+    await verifyCustomToken(customTokens[12], runtimeReader);
+  });
+
+  it('isolates Assembly and exact Binding tokens by the full scope and rejects extra claim keys', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+      return new Response(JSON.stringify({
+        idToken: 'firebase-id-token',
+        expiresIn: '3600',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      serviceIdentity: identity,
+      firebaseProjectId: 'temp-a1437',
+      firebaseWebApiKey: 'web-key',
+      fetchImpl,
+      now: () => 1_700_000_000_000,
+    });
+    const assembly = {
+      service: 'book_assembly',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      ownerId: 'teacher-1',
+    } as const;
+    const binding = {
+      service: 'book_assembly_activity_binding',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      activityKey: 'activity-1',
+      ownerId: 'teacher-1',
+    } as const;
+    await expect(provider(assembly)).resolves.toBe('firebase-id-token');
+    await expect(provider(assembly)).resolves.toBe('firebase-id-token');
+    await expect(provider({ ...assembly, unitKey: 'unit-2' })).resolves.toBe('firebase-id-token');
+    await expect(provider({ ...assembly, ownerId: 'teacher-2' })).resolves.toBe('firebase-id-token');
+    await expect(provider(binding)).resolves.toBe('firebase-id-token');
+    await expect(provider({ ...binding, activityKey: 'activity-2' })).resolves.toBe('firebase-id-token');
+    await expect(provider({ ...binding, activityKey: 'activity-2' })).resolves.toBe('firebase-id-token');
+    await expect(provider({ ...binding, extra: 'unexpected' } as BookFirebaseClaimTuple))
+      .rejects.toThrowError('invalid_book_firebase_claims');
+    await expect(provider({ ...assembly, extra: 'unexpected' } as BookFirebaseClaimTuple))
+      .rejects.toThrowError('invalid_book_firebase_claims');
+    expect(fetchImpl).toHaveBeenCalledTimes(5);
+  });
+
+  it('isolates authority tokens by authority, root assignment, and owner while retaining the owner UID', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      idToken: `firebase-id-token-${fetchImpl.mock.calls.length - 1}`,
+      expiresIn: '3600',
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      serviceIdentity: identity,
+      firebaseProjectId: 'temp-a1437',
+      firebaseWebApiKey: 'web-key',
+      fetchImpl,
+      now: () => 1_700_000_000_000,
+    });
+    const authority = {
+      service: 'book_homework_authority',
+      authorityId: 'assignment_1:@root--student_1:@recipient--authority',
+      assignmentId: 'assignment_1:@root',
+      ownerId: 'teacher-1',
+    } as const;
+    await expect(provider(authority)).resolves.toBe('firebase-id-token-0');
+    await expect(provider(authority)).resolves.toBe('firebase-id-token-0');
+    await expect(provider({ ...authority, authorityId: 'assignment_1:@root--student_2:@recipient--authority' })).resolves.toBe('firebase-id-token-1');
+    await expect(provider({
+      ...authority,
+      authorityId: 'assignment_2:@root--student_1:@recipient--authority',
+      assignmentId: 'assignment_2:@root',
+    })).resolves.toBe('firebase-id-token-2');
+    await expect(provider({ ...authority, ownerId: 'teacher-2' })).resolves.toBe('firebase-id-token-3');
+    await expect(provider({ ...authority, authorityId: 'not-an-authority' }))
+      .rejects.toThrowError('invalid_book_firebase_claims');
+    await expect(provider({
+      ...authority,
+      authorityId: 'assignment_1:@root--student.1--authority',
+    }))
+      .rejects.toThrowError('invalid_book_firebase_claims');
+    await expect(provider({
+      ...authority,
+      authorityId: 'assignment.1--student_1:@recipient--authority',
+      assignmentId: 'assignment.1',
+    }))
+      .rejects.toThrowError('invalid_book_firebase_claims');
+    await expect(provider({
+      ...authority,
+      authorityId: `${authority.authorityId}${'x'.repeat(200)}`,
+    }))
+      .rejects.toThrowError('invalid_book_firebase_claims');
+    await expect(provider({ ...authority, extra: 'unexpected' } as BookFirebaseClaimTuple))
+      .rejects.toThrowError('invalid_book_firebase_claims');
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
+  it('mints an owner-bound compatibility projection token with an exact assignment tuple', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => new Response(JSON.stringify({
+      idToken: 'compatibility-id-token',
+      expiresIn: '3600',
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      serviceIdentity: identity,
+      firebaseProjectId: 'temp-a1437',
+      firebaseWebApiKey: 'web-key',
+      fetchImpl,
+      now: () => 1_700_000_000_000,
+    });
+    const compatibility = {
+      service: 'book_homework_compatibility',
+      assignmentId: 'assignment-1',
+      ownerId: 'teacher-1',
+    } as const;
+    await expect(provider(compatibility)).resolves.toBe('compatibility-id-token');
+    const customToken = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).token as string;
+    await verifyCustomToken(customToken, compatibility);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('encodes the corrected production assignment, owner UID, project, and Identity Toolkit audience without exposing token bytes', async () => {
+    const compatibilityIdentity = 'book-homework-runtime@temp-a1437.iam.gserviceaccount.com';
+    let nonSecretMetadata: Record<string, unknown> | undefined;
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      const body = JSON.parse(String(init?.body)) as { token: string; returnSecureToken: boolean };
+      const decoded = decodeJwt(body.token);
+      nonSecretMetadata = {
+        endpointHost: new URL(String(input)).host,
+        issuer: decoded.iss,
+        subject: decoded.sub,
+        audience: decoded.aud,
+        uid: decoded.uid,
+        claims: decoded.claims,
+        returnSecureToken: body.returnSecureToken,
+      };
+      return new Response(JSON.stringify({ idToken: 'redacted', expiresIn: '3600' }), { status: 200 });
+    });
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: compatibilityIdentity, private_key: privateKey }),
+      serviceIdentity: compatibilityIdentity,
+      firebaseProjectId: 'temp-a1437',
+      firebaseWebApiKey: 'redacted-web-key',
+      fetchImpl,
+      now: () => 1_700_000_000_000,
+    });
+
+    await provider({
+      service: 'book_homework_compatibility',
+      assignmentId: 'assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4',
+      ownerId: 'glMHCrzMnyS6AqFcb9I0nlOqQ6X2',
+    });
+
+    expect(nonSecretMetadata).toEqual({
+      endpointHost: 'identitytoolkit.googleapis.com',
+      issuer: compatibilityIdentity,
+      subject: compatibilityIdentity,
+      audience,
+      uid: 'glMHCrzMnyS6AqFcb9I0nlOqQ6X2',
+      claims: {
+        book_homework_compatibility_service: true,
+        book_homework_compatibility_assignmentId: 'assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4',
+        book_homework_compatibility_ownerId: 'glMHCrzMnyS6AqFcb9I0nlOqQ6X2',
+      },
+      returnSecureToken: true,
+    });
   });
 
   it('fails closed when service-account identity does not match the configured identity', () => {

@@ -4,7 +4,10 @@ import {
   BOOK_HOMEWORK_MANIFEST_SCHEMA_VERSION,
   type BookHomeworkManifest,
 } from '../../src/types/homework.types.ts';
-import type { BookHomeworkAuthoritySchedule } from '../../src/services/book-homework/bookHomeworkAuthority.types.ts';
+import type {
+  BookHomeworkAuthoritySchedule,
+  BookHomeworkAuthorityScope,
+} from '../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import type { BookHomeworkSagaCanonicalState, BookHomeworkSagaCommand } from '../../src/services/book-homework/bookHomeworkSaga.types.ts';
 import type { BookDeliveryBinding } from '../../src/services/book-delivery/bookDelivery.types.ts';
 import type { BookDeliveryPublishedPublicationReference } from '../../src/services/book-delivery/bookDelivery.publication.ts';
@@ -245,6 +248,7 @@ const command = (
       publicationRevision: 9,
       manifestVersionId: 'manifest-terminal',
     },
+    presentation: { title: 'Terminal Book Homework' },
   },
   selectedRecipientIds: [RECIPIENT_ID],
   createdAt: CREATED_AT,
@@ -326,15 +330,19 @@ const setup = async () => {
   const committed = await saga.execute(command(canonicalState));
   const entry = committed.record.recipients[0];
   if (!entry) throw new Error('missing_committed_recipient');
-  const authority = await authorityRepository.read(entry.authorityId);
+  const authority = await authorityRepository.read({
+    authorityId: entry.authorityId,
+    assignmentId: ROOT_CONTEXT_ID,
+    ownerId: OWNER_ID,
+  });
   const delivery = await deliveryRepository.resolveCurrent(RECIPIENT_ID, ROOT_CONTEXT_ID);
   if (!authority || !delivery) throw new Error('missing_committed_projection');
 
   const authorityReads: string[] = [];
   const authorityStore = {
-    read: async (assignmentId: string) => {
-      authorityReads.push(assignmentId);
-      return documentStore.read(assignmentId);
+    read: async (scope: BookHomeworkAuthorityScope) => {
+      authorityReads.push(scope.authorityId);
+      return documentStore.read(scope);
     },
   };
   const policyResolver = createBookHomeworkActivitySchedulePolicyResolver({
@@ -541,9 +549,11 @@ describe('Book Homework saga to first terminal runtime submission', () => {
     }))).rejects.toMatchObject({ code: 'stale-input' });
     await expect(harness.sagaRepository.read(ROOT_CONTEXT_ID)).resolves.toBeNull();
     await expect(harness.sagaRepository.read('different-root')).resolves.toBeNull();
-    await expect(harness.documentStore.read(
-      `${ROOT_CONTEXT_ID}--${RECIPIENT_ID}--authority`,
-    )).resolves.toBeNull();
+    await expect(harness.documentStore.read({
+      authorityId: `${ROOT_CONTEXT_ID}--${RECIPIENT_ID}--authority`,
+      assignmentId: ROOT_CONTEXT_ID,
+      ownerId: OWNER_ID,
+    })).resolves.toBeNull();
     await expect(harness.deliveryRepository.readBinding(
       `${ROOT_CONTEXT_ID}--${RECIPIENT_ID}--delivery`,
     )).resolves.toBeNull();
@@ -566,9 +576,11 @@ describe('Book Homework saga to first terminal runtime submission', () => {
     await expect(harness.saga.execute(command(mismatchedCanonical)))
       .rejects.toMatchObject({ code: 'stale-publication' });
     await expect(harness.sagaRepository.read(ROOT_CONTEXT_ID)).resolves.toBeNull();
-    await expect(harness.documentStore.read(
-      `${ROOT_CONTEXT_ID}--${RECIPIENT_ID}--authority`,
-    )).resolves.toBeNull();
+    await expect(harness.documentStore.read({
+      authorityId: `${ROOT_CONTEXT_ID}--${RECIPIENT_ID}--authority`,
+      assignmentId: ROOT_CONTEXT_ID,
+      ownerId: OWNER_ID,
+    })).resolves.toBeNull();
     await expect(harness.deliveryRepository.readBinding(
       `${ROOT_CONTEXT_ID}--${RECIPIENT_ID}--delivery`,
     )).resolves.toBeNull();

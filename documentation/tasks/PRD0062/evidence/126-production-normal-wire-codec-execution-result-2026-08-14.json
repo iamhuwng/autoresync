@@ -1,0 +1,127 @@
+{
+  "artifactKind": "prd0062-126-production-normal-wire-codec-execution-result",
+  "schemaVersion": 1,
+  "status": "failed-safe-rolled-back",
+  "consumedApprovalPacket": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-wire-codec-approval-packet-2026-08-14.json",
+    "sha256": "85ae665811e3e7dd3ce5f271461a54fbf16affd2576088be8cbf2be5a9769157"
+  },
+  "execution": {
+    "inactiveVersions": {
+      "rollbackVersion": "41ed251c-6069-4840-9bed-785ce93381d8",
+      "activationVersion": "8c6ebdb8-6673-42d0-8c9a-d598cbc555b0"
+    },
+    "rollbackChain": [
+      {
+        "step": "first-activation",
+        "deploymentId": "d7d96bb6",
+        "identityStatus": "known-prefix-only",
+        "fullIdentity": "unavailable-in-packet-and-artifacts"
+      },
+      {
+        "step": "first-sign-in-attempt",
+        "httpStatus": 403,
+        "observedCause": "browser Firebase API-key request lacked an allowed localhost referrer"
+      },
+      {
+        "step": "immediate-rollback",
+        "deploymentId": "69017d76",
+        "identityStatus": "known-prefix-only",
+        "fullIdentity": "unavailable-in-packet-and-artifacts"
+      },
+      {
+        "step": "sign-in-diagnosis",
+        "observed": {
+          "firebaseSignInWithOriginAndReferer": "http://localhost:5173",
+          "localhostFallback": "http://localhost:5174 is the only fallback",
+          "productionWorkerOrigin": "https://kahut1.web.app"
+        },
+        "result": "Firebase sign-in works with Origin and Referer http://localhost:5173"
+      },
+      {
+        "step": "resumed-activation",
+        "deploymentId": "1b801b1f-49d7-479d-823e-cc9694857b88"
+      },
+      {
+        "step": "assembly-candidate-validate",
+        "candidateId": "candidate-176b795f-6c37-457f-a41f-0a42e287eed0",
+        "revision": 2,
+        "lifecycle": "validated",
+        "validationValid": true
+      },
+      {
+        "step": "activity-stage",
+        "candidateId": "candidate-63a7b569-aaa1-4fca-9297-2b284f88415c",
+        "targetActivityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+        "revision": 1,
+        "lifecycle": "staged"
+      },
+      {
+        "step": "activity-validate",
+        "httpStatus": 500,
+        "errorCode": "invalid_persisted_candidate"
+      },
+      {
+        "step": "final-rollback",
+        "deploymentId": "be9842a8-aeaf-4daf-9f08-1d570a6c7b96",
+        "createdOn": "2026-08-13T19:55:23.061938Z"
+      }
+    ]
+  },
+  "diagnosis": {
+    "observedFacts": {
+      "persistedCandidate": {
+        "evidenceRefs": [],
+        "sourceEvidenceRefs": [],
+        "answerEvidenceRefs": []
+      },
+      "validation": {
+        "valid": true,
+        "errors": []
+      },
+      "content": {
+        "taskProfile": null,
+        "stimulus": null,
+        "assetRefs": []
+      },
+      "preserved": "All other identifiers, revisions, and content were intact",
+      "activityMutationState": {
+        "activitySaved": false,
+        "bindingCreated": false,
+        "approvalCreated": false,
+        "publicationCreated": false,
+        "assignmentCreated": false,
+        "deliveryCreated": false
+      }
+    },
+    "causalConclusion": {
+      "classification": "demonstrated-root-cause",
+      "inference": "The Activity validation failure was caused by the RTDB wire-codec persistence omission that erased these fields from the persisted candidate; the omission surfaced as invalid_persisted_candidate despite valid=true and errors=[]."
+    }
+  },
+  "durableRemoteState": {
+    "assemblyCandidateRevision2": {
+      "candidateId": "candidate-176b795f-6c37-457f-a41f-0a42e287eed0",
+      "durable": true
+    },
+    "activityStagedCandidateRevision1": {
+      "candidateId": "candidate-63a7b569-aaa1-4fca-9297-2b284f88415c",
+      "durable": true
+    },
+    "activitySaved": false,
+    "bindingApprovalPublicationAssignmentDeliveryMutations": false
+  },
+  "finalProductionState": {
+    "worker": "r2-upload-signer",
+    "rollbackVersion": "41ed251c-6069-4840-9bed-785ce93381d8",
+    "percentage": 100,
+    "rollbackRulesCanonicalSha256": "e813cef379c9246db6492ad9ee7dd7e3697fb66e133b7f7d644db4b273a7ffc0"
+  },
+  "disposition": {
+    "packet": "consumed",
+    "workflow": "failed-and-rolled-back",
+    "codeRepair": "requires-a-new-packet",
+    "deploymentAuthorizationCarriedForward": false,
+    "activationAuthorizationCarriedForward": false
+  }
+}

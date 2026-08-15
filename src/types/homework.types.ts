@@ -182,6 +182,54 @@ export const BOOK_HOMEWORK_ASSIGNMENT_KIND = 'book_activity_bundle' as const;
 export const BOOK_HOMEWORK_MANIFEST_SCHEMA_VERSION = 1 as const;
 export type BookHomeworkAssignmentKind = typeof BOOK_HOMEWORK_ASSIGNMENT_KIND;
 
+export const BOOK_HOMEWORK_COMPATIBILITY_ASSIGNMENT_KIND = 'book_homework_compatibility' as const;
+export const BOOK_HOMEWORK_COMPATIBILITY_SCHEMA_VERSION = 1 as const;
+export type BookHomeworkCompatibilityAssignmentKind = typeof BOOK_HOMEWORK_COMPATIBILITY_ASSIGNMENT_KIND;
+
+export interface BookHomeworkCompatibilityProjection {
+    readonly schemaVersion: typeof BOOK_HOMEWORK_COMPATIBILITY_SCHEMA_VERSION;
+    readonly assignmentKind: BookHomeworkCompatibilityAssignmentKind;
+    readonly id: string;
+    readonly createdBy: string;
+    readonly createdAt: number;
+    readonly updatedAt: number;
+    readonly materialId: string;
+    readonly materialTitle: string;
+    readonly materialType: 'book';
+    readonly materialSkill: 'mixed';
+    readonly title: string;
+    readonly description?: string;
+    readonly target: {
+        readonly type: 'students';
+        readonly studentIds: readonly string[];
+    };
+    readonly scheduling: {
+        readonly availableFrom?: number;
+        readonly dueDate: number;
+    };
+    readonly config: {
+        readonly timerMinutes: null;
+        readonly maxAttempts: null;
+        readonly feedbackTiming: 'never';
+        readonly lateSubmissionAllowed: false;
+    };
+    readonly visibility: {
+        readonly showTimer: false;
+        readonly showAttempts: false;
+        readonly showDueDate: true;
+        readonly showQuestionCount: false;
+        readonly showDuration: false;
+    };
+    readonly archived: false;
+    readonly tags: readonly [];
+    readonly bookHomeworkCompatibility: {
+        readonly schemaVersion: typeof BOOK_HOMEWORK_COMPATIBILITY_SCHEMA_VERSION;
+        readonly assignmentId: string;
+        readonly sourceSagaRevision: number;
+        readonly sourceFingerprint: string;
+    };
+}
+
 export type BookHomeworkSelectionTarget =
     | { readonly kind: 'book'; readonly bookId: string }
     | { readonly kind: 'section' | 'chapter' | 'unit' | 'test'; readonly bookId: string; readonly nodeKey: string }

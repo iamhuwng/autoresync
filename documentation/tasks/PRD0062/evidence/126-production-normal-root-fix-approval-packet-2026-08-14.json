@@ -1,0 +1,150 @@
+{
+  "artifactKind": "prd0062-126-production-normal-root-fix-approval-packet",
+  "schemaVersion": 1,
+  "status": "awaiting-explicit-production-execution-approval",
+  "createdAt": "2026-08-13T19:07:26Z",
+  "supersedes": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-execution-approval-packet-v2-2026-08-13.json",
+    "sha256": "2853074eaf874dee5402ad6f3ae1a2b8284dafbb36e0068f35125872b55e2cb9",
+    "reason": "the prior packet freezes obsolete generated rules and Worker/config identities; its authority was consumed by earlier attempts and cannot authorize this repaired ruleset"
+  },
+  "structuralDecision": {
+    "verdict": "retain the PRD0062 application architecture and repair the owning rule module",
+    "owner": "#102 produces fragment 42A; #118 regenerates and verifies database.rules.json; #126 owns bounded deployment and activation",
+    "provenRootCause": "42A used whole-object RuleDataSnapshot .val() equality at root scope. Empty fixtures compared null to null, while production's populated Course subtrees made an unrelated correctly claimed Assembly aggregate write fail validation.",
+    "changeLevel": "targeted root-cause repair; no #59 route, repository, domain-model, credential, or IAM redesign",
+    "solAdvisorVerdict": "ship",
+    "solAdvisorP0P1Findings": []
+  },
+  "currentProductionState": {
+    "observedAt": "2026-08-13T18:55:34Z",
+    "worker": "r2-upload-signer",
+    "activeVersionId": "d8cb9784-fab6-487b-8a79-2c7030e7baef",
+    "activePercentage": 100,
+    "activeDeploymentMessage": "prd0062-126-production-normal-auto-rollback-v8",
+    "activeDisposition": "known deny-only rollback",
+    "firebaseProjectId": "temp-a1437",
+    "firebaseDatabaseInstance": "temp-a1437-default-rtdb",
+    "activeRulesDisposition": "accepted rollback rules; the last post-rollback readback canonically deep-equaled firebase.prd0062-118-rules.rollback.json",
+    "productionMutationPerformedByThisPacket": false
+  },
+  "scope": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentIds": [
+      "x3hDfjYVN7cJtSbwq0ChIjl1Bk62"
+    ],
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "sourceVersionId": "source-version-70f2ccf7d1a42d67",
+    "sourceUploadAccountId": "book_b2_primary",
+    "sourceKey": "full",
+    "pdf": {
+      "path": "C:\\Users\\The Lord\\Downloads\\Documents\\Vocab-U1.pdf",
+      "sha256": "d43935c735245dc82de93ae7068f4a556560be366299a7609649d2f0960a0266",
+      "sizeBytes": 977013,
+      "pageCount": 4
+    },
+    "sourceDisposition": "reuse the retained verified private Source Version and re-run its authoritative attachment/readiness transition; do not upload duplicate bytes",
+    "forbiddenExpansion": [
+      "additional teachers, students, Books, assignments, units, activities, or source files",
+      "component-PDF, migration, replacement, deletion, recovery, notification, or unrelated routes",
+      "new accounts, credentials, IAM grants, buckets, public source paths, or broad rollout"
+    ]
+  },
+  "frozenIdentities": {
+    "gitCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "gitBranch": "codex/prd0062-production-normal-20260813-v2",
+    "generatedRules": {
+      "path": "database.rules.json",
+      "sha256": "da74d7441c03d19562a3d558ab31ff55a53d7d3ad1cb4b3b49528a624ecab669"
+    },
+    "rollbackRules": {
+      "path": "firebase.prd0062-118-rules.rollback.json",
+      "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+    },
+    "rollbackRulesConfig": {
+      "path": "firebase.prd0062-118-rollback.config.json",
+      "sha256": "73f6db450456437e7359f2002fe08dc5b5d7d94424de610de3f4970e125283fb"
+    },
+    "activationConfig": {
+      "path": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
+      "sha256": "02309fc938a934bf1497df7b99dfe67ed8a098177fb09fb7a2426d7b1151c00b"
+    },
+    "workerRollbackConfig": {
+      "path": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
+      "sha256": "47dbcdb70e681e42d0f60016effae5bd998cff9d862e4ad8b14dcf7ef59a43c8"
+    },
+    "wranglerBundle": {
+      "activationWorkerJsSha256": "c7279d18d3cf5f09ebfa96e16e02556a10f8ccb930b18c8812b483210f482600",
+      "rollbackWorkerJsSha256": "c7279d18d3cf5f09ebfa96e16e02556a10f8ccb930b18c8812b483210f482600",
+      "uploadKiB": 1721.70,
+      "gzipKiB": 323.12,
+      "wranglerVersion": "4.103.0"
+    },
+    "rootCauseFragment": {
+      "path": "cloudflare/src/upload-worker/book-rules/fragments/42A.json",
+      "sha256": "4c7cc2109918b486a39f967afcea8dd7300db49c6fc616c9f0de3c26ae70aa85"
+    },
+    "rootPackageLockSha256": "29653d348ffc03afe0f8605e107c2f9199cc637736af0f3a878dcfa1c089e885",
+    "cloudflarePackageLockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0",
+    "expiresAt": "2026-08-13T22:40:00.000Z"
+  },
+  "verification": {
+    "ticket59DefaultProductionWorkflow": "5 files, 57/57 tests passed, including stale, revoked, wrong-source, publication replay, and canonical version/binding behavior",
+    "fragmentAndComposer": "3 files, 20/20 tests passed",
+    "courseAuthority102Emulator": "5/5 tests passed: exact enrollment/release transitions and partial, stale, wrong-key, existing-receipt, extra-path, browser, delete, unrelated-token, and restore negatives",
+    "assembled118EmulatorMatrix": "8 result files, 23 suites, 88/88 tests passed with zero failures or skips",
+    "productionPopulatedRootRegression": "exact Assembly aggregate write succeeds with all #102 protected roots populated; wrong Book and unit claims fail",
+    "wholeObjectComparisonScan": "zero protected aggregate equality comparisons remain",
+    "activationWranglerDryRun": "exit 0",
+    "rollbackWranglerDryRun": "exit 0",
+    "globalTypecheck": "not an acceptance signal: repository-wide pre-existing errors remain outside the corrected rule/token paths"
+  },
+  "requestedAuthority": {
+    "uploadInactiveRollbackWorkerVersion": true,
+    "uploadInactiveActivationWorkerVersion": true,
+    "deployGeneratedRtdbRules": true,
+    "activateBoundedWorkerVersionAt100Percent": true,
+    "executeBoundedExistingTeacherWorkflow": true,
+    "deployRollbackRulesOnFailure": true,
+    "activateDenyOnlyWorkerRollbackAt100PercentOnFailure": true,
+    "createRemoteAccounts": false,
+    "widenIam": false,
+    "push": false,
+    "pullRequest": false,
+    "executeOtherTickets": false
+  },
+  "executionRunbook": [
+    "verify every frozen hash and expiry",
+    "upload the deny-only rollback Worker version without traffic and capture its version ID and exact bindings",
+    "upload the activation Worker version without traffic and capture its version ID and exact bindings",
+    "stop before rules deployment unless both inactive versions are deployable and exactly bound",
+    "deploy database.rules.json only and require canonical remote readback equality",
+    "activate only the captured activation version at 100 percent and require exact deployment readback",
+    "run the exact retained-PDF workflow: verified Source Version attachment, candidate create/preview, durable approval, publication preflight/publication, assignment/delivery readback",
+    "require stale, revoked, and wrong-source attempts to deny before publication mutation",
+    "record exact Worker, rules, scope, mapping, publication, assignment, and student readback"
+  ],
+  "rollbackRunbook": [
+    "on any demonstrated failure, activate the captured deny-only Worker version at 100 percent and verify traffic first",
+    "deploy firebase.prd0062-118-rules.rollback.json through firebase.prd0062-118-rollback.config.json",
+    "require rollback rules canonical equality and deny-only Worker configuration readback",
+    "record the failure at its exact boundary without speculative repair or scope expansion"
+  ],
+  "stopGates": [
+    "any frozen hash mismatch or expiry",
+    "either inactive Worker version fails upload or exact binding validation",
+    "rules readback mismatch",
+    "traffic not exactly one captured activation or rollback version at 100 percent",
+    "any bounded workflow failure or any successful stale, revoked, or wrong-source attempt",
+    "any unrelated route, identity, data object, account, credential, IAM permission, or ticket would be touched"
+  ],
+  "approvalBoundary": {
+    "deployment": false,
+    "activation": false,
+    "remoteMutation": false,
+    "decision": "stop for explicit approval against this exact packet SHA-256"
+  }
+}

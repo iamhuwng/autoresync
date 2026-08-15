@@ -52,6 +52,7 @@ const command = (): Omit<BookHomeworkSagaCommand, 'ownerId' | 'createdAt'> => ({
       }],
     },
     expectedPublication: { publicationId: 'publication-1', publicationRevision: 1, manifestVersionId: 'manifest-1' },
+    presentation: { title: 'Book Homework' },
   },
   selectedRecipientIds: ['student-1'],
 });
@@ -66,6 +67,7 @@ const record = (): BookHomeworkSagaRecord => ({
   publicationId: 'publication-1',
   publicationRevision: 1,
   contextId: 'assignment-1',
+  presentation: { title: 'Book Homework' },
   fingerprint: 'root-fingerprint-1',
   requestFingerprint: 'request-fingerprint-1',
   state: 'committed',
@@ -187,6 +189,40 @@ describe('Ticket 33E canonical Book Homework route', () => {
       createdAt: '2026-07-29T00:00:00.000Z',
     });
     expect(JSON.stringify(responseBody)).not.toContain('private-key');
+  });
+
+  it('keeps projection diagnostics out of the 202 body and emits only bounded structured fields', async () => {
+    const saga = makeSaga();
+    saga.execute.mockResolvedValue({
+      status: 'committed_projection_pending',
+      record: record(),
+      projectionDiagnostic: {
+        stage: 'firestore_patch',
+        errorClass: 'firestore-write',
+      },
+    });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const response = await makeRouter(saga).fetch(requestFor(command()), env());
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      status: 'committed_projection_pending',
+      assignmentId: 'assignment-1',
+      operationId,
+      state: 'committed',
+      visibility: 'committed',
+      recipientCount: 1,
+      committedRecipientCount: 1,
+      revision: 5,
+    });
+    expect(error).toHaveBeenCalledWith('book_homework_committed_projection_pending', {
+      assignmentId: 'assignment-1',
+      operationId,
+      stage: 'firestore_patch',
+      errorClass: 'firestore-write',
+    });
+    error.mockRestore();
   });
 
   it('rejects path/body, idempotency, and extra-mode mismatches before saga mutation', async () => {
@@ -413,5 +449,33 @@ describe('Ticket 33E canonical Book Homework route', () => {
         },
       }],
     });
+  });
+
+  it('preserves committed recipient identity when completion enrichment is unavailable', async () => {
+    const saga = makeSaga();
+    const resolveCompletionProjection = vi.fn(async () => null);
+    const router = createBookRouter({
+      handlers: createBookRouteHandlers({
+        homeworkHandlers: createBookHomeworkWorkerHandlers({
+          saga,
+          resolveCompletionProjection,
+        }),
+      }),
+      firebaseVerifier: {
+        verifyAuthorizationHeader: async () => ({ valid: true, uid: 'teacher-1' }),
+      },
+    });
+
+    const response = await router.fetch(new Request(
+      'https://worker.example.test/book-homework/assignments/assignment-1/teacher-projection',
+      { headers: { Origin: 'http://localhost:5173', Authorization: 'Bearer teacher-token' } },
+    ), env());
+
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      assignmentId: 'assignment-1',
+      students: [{ studentId: 'student-1', completion: null }],
+    });
+    expect(resolveCompletionProjection).toHaveBeenCalledTimes(1);
   });
 });

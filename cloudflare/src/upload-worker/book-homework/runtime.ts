@@ -6,12 +6,6 @@ import type {
   BookHomeworkAuthorityRecord,
   BookHomeworkStudentState,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
-import type {
-  BookHomeworkSagaCanonicalState,
-} from '../../../../src/services/book-homework/bookHomeworkSaga.types.ts';
-import {
-  fingerprint,
-} from './authority.ts';
 import {
   FirebaseRestBookHomeworkDocumentStore,
   BookHomeworkAuthorityRepository,
@@ -22,6 +16,11 @@ import {
   type BookHomeworkSagaRepositoryEnv,
 } from './sagaRepository.ts';
 import {
+  FirebaseRestBookHomeworkCompatibilityRepository,
+  type BookHomeworkCompatibilityRepositoryEnv,
+  type BookHomeworkCompatibilityFirebaseClaim,
+} from './compatibility-repository.ts';
+import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
 } from '../book-delivery/repository.ts';
@@ -29,29 +28,21 @@ import {
   FirebaseRestBookAssemblyPublicationRepository,
   type BookAssemblyPublicationRepositoryEnv,
 } from '../book-assembly/publication-repository.ts';
-import {
-  createTrustedBookDeliveryPublication,
-} from '../book-delivery/worker.ts';
-import type {
-  BookAssemblyPublicationRepository,
-} from '../../../../src/services/book-assembly/publicationRepository.ts';
-import type {
-  BookAssemblyPublicationResult,
-} from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
-import type {
-  BookDeliveryScope,
-} from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import { createBookHomeworkCanonicalResolver } from './canonical-resolver.ts';
 import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
+import {
+  BookHomeworkAuthoritativeContextResolver,
+  type BookHomeworkContextResolverPort,
+} from './context-resolver.ts';
+import { FirebaseRestExactPublishedActivityVersionReader } from '../book-assembly/canonical-activity-version-repository.ts';
 
-export interface BookHomeworkTrustedRuntimeEnv
-  extends BookHomeworkRepositoryEnv,
-  BookHomeworkSagaRepositoryEnv,
-  BookDeliveryRepositoryEnv,
-  BookAssemblyPublicationRepositoryEnv {
-  readonly [key: string]: unknown;
-}
+export type BookHomeworkTrustedRuntimeEnv = BookHomeworkRepositoryEnv
+  & BookHomeworkCompatibilityRepositoryEnv
+  & BookHomeworkSagaRepositoryEnv
+  & BookDeliveryRepositoryEnv
+  & BookAssemblyPublicationRepositoryEnv
+  & { readonly [key: string]: unknown };
 
 export type BookHomeworkTrustedSaga = Pick<BookHomeworkAssignmentSaga, 'execute'>
   & Partial<Pick<
@@ -80,12 +71,24 @@ export class BookHomeworkRuntimeUnavailableError extends Error {
   }
 }
 
+export const resolveBookHomeworkProductionFetch = (
+  fetchImpl?: typeof fetch,
+): typeof fetch => {
+  const resolved = fetchImpl ?? globalThis.fetch;
+  if (typeof resolved !== 'function') {
+    throw new BookHomeworkRuntimeUnavailableError();
+  }
+  return (input, init) => resolved.call(globalThis, input, init);
+};
+
 export interface BookHomeworkProductionRuntimeOptions {
   readonly fetchImpl?: typeof fetch;
   readonly getSagaAccessToken?: () => Promise<string>;
   readonly getAuthorityAccessToken?: () => Promise<string>;
+  readonly getCompatibilityFirebaseIdToken?: (
+    claims: BookHomeworkCompatibilityFirebaseClaim,
+  ) => Promise<string>;
   readonly getDeliveryAccessToken?: () => Promise<string>;
-  readonly getPublicationAccessToken?: () => Promise<string>;
   readonly resolveAffectedStudentStates?: (
     record: BookHomeworkAuthorityRecord,
     nodeKey: string,
@@ -105,10 +108,8 @@ export interface BookHomeworkProductionRuntimeDependencies {
   readonly sagaRepository: FirebaseRestBookHomeworkSagaRepository;
   readonly authorityRepository: BookHomeworkAuthorityRepository;
   readonly deliveryRepository: FirebaseRestBookDeliveryRepository;
-  readonly publicationRepository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
+  readonly compatibilityRepository: FirebaseRestBookHomeworkCompatibilityRepository;
 }
-
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 
 const requireProductionConfig = (env: BookHomeworkTrustedRuntimeEnv): void => {
   const required = [
@@ -127,126 +128,6 @@ const requireProductionConfig = (env: BookHomeworkTrustedRuntimeEnv): void => {
   }
 };
 
-const scopeForManifest = (
-  record: BookHomeworkAuthorityRecord,
-): BookDeliveryScope => {
-  const target = record.bookManifest.selectedTarget;
-  if (target.kind === 'activity') {
-    const placementIds = record.bookManifest.bindings
-      .filter((binding) => binding.state === 'required')
-      .map((binding) => binding.placementId);
-    return { kind: 'placements', nodeKeys: [], placementIds };
-  }
-  if (target.kind === 'book') {
-    return {
-      kind: 'subtree',
-      nodeKeys: record.bookManifest.outline.map((node) => node.nodeKey),
-      placementIds: [],
-    };
-  }
-  return { kind: 'subtree', nodeKeys: [target.nodeKey], placementIds: [] };
-};
-
-const canonicalFromAuthority = async (input: {
-  readonly authority: BookHomeworkAuthorityRecord;
-  readonly selectedRecipientIds: readonly string[];
-  readonly publicationRepository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
-}): Promise<BookHomeworkSagaCanonicalState> => {
-  const { authority, selectedRecipientIds, publicationRepository } = input;
-  const recipientId = authority.bookManifest.context.recipientId;
-  if (authority.assignmentKind !== 'book_activity_bundle'
-    || authority.bookManifest.context.contextId !== authority.assignmentId
-    || !ID.test(authority.ownerId)
-    || selectedRecipientIds.length !== 1
-    || selectedRecipientIds[0] !== recipientId
-    || !authority.activityPolicies
-    || Object.keys(authority.activityPolicies).length === 0) {
-    throw new BookHomeworkRuntimeUnavailableError('Book Homework canonical authority is unavailable.');
-  }
-
-  const publicationScope = await publicationRepository.readScope(authority.bookManifest.book.bookId);
-  const schedulePolicy = (() => {
-    const policies = Object.values(authority.activityPolicies!);
-    const policy = policies[0];
-    if (!policy || !ID.test(policy.policyId) || !Number.isSafeInteger(policy.policyRevision)
-      || policy.policyRevision < 1 || policies.some((entry) => (
-        entry.policyId !== policy.policyId || entry.policyRevision !== policy.policyRevision
-      ))) {
-      throw new BookHomeworkRuntimeUnavailableError('Book Homework frozen policy is unavailable.');
-    }
-    return {
-      policyId: policy.policyId,
-      policyRevision: policy.policyRevision,
-      basis: 'immutable-reference' as const,
-    };
-  })();
-
-  const intent = {
-    bookId: authority.bookManifest.book.bookId,
-    publicationId: authority.bookManifest.book.publicationId,
-    publicationRevision: authority.bookManifest.book.publicationRevision,
-    recipientId,
-    contextKind: 'homework' as const,
-    contextId: authority.assignmentId,
-    scope: scopeForManifest(authority),
-  };
-  const deliveryPublication = createTrustedBookDeliveryPublication(
-    intent,
-    publicationScope,
-    schedulePolicy,
-  );
-  const required = authority.bookManifest.bindings.filter((binding) => binding.state === 'required');
-  const sourceUnavailable = required.some((binding) => (
-    binding.sourceReadiness === 'unavailable'
-  ));
-  const frozenPolicies = Object.fromEntries(required.map((binding) => {
-    const policy = authority.activityPolicies?.[binding.placementId];
-    if (!policy) throw new BookHomeworkRuntimeUnavailableError('Book Homework Activity policy is unavailable.');
-    return [binding.placementId, {
-      lateSubmissionAllowed: policy.lateSubmissionAllowed,
-      maxAttempts: policy.maxAttempts,
-    }];
-  }));
-  const frozenPolicy = {
-    policyId: schedulePolicy.policyId,
-    policyRevision: schedulePolicy.policyRevision,
-    fingerprint: fingerprint({ schedulePolicy, frozenPolicies }),
-    activityPolicies: frozenPolicies,
-  };
-  const exposureApproval = {
-    approved: !sourceUnavailable && required.length > 0,
-    fingerprint: fingerprint({
-      assignmentId: authority.assignmentId,
-      manifestVersionId: authority.bookManifest.manifestVersionId,
-      publicationId: deliveryPublication.publicationId,
-      publicationRevision: deliveryPublication.publicationRevision,
-      approved: !sourceUnavailable && required.length > 0,
-    }),
-  };
-  return {
-    ownerId: authority.ownerId,
-    manifest: authority.bookManifest,
-    schedule: authority.schedule,
-    recipientIds: [recipientId],
-    studentExtensions: Object.fromEntries(Object.entries(authority.studentExtensions).map(([studentId, extensions]) => [
-      studentId,
-      Object.values(extensions).map((extension) => ({ nodeKey: extension.nodeKey, dueAt: extension.dueAt })),
-    ])),
-    publication: {
-      bookId: deliveryPublication.bookId,
-      publicationId: deliveryPublication.publicationId,
-      publicationRevision: deliveryPublication.publicationRevision,
-      manifestVersionId: deliveryPublication.manifestVersionId,
-      fingerprint: fingerprint(deliveryPublication),
-    },
-    deliveryPublication,
-    sourceReadiness: 'ready',
-    exposureApproval,
-    capabilities: { canAssignBookHomework: exposureApproval.approved },
-    frozenPolicy,
-  };
-};
-
 const createProductionDependencies = (
   env: BookHomeworkTrustedRuntimeEnv,
   options: BookHomeworkProductionRuntimeOptions,
@@ -261,7 +142,9 @@ const createProductionDependencies = (
   const authorityStore = new FirebaseRestBookHomeworkDocumentStore({
     env,
     fetchImpl,
-    getAccessToken: options.getAuthorityAccessToken,
+    getFirebaseIdToken: options.getAuthorityAccessToken
+      ? async () => options.getAuthorityAccessToken!()
+      : undefined,
   });
   const authorityRepository = new BookHomeworkAuthorityRepository(authorityStore, {
     resolveAffectedStudentStates: options.resolveAffectedStudentStates
@@ -286,12 +169,12 @@ const createProductionDependencies = (
     fetchImpl,
     getAccessToken: options.getDeliveryAccessToken,
   });
-  const publicationRepository = new FirebaseRestBookAssemblyPublicationRepository({
+  const compatibilityRepository = new FirebaseRestBookHomeworkCompatibilityRepository({
     env,
     fetchImpl,
-    getAccessToken: options.getPublicationAccessToken,
+    getFirebaseIdToken: options.getCompatibilityFirebaseIdToken,
   });
-  return { sagaRepository, authorityRepository, deliveryRepository, publicationRepository };
+  return { sagaRepository, authorityRepository, deliveryRepository, compatibilityRepository };
 };
 
 /**
@@ -304,7 +187,9 @@ export const createBookHomeworkProductionRuntime = (
   options: BookHomeworkProductionRuntimeOptions = {},
 ): BookHomeworkAssignmentSaga => {
   try {
-    const dependencies = createProductionDependencies(env, options);
+    const fetchImpl = resolveBookHomeworkProductionFetch(options.fetchImpl);
+    const runtimeOptions = { ...options, fetchImpl };
+    const dependencies = createProductionDependencies(env, runtimeOptions);
     const resolveCanonical = options.resolveCanonical ?? (async (command) => {
       try {
         const homeworkTokenProvider = createFirebaseClaimTokenProvider({
@@ -312,11 +197,11 @@ export const createBookHomeworkProductionRuntime = (
           serviceIdentity: String(env.BOOK_HOMEWORK_SERVICE_IDENTITY),
           firebaseProjectId: String(env.FIREBASE_PROJECT_ID),
           firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY),
-          fetchImpl: options.fetchImpl ?? globalThis.fetch,
+          fetchImpl,
         });
         const authorityReader = new FirebaseRtdbRestClient({
           env,
-          fetchImpl: options.fetchImpl ?? globalThis.fetch,
+          fetchImpl,
           firebaseAuthToken: true,
           getFirebaseAuthToken: () => homeworkTokenProvider({
             service: 'book_homework', ownerId: command.ownerId,
@@ -327,15 +212,16 @@ export const createBookHomeworkProductionRuntime = (
           serviceIdentity: String(env.BOOK_ASSEMBLY_SERVICE_IDENTITY),
           firebaseProjectId: String(env.FIREBASE_PROJECT_ID),
           firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY),
-          fetchImpl: options.fetchImpl ?? globalThis.fetch,
+          fetchImpl,
         });
         const publicationReader = new FirebaseRestBookAssemblyPublicationRepository({
           env,
-          fetchImpl: options.fetchImpl ?? globalThis.fetch,
-          getFirebaseAuthToken: (bookId) => assemblyTokenProvider({
+          fetchImpl,
+          ownerId: command.ownerId,
+          getFirebaseAuthToken: (bookId, ownerId) => assemblyTokenProvider({
             service: 'book_assembly_publication',
             bookId,
-            ownerId: command.ownerId,
+            ownerId,
           }),
         });
         return await createBookHomeworkCanonicalResolver({
@@ -356,7 +242,54 @@ export const createBookHomeworkProductionRuntime = (
       sagaRepository: dependencies.sagaRepository,
       authorityRepository: dependencies.authorityRepository,
       deliveryRepository: dependencies.deliveryRepository,
+      compatibilityRepository: dependencies.compatibilityRepository,
       resolveCanonical,
+    });
+  } catch (error) {
+    if (error instanceof BookHomeworkRuntimeUnavailableError) throw error;
+    throw new BookHomeworkRuntimeUnavailableError();
+  }
+};
+
+export const createBookHomeworkProductionContextResolver = (
+  env: BookHomeworkTrustedRuntimeEnv,
+  options: BookHomeworkProductionRuntimeOptions = {},
+): BookHomeworkContextResolverPort => {
+  try {
+    const fetchImpl = resolveBookHomeworkProductionFetch(options.fetchImpl);
+    const dependencies = createProductionDependencies(env, { ...options, fetchImpl });
+    const assemblyIdentity = String(env.BOOK_ASSEMBLY_SERVICE_IDENTITY ?? '').trim();
+    const assemblyKey = String(env.BOOK_ASSEMBLY_GOOGLE_SA_KEY ?? '').trim();
+    const assemblyTokenProvider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: assemblyKey,
+      serviceIdentity: assemblyIdentity,
+      firebaseProjectId: String(env.FIREBASE_PROJECT_ID ?? '').trim(),
+      firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY ?? '').trim(),
+      fetchImpl,
+    });
+    const publications = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      fetchImpl,
+      getFirebaseAuthToken: (bookId) => assemblyTokenProvider({
+        service: 'book_assembly_publication',
+        bookId,
+        ownerId: assemblyIdentity,
+      }),
+    });
+    const exactActivityVersions = new FirebaseRestExactPublishedActivityVersionReader({
+      env: {
+        ...env,
+        BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY: assemblyIdentity,
+        BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY: assemblyKey,
+      },
+      fetchImpl,
+    });
+    return new BookHomeworkAuthoritativeContextResolver({
+      roots: dependencies.sagaRepository,
+      authorities: dependencies.authorityRepository,
+      deliveries: dependencies.deliveryRepository,
+      publications,
+      exactActivityVersions,
     });
   } catch (error) {
     if (error instanceof BookHomeworkRuntimeUnavailableError) throw error;
@@ -376,6 +309,7 @@ export const createBookHomeworkTrustedSagaFactory = (options: {
     || !dependencies.sagaRepository
     || !dependencies.authorityRepository
     || !dependencies.deliveryRepository
+    || !dependencies.compatibilityRepository
     || typeof dependencies.resolveCanonical !== 'function') {
     throw new Error('book_homework_runtime_dependencies_unavailable');
   }

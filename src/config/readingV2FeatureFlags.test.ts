@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -60,6 +61,29 @@ describe('readingV2FeatureFlags', () => {
     expect(isReadingV2PublicRollout()).toBe(false);
     // Route exposure depends on env; verify the normalizer denies 'off' explicitly
     expect(isReadingV2TeacherRouteExposureAllowed('off')).toBe(false);
+  });
+
+  it('initializes with closed defaults in a native non-Vite module environment', () => {
+    const output = execFileSync(
+      process.execPath,
+      [
+        '--experimental-strip-types',
+        '-e',
+        "import('./src/config/readingV2FeatureFlags.ts').then((flags) => console.log(JSON.stringify([flags.READING_V2_ROLLOUT_MODE, flags.READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY, flags.TEACHER_MATERIALS_TEST_TYPE_BLOCKS_MODE, flags.ADMIN_CONFIGURABLE_TEST_TYPES_MODE, flags.READING_PASSAGE_LIBRARY_MODE, flags.READING_PASSAGE_HOMEWORK_MODE, flags.MATERIAL_BOOKS_MODE, flags.MATERIAL_BOOK_EDITOR_MODE])))",
+      ],
+      { cwd: REPO_ROOT, encoding: 'utf8' },
+    );
+
+    expect(JSON.parse(output)).toEqual([
+      'off',
+      'hidden',
+      'disabled',
+      'disabled',
+      'disabled',
+      'disabled',
+      'disabled',
+      'disabled',
+    ]);
   });
 
   it('normalizes rollout config with strict closed fallback', () => {

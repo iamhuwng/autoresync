@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-15T01:49:40Z",
+  "status": "independent_review_pending",
+  "mission": "PRD0062 Milestone 1 browser delivery only",
+  "controllingPlan": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md#935-compatibility-shell-repaired-browser-homework-consumption-is-now-the-only-milestone-1-blocker",
+  "supersedes": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-corrected-client-replacement-replay-browser-failure-result-2026-08-14.json",
+  "scopeBoundary": {
+    "model": "homework_assignments read -> strict compatibility discriminator -> Book compatibility path or unchanged ordinary Homework path -> authoritative Book",
+    "assignmentReplayForbidden": true,
+    "adapterExpansionForbidden": true,
+    "milestone2ForbiddenBeforeBrowserHandoff": true
+  },
+  "source": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "dirtyContentManifest": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-browser-delivery-source-manifest-2026-08-15.txt",
+    "dirtyContentManifestSha256": "8c753524dcc66bed594cb71a0f3cdbc95dfbc9a2daeffd4556e47d8be6fcc6e1",
+    "dirtyContentManifestEntries": 182,
+    "rootJsonMatchesHead": true
+  },
+  "layerIsolation": {
+    "A_compatibilityReadDispatchBoundary": [
+      "homeworkManager marker discrimination before legacy normalization and optional shell-owned membership input",
+      "useHomeworkList Book partition before legacy status/stat filtering",
+      "useHomeworkSubmission Book dispatch before legacy submission/attempt loading",
+      "useHomeworkDetail Book dispatch after the exact assignment read and before legacy submission subscription",
+      "useStudentShellData shell-owned membership handoff",
+      "bookHomeworkStudentList.service Book/ordinary partition with legacy projector used only for ordinary rows"
+    ],
+    "B_BookOnlyUiPath": [
+      "Teacher Homework Book list/detail cards and trusted projection",
+      "Student Homework Book list/detail progress and locator-only Open Book Activities launch",
+      "StudentPractice authoritative Book Runtime host"
+    ],
+    "C_unchangedLegacyHelperExtraction": [
+      "homeworkSubmissionService buildStudentHomeworkListRecords extraction preserves the legacy projector body and public service signature"
+    ],
+    "D_legacyBehaviorModification": [
+      {
+        "change": "detail assignment read precedes the ordinary submission read/subscription",
+        "requiredBy": "PRD0062 data-loading contract: reuse the resolved Homework detail and do not reread the document merely to suppress legacy submissions",
+        "freezeBlocker": false,
+        "reason": "the shared detail hook owns the dispatch; an additive caller cannot decide the path before the exact document is resolved"
+      },
+      {
+        "change": "after first successful Homework-list load, refresh preserves last-good content and renders a non-blocking revalidation error",
+        "requiredBy": "PRD0062 data-loading contract refresh policy",
+        "freezeBlocker": false,
+        "reason": "the shared Homework loader owns refresh state and the requirement explicitly applies to that boundary"
+      }
+    ],
+    "ordinaryHomework": {
+      "mutationSemantics": "unchanged",
+      "submissionSemantics": "unchanged",
+      "statusAndStatsAuthority": "unchanged",
+      "attemptBehavior": "unchanged",
+      "publicServiceSignatures": "unchanged except accepted optional studentClasses membership input",
+      "bookServiceDependencyOnLegacyExecution": false
+    },
+    "bookShell": {
+      "persistedFakeLegacyFields": [],
+      "forbiddenAuthorityFields": [
+        "stats",
+        "progress",
+        "score",
+        "submission",
+        "attempt",
+        "studentOverrides",
+        "authoritative status"
+      ],
+      "transientListDtoNote": "neutral non-authoritative adapter values satisfy the existing list-record type only; Book UI suppresses them and they are never persisted or used as Book authority"
+    }
+  },
+  "frontend": {
+    "project": "temp-a1437",
+    "hostingTarget": "kahut1",
+    "origin": "https://kahut1.web.app",
+    "buildCommand": "production VITE_FIREBASE environment + node_modules/.bin/vite build; node scripts/check-bundle-budget.mjs",
+    "buildResult": "PASS; 9504 modules transformed; bundle budget PASS",
+    "artifactDirectory": "dist",
+    "artifactFileCount": 441,
+    "artifactBytes": 11872235,
+    "artifactManifestSha256": "88f4b8cffec0f8e108b3be308c82703875a1a59ce14362d4504a9960963abcab",
+    "indexSha256": "a51fdab515ec62ecfc018a7d265d0530b0e0db188bd411a9f11be34e9c8de826",
+    "indexEntry": "/assets/index-rR9ze86f.js",
+    "liveChannelBeforeDeployment": "sites/kahut1/channels/live",
+    "rollbackRelease": "sites/kahut1/channels/live/releases/1784390955725000",
+    "rollbackVersion": "sites/kahut1/versions/31a9052843c443c5",
+    "rollbackVersionFinalizeTime": "2026-07-18T16:09:15.405537Z",
+    "deploymentVersion": "assigned only by Firebase Hosting after exact reviewed artifact upload; must be read back before browser verification"
+  },
+  "backend": {
+    "worker": {
+      "entry": "cloudflare/worker.js",
+      "entrySha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+      "bundleSha256": "2f9fba6a01595d336a2dcf1a58d1a014d889f3c7abb40b688b688a1335b48245",
+      "bundleBytes": 1845062,
+      "bundleGzipBytes": 344220,
+      "scriptEtag": "b46fe291195c097485acbab88ff6239ddf81aeb67fff908f1c4ee21e67d2ebd56",
+      "activationVersion": "bbca331f-68cb-49a2-bb03-a65ae5ac3603",
+      "activationOrdinal": 120,
+      "activationConfig": "cloudflare/wrangler.prd0062-bridge-m1-activation.jsonc",
+      "activationConfigSha256": "09dd73de3d60fea73ea694166ac45bc9c97c9f8c0db693ab458e342d34a8785a",
+      "activationExpiresAt": "2026-08-15T05:40:00.000Z",
+      "rollbackVersion": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39",
+      "rollbackOrdinal": 119,
+      "rollbackConfig": "cloudflare/wrangler.prd0062-bridge-m1-rollback.jsonc",
+      "rollbackConfigSha256": "3d2aec19b738a5483d8297fbb51c9c677d2e97815c2c5ef70e9cb02c4a7f7eda",
+      "currentDeployment": "61d10c23-a8ca-414f-8453-4e278ca325cf",
+      "currentTraffic": "100% rollbackVersion"
+    },
+    "firestore": {
+      "activationRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+      "activationSourceSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+      "rollbackRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+      "rollbackSourceSha256": "22857e290bf2269c9999ed6ce9ca978883f9eb9a8ad2055baf11739492c58612",
+      "currentRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6"
+    },
+    "rtdb": {
+      "activationRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+      "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+      "currentRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+    }
+  },
+  "durableBaseline": {
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "rootRevision": 7,
+    "rootStatus": "committed",
+    "authorityRevision": 2,
+    "deliveryRevision": 1,
+    "deliveryStatus": "active",
+    "compatibilityShell": "PRESENT",
+    "compatibilityAssignmentKind": "book_homework_compatibility",
+    "compatibilitySchemaVersion": 1,
+    "compatibilitySourceSagaRevision": 7,
+    "compatibilityStatsField": "ABSENT",
+    "assignmentCommandRequestCountAlreadyConsumed": 1,
+    "assignmentCommandMayBeSentAgain": false
+  },
+  "browser": {
+    "teacher": {
+      "email": "teacher@test.com",
+      "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "route": "/teacher/homework"
+    },
+    "student": {
+      "email": "student@test.com",
+      "uid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "listRoute": "/student/homework",
+      "detailRoute": "/student/homework/assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4"
+    },
+    "runtimeExpectedRoute": "/student/practice/assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4?bookSurface=homework&homeworkId=assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4"
+  },
+  "verification": {
+    "homeworkOwnerListDetail": "PASS; 11 files; 90 tests",
+    "locatorStudentPracticeRuntimeRegistry": "PASS; 4 files; 64 tests",
+    "ordinaryLegacyRegression": "previous independent proof: PASS; 49 tests; 0 failed; exact historical selector was not retained, so no invented command is claimed",
+    "focusedEslint": "PASS",
+    "gitDiffCheck": "PASS",
+    "knownHarnessLimitation": "Windows esbuild binary unavailable; no changed-file TypeScript/build defect observed",
+    "productionBuild": "PASS"
+  },
+  "reviewQuestions": [
+    "Is Book Homework still an additive compatibility layer?",
+    "Are ordinary Homework mutation/submission semantics unchanged?",
+    "Does Book discrimination happen before legacy normalization?",
+    "Does the compatibility shell remain locator/discovery-only?",
+    "Does authoritative progress/runtime still come exclusively from Book?",
+    "Did any generic adapter expansion enter the diff?",
+    "Does this deployment remain limited to the PRD0062 Milestone-1 browser path?"
+  ],
+  "deploymentStopConditions": [
+    "any independent review failure for questions 1 through 6",
+    "any frozen identity or durable state mismatch",
+    "any assignment command invocation",
+    "any teacher, student, or Runtime browser failure"
+  ]
+}

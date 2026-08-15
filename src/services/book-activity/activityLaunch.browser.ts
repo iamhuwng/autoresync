@@ -22,6 +22,11 @@ export interface BookActivityLaunchInput {
   readonly recipientId?: string;
 }
 
+export interface BookHomeworkActivityLaunchInput {
+  readonly assignmentId: string;
+  readonly placements: readonly (BookActivityLaunchPin & { readonly placementId: string })[];
+}
+
 export interface BookActivityLaunchBrowserEnv {
   readonly VITE_BOOK_RUNTIME_WORKER_URL?: string;
   readonly VITE_BOOK_DELIVERY_WORKER_URL?: string;
@@ -48,6 +53,7 @@ export class BookActivityLaunchBrowserError extends Error {
 
 export interface BookActivityLaunchBrowserClient {
   readActivities(input: BookActivityLaunchInput): Promise<readonly BookRuntimeShellActivity[]>;
+  readHomeworkActivities(input: BookHomeworkActivityLaunchInput): Promise<readonly BookRuntimeShellActivity[]>;
   /** Alias retained for callers that describe the operation as a batch read. */
   readBatch(input: BookActivityLaunchInput): Promise<readonly BookRuntimeShellActivity[]>;
 }
@@ -111,6 +117,22 @@ const assertInput = (input: BookActivityLaunchInput): void => {
     ids.add(pin.activityId);
   }
 }
+
+const assertHomeworkInput = (input: BookHomeworkActivityLaunchInput): void => {
+  if (!SAFE_ID.test(input.assignmentId) || !Array.isArray(input.placements)
+    || input.placements.length < 1 || input.placements.length > MAX_ACTIVITIES) {
+    throw new BookActivityLaunchBrowserError('invalid_request');
+  }
+  const placements = new Set<string>();
+  const activities = new Set<string>();
+  for (const placement of input.placements) {
+    if (!SAFE_ID.test(placement.placementId) || !SAFE_ID.test(placement.activityId)
+      || !SAFE_ID.test(placement.activityVersionId) || placements.has(placement.placementId)
+      || activities.has(placement.activityId)) throw new BookActivityLaunchBrowserError('invalid_request');
+    placements.add(placement.placementId);
+    activities.add(placement.activityId);
+  }
+};
 
 const originFor = (options: BookActivityLaunchBrowserClientOptions): string => {
   const env = options.env ?? (import.meta.env as BookActivityLaunchBrowserEnv);
@@ -205,5 +227,43 @@ export const createBookActivityLaunchBrowserClient = (
     }
     return readResponse(responseBody, input);
   };
-  return { readActivities, readBatch: readActivities };
+  const readHomeworkActivities = async (
+    input: BookHomeworkActivityLaunchInput,
+  ): Promise<readonly BookRuntimeShellActivity[]> => {
+    assertHomeworkInput(input);
+    let token: string | null | undefined;
+    try { token = await getIdToken(false); } catch { throw new BookActivityLaunchBrowserError('token_unavailable'); }
+    if (!options.getIdToken && !getAuth().currentUser) throw new BookActivityLaunchBrowserError('missing_user');
+    if (!token) throw new BookActivityLaunchBrowserError('token_unavailable');
+    let response: Response | undefined;
+    let responseBody: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        response = await fetchImpl(`${origin}/book-homework/assignments/${encodeURIComponent(input.assignmentId)}/launch`, {
+          method: 'POST',
+          headers: { accept: 'application/json', 'content-type': 'application/json', authorization: `Bearer ${token}` },
+          body: JSON.stringify({ placementIds: input.placements.map((placement) => placement.placementId) }),
+          cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer',
+        });
+      } catch { throw new BookActivityLaunchBrowserError('network_failure'); }
+      responseBody = await body(response);
+      if (response.status !== 401 || attempt === 1) break;
+      try { token = await getIdToken(true); } catch { throw new BookActivityLaunchBrowserError('token_unavailable'); }
+      if (!token) throw new BookActivityLaunchBrowserError('token_unavailable');
+    }
+    if (!response) throw new BookActivityLaunchBrowserError('network_failure');
+    if (!response.ok) {
+      if (response.status === 401) throw new BookActivityLaunchBrowserError('unauthorized', response.status);
+      if (response.status === 403) throw new BookActivityLaunchBrowserError('forbidden', response.status);
+      if (response.status === 404) throw new BookActivityLaunchBrowserError('not_found', response.status);
+      throw new BookActivityLaunchBrowserError('server_unavailable', response.status);
+    }
+    return readResponse(responseBody, {
+      bindingId: input.assignmentId,
+      bindingRevision: 1,
+      contextId: input.assignmentId,
+      activityPins: input.placements.map(({ activityId, activityVersionId }) => ({ activityId, activityVersionId })),
+    });
+  };
+  return { readActivities, readHomeworkActivities, readBatch: readActivities };
 };

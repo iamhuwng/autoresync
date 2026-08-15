@@ -1,11 +1,55 @@
 import { SignJWT, importPKCS8 } from 'jose';
 
 const IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken';
+const FIREBASE_TOKEN_EXCHANGE_REFERER = 'https://r2-upload-signer.iamhuwng.workers.dev/';
 const FIREBASE_CUSTOM_TOKEN_AUDIENCE = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const SAFE_BOOK_HOMEWORK_ROOT_ID = /^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$/u;
 
 export type BookFirebaseClaimTuple =
   | { readonly service: 'book_activity_authoring'; readonly ownerId: string }
+  | {
+    readonly service: 'book_assembly';
+    readonly bookId: string;
+    readonly unitKey: string;
+    readonly ownerId: string;
+  }
+  | {
+    /** Dedicated exact-leaf claim; do not use for general Assembly readers. */
+    readonly service: 'book_assembly_activity_binding';
+    readonly bookId: string;
+    readonly unitKey: string;
+    readonly activityKey: string;
+    readonly ownerId: string;
+  }
+  | {
+    readonly service: 'book_assembly_preview';
+    readonly bookId: string;
+    readonly unitKey: string;
+    readonly ownerId: string;
+  }
+  | {
+    /** Dedicated approval/revocation leaf reader and create-only writer. */
+    readonly service: 'book_assembly_preview_approval';
+    readonly bookId: string;
+    readonly unitKey: string;
+    readonly approvalId: string;
+    readonly ownerId: string;
+  }
+  | {
+    /** Exact per-recipient Firestore authority capability. */
+    readonly service: 'book_homework_authority';
+    readonly authorityId: string;
+    /** Root assignment/saga identity, distinct from authorityId. */
+    readonly assignmentId: string;
+    readonly ownerId: string;
+  }
+  | {
+    /** Exact compatibility-shell projection capability. */
+    readonly service: 'book_homework_compatibility';
+    readonly assignmentId: string;
+    readonly ownerId: string;
+  }
   // `assignmentId` is mandatory for the Firestore authority path.  The
   // owner-only form remains accepted for the existing RTDB claim contract;
   // Firestore repository requests never use that legacy form.
@@ -18,6 +62,21 @@ export type BookFirebaseClaimTuple =
   | {
     readonly service: 'book_assembly_publication';
     readonly bookId: string;
+    readonly ownerId: string;
+  }
+  | {
+    /** Dedicated canonical Activity-version and student-safe projection writer. */
+    readonly service: 'book_activity_publication_writer';
+    readonly ownerId: string;
+    readonly activityId: string;
+    readonly activityVersionId: string;
+  }
+  | {
+    /** Dedicated approval/revocation leaf reader for publication preflight. */
+    readonly service: 'book_assembly_publication_approval';
+    readonly bookId: string;
+    readonly unitKey: string;
+    readonly approvalId: string;
     readonly ownerId: string;
   }
   | { readonly service: 'book_runtime'; readonly recipientId: string; readonly contextId: string }
@@ -49,6 +108,69 @@ const assertClaims = (claims: BookFirebaseClaimTuple): void => {
   const keys = Object.keys(claims).sort().join('\u0000');
   if (claims.service === 'book_activity_authoring') {
     if (keys !== 'ownerId\u0000service' || !SAFE_ID.test(claims.ownerId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    return;
+  }
+  if (claims.service === 'book_assembly') {
+    if (keys !== 'bookId\u0000ownerId\u0000service\u0000unitKey'
+      || !SAFE_ID.test(claims.bookId)
+      || !SAFE_ID.test(claims.unitKey)
+      || !SAFE_ID.test(claims.ownerId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    return;
+  }
+  if (claims.service === 'book_assembly_activity_binding') {
+    if (keys !== 'activityKey\u0000bookId\u0000ownerId\u0000service\u0000unitKey'
+      || !SAFE_ID.test(claims.activityKey)
+      || !SAFE_ID.test(claims.bookId)
+      || !SAFE_ID.test(claims.unitKey)
+      || !SAFE_ID.test(claims.ownerId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    return;
+  }
+  if (claims.service === 'book_assembly_preview') {
+    if (keys !== 'bookId\u0000ownerId\u0000service\u0000unitKey'
+      || !SAFE_ID.test(claims.bookId)
+      || !SAFE_ID.test(claims.unitKey)
+      || !SAFE_ID.test(claims.ownerId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    return;
+  }
+  if (claims.service === 'book_assembly_preview_approval') {
+    if (keys !== 'approvalId\u0000bookId\u0000ownerId\u0000service\u0000unitKey'
+      || !SAFE_ID.test(claims.approvalId)
+      || !SAFE_ID.test(claims.bookId)
+      || !SAFE_ID.test(claims.unitKey)
+      || !SAFE_ID.test(claims.ownerId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    return;
+  }
+  if (claims.service === 'book_homework_authority') {
+    if (keys !== 'assignmentId\u0000authorityId\u0000ownerId\u0000service'
+      || !SAFE_BOOK_HOMEWORK_ROOT_ID.test(claims.assignmentId)
+      || !SAFE_ID.test(claims.authorityId)
+      || !SAFE_ID.test(claims.ownerId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    const prefix = `${claims.assignmentId}--`;
+    if (!claims.authorityId.startsWith(prefix) || !claims.authorityId.endsWith('--authority')) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    const recipientId = claims.authorityId.slice(prefix.length, -'--authority'.length);
+    if (!SAFE_BOOK_HOMEWORK_ROOT_ID.test(recipientId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    return;
+  }
+  if (claims.service === 'book_homework_compatibility') {
+    if (keys !== 'assignmentId\u0000ownerId\u0000service'
+      || !SAFE_BOOK_HOMEWORK_ROOT_ID.test(claims.assignmentId)
+      || !SAFE_ID.test(claims.ownerId)) {
       throw new Error('invalid_book_firebase_claims');
     }
     return;
@@ -86,6 +208,25 @@ const assertClaims = (claims: BookFirebaseClaimTuple): void => {
     }
     return;
   }
+  if (claims.service === 'book_activity_publication_writer') {
+    if (keys !== 'activityId\u0000activityVersionId\u0000ownerId\u0000service'
+      || !SAFE_ID.test(claims.ownerId)
+      || !SAFE_ID.test(claims.activityId)
+      || !SAFE_ID.test(claims.activityVersionId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    return;
+  }
+  if (claims.service === 'book_assembly_publication_approval') {
+    if (keys !== 'approvalId\u0000bookId\u0000ownerId\u0000service\u0000unitKey'
+      || !SAFE_ID.test(claims.approvalId)
+      || !SAFE_ID.test(claims.bookId)
+      || !SAFE_ID.test(claims.unitKey)
+      || !SAFE_ID.test(claims.ownerId)) {
+      throw new Error('invalid_book_firebase_claims');
+    }
+    return;
+  }
   if (claims.service === 'book_runtime') {
     if (keys !== 'contextId\u0000recipientId\u0000service'
       || !SAFE_ID.test(claims.recipientId)
@@ -115,6 +256,55 @@ const customClaims = (claims: BookFirebaseClaimTuple): Record<string, unknown> =
       book_activity_authoring_ownerId: claims.ownerId,
     };
   }
+  if (claims.service === 'book_assembly') {
+    return {
+      book_assembly_service: true,
+      book_assembly_bookId: claims.bookId,
+      book_assembly_unitKey: claims.unitKey,
+      book_assembly_ownerId: claims.ownerId,
+    };
+  }
+  if (claims.service === 'book_assembly_activity_binding') {
+    return {
+      book_assembly_activity_binding_service: true,
+      book_assembly_activity_binding_bookId: claims.bookId,
+      book_assembly_activity_binding_unitKey: claims.unitKey,
+      book_assembly_activity_binding_activityKey: claims.activityKey,
+      book_assembly_activity_binding_ownerId: claims.ownerId,
+    };
+  }
+  if (claims.service === 'book_assembly_preview') {
+    return {
+      book_assembly_preview_service: true,
+      book_assembly_preview_bookId: claims.bookId,
+      book_assembly_preview_unitKey: claims.unitKey,
+      book_assembly_preview_ownerId: claims.ownerId,
+    };
+  }
+  if (claims.service === 'book_assembly_preview_approval') {
+    return {
+      book_assembly_preview_approval_service: true,
+      book_assembly_preview_approval_bookId: claims.bookId,
+      book_assembly_preview_approval_unitKey: claims.unitKey,
+      book_assembly_preview_approval_approvalId: claims.approvalId,
+      book_assembly_preview_approval_ownerId: claims.ownerId,
+    };
+  }
+  if (claims.service === 'book_homework_authority') {
+    return {
+      book_homework_authority_service: true,
+      book_homework_authority_authorityId: claims.authorityId,
+      book_homework_authority_assignmentId: claims.assignmentId,
+      book_homework_authority_ownerId: claims.ownerId,
+    };
+  }
+  if (claims.service === 'book_homework_compatibility') {
+    return {
+      book_homework_compatibility_service: true,
+      book_homework_compatibility_assignmentId: claims.assignmentId,
+      book_homework_compatibility_ownerId: claims.ownerId,
+    };
+  }
   if (claims.service === 'book_homework') {
     const scoped: Record<string, unknown> = {
       book_homework_service: true,
@@ -134,6 +324,23 @@ const customClaims = (claims: BookFirebaseClaimTuple): Record<string, unknown> =
       book_assembly_publication_service: true,
       book_assembly_publication_bookId: claims.bookId,
       book_assembly_publication_ownerId: claims.ownerId,
+    };
+  }
+  if (claims.service === 'book_activity_publication_writer') {
+    return {
+      book_activity_publication_writer_service: true,
+      book_activity_publication_writer_ownerId: claims.ownerId,
+      book_activity_publication_writer_activityId: claims.activityId,
+      book_activity_publication_writer_activityVersionId: claims.activityVersionId,
+    };
+  }
+  if (claims.service === 'book_assembly_publication_approval') {
+    return {
+      book_assembly_publication_approval_service: true,
+      book_assembly_publication_approval_bookId: claims.bookId,
+      book_assembly_publication_approval_unitKey: claims.unitKey,
+      book_assembly_publication_approval_approvalId: claims.approvalId,
+      book_assembly_publication_approval_ownerId: claims.ownerId,
     };
   }
   if (claims.service === 'book_activity_runtime_reader') {
@@ -204,6 +411,10 @@ export const createFirebaseClaimTokenProvider = (options: {
       aud: FIREBASE_CUSTOM_TOKEN_AUDIENCE,
       uid: claims.service === 'book_runtime'
         ? claims.recipientId
+        : claims.service === 'book_homework_authority'
+          ? claims.ownerId
+        : claims.service === 'book_homework_compatibility'
+          ? claims.ownerId
         : claims.service === 'book_homework'
           ? (claims.ownerId ?? claims.assignmentId)
           : claims.service === 'book_delivery'
@@ -220,7 +431,10 @@ export const createFirebaseClaimTokenProvider = (options: {
       response = await fetchImpl.call(globalThis,
         `${IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL}?key=${encodeURIComponent(apiKey)}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Referer: FIREBASE_TOKEN_EXCHANGE_REFERER,
+          },
           body: JSON.stringify({ token: customToken, returnSecureToken: true }),
         });
     } catch {

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "118D",
+  "owner": {
+    "ticketId": "118D",
+    "issue": 118,
+    "serviceIdentity": "book_assembly_service",
+    "leastPrivilegePaths": ["book_assembly_preview_approvals/books/$bookId/units/$unitKey"],
+    "generatedRuleLocations": [
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId/.validate",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId/$other/.validate",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/revocations/$approvalId/.validate",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/revocations/$approvalId/$other/.validate"
+    ]
+  },
+  "operations": [
+    { "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "!newData.exists() || (newData.hasChildren(['approvalId', 'approvalRevision', 'actorId', 'bookId', 'bookRevision', 'unitKey', 'candidateId', 'candidateRevision', 'sourceSetRevision', 'registryVersion', 'inputFingerprint', 'canonicalActivityFingerprintsByKey', 'approvedAt', 'expiresAt']) && newData.child('approvalId').val() == $approvalId && newData.child('approvalRevision').isNumber() && newData.child('approvalRevision').val() >= 1 && newData.child('actorId').isString() && newData.child('bookId').val() == $bookId && newData.child('bookRevision').isNumber() && newData.child('bookRevision').val() >= 1 && newData.child('unitKey').val() == $unitKey && newData.child('candidateId').isString() && newData.child('candidateRevision').isNumber() && newData.child('candidateRevision').val() >= 1 && newData.child('sourceSetRevision').isNumber() && newData.child('sourceSetRevision').val() >= 1 && newData.child('registryVersion').isString() && newData.child('inputFingerprint').isString() && newData.child('canonicalActivityFingerprintsByKey').exists() && newData.child('approvedAt').isString() && newData.child('expiresAt').isString() && newData.child('expiresAt').val() > newData.child('approvedAt').val())" },
+    { "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId/$other", "rule": ".validate", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "$other == 'approvalId' || $other == 'approvalRevision' || $other == 'actorId' || $other == 'bookId' || $other == 'bookRevision' || $other == 'unitKey' || $other == 'candidateId' || $other == 'candidateRevision' || $other == 'sourceSetRevision' || $other == 'registryVersion' || $other == 'inputFingerprint' || $other == 'canonicalActivityFingerprintsByKey' || $other == 'approvedAt' || $other == 'expiresAt'" },
+    { "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey/revocations/$approvalId", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "!newData.exists() || (newData.hasChildren(['approvalId', 'bookId', 'unitKey', 'actorId', 'revokedAt']) && newData.child('approvalId').val() == $approvalId && newData.child('bookId').val() == $bookId && newData.child('unitKey').val() == $unitKey && newData.child('actorId').isString() && newData.child('revokedAt').isString())" },
+    { "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey/revocations/$approvalId/$other", "rule": ".validate", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "$other == 'approvalId' || $other == 'bookId' || $other == 'unitKey' || $other == 'actorId' || $other == 'revokedAt'" }
+  ]
+}

@@ -18,6 +18,7 @@ const assembledRuleTests = [
   'src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts',
   'src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts',
   'src/__tests__/security/retired-material-rules.emulator.test.ts',
+  'src/__tests__/security/prd0062-118-production-normal-rules.emulator.test.ts',
 ];
 
 export const PRD0062_118_ASSEMBLED_RULES_SUITE = Object.freeze({

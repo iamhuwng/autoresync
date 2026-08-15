@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node ../scripts/harness/run-tool.mjs vitest . run",
+    "generate:prd0062:118-rules": "node --experimental-transform-types scripts/generate-prd0062-118-rules.mjs",
     "test:security:red": "node scripts/run-insecure-baseline.mjs",
     "test:security:green": "node scripts/run-hardened-negative-suite.mjs",
     "verify:r2-lifecycle": "node scripts/verify-r2-lifecycle-config.mjs r2-lifecycle.temp-24h.json",

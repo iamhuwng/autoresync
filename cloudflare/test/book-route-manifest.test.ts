@@ -12,10 +12,11 @@ const wranglerConfig = () => JSON5.parse(wranglerSource) as { vars: Record<strin
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(39);
+    expect(contributorRoutes).toHaveLength(42);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#63')).toHaveLength(3);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#59')).toHaveLength(2);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#70')).toHaveLength(3);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#67')).toHaveLength(1);
@@ -27,12 +28,12 @@ describe('canonical Book route contract catalog', () => {
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#102')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#104')).toHaveLength(3);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(39);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(42);
   });
 
   it('registers all future boundaries as disabled seams', () => {
     const future = canonicalBookRouteManifest.filter((route) => route.source === 'future-seam');
-    expect(future).toHaveLength(11);
+    expect(future).toHaveLength(12);
     expect(new Set(future.map((route) => route.domain))).toEqual(new Set([
       'homework', 'evaluation-history', 'integrity', 'notifications',
       'impact-snapshot', 'updates', 'replacement-cleanup',
@@ -98,6 +99,47 @@ describe('canonical Book route contract catalog', () => {
         handler: 'bookAssembly.componentPdfPublish',
         gateEnv: 'BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED',
         contributorTicket: '#59',
+      }),
+    ]));
+  });
+
+  it('registers candidate preview, approval, and revocation through one disabled #63 Assembly gate', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly.preview',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/preview',
+        owner: '#63',
+        handler: 'bookAssembly.preview',
+        gateEnv: 'BOOK_ASSEMBLY_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+        contributorTicket: '#63',
+      }),
+      expect.objectContaining({
+        id: 'book.assembly.approve',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/approve',
+        owner: '#63',
+        handler: 'bookAssembly.approve',
+        gateEnv: 'BOOK_ASSEMBLY_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+        contributorTicket: '#63',
+      }),
+      expect.objectContaining({
+        id: 'book.assembly.revoke',
+        methods: ['POST'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/approvals/:approvalId/revoke',
+        owner: '#63',
+        handler: 'bookAssembly.revoke',
+        gateEnv: 'BOOK_ASSEMBLY_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+        credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+        contributorTicket: '#63',
       }),
     ]));
   });

@@ -64,7 +64,11 @@ export interface ComponentPdfPublicationPorts {
     },
   ) => Promise<Readonly<Record<string, ComponentPdfValidatedActivityPayload>>>;
   readonly readPreviewApproval: (
-    approvalId: string,
+    input: {
+      readonly bookId: string;
+      readonly unitKey: string;
+      readonly approvalId: string;
+    },
   ) => Promise<(BookAssemblyPreviewApprovalRecord & { readonly revoked?: boolean }) | null>;
   readonly sourceIsPreviewReady: (
     input: { readonly bookId: string; readonly sourceVersionId: string },
@@ -103,12 +107,18 @@ const resolveCurrentPreviewApproval = async (input: {
   readonly activitiesByKey: Readonly<Record<string, ComponentPdfValidatedActivityPayload>>;
   readonly now: string;
 }): Promise<BookAssemblyPreviewApprovalReference> => {
-  const current = await input.ports.readPreviewApproval(input.request.previewApproval.approvalId);
+  const current = await input.ports.readPreviewApproval({
+    bookId: input.request.bookId,
+    unitKey: input.request.unitKey,
+    approvalId: input.request.previewApproval.approvalId,
+  });
   if (!current
     || current.approvalId !== input.request.previewApproval.approvalId
     || current.revoked === true
     || current.actorId !== input.request.ownerId
     || current.bookId !== input.request.bookId
+    || current.bookRevision !== input.request.expectedBookRevision
+    || current.unitKey !== input.request.unitKey
     || current.candidateId !== input.request.candidateId
     || current.candidateRevision !== input.request.expectedCandidateRevision
     || current.sourceSetRevision !== input.request.expectedSourceSetRevision

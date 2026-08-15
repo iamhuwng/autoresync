@@ -1,3 +1,5 @@
+import type { SourceSetCandidate } from './bookAssembly.types';
+
 declare const materialCatalogIdBrand: unique symbol;
 
 export type MaterialCatalogId<K extends string> = string & {
@@ -244,6 +246,12 @@ export interface MaterialBookMetadata {
   readonly bookId: MaterialBookId;
   /** Optional only for legacy records; repository reads resolve it to `materials`. */
   readonly bookMode?: MaterialBookMode;
+  /** Canonical PDF Book authority revision; absent on legacy/materials rows. */
+  readonly bookRevision?: number;
+  /** Canonical PDF Source Set authority revision; absent until the source set is owned. */
+  readonly sourceSetRevision?: number;
+  /** Trusted PDF Source Set authority; source attach/replace owns its lifecycle elsewhere. */
+  readonly sourceSet?: SourceSetCandidate;
   /** Trusted-command provenance. Browser clients cannot create or retarget it. */
   readonly modeSuccessorLineage?: MaterialBookModeSuccessorLineage;
   /** Identity/version only; never carries predecessor placement or delivery state. */

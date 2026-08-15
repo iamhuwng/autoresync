@@ -502,6 +502,27 @@ const createFirebaseFetch = (initial: Record<string, unknown> = {}) => {
 };
 
 describe('Ticket 28A durable Firebase runtime repository', () => {
+  it('treats an absent first-launch placement scope as zero attempts', async () => {
+    const firebase = createFirebaseFetch();
+    const repository = new FirebaseRestBookRuntimeRepository({
+      env: {
+        FIREBASE_DB_URL: 'https://firebase.test',
+        BOOK_RUNTIME_SERVICE_IDENTITY: 'runtime@example.test',
+      },
+      getAccessToken: async () => 'runtime-token',
+      fetchImpl: firebase.fetchImpl,
+    });
+
+    await expect(repository.listAttempts({
+      recipientId: 'student-1',
+      contextId: 'context-1',
+      placementId: 'placement-1',
+      bindingId: 'binding-1',
+      bindingRevision: 1,
+      limit: 50,
+    })).resolves.toEqual([]);
+  });
+
   it('persists draft, terminal records, completion, index, and replay through one scoped ETag aggregate', async () => {
     const firebase = createFirebaseFetch();
     const env = {

@@ -3,8 +3,11 @@
 Status: Draft orchestration record. This file coordinates implementation across multiple task lists and conversations.
 Created: 2026-07-09
 
-Primary PRD:
+Primary PRD requirement body:
 - `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
+
+Accepted current PRD0062 amendment:
+- `documentation/tasks/PRD0062/PRD0062-architecture-and-delivery-amendment-2026-08-15.md`
 
 Durable architecture:
 - `documentation/architecture/book-activity-runtime-and-assembly.md`
@@ -34,8 +37,8 @@ Packet contract template:
 ## Purpose
 
 - [ ] Use this master task list to split the PRD0062 implementation across multiple conversations without losing dependency order.
-- [ ] Treat the PRD as the sole product and architecture requirements authority.
-- [ ] Treat component task lists as subordinate execution checklists. If a task conflicts with or weakens the PRD, stop and reconcile the task before implementation.
+- [ ] Treat the PRD requirement body together with accepted current PRD0062 amendments as the product and architecture requirements authority. The 2026-08-15 amendment governs discovered Book Homework compatibility, trusted-projection, production-composition, independent-review, and browser-handoff requirements.
+- [ ] Treat component task lists as subordinate execution checklists. If a task conflicts with or weakens the PRD or an accepted amendment, stop and reconcile the task before implementation.
 - [ ] Treat this file as the sequencing authority for conversation boundaries, entry criteria, exit criteria, packet order, and handoffs only.
 - [ ] Do not replace, weaken, or skip any component task-list task from this file.
 - [ ] Do not mark a master packet complete unless the mapped component parent acceptance is also satisfied.
@@ -46,7 +49,7 @@ Packet contract template:
 - [ ] Use one packet-scoped implementation branch or worktree at a time. A separate integration branch may collect completed packet commits only after packet exit criteria pass; do not implement all phases directly in one long-lived branch.
 - [ ] Implement one packet per conversation by default.
 - [ ] A conversation may stop mid-packet only with a handoff note that records exact remaining subtasks.
-- [ ] Each new conversation must start by reading this master task list, the relevant component task list, the PRD, AGENTS.md, `documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md`, and the latest findings/handoff notes.
+- [ ] Each new conversation must start by reading this master task list, the relevant component task list, the PRD requirement body, accepted current PRD0062 amendments (including `PRD0062-architecture-and-delivery-amendment-2026-08-15.md`), AGENTS.md, `documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md`, and the latest findings/handoff notes.
 - [ ] Each implementation conversation must also read `documentation/architecture/book-activity-runtime-and-assembly.md` before changing PRD0062 code or architecture docs.
 - [ ] Keep findings append-only. Do not rewrite old implementation narrative as if it was always current.
 - [ ] Label evidence as `Historical evidence`, `Current live contract`, `Superseded claim`, or `Open blocker` when updating findings, handoffs, traceability, or architecture notes.

@@ -48,6 +48,7 @@ export interface BookHomeworkSagaRecord {
   readonly publicationId: string;
   readonly publicationRevision: number;
   readonly contextId: string;
+  readonly presentation: BookHomeworkSagaPresentation;
   readonly fingerprint: string;
   readonly requestFingerprint: string;
   readonly state: BookHomeworkSagaState;
@@ -122,6 +123,11 @@ export interface BookHomeworkSagaActivityPolicyIntent {
   readonly lateSubmissionAllowed: boolean;
 }
 
+export interface BookHomeworkSagaPresentation {
+  readonly title: string;
+  readonly description?: string;
+}
+
 /**
  * Book scope plus the class provenance used to authorize the selected roster.
  * The canonical Book target remains unchanged; classId is only untrusted
@@ -151,6 +157,7 @@ export interface BookHomeworkSagaAssignmentIntent {
     readonly publicationRevision: number;
     readonly manifestVersionId: string;
   };
+  readonly presentation: BookHomeworkSagaPresentation;
 }
 
 export interface BookHomeworkSagaCommand {

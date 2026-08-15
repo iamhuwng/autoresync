@@ -19,6 +19,7 @@ export interface ActivityAuthoringMutation {
   evidenceRefs?: string[];
   sourceEvidenceRefs?: string[];
   answerEvidenceRefs?: string[];
+  unitActivityBinding?: { readonly unitKey: string; readonly activityKey: string };
 }
 
 export type ActivityCandidateLifecycle =

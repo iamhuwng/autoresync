@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T17:43:03Z",
+  "status": "pending_independent_review",
+  "classification": "ROUTE_GATE_NOT_ACTIVE_AT_REQUEST_EDGE_REPLACEMENT_REPLAY",
+  "scope": "One explicitly authorized bounded replacement production replay under recovery-plan section 9.3.4; no automatic retry, no new assignment/operation/idempotency identity, no Milestone 2",
+  "standingAuthority": "The user's explicit replacement-replay authorization and documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md section 9.3.4",
+  "supersedes": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-standards-freeze-replay-checkpoint-v2-2026-08-14.json",
+  "priorFailure": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-standards-freeze-replay-failure-result-2026-08-14.json",
+  "sourceIdentity": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "preCheckpointStatusEntries": 660,
+    "preCheckpointStatusSha256": "bfc041b248d9d9c20930580a7dc8cd29360875303798ec05491d5d5250bee888",
+    "trackedBinaryDiffSha256ExcludingLiteralRootJson": "9ddf0473df8088e85548ab7cd08a867b4c7e9b2e915969487bb5454d7cf5bd7f",
+    "untrackedPathManifestSha256": "fcbe9efb4ef3787d82c68734465b54589a779fd080f59bcbfdee24c0b361d6bf",
+    "manifestBoundary": "captured immediately before this append-only checkpoint and excludes this checkpoint path",
+    "literalRootJson": "exact HEAD state; absent from git diff and git status",
+    "recoveryPlanPath": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md",
+    "recoveryPlanSha256": "5a17fe8b8b8e2aa7ba8c850c9a989a42334f40cd4867a9e1f40edae07d6b9e18",
+    "bridgeContractPath": "documentation/tasks/PRD0062/PRD0062-book-homework-bridge-contract.md",
+    "bridgeContractSha256": "115a9d873469fdd15876963d73247567467ee70eb67f61bf656041aee17b4826"
+  },
+  "workerArtifact": {
+    "entryPath": "cloudflare/worker.js",
+    "entrySha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+    "activationDryRunBundle": "cloudflare/tmp/prd0062-bridge-m1-replacement-activation-dryrun/worker.js",
+    "rollbackDryRunBundle": "cloudflare/tmp/prd0062-bridge-m1-replacement-rollback-dryrun/worker.js",
+    "bundleSha256": "2f9fba6a01595d336a2dcf1a58d1a014d889f3c7abb40b688b688a1335b48245",
+    "bundleBytes": 1845062,
+    "bundleGzipBytes": 344220,
+    "activationRollbackBundlesEqual": true,
+    "scriptEtag": "b46fe291195c097485acbab88ff6239ddf81aeb67fff908f1c4e21e67d2ebd56"
+  },
+  "configuration": {
+    "activationPath": "cloudflare/wrangler.prd0062-bridge-m1-activation.jsonc",
+    "activationSha256": "09dd73de3d60fea73ea694166ac45bc9c97c9f8c0db693ab458e342d34a8785a",
+    "activationRevision": "prd0062-bridge-m1-replacement-replay",
+    "activationIssuedAt": "2026-08-14T17:40:00.000Z",
+    "activationExpiresAt": "2026-08-15T05:40:00.000Z",
+    "rollbackPath": "cloudflare/wrangler.prd0062-bridge-m1-rollback.jsonc",
+    "rollbackSha256": "3d2aec19b738a5483d8297fbb51c9c677d2e97815c2c5ef70e9cb02c4a7f7eda",
+    "rendererRegistry": "activity-renderer-manifest-v1@sha256:6ec59a0085256e6214e448f9a16312d707699c5083d11c9d356c0b5d15e66be1",
+    "rendererManifestPath": "src/services/book-activity/runtime/activityRendererManifest.json",
+    "rendererManifestFileSha256": "2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c",
+    "serviceIdentities": [
+      "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+      "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com"
+    ],
+    "requiredSecretPresence": [
+      "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+      "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
+      "BOOK_DELIVERY_GOOGLE_SA_KEY",
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "BOOK_RUNTIME_GOOGLE_SA_KEY",
+      "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_PRIVATE_BUCKET_ID",
+      "BOOK_SOURCE_B2_READ_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
+      "FIREBASE_WEB_API_KEY",
+      "GOOGLE_SA_KEY",
+      "LISTENING_AUTHORING_IDEMPOTENCY_SECRET",
+      "LISTENING_DELIVERY_SECRET",
+      "LISTENING_UPLOAD_SESSION_GRANT_SECRET",
+      "UPLOAD_GRANT_SECRET"
+    ],
+    "secretValuesRecorded": false
+  },
+  "rulesArtifact": {
+    "rtdbActivationPath": "database.rules.json",
+    "rtdbActivationSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rtdbRollbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "producerPath": "cloudflare/scripts/generate-prd0062-118-rules.mjs",
+    "producerSha256": "bf298e73d912574c5323e3fedcff7b97e0bc1c5f705fb3f936b57d057a522c4c",
+    "composerPath": "cloudflare/src/upload-worker/book-rules/generated-fragment-composer.ts",
+    "composerSha256": "be16b90b1f64dc31218372ec037b50fe20de8285c9436a46a95d1dcdc57446c9",
+    "generatorIdentity": "prd0062-118-composer-v2 43 fragments",
+    "fragmentHashes": {
+      "16A": "4e356bca5f5c71af06394bdba90b753d5c698319bb3cdf0b46c8b86804dcc376",
+      "118A": "6425ca819f8fc4412679ddea2dd2c95bd9b29e2e63c53e87b3b0589a896d7393",
+      "118B": "ab0d0228eb16f7de7afab36e8982f59b5b90071b1d79f4061824d3b9fbc13175",
+      "118C": "c03ece773f71ccc9f09b1715b5da2d10dc771b52792671dc515ffb88cef9afe1",
+      "118D": "2a13ce6c787b1dcd14660fcd08424d8ba285fb3b333c76c7c3e1c01acb23f357"
+    },
+    "firestoreActivationPath": "firestore.rules",
+    "firestoreActivationSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+    "firestoreActivationRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreRollbackRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6"
+  },
+  "freshInactiveVersions": {
+    "rollback": {
+      "versionId": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39",
+      "number": 119,
+      "createdAt": "2026-08-14T17:40:34.600544Z",
+      "scriptEtag": "b46fe291195c097485acbab88ff6239ddf81aeb67fff908f1c4e21e67d2ebd56",
+      "homeworkGate": "disabled",
+      "secretCount": 19,
+      "localStartAndOptions": "PASS; exact route HTTP 204"
+    },
+    "activation": {
+      "versionId": "bbca331f-68cb-49a2-bb03-a65ae5ac3603",
+      "number": 120,
+      "createdAt": "2026-08-14T17:40:45.350198Z",
+      "scriptEtag": "b46fe291195c097485acbab88ff6239ddf81aeb67fff908f1c4e21e67d2ebd56",
+      "homeworkGate": "enabled",
+      "scopeRevision": "prd0062-bridge-m1-replacement-replay",
+      "scopeExpiresAt": "2026-08-15T05:40:00.000Z",
+      "secretCount": 19,
+      "localStartAndOptions": "PASS; exact route HTTP 204"
+    },
+    "productionTrafficAfterUploads": "unchanged: deployment 2dc05d3e-bb69-4f32-b063-8457b7c629a4 remains 100% on rollback version a921299b-853f-41ab-a8a5-ccda1f9bfae0"
+  },
+  "frozenCommand": {
+    "path": "tmp/prd0062-bridge-m1-corrected-assignment-command.json",
+    "bytes": 1471,
+    "sha256": "0e3720ac38b0545fa51876a0230eec8e690a735af29654779208b80221c38583",
+    "literalBytesRequired": true,
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "postBudget": 1
+  },
+  "activationEdgeProbe": {
+    "path": "tmp/prd0062-bridge-m1-route-gate-probe-262145.json",
+    "bytes": 262145,
+    "limitBytes": 262144,
+    "sha256": "502349597c660a57dad41305293197bd4066267a476cd0a6b2071e60f5e9598e",
+    "shape": "valid JSON with exactly one inert probe string field; contains no assignment, operation, idempotency, Book content, answer, token, or credential",
+    "compression": "none; raw Buffer; exact Content-Length 262145; no Content-Encoding; Accept-Encoding identity",
+    "stateMutation": "impossible through the canonical route because body-limit rejection runs after auth/rate/gate/service checks but before pilot scope, body parsing, handler, and command processing",
+    "clientPath": "tmp/prd0062-bridge-m1-replacement-replay-client.mjs",
+    "clientSha256": "6f52f1ada42a0d7e6845b7bdb638c676d74563c6fa4e81d45154d336db1d8bf6",
+    "clientBytes": 5806,
+    "clientProtocol": "one Node process, one valid teacher Firebase ID token, one https.Agent keep-alive pool with maxSockets=1, two sequential probes, then wait on stdin while exact identities/state are reread, then one explicit SEND release for the literal command",
+    "tokenSource": "mint one custom token for the exact teacher through IAM signJwt as prd0062-38b4-migration@temp-a1437.iam.gserviceaccount.com, exchange it through Firebase Identity Toolkit with the authorized compatibility-provider Origin/Referer, verify the returned ID token sub and user_id equal the exact teacher, and never persist either token",
+    "probeCount": 2,
+    "requiredPerProbe": {
+      "httpStatus": 413,
+      "jsonBody": {
+        "code": "body_too_large"
+      },
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+        "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+        "access-control-allow-origin": "https://kahut1.web.app",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-headers": "Authorization, Content-Type, Content-Length, Idempotency-Key, Range"
+      },
+      "safeMetadata": [
+        "requestedAt",
+        "respondedAt",
+        "CF-Ray",
+        "colo inferred from CF-Ray suffix",
+        "reusedSocket"
+      ]
+    },
+    "crossProbeRequirements": "same token SHA-256, same persistent client process, same exact request bytes, both exact expected results and headers, both CF-Ray values present, identical colo",
+    "failureRule": "any status/body/header/CF-Ray/colo/client/token mismatch exits before ready_for_state_readback; do not send command; rollback and stop"
+  },
+  "frozenProductInputs": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "bookRevision": 2,
+    "sourceKey": "full",
+    "sourceVersionId": "source-version-70f2ccf7d1a42d67",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+    "scheduleFinalDueAt": "2026-08-21T00:00:00.000Z",
+    "policy": "practice; maxAttempts=2; immediate feedback; no late submission; no integrity capture",
+    "presentation": "Vocabulary U1; description null"
+  },
+  "preActivationReconciliation": {
+    "workerDeploymentId": "2dc05d3e-bb69-4f32-b063-8457b7c629a4",
+    "workerVersionId": "a921299b-853f-41ab-a8a5-ccda1f9bfae0",
+    "workerTrafficPercent": 100,
+    "firestoreRelease": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rootSaga": "committed, visible, revision 7, exact operation, one committed recipient",
+    "authority": "exact recipient authority HTTP 200, revision 2",
+    "delivery": "exact binding current and active",
+    "compatibilityShell": "exact homework_assignments document HTTP 404",
+    "persistentMutationFromPriorGateFailure": false
+  },
+  "verification": {
+    "exactReplayGateCommand": "cd cloudflare && ./node_modules/.bin/vitest run --config vitest.book-homework-current-workerd.config.mjs --maxWorkers=1 --passWithNoTests=false",
+    "exactReplayGateResult": "1 file, 2 tests passed",
+    "routerBodyGateCommand": "cd cloudflare && ./node_modules/.bin/vitest run test/book-router.test.ts test/book-publication-route-handlers.test.ts --maxWorkers=1 --passWithNoTests=false",
+    "routerBodyGateResult": "2 files, 26 tests passed",
+    "clientSyntaxCommand": "node --check tmp/prd0062-bridge-m1-replacement-replay-client.mjs",
+    "clientSyntaxResult": "PASS",
+    "dryRuns": "activation and rollback passed; bundles byte-identical",
+    "carriedForwardMilestone1": "focused lint, Homework list/detail/shell/registry, Runtime host, canonical codec, fail-closed emulators, renderer registry, Ticket 59, bridge/authority/context/projection, and live StudentShell browser proofs remain green; no product source changed after those proofs"
+  },
+  "execution": {
+    "reviewGate": "independent Standards and Spec PASS on this exact checkpoint required before production mutation",
+    "order": [
+      "reconcile rollback identities/state again",
+      "activate and verify exact Firestore ruleset fe84ef31-a849-4f2a-a221-0947b24f5775",
+      "activate and verify exact RTDB rules SHA-256 e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+      "activate Worker bbca331f-68cb-49a2-bb03-a65ae5ac3603 at 100% and read back",
+      "mint one valid exact-teacher Firebase ID token without recording it and start the frozen persistent client",
+      "send exactly two consecutive frozen oversized probes",
+      "continue only if both are exact 413 body_too_large with canonical headers, present CF-Ray, and identical colo",
+      "while the same client/token wait, reread exact Worker/rules identities plus unchanged root/authority/Delivery/absent shell",
+      "release exactly one literal frozen command POST",
+      "on committed success, verify repaired shell, teacher/student projections, trusted Runtime launch/return, browser flow, and hand off https://kahut1.web.app"
+    ],
+    "rollbackTrigger": "any activation, probe, colo, identity, state, command, readback, teacher/student, Runtime, or browser discrepancy",
+    "rollbackOrder": [
+      "deploy fresh rollback Worker ca50f6c9-713b-4159-8fa9-cc2a6c9fec39 at 100%",
+      "restore RTDB rules SHA-256 62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+      "restore Firestore release projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+      "read back all identities and durable state, record evidence, and stop"
+    ],
+    "noSecondCommandAttempt": true,
+    "milestone2": "forbidden before browser handoff"
+  }
+}

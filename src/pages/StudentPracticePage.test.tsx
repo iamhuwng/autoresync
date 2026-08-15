@@ -424,6 +424,43 @@ describe('StudentPracticePage', () => {
     expect(refMock).not.toHaveBeenCalled();
   });
 
+  it('dispatches the exact Homework Book identity before any legacy Firebase/test loading', async () => {
+    resolveBookPlacementLaunchMock.mockResolvedValue({
+      status: 'resolved',
+      projection: {
+        bindingId: 'binding-1',
+        bindingRevision: 1,
+        recipientId: 'student-1',
+        context: { kind: 'homework', contextId: 'homework-1' },
+      },
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/student/practice/homework-1?bookSurface=homework&homeworkId=homework-1',
+        ]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId('book-placement-runtime-host')).toHaveTextContent('binding-1');
+    expect(resolveBookPlacementLaunchMock).toHaveBeenCalledWith(expect.objectContaining({
+      studentId: 'student-1',
+      launch: {
+        kind: 'homework',
+        surface: 'homework',
+        explicit: true,
+        homeworkId: 'homework-1',
+      },
+    }));
+    expect(getMock).not.toHaveBeenCalled();
+    expect(refMock).not.toHaveBeenCalled();
+  });
+
   it('tracks Return from an invalid explicit Book launch', async () => {
     const user = userEvent.setup();
 

@@ -370,19 +370,6 @@ async function getStudentClassesByLegacyScan(studentUid: string): Promise<ClassS
   return enrolledClasses.sort((left, right) => right.createdAt - left.createdAt);
 }
 
-function mergeClassSummaries(...classLists: ClassSummary[][]): ClassSummary[] {
-  const merged = new Map<string, ClassSummary>();
-
-  classLists.flat().forEach((summary) => {
-    const existing = merged.get(summary.id);
-    if (!existing || summary.createdAt > existing.createdAt) {
-      merged.set(summary.id, summary);
-    }
-  });
-
-  return Array.from(merged.values()).sort((left, right) => right.createdAt - left.createdAt);
-}
-
 // ============================================================================
 // CLASS CRUD OPERATIONS
 // ============================================================================
@@ -1159,21 +1146,11 @@ export async function rejectClassStudent(
 export async function getStudentClasses(studentUid: string): Promise<ClassSummary[]> {
   try {
     const indexedClasses = await getStudentClassesFromMembershipIndex(studentUid);
-    if (indexedClasses === null) {
-      return getStudentClassesByLegacyScan(studentUid);
+    if (indexedClasses !== null) {
+      return indexedClasses;
     }
 
-    const scannedClasses = await getStudentClassesByLegacyScan(studentUid);
-    const mergedClasses = mergeClassSummaries(indexedClasses, scannedClasses);
-
-    if (mergedClasses.length !== indexedClasses.length) {
-      console.warn(
-        `[Courses DEBUG] getStudentClasses: membership index was incomplete for uid="${studentUid}" ` +
-        `(${indexedClasses.length} indexed vs ${mergedClasses.length} merged)`
-      );
-    }
-
-    return mergedClasses;
+    return getStudentClassesByLegacyScan(studentUid);
   } catch (error) {
     console.error('Error getting student classes:', error);
     return [];

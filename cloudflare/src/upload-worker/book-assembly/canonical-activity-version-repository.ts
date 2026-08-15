@@ -44,14 +44,14 @@ const PATH_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 export interface CanonicalActivityVersionWriterEnv extends RepositoryEnv {
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_SERVICE_IDENTITY?: string;
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_GOOGLE_SA_KEY?: string;
+  /** Existing Assembly credential fallback for initial full-PDF publication. */
+  BOOK_ASSEMBLY_SERVICE_IDENTITY?: string;
+  BOOK_ASSEMBLY_GOOGLE_SA_KEY?: string;
 }
 
 export interface CanonicalActivityVersionReaderEnv extends RepositoryEnv {
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY?: string;
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY?: string;
-  /** Explicit fallback for launch deployments that share the assembly identity. */
-  BOOK_ASSEMBLY_SERVICE_IDENTITY?: string;
-  BOOK_ASSEMBLY_GOOGLE_SA_KEY?: string;
 }
 
 interface ServiceAccountKey {
@@ -132,11 +132,51 @@ const bookOperationPath = (bookId: string, operationId: string): string => {
   return `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${bookId}/operations/${operationId}`;
 };
 
+/**
+ * RTDB erases null and empty-array object children. For schema version 1 these
+ * seven fields have one domain-defined erased value, so reconstruct them at
+ * the read boundary before strict canonical validation. No present value and
+ * no field with ambiguous absence is changed.
+ */
+const hydrateCanonicalActivityShapeFromRtdb = (value: unknown): unknown => {
+  if (!isRecord(value)) return value;
+  return {
+    ...value,
+    ...(!Object.hasOwn(value, 'taskProfile') ? { taskProfile: null } : {}),
+    ...(!Object.hasOwn(value, 'stimulus') ? { stimulus: null } : {}),
+    ...(!Object.hasOwn(value, 'assetRefs') ? { assetRefs: [] } : {}),
+  };
+};
+
+export const hydrateCanonicalActivityVersionFromRtdb = (value: unknown): unknown => {
+  if (!isRecord(value) || value.schemaVersion !== 1) return value;
+  return {
+    ...value,
+    ...(!Object.hasOwn(value, 'evidenceRefs') ? { evidenceRefs: [] } : {}),
+    ...(isRecord(value.activity)
+      ? { activity: hydrateCanonicalActivityShapeFromRtdb(value.activity) }
+      : {}),
+    ...(isRecord(value.projection)
+      ? { projection: hydrateCanonicalActivityShapeFromRtdb(value.projection) }
+      : {}),
+  };
+};
+
 const parseCanonical = (
   value: unknown,
 ): CanonicalPublishedActivityVersionRecord | null => {
   try {
     return assertCanonicalPublishedActivityVersion(value);
+  } catch {
+    return null;
+  }
+};
+
+const parseCanonicalFromRtdb = (
+  value: unknown,
+): CanonicalPublishedActivityVersionRecord | null => {
+  try {
+    return assertCanonicalPublishedActivityVersion(hydrateCanonicalActivityVersionFromRtdb(value));
   } catch {
     return null;
   }
@@ -155,6 +195,14 @@ const safeProjectionFor = (
   createdByOperationId: record.createdByOperationId,
   publishedAt: record.publishedAt,
 });
+
+const hydrateStudentSafeProjectionFromRtdb = (value: unknown): unknown => {
+  if (!isRecord(value) || value.schemaVersion !== 1 || !isRecord(value.content)) return value;
+  return {
+    ...value,
+    content: hydrateCanonicalActivityShapeFromRtdb(value.content),
+  };
+};
 
 const assertServiceAccountMatchesIdentity = (
   keyJson: string,
@@ -392,7 +440,17 @@ export const canonicalActivityVersionReaderClaimsForPath = readerClaimsForPath;
 
 export class FirebaseRestCanonicalActivityVersionWriter
 implements CanonicalActivityVersionWriter {
+  /**
+   * Exact-key compatibility reader. `BookAssemblyActivityVersionReference`
+   * intentionally has no Book scope, so only `prepare` mints scoped Firebase
+   * tokens; this client cannot read a parent or scan an Activity root.
+   */
   private readonly rtdb: FirebaseRtdbRestClient;
+  private readonly rtdbForPrepare: (
+    record: CanonicalPublishedActivityVersionRecord,
+  ) => FirebaseRtdbRestClient;
+  private readonly prepared = new Map<string, CanonicalPublishedActivityVersionRecord>();
+  private readonly allowCompatibilityRead: boolean;
   private readonly maxRetries: number;
 
   constructor(private readonly options: {
@@ -401,10 +459,16 @@ implements CanonicalActivityVersionWriter {
     getAccessToken?: () => Promise<string>;
     maxRetries?: number;
   }) {
-    const identity = options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_SERVICE_IDENTITY?.trim();
+    const dedicatedIdentity = options.env
+      .BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_SERVICE_IDENTITY?.trim();
+    const dedicatedKey = options.env
+      .BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_GOOGLE_SA_KEY?.trim();
+    // Dedicated credentials remain an optional override. Production-normal
+    // publication otherwise reuses the Assembly account with Firebase claims.
+    const identity = dedicatedIdentity ?? options.env.BOOK_ASSEMBLY_SERVICE_IDENTITY?.trim();
     if (!identity) throw new Error('missing_canonical_activity_version_writer_service_identity');
     const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-    const keyJson = options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_GOOGLE_SA_KEY?.trim();
+    const keyJson = dedicatedKey ?? options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY?.trim();
     if (keyJson) {
       assertServiceAccountMatchesIdentity(
         keyJson,
@@ -416,7 +480,39 @@ implements CanonicalActivityVersionWriter {
       throw new Error('missing_canonical_activity_version_writer_google_sa_key');
     }
     this.maxRetries = assertRetryCount(options.maxRetries ?? MAX_RETRIES);
+    this.allowCompatibilityRead = options.getAccessToken !== undefined;
     this.rtdb = rtdbClient(options.env, keyJson, fetchImpl, options.getAccessToken);
+    if (options.getAccessToken) {
+      // Preserve the injected OAuth seam for existing compatibility callers.
+      this.rtdbForPrepare = () => this.rtdb;
+      return;
+    }
+    if (!keyJson) throw new Error('missing_canonical_activity_version_writer_google_sa_key');
+    const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+      serviceAccountJson: keyJson,
+      serviceIdentity: identity,
+      firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+      firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+      fetchImpl,
+    });
+    this.rtdbForPrepare = (record) => {
+      if (record.provenance.kind !== 'initial-book-publication') {
+        throw new Error('canonical_activity_version_writer_publication_scope_unavailable');
+      }
+      const claims: BookFirebaseClaimTuple = {
+        service: 'book_activity_publication_writer',
+        ownerId: record.ownerId,
+        activityId: record.activityId,
+        activityVersionId: record.activityVersionId,
+      };
+      return rtdbClient(
+        options.env,
+        keyJson,
+        fetchImpl,
+        undefined,
+        async () => getFirebaseAuthToken(claims),
+      );
+    };
   }
 
   async prepare(
@@ -430,33 +526,40 @@ implements CanonicalActivityVersionWriter {
       parsedRecord.activityVersionId,
     );
     const expectedProjection = safeProjectionFor(parsedRecord);
+    const rtdb = this.rtdbForPrepare(parsedRecord);
 
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
-      const currentVersion = await this.rtdb.readWithEtag<unknown>(versionPath);
-      const currentProjection = await this.rtdb.readWithEtag<unknown>(projectionPath);
+      const currentVersion = await rtdb.readWithEtag<unknown>(versionPath);
+      const currentProjection = await rtdb.readWithEtag<unknown>(projectionPath);
       const versionPresent = currentVersion.data !== null && currentVersion.data !== undefined;
       const projectionPresent = currentProjection.data !== null
         && currentProjection.data !== undefined;
 
       if (versionPresent) {
-        const existing = parseCanonical(currentVersion.data);
+        const existing = parseCanonicalFromRtdb(currentVersion.data);
         if (!existing || stable(existing) !== stable(parsedRecord)) {
           return { status: 'conflict' };
         }
       }
-      if (projectionPresent && stable(currentProjection.data) !== stable(expectedProjection)) {
+      if (projectionPresent
+        && stable(hydrateStudentSafeProjectionFromRtdb(currentProjection.data))
+          !== stable(expectedProjection)) {
         return { status: 'conflict' };
       }
-      if (versionPresent && projectionPresent) return { status: 'replayed' };
+      if (versionPresent && projectionPresent) {
+        this.prepared.set(versionPath, parsedRecord);
+        return { status: 'replayed' };
+      }
 
       if (!versionPresent
-        && !(await this.rtdb.writeIfMatch(versionPath, parsedRecord, currentVersion.etag))) {
+        && !(await rtdb.writeIfMatch(versionPath, parsedRecord, currentVersion.etag))) {
         continue;
       }
       if (!projectionPresent
-        && !(await this.rtdb.writeIfMatch(projectionPath, expectedProjection, currentProjection.etag))) {
+        && !(await rtdb.writeIfMatch(projectionPath, expectedProjection, currentProjection.etag))) {
         continue;
       }
+      this.prepared.set(versionPath, parsedRecord);
       return { status: 'created' };
     }
 
@@ -467,7 +570,10 @@ implements CanonicalActivityVersionWriter {
     reference: BookAssemblyActivityVersionReference,
   ): Promise<CanonicalPublishedActivityVersionRecord | null> {
     const path = canonicalPath(reference.activityId, reference.activityVersionId);
-    const parsed = parseCanonical(await this.rtdb.readValue(path));
+    const prepared = this.prepared.get(path);
+    if (prepared) return sameReference(prepared, reference) ? structuredClone(prepared) : null;
+    if (!this.allowCompatibilityRead) return null;
+    const parsed = parseCanonicalFromRtdb(await this.rtdb.readValue(path));
     if (!parsed || !sameReference(parsed, reference)) return null;
     return parsed;
   }
@@ -494,12 +600,13 @@ implements ExactPublishedActivityVersionReader {
     if (hasPartialDedicatedBinding && !options.getAccessToken && !options.getFirebaseAuthToken) {
       throw new Error('incomplete_canonical_activity_version_reader_binding');
     }
-    const identity = dedicatedIdentity
-      ?? options.env.BOOK_ASSEMBLY_SERVICE_IDENTITY?.trim();
+    // Reader credentials are deliberately dedicated. The generic assembly
+    // identity/key are not a production fallback; route composition must
+    // provide this binding (or an explicit injected auth seam).
+    const identity = dedicatedIdentity;
     if (!identity) throw new Error('missing_canonical_activity_version_reader_service_identity');
     const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-    const keyJson = dedicatedKey
-      ?? options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY?.trim();
+    const keyJson = dedicatedKey;
     if (keyJson) {
       assertServiceAccountMatchesIdentity(
         keyJson,
@@ -578,7 +685,7 @@ implements ExactPublishedActivityVersionReader {
       publicationRevision as number,
     )) return null;
 
-    const canonical = parseCanonical(await rtdb.readValue(paths.canonical));
+    const canonical = parseCanonicalFromRtdb(await rtdb.readValue(paths.canonical));
     if (!canonical || !sameCanonicalIdentity(canonical, request, bookActivity)) return null;
     const placementIds = (bookSafeProjection as Record<string, unknown>).placementIds as string[];
     if (stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) return null;
@@ -590,7 +697,9 @@ implements ExactPublishedActivityVersionReader {
         publicationRevision as number,
       )) return null;
     }
-    const studentSafeProjection = await rtdb.readValue(paths.studentSafeProjection);
+    const studentSafeProjection = hydrateStudentSafeProjectionFromRtdb(
+      await rtdb.readValue(paths.studentSafeProjection),
+    );
     if (stable(studentSafeProjection) !== stable(safeProjectionFor(canonical))) return null;
     return canonical;
   }

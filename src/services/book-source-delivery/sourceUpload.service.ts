@@ -163,6 +163,11 @@ export interface SourceUploadControlDependencies {
   readonly reservationTtlMs?: number;
   /** Canonical recovery never creates a new upload or verifies provider bytes. */
   readonly recoveryContext?: BookSourceRecoveryContext;
+  /** Trusted production-normal completion continuation (for example, source attachment). */
+  readonly onVerified?: (
+    operation: SourceUploadVerifiedOperation,
+    context: { readonly ownerId: string },
+  ) => void | Promise<void>;
 }
 
 export interface BeginSourceUploadInput {
@@ -217,6 +222,10 @@ type ResolvedDependencies = {
   readonly authorizationCache: Map<string, SourceUploadBeginResult>;
   readonly clock: () => Date;
   readonly reservationTtlMs: number;
+  readonly onVerified?: (
+    operation: SourceUploadVerifiedOperation,
+    context: { readonly ownerId: string },
+  ) => void | Promise<void>;
 };
 
 const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
@@ -323,6 +332,7 @@ const resolveDependencies = (input: SourceUploadControlDependencies): ResolvedDe
     authorizationCache: input.authorizationCache ?? new Map<string, SourceUploadBeginResult>(),
     clock,
     reservationTtlMs,
+    onVerified: input.onVerified,
   };
 };
 
@@ -441,6 +451,7 @@ const sameRequest = (operation: BookSourceUploadOperation, input: BeginSourceUpl
   && operation.sourceKey === input.sourceKey
   && operation.kind === input.kind
   && operation.byteSize === input.claim.exactByteSize
+  && operation.ownerAttestedPhysicalPageCount === input.claim.physicalPageCount
   && operation.originalFilename === input.claim.displayFilename
   && operation.expectedChecksum.value === input.claim.sha256Hex.toLowerCase();
 
@@ -650,6 +661,7 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
       providerObjectKey: existing.providerObjectKey,
       kind: existing.kind,
       byteSize: existing.byteSize,
+      ownerAttestedPhysicalPageCount: existing.ownerAttestedPhysicalPageCount,
       originalFilename: existing.originalFilename,
       expectedChecksum: existing.expectedChecksum,
       createdAt: existing.createdAt,
@@ -704,6 +716,7 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
     providerObjectKey: identity.providerObjectKey,
     kind: input.kind,
     byteSize: input.claim.exactByteSize,
+    ownerAttestedPhysicalPageCount: input.claim.physicalPageCount,
     originalFilename: input.claim.displayFilename,
     expectedChecksum: { algorithm: 'sha-256', value: input.claim.sha256Hex.toLowerCase() },
     createdAt: createdAt.toISOString(),
@@ -739,6 +752,11 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUp
   }
   if (operation.status === 'released') throw new SourceUploadControlError('reservation_released');
   if (operation.status === 'cleanup_pending') throw new SourceUploadControlError('cleanup_pending');
+  const finishVerified = async (verified: BookSourceUploadOperation): Promise<SourceUploadVerifiedOperation> => {
+    const result = verifiedProjection(verified);
+    await resolved.onVerified?.(result, { ownerId: input.actorId });
+    return result;
+  };
   let expected: BookSourceVersionStorageIdentity;
   try {
     expected = createBookSourceVersionStorageIdentity({
@@ -766,7 +784,33 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUp
     if (!sameIdentity(storedIdentity, expected)) {
       throw new SourceUploadControlError('provider_identity_mismatch');
     }
-    return verifiedProjection(operation);
+    const projection = state.assemblyBooks?.[operation.bookId]?.[operation.sourceKey];
+    if (projection
+      && projection.ownerId === operation.ownerId
+      && projection.bookId === operation.bookId
+      && projection.sourceKey === operation.sourceKey
+      && projection.sourceVersionId === operation.sourceVersionId
+      && projection.physicalPageCount === operation.ownerAttestedPhysicalPageCount
+      && projection.verifiedUsable === true) {
+      return finishVerified(operation);
+    }
+    let repairedState: BookSourceUploadAccountState;
+    try {
+      repairedState = await resolved.repository.completeVerified({
+        accountId: resolved.deployment.accountId,
+        expectedRevision: state.revision,
+        reservationId: operation.reservationId,
+        verifiedStorage: storedIdentity,
+        verifiedAt: operation.completedAt!,
+      });
+    } catch (error) {
+      throw completeRepositoryError(error);
+    }
+    const repaired = repairedState.operations[input.reservationId];
+    if (!repaired || repaired.status !== 'verified_completed') {
+      throw new SourceUploadControlError('reservation_conflict');
+    }
+    return finishVerified(repaired);
   }
   const verifiedStorage = await providerIdentity(resolved.provider, expected, input);
   const verifiedAt = nowIso(resolved.clock).toISOString();
@@ -785,7 +829,7 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUp
   }
   const completed = completedState.operations[input.reservationId];
   if (!completed || completed.status !== 'verified_completed') throw new SourceUploadControlError('reservation_conflict');
-  return verifiedProjection(completed);
+  return finishVerified(completed);
 };
 
 export const createSourceUploadControl = (dependencies: SourceUploadControlDependencies): SourceUploadControl => {

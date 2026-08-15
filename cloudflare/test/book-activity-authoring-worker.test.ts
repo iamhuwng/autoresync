@@ -5,6 +5,7 @@ import {
   type BookActivityAuthoringRoot,
 } from '../src/upload-worker/book-activity-authoring/repository.ts';
 import { createBookRolloutWorkerGate, type BookRolloutWorkerGate } from '../src/book-rollout-gate.ts';
+import type { UnitActivityBindingRepository } from '../../src/services/book-assembly/unitActivityBinding.repository.ts';
 
 const activity = {
   schemaVersion: 1, title: 'Candidate', taskProfile: null, presentationMode: 'structured',
@@ -64,6 +65,9 @@ const worker = (options: {
   createRecordId?: () => string;
   rolloutGate?: BookRolloutWorkerGate;
   state?: Record<string, BookActivityAuthoringRoot>;
+  bindingRepositoryFactory?: () => UnitActivityBindingRepository;
+  assemblyActivityKeys?: readonly string[] | null;
+  resolveOwnedPdfBookId?: (input: { env: Record<string, unknown>; ownerId: string; claimedBookId: string }) => Promise<string | undefined>;
 } = {}) => {
   const state: Record<string, BookActivityAuthoringRoot> = options.state ?? {};
   let crashBeforeCommit = options.crashBeforeCommit ?? false;
@@ -89,6 +93,13 @@ const worker = (options: {
     now: () => 1_700_000_000_000,
     createRecordId: options.createRecordId,
     rolloutGate: options.rolloutGate ?? allowMutationGate,
+    resolveOwnedPdfBookId: options.resolveOwnedPdfBookId,
+    bindingRepositoryFactory: options.bindingRepositoryFactory
+      ? () => options.bindingRepositoryFactory!()
+      : undefined,
+    readAssemblyActivityKeys: options.assemblyActivityKeys === undefined
+      ? undefined
+      : async () => options.assemblyActivityKeys,
   });
   const scopedInput = <T extends { env: Record<string, unknown> }>(input: T): T => ({
     ...input,
@@ -222,6 +233,173 @@ describe('Book Activity authoring Worker boundary', () => {
     const saved = await handlers.saveDraft({ request: request({ operationId: operation('003'), candidateId, expectedRevision: 2, evidenceRefs: ['save:1'] }), env: {}, uid: 'teacher-1' });
     expect(saved.body).toMatchObject({ status: 'saved', revision: 1, lifecycle: 'saved', validation: { valid: true } });
     expect((await handlers.loadCandidate({ env: {}, uid: 'teacher-1', candidateId })).body).toMatchObject({ candidate: { evidenceRefs: ['save:1'] } });
+  });
+
+  it('CAS-binds a saved Activity, durably completes its receipt, and replays without another Activity or bind', async () => {
+    const bindCandidate = vi.fn(async () => 'created' as const);
+    const current = worker({
+      assemblyActivityKeys: ['slot-1'],
+      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }),
+    });
+    const staged = await current.handlers.stage({
+      request: request({ operationId: operation('081'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1',
+    });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    const validated = await current.handlers.validate({
+      request: request({ operationId: operation('082'), candidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1',
+    });
+    const saved = await current.handlers.saveDraft({
+      request: request({ operationId: operation('083'), candidateId, expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1',
+    });
+    expect(saved).toMatchObject({ init: { status: 200 }, body: { status: 'saved', lifecycle: 'saved' } });
+    expect(bindCandidate).toHaveBeenCalledWith(expect.objectContaining({
+      ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1', candidateId,
+      candidateRevision: 3, candidateLifecycle: 'saved',
+    }));
+    expect(bindCandidate.mock.calls[0]?.[0]).not.toHaveProperty('phase');
+    expect((current.state['teacher-1'].operations![operation('083')] as Record<string, unknown>).result).toMatchObject({
+      status: 'saved', activityId: expect.any(String), candidateId,
+      binding: { phase: 'complete', ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1' },
+    });
+    const replay = await current.handlers.saveDraft({
+      request: request({ operationId: operation('083'), candidateId, expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1',
+    });
+    expect(replay).toMatchObject({ init: { status: 200 }, body: { status: 'saved', replayed: true, binding: { phase: 'complete' } } });
+    expect(bindCandidate).toHaveBeenCalledTimes(1);
+    expect(Object.keys(current.state['teacher-1'].activities ?? {})).toHaveLength(1);
+    expect(Object.keys(current.state['teacher-1'].candidates ?? {})).toHaveLength(1);
+  });
+
+  it('keeps saved identities in a retryable receipt when binding transport fails, then repairs on the same operation', async () => {
+    const bindCandidate = vi.fn(async () => { throw new Error('binding transport unavailable'); });
+    const current = worker({
+      assemblyActivityKeys: ['slot-1'],
+      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }),
+    });
+    const staged = await current.handlers.stage({ request: request({ operationId: operation('084'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1' });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({ request: request({ operationId: operation('085'), candidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1' });
+    const incomplete = await current.handlers.saveDraft({
+      request: request({ operationId: operation('086'), candidateId, expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1',
+    });
+    expect(incomplete).toMatchObject({
+      init: { status: 202 },
+      body: { status: 'binding-incomplete', retryable: true, candidateId, binding: { phase: 'binding-pending' } },
+    });
+    expect((current.state['teacher-1'].operations![operation('086')] as Record<string, unknown>).result).toMatchObject({
+      status: 'saved', candidateId, binding: { phase: 'binding-pending', candidateRevision: 3, candidateLifecycle: 'saved' },
+    });
+    expect(Object.keys(current.state['teacher-1'].activities ?? {})).toHaveLength(1);
+    expect(Object.keys(current.state['teacher-1'].candidates ?? {})).toHaveLength(1);
+
+    bindCandidate.mockResolvedValueOnce('created');
+    const repaired = await current.handlers.saveDraft({
+      request: request({ operationId: operation('086'), candidateId, expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1',
+    });
+    expect(repaired).toMatchObject({ init: { status: 200 }, body: { status: 'saved', replayed: true, binding: { phase: 'complete' } } });
+    expect((current.state['teacher-1'].operations![operation('086')] as Record<string, unknown>).result).toMatchObject({
+      status: 'saved', candidateId, binding: { phase: 'complete', candidateRevision: 3 },
+    });
+    expect(bindCandidate).toHaveBeenCalledTimes(2);
+    expect(Object.keys(current.state['teacher-1'].activities ?? {})).toHaveLength(1);
+    expect(Object.keys(current.state['teacher-1'].candidates ?? {})).toHaveLength(1);
+  });
+
+  it('upgrades an exact historical saved receipt before same-operation binding repair', async () => {
+    const bindCandidate = vi.fn(async () => { throw new Error('binding transport unavailable'); });
+    const current = worker({
+      assemblyActivityKeys: ['slot-1'],
+      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }),
+    });
+    const staged = await current.handlers.stage({
+      request: request({ operationId: operation('091'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1',
+    });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({
+      request: request({ operationId: operation('092'), candidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1',
+    });
+    await current.handlers.saveDraft({
+      request: request({ operationId: operation('093'), candidateId, expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1',
+    });
+    const operationRecord = current.state['teacher-1'].operations![operation('093')] as Record<string, unknown>;
+    delete (operationRecord.result as Record<string, unknown>).binding;
+    bindCandidate.mockResolvedValueOnce('created');
+
+    const repaired = await current.handlers.saveDraft({
+      request: request({ operationId: operation('093'), candidateId, expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1',
+    });
+
+    expect(repaired).toMatchObject({
+      init: { status: 200 },
+      body: { status: 'saved', replayed: true, binding: { phase: 'complete', candidateId } },
+    });
+    expect((current.state['teacher-1'].operations![operation('093')] as Record<string, unknown>).result).toMatchObject({
+      status: 'saved', binding: { phase: 'complete', candidateId },
+    });
+    expect(bindCandidate).toHaveBeenCalledTimes(2);
+    expect(Object.keys(current.state['teacher-1'].activities ?? {})).toHaveLength(1);
+    expect(Object.keys(current.state['teacher-1'].candidates ?? {})).toHaveLength(1);
+  });
+
+  it('denies stale/cross-scope or existing-conflict binding before another Activity is committed', async () => {
+    const bindCandidate = vi.fn(async () => 'created' as const);
+    const existing = {
+      schemaVersion: 1 as const, ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1',
+      activityId: 'activity-already-bound', candidateId: 'candidate-already-bound', candidateRevision: 1,
+      candidateLifecycle: 'saved' as const,
+    };
+    const current = worker({
+      assemblyActivityKeys: ['slot-1'],
+      bindingRepositoryFactory: () => ({ read: vi.fn(async () => existing), bindCandidate, recordPublication: vi.fn() }),
+    });
+    const staged = await current.handlers.stage({ request: request({ operationId: operation('087'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1' });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({ request: request({ operationId: operation('088'), candidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1' });
+    const conflict = await current.handlers.saveDraft({
+      request: request({ operationId: operation('089'), candidateId, expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1',
+    });
+    expect(conflict).toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_conflict' } });
+    expect(bindCandidate).not.toHaveBeenCalled();
+    expect(current.state['teacher-1'].activities ?? {}).toEqual({});
+    expect((current.state['teacher-1'].candidates![candidateId] as Record<string, unknown>)).toMatchObject({ lifecycle: 'validated', revision: 2 });
+    expect(current.state['teacher-1'].operations?.[operation('089')]).toBeUndefined();
+
+    const staleScope = worker({ assemblyActivityKeys: ['different-slot'], bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }) });
+    const stagedScope = await staleScope.handlers.stage({ request: request({ operationId: operation('090'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1' });
+    const scopeCandidateId = String((stagedScope.body as Record<string, unknown>).candidateId);
+    await staleScope.handlers.validate({ request: request({ operationId: operation('091'), candidateId: scopeCandidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1' });
+    await expect(staleScope.handlers.saveDraft({ request: request({ operationId: operation('092'), candidateId: scopeCandidateId, expectedRevision: 2,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1' }))
+      .resolves.toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_scope_invalid' } });
+    expect(staleScope.state['teacher-1'].activities ?? {}).toEqual({});
+  });
+
+  it('returns a durable partial conflict if a binding race is first knowable after the Activity commit', async () => {
+    const bindCandidate = vi.fn(async () => 'conflict' as const);
+    const current = worker({
+      assemblyActivityKeys: ['slot-1'],
+      bindingRepositoryFactory: () => ({ read: vi.fn(async () => null), bindCandidate, recordPublication: vi.fn() }),
+    });
+    const staged = await current.handlers.stage({ request: request({ operationId: operation('093'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1' });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({ request: request({ operationId: operation('094'), candidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1' });
+    const partial = await current.handlers.saveDraft({ request: request({ operationId: operation('095'), candidateId, expectedRevision: 2,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1' });
+    expect(partial).toMatchObject({ init: { status: 409 }, body: { status: 'binding-conflict', candidateId, binding: { phase: 'binding-conflict' } } });
+    expect((current.state['teacher-1'].operations![operation('095')] as Record<string, unknown>).result).toMatchObject({
+      status: 'binding-conflict', candidateId, binding: { phase: 'binding-conflict' },
+    });
+    const replay = await current.handlers.saveDraft({ request: request({ operationId: operation('095'), candidateId, expectedRevision: 2,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1' });
+    expect(replay).toMatchObject({ init: { status: 409 }, body: { status: 'binding-conflict', replayed: true } });
+    expect(bindCandidate).toHaveBeenCalledTimes(1);
   });
 
   it('round-trips source and answer evidence separately without exposing it to students', async () => {
@@ -477,6 +655,53 @@ describe('Book Activity authoring Worker boundary', () => {
     expect((crashing.state['teacher-1'].activities as Record<string, unknown> | undefined) ?? {}).toEqual({});
   });
 
+  it('uses the injected Book authority port for initial resolution and every CAS attempt', async () => {
+    const resolveOwnedPdfBookId = vi.fn(async ({ claimedBookId }: { claimedBookId: string }) => claimedBookId);
+    const current = worker({
+      bookMetadata: null,
+      resolveOwnedPdfBookId,
+    });
+    const response = await current.handlers.stage({
+      request: request({ operationId: operation('066'), expectedRevision: 0, content: activity }),
+      env: {}, uid: 'teacher-1',
+    });
+    expect(response).toMatchObject({ init: { status: 200 }, body: { status: 'staged' } });
+    expect(resolveOwnedPdfBookId).toHaveBeenCalledTimes(2);
+    expect(resolveOwnedPdfBookId).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      ownerId: 'teacher-1', claimedBookId: 'book-1',
+    }));
+    expect(resolveOwnedPdfBookId).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      ownerId: 'teacher-1', claimedBookId: 'book-1',
+    }));
+  });
+
+  it.each([
+    ['unavailable authority', async () => undefined],
+    ['mismatched authority', async () => 'book-2'],
+  ])('fails closed before mutation for %s from the injected Book authority port', async (_label, resolveOwnedPdfBookId) => {
+    const current = worker({ resolveOwnedPdfBookId });
+    const response = await current.handlers.stage({
+      request: request({ operationId: operation('067'), expectedRevision: 0, content: activity }),
+      env: {}, uid: 'teacher-1',
+    });
+    expect(response).toMatchObject({ init: { status: 503 }, body: { code: 'book_pilot_scope_denied' } });
+    expect(current.state).toEqual({});
+  });
+
+  it('fails closed when the injected Book authority is revoked before the CAS write', async () => {
+    const resolveOwnedPdfBookId = vi.fn()
+      .mockResolvedValueOnce('book-1')
+      .mockResolvedValueOnce(undefined);
+    const current = worker({ resolveOwnedPdfBookId });
+    const response = await current.handlers.stage({
+      request: request({ operationId: operation('068'), expectedRevision: 0, content: activity }),
+      env: {}, uid: 'teacher-1',
+    });
+    expect(response).toMatchObject({ init: { status: 503 }, body: { code: 'book_pilot_scope_denied' } });
+    expect(resolveOwnedPdfBookId).toHaveBeenCalledTimes(2);
+    expect(current.state).toEqual({});
+  });
+
   it('uses owner-scoped ETag path and rejects mismatched dedicated credential identity', async () => {
     const calls: string[] = [];
     const repository = new FirebaseRestBookActivityAuthoringRepository({
@@ -499,17 +724,21 @@ describe('Book Activity authoring Worker boundary', () => {
     })).toThrow('book_activity_authoring_service_identity_mismatch');
   });
 
-  it('rejects reads outside user-auth and owner-scoped authoring paths', async () => {
+  it('rejects direct Material Book reads without using the authoring token exchange', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response('{}'));
     const repository = new FirebaseRestBookActivityAuthoringRepository({
       env: {
         FIREBASE_DB_URL: 'https://db.test',
         BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY: 'authoring@test.example',
       },
       getAccessToken: async () => 'test-token',
-      fetchImpl: async () => new Response('{}'),
+      fetchImpl,
     });
     await expect(repository.readValue('users/teacher-1')).resolves.toEqual({});
-    await expect(repository.readValue('material_catalog/books/book-1')).resolves.toEqual({});
+    const callsBeforeMaterialRead = fetchImpl.mock.calls.length;
+    await expect(repository.readValue('material_catalog/books/book-1'))
+      .rejects.toThrow('book_activity_authoring_path_forbidden');
+    expect(fetchImpl).toHaveBeenCalledTimes(callsBeforeMaterialRead);
     await expect(repository.readValue('book_activity_authoring/owners/teacher-1'))
       .resolves.toEqual({});
   });

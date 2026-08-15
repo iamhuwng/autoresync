@@ -27,6 +27,24 @@ describe('#102 Course Book authority rules fragment', () => {
     ]) expect(expression).toContain(required);
   });
 
+  it('uses an inverse service-token gate and scalar transition checks instead of aggregate equality', () => {
+    const expression = coupling?.expression ?? '';
+    expect(expression).toContain("!(auth != null && auth.token.courseBookAuthority102 === true)");
+    for (const aggregate of [
+      "course_enrollments').val() === data.child('course_enrollments').val()",
+      "child('enrollments').val() === data.child('course_book_authority').child('enrollments').val()",
+      "child('releases').val() === data.child('course_book_authority').child('releases').val()",
+      "child('operations').val() === data.child('course_book_authority').child('operations').val()",
+    ]) expect(expression).not.toContain(aggregate);
+    for (const scalar of [
+      "data.child('course_book_authority').child('operations').child(auth.token.operationId).val() === null",
+      "auth.token.expectedLegacyRevision",
+      "auth.token.expectedAuthorityRevision",
+      "auth.token.expectedReleaseRevision",
+      "child('released').val() === true ||",
+    ]) expect(expression).toContain(scalar);
+  });
+
   it('keeps leaf grants scoped to both operation types', () => {
     const leafWrites = operations.filter((operation) => operation.rule === '.write');
     expect(leafWrites.map((operation) => operation.path)).toEqual([

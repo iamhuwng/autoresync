@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "118B",
+  "owner": {
+    "ticketId": "118B",
+    "issue": 118,
+    "serviceIdentity": "book_assembly_service",
+    "leastPrivilegePaths": ["book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey"],
+    "generatedRuleLocations": [
+      "book_source_upload_accounts/$accountId/.read",
+      "book_source_upload_accounts/$accountId/.write",
+      "book_source_upload_accounts/$accountId/assemblyBooks/.read",
+      "book_source_upload_accounts/$accountId/assemblyBooks/.write",
+      "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/.read",
+      "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/.write",
+      "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey/.read",
+      "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey/.write",
+      "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey/.validate",
+      "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey/$other/.validate"
+    ]
+  },
+  "operations": [
+    { "path": "book_source_upload_accounts/$accountId", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_source_upload_accounts/$accountId", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_source_upload_accounts/$accountId/assemblyBooks", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_source_upload_accounts/$accountId/assemblyBooks", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_source_upload_accounts/$accountId/assemblyBooks/$bookId", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_source_upload_accounts/$accountId/assemblyBooks/$bookId", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
+    { "path": "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "auth != null && auth.token.book_assembly_service == true && auth.token.book_assembly_bookId == $bookId && auth.token.book_assembly_ownerId == data.child('ownerId').val() && data.child('bookId').val() == $bookId && data.child('sourceKey').val() == $sourceKey && data.child('verifiedUsable').val() == true" },
+    { "path": "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "auth != null && auth.token.book_assembly_service == true && auth.token.book_assembly_bookId == $bookId && auth.token.book_assembly_ownerId == newData.child('ownerId').val() && !data.exists() && newData.exists() && newData.child('ownerId').isString() && newData.child('bookId').val() == $bookId && newData.child('sourceKey').val() == $sourceKey && newData.child('sourceVersionId').isString() && newData.child('physicalPageCount').isNumber() && newData.child('physicalPageCount').val() >= 1 && newData.child('verifiedUsable').val() == true" },
+    { "path": "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey", "rule": ".validate", "merge": "conjoin-existing-validation", "requiresExistingRule": false, "expression": "!newData.exists() || (newData.hasChildren(['ownerId', 'bookId', 'sourceKey', 'sourceVersionId', 'physicalPageCount', 'verifiedUsable']) && newData.child('ownerId').isString() && newData.child('bookId').val() == $bookId && newData.child('sourceKey').val() == $sourceKey && newData.child('sourceVersionId').isString() && newData.child('physicalPageCount').isNumber() && newData.child('physicalPageCount').val() >= 1 && newData.child('verifiedUsable').val() == true)" },
+    { "path": "book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey/$other", "rule": ".validate", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "$other == 'ownerId' || $other == 'bookId' || $other == 'sourceKey' || $other == 'sourceVersionId' || $other == 'physicalPageCount' || $other == 'verifiedUsable'" }
+  ]
+}

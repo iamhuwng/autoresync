@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   BOOK_HOMEWORK_ASSIGNMENT_KIND,
   BOOK_HOMEWORK_MANIFEST_SCHEMA_VERSION,
@@ -15,12 +15,18 @@ import {
   InMemoryBookHomeworkSagaRepository,
   FirebaseRestBookHomeworkSagaRepository,
   assertValidBookHomeworkSagaRecord,
+  type BookHomeworkSagaRepository,
 } from '../src/upload-worker/book-homework/sagaRepository';
 import {
   BookHomeworkAuthorityRepository,
   InMemoryBookHomeworkDocumentStore,
 } from '../src/upload-worker/book-homework/repository';
+import {
+  BookHomeworkCompatibilityRepository,
+  InMemoryBookHomeworkCompatibilityDocumentStore,
+} from '../src/upload-worker/book-homework/compatibility-repository';
 import { InMemoryBookDeliveryRepository } from '../../src/services/book-delivery/bookDelivery.entitlementRepository';
+import type { BookDeliveryResolvedEntitlement } from '../../src/services/book-delivery/bookDelivery.entitlement';
 import type { BookDeliveryPublishedPublicationReference } from '../../src/services/book-delivery/bookDelivery.publication';
 import type { BookHomeworkSagaCanonicalState, BookHomeworkSagaCommand } from '../../src/services/book-homework/bookHomeworkSaga.types';
 import fragment from '../src/upload-worker/book-rules/fragments/33C.json';
@@ -186,6 +192,7 @@ const command = (overrides: Partial<BookHomeworkSagaCommand> = {}): BookHomework
         }],
       },
       expectedPublication: { publicationId: 'publication-1', publicationRevision: 4, manifestVersionId: 'manifest-1' },
+      presentation: { title: 'Book Homework', description: 'Complete the assigned Book activities.' },
     },
     selectedRecipientIds: ['student-1', 'student-2'],
     createdAt,
@@ -197,6 +204,7 @@ const makeSaga = (
   canonicalState = canonical(),
   hooks?: BookHomeworkSagaDependencies['hooks'],
   resolveCanonical?: BookHomeworkSagaDependencies['resolveCanonical'],
+  compatibilityRepository?: BookHomeworkSagaDependencies['compatibilityRepository'],
 ) => {
   const sagaRepository = new InMemoryBookHomeworkSagaRepository();
   const authority = new BookHomeworkAuthorityRepository(new InMemoryBookHomeworkDocumentStore(), {
@@ -215,11 +223,57 @@ const makeSaga = (
     sagaRepository,
     authorityRepository: authority,
     deliveryRepository: delivery,
+    compatibilityRepository,
     resolveCanonical: resolveCanonical ?? (async () => canonicalState),
     hooks,
   };
   return { saga: new BookHomeworkAssignmentSaga(dependencies), authority, delivery, repository: dependencies.sagaRepository };
 };
+
+class OwnerScopedSagaRepository implements BookHomeworkSagaRepository {
+  constructor(
+    private readonly delegate: BookHomeworkSagaRepository,
+    private readonly events: string[],
+  ) {}
+
+  async read(assignmentId: string, ownerId?: string) {
+    this.events.push(`saga:${ownerId ?? 'missing'}`);
+    if (!ownerId) throw new Error('owner-required');
+    return this.delegate.read(assignmentId, ownerId);
+  }
+
+  create(record: Parameters<BookHomeworkSagaRepository['create']>[0]) {
+    return this.delegate.create(record);
+  }
+
+  compareAndSet(
+    record: Parameters<BookHomeworkSagaRepository['compareAndSet']>[0],
+    expectedRevision: Parameters<BookHomeworkSagaRepository['compareAndSet']>[1],
+  ) {
+    return this.delegate.compareAndSet(record, expectedRevision);
+  }
+}
+
+class OrderedDeliveryRepository extends InMemoryBookDeliveryRepository {
+  constructor(private readonly events: string[]) {
+    super();
+  }
+
+  override async resolveCurrent(recipientId: string, contextId: string) {
+    this.events.push('delivery');
+    return super.resolveCurrent(recipientId, contextId);
+  }
+}
+
+class FixedDeliveryRepository extends InMemoryBookDeliveryRepository {
+  constructor(private readonly entitlement: BookDeliveryResolvedEntitlement | null) {
+    super();
+  }
+
+  override async resolveCurrent(_recipientId: string, _contextId: string) {
+    return this.entitlement;
+  }
+}
 
 const makeFirebase = () => {
   const values = new Map<string, unknown>();
@@ -267,7 +321,11 @@ describe('Book Homework assignment saga', () => {
     expect(teacherRows?.map((row) => row.studentId)).toEqual(['student-1', 'student-2']);
     await expect(saga.resolveTeacherProjections('assignment-1', 'other-teacher')).resolves.toBeNull();
     const firstAuthorityId = result.record.recipients[0]?.authorityId;
-    expect((await authority.read(firstAuthorityId as string))?.activityPolicies).toEqual({
+    expect((await authority.read({
+      authorityId: firstAuthorityId as string,
+      assignmentId: 'assignment-1',
+      ownerId: 'teacher-1',
+    }))?.activityPolicies).toEqual({
       'placement-1': {
         schemaVersion: 1,
         policyId: 'policy-1',
@@ -281,6 +339,126 @@ describe('Book Homework assignment saga', () => {
       },
     });
     expect((await repository.read('assignment-1'))?.recipients.every((entry) => entry.state === 'committed')).toBe(true);
+  });
+
+  it('resolves the student projection from the Delivery owner before exposing authorities', async () => {
+    const events: string[] = [];
+    const baseRepository = new InMemoryBookHomeworkSagaRepository();
+    const sagaRepository = new OwnerScopedSagaRepository(baseRepository, events);
+    const authority = new BookHomeworkAuthorityRepository(new InMemoryBookHomeworkDocumentStore(), {
+      resolveAffectedStudentStates: async () => ['not-started'],
+      resolveCommittedRoot: async (record) => {
+        const root = await baseRepository.read(record.saga.sagaId);
+        return root?.state === 'committed'
+          && root.visibility === 'committed'
+          && root.recipients.some((entry) => entry.authorityId === record.assignmentId
+            && entry.recipientId === record.bookManifest.context.recipientId
+            && entry.state === 'committed');
+      },
+    });
+    const delivery = new OrderedDeliveryRepository(events);
+    const saga = new BookHomeworkAssignmentSaga({
+      sagaRepository,
+      authorityRepository: authority,
+      deliveryRepository: delivery,
+      resolveCanonical: async () => canonical(),
+    });
+    const committed = await saga.execute(command());
+    expect(committed.status).toBe('committed');
+
+    events.length = 0;
+    const validDelivery = await delivery.resolveCurrent('student-1', 'assignment-1');
+    expect(validDelivery).not.toBeNull();
+    events.length = 0;
+    const originalAuthorityRead = authority.read.bind(authority);
+    const authorityRead = vi.spyOn(authority, 'read').mockImplementation(async (scope) => {
+      events.push('authority');
+      return originalAuthorityRead(scope);
+    });
+    const studentProjectionRead = vi.spyOn(authority, 'readStudentProjection');
+    await expect(saga.resolveStudentProjection('assignment-1', 'student-1')).resolves.not.toBeNull();
+    expect(events).toEqual(['delivery', 'saga:teacher-1', 'authority', 'authority']);
+    expect(authorityRead).toHaveBeenCalledWith({
+      authorityId: 'assignment-1--student-1--authority',
+      assignmentId: 'assignment-1',
+      ownerId: 'teacher-1',
+    });
+
+    if (!validDelivery) throw new Error('expected active Delivery');
+    const binding = validDelivery.record.binding;
+    const malformed = [
+      {
+        label: 'wrong issuer owner',
+        entitlement: {
+          ...validDelivery,
+          record: { ...validDelivery.record, binding: { ...binding, issuer: { ...binding.issuer, ownerId: 'other-owner' } } },
+        },
+      },
+      {
+        label: 'missing issuer owner',
+        entitlement: {
+          ...validDelivery,
+          record: { ...validDelivery.record, binding: { ...binding, issuer: { ...binding.issuer, ownerId: '' } } },
+        },
+      },
+      {
+        label: 'wrong context owner',
+        entitlement: {
+          ...validDelivery,
+          record: { ...validDelivery.record, binding: { ...binding, context: { ...binding.context, ownerId: 'other-owner' } } },
+        },
+      },
+      {
+        label: 'missing context owner',
+        entitlement: {
+          ...validDelivery,
+          record: { ...validDelivery.record, binding: { ...binding, context: { ...binding.context, ownerId: '' } } },
+        },
+      },
+      {
+        label: 'wrong context',
+        entitlement: {
+          ...validDelivery,
+          record: { ...validDelivery.record, binding: { ...binding, context: { ...binding.context, contextId: 'other-assignment' } } },
+        },
+      },
+      {
+        label: 'wrong recipient',
+        entitlement: {
+          ...validDelivery,
+          record: { ...validDelivery.record, binding: { ...binding, recipient: { ...binding.recipient, recipientId: 'other-student' } } },
+        },
+      },
+    ] satisfies readonly { label: string; entitlement: BookDeliveryResolvedEntitlement }[];
+    for (const candidate of malformed) {
+      events.length = 0;
+      authorityRead.mockClear();
+      studentProjectionRead.mockClear();
+      const malformedSaga = new BookHomeworkAssignmentSaga({
+        sagaRepository,
+        authorityRepository: authority,
+        deliveryRepository: new FixedDeliveryRepository(candidate.entitlement),
+        resolveCanonical: async () => canonical(),
+      });
+      await expect(malformedSaga.resolveStudentProjection('assignment-1', 'student-1')).resolves.toBeNull();
+      expect(authorityRead, candidate.label).not.toHaveBeenCalled();
+      expect(studentProjectionRead, candidate.label).not.toHaveBeenCalled();
+      expect(events, candidate.label).toEqual([]);
+    }
+
+    const teacherProjectionSaga = new BookHomeworkAssignmentSaga({
+      sagaRepository,
+      authorityRepository: authority,
+      deliveryRepository: new FixedDeliveryRepository({
+        ...validDelivery,
+        record: {
+          ...validDelivery.record,
+          binding: { ...binding, issuer: { ...binding.issuer, ownerId: 'other-owner' } },
+        },
+      }),
+      resolveCanonical: async () => canonical(),
+    });
+    await expect(teacherProjectionSaga.resolveTeacherProjections('assignment-1', 'teacher-1')).resolves.toBeNull();
   });
 
   it('fails before fan-out when the frozen policy body is incomplete', async () => {
@@ -324,7 +502,11 @@ describe('Book Homework assignment saga', () => {
     const preparedRoot = await repository.read('assignment-1');
     const firstAuthorityId = preparedRoot?.recipients[0]?.authorityId;
     expect(firstAuthorityId).toBeDefined();
-    await expect(authority.readStudentProjection(firstAuthorityId as string, 'student-1')).resolves.toBeNull();
+    await expect(authority.readStudentProjection({
+      authorityId: firstAuthorityId as string,
+      assignmentId: 'assignment-1',
+      ownerId: 'teacher-1',
+    }, 'student-1')).resolves.toBeNull();
     crashing = false;
     const resumed = await saga.execute(command());
     expect(resumed.status).toBe('committed');
@@ -337,6 +519,112 @@ describe('Book Homework assignment saga', () => {
     expect(results[0].status).toBe('committed');
     expect(results[1].status).toBe('committed');
     expect((await repository.read('assignment-1'))?.recipients).toHaveLength(2);
+  });
+
+  it('commits the root before projection, reports pending, and repairs terminal replay without canonical reads', async () => {
+    const projectionRepository = new BookHomeworkCompatibilityRepository(
+      new InMemoryBookHomeworkCompatibilityDocumentStore(),
+    );
+    let failProjection = true;
+    let canonicalReads = 0;
+    const compatibilityRepository: NonNullable<BookHomeworkSagaDependencies['compatibilityRepository']> = {
+      ensureCommittedProjection: async (input) => {
+        if (failProjection) throw new Error('projection-unavailable');
+        return projectionRepository.ensureCommittedProjection(input);
+      },
+      read: (assignmentId, ownerId) => projectionRepository.read(assignmentId, ownerId),
+    };
+    const { saga, repository } = makeSaga(
+      canonical(),
+      undefined,
+      async () => {
+        canonicalReads += 1;
+        return canonical();
+      },
+      compatibilityRepository,
+    );
+
+    const pending = await saga.execute(command());
+    expect(pending.status).toBe('committed_projection_pending');
+    expect(pending.projectionDiagnostic).toEqual({
+      stage: 'unknown',
+      errorClass: 'unknown-projection-failure',
+    });
+    expect(pending.record.state).toBe('committed');
+    expect(pending.record.visibility).toBe('committed');
+    expect((await repository.read('assignment-1'))?.state).toBe('committed');
+    await expect(projectionRepository.read('assignment-1', 'teacher-1')).resolves.toBeNull();
+
+    failProjection = false;
+    const replay = await saga.execute(command());
+    expect(replay.status).toBe('committed');
+    expect(canonicalReads).toBe(2);
+    await expect(projectionRepository.read('assignment-1', 'teacher-1')).resolves.toMatchObject({
+      assignmentKind: 'book_homework_compatibility',
+      title: 'Book Homework',
+      description: 'Complete the assigned Book activities.',
+      bookHomeworkCompatibility: {
+        assignmentId: 'assignment-1',
+        sourceSagaRevision: pending.record.revision,
+        sourceFingerprint: pending.record.fingerprint,
+      },
+    });
+  });
+
+  it('bounds the root fingerprint for oversized canonical input and detects drift while preserving replay', async () => {
+    const oversized = {
+      ...canonical(),
+      studentExtensions: {
+        'student-1': Array.from({ length: 200 }, () => ({
+          nodeKey: 'unit-1',
+          dueAt: '2026-08-21T00:00:00.000Z',
+        })),
+        'student-2': Array.from({ length: 200 }, () => ({
+          nodeKey: 'unit-1',
+          dueAt: '2026-08-21T00:00:00.000Z',
+        })),
+      },
+    };
+    let current = oversized;
+    let crash = true;
+    const { saga, repository } = makeSaga(current, {
+      beforeStep: (step) => {
+        if (crash && step === 'delivery-prepare') throw new BookHomeworkSagaCrash(step);
+      },
+    }, async () => current);
+
+    await expect(saga.execute(command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
+    const prepared = await repository.read('assignment-1');
+    expect(prepared?.fingerprint).toMatch(/^fnv1a64:[0-9a-f]{16}$/u);
+    expect(prepared?.fingerprint.length).toBeLessThanOrEqual(8192);
+    expect(prepared?.requestFingerprint.length).toBeGreaterThan(0);
+
+    current = {
+      ...oversized,
+      studentExtensions: {
+        ...oversized.studentExtensions,
+        'student-2': [
+          ...oversized.studentExtensions['student-2'].slice(0, -1),
+          { nodeKey: 'unit-1', dueAt: '2026-08-22T00:00:00.000Z' },
+        ],
+      },
+    };
+    const driftHarness = makeSaga(current, {
+      beforeStep: (step) => {
+        if (step === 'delivery-prepare') throw new BookHomeworkSagaCrash(step);
+      },
+    }, async () => current);
+    await expect(driftHarness.saga.execute(command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
+    expect((await driftHarness.repository.read('assignment-1'))?.fingerprint)
+      .not.toBe(prepared?.fingerprint);
+
+    crash = false;
+    await expect(saga.execute(command())).rejects.toMatchObject({ code: 'idempotency-conflict' });
+
+    current = oversized;
+    await expect(saga.execute(command())).resolves.toMatchObject({ status: 'committed' });
+    await expect(saga.execute(command())).resolves.toMatchObject({ status: 'committed' });
+    expect((await repository.read('assignment-1'))?.fingerprint).toBe(prepared?.fingerprint);
   });
 
   it('revalidates canonical state before the root commit and replays terminal state after drift', async () => {
@@ -382,7 +670,7 @@ describe('Book Homework assignment saga', () => {
     const failed = await blocked.saga.execute(command({
       assignmentId: 'assignment-2',
     }));
-    expect(failed.status).toBe('failed_terminal');
+    expect(failed.status).toBe('compensated');
     expect(failed.record.visibility).toBe('hidden');
   });
 
@@ -413,6 +701,7 @@ describe('Book Homework assignment saga', () => {
       publicationId: 'publication-1',
       publicationRevision: 4,
       contextId: 'assignment-firebase',
+      presentation: { title: 'Book Homework' },
       fingerprint: 'fingerprint-firebase',
       requestFingerprint: 'request-fingerprint-firebase',
       state: 'prepared' as const,
@@ -459,18 +748,19 @@ describe('Book Homework assignment saga', () => {
     expect(await repository.read('assignment-1')).toBeNull();
   });
 
-  it('compensates invisible prepared state and retains any already-committed child', async () => {
+  it('compensates invisible prepared state including any already-committed child', async () => {
     const { saga, repository, delivery } = makeSaga(undefined, {
       beforeStep: (step, recipientId) => {
         if (step === 'delivery-activate' && recipientId === 'student-2') throw new Error('simulated delivery failure');
       },
     });
     const result = await saga.execute(command());
-    expect(result.status).toBe('failed_terminal');
+    expect(result.status).toBe('compensated');
     expect(result.record.visibility).toBe('hidden');
-    expect(result.record.recipients.map((entry) => entry.state)).toEqual(['retained', 'compensated']);
+    expect(result.record.recipients.map((entry) => entry.state)).toEqual(['compensated', 'compensated']);
     await expect(saga.resolveStudentProjection('assignment-1', 'student-1')).resolves.toBeNull();
-    expect((await repository.read('assignment-1'))?.state).toBe('failed_terminal');
+    expect((await repository.read('assignment-1'))?.state).toBe('compensated');
+    expect((await delivery.readBinding('assignment-1--student-1--delivery'))?.status).toBe('revoked');
     expect((await delivery.readBinding('assignment-1--student-2--delivery'))?.status).toBe('draft');
     expect(result.record.recipients[1].tombstonedAt).toBe(createdAt);
   });
@@ -488,6 +778,7 @@ describe('Book Homework assignment saga', () => {
       publicationId: 'publication-1',
       publicationRevision: 1,
       contextId: 'assignment-1',
+      presentation: { title: 'Book Homework' },
       fingerprint: 'fingerprint',
       requestFingerprint: 'request-fingerprint',
       state: 'committed',
@@ -530,6 +821,7 @@ describe('Book Homework assignment saga', () => {
       publicationId: 'publication-1',
       publicationRevision: 1,
       contextId: 'assignment-1',
+      presentation: { title: 'Book Homework' },
       fingerprint: 'fingerprint',
       requestFingerprint: 'request-fingerprint',
       state: 'prepared',

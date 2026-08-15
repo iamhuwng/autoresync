@@ -1,0 +1,953 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-14T14:06:56.360Z",
+  "source": "production-read-only-rollback-state",
+  "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+  "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+  "authorityId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority",
+  "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+  "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+  "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+  "compatibilityShell": "absent",
+  "root": {
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "committedRecipientCount": 1,
+    "contextId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "createdAt": "2026-08-14T12:06:44.227Z",
+    "fingerprint": "fnv1a64:cc3d88a5107df2b5",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "presentation": {
+      "title": "Vocabulary U1"
+    },
+    "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+    "publicationRevision": 1,
+    "recipientCount": 1,
+    "recipients": {
+      "x3hDfjYVN7cJtSbwq0ChIjl1Bk62": {
+        "authorityId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority",
+        "authorityRevision": 2,
+        "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+        "bindingRevision": 1,
+        "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+        "state": "committed"
+      }
+    },
+    "requestFingerprint": "{\"assignmentId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"idempotencyKey\":\"e6450e16-df33-4353-b652-eaa2c43b35a5\",\"intent\":{\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"expectedPublication\":{\"manifestVersionId\":\"manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5\",\"publicationId\":\"publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862\",\"publicationRevision\":1},\"policy\":{\"activityPolicies\":[{\"feedbackRelease\":\"immediate\",\"lateSubmissionAllowed\":false,\"maxAttempts\":2,\"placementId\":\"placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04\"}],\"integrityCapture\":false,\"integrityOverride\":false,\"intent\":\"practice\"},\"presentation\":{\"title\":\"Vocabulary U1\"},\"schedule\":{\"finalDueAt\":\"2026-08-21T00:00:00.000Z\",\"nodeOverrides\":[]},\"target\":{\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"classId\":\"2NE3KY\",\"kind\":\"unit\",\"nodeKey\":\"unit-vocab-u1\"}},\"manifestVersionId\":\"manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5\",\"operationId\":\"7592acca-0766-4407-b6d9-ac8146048876\",\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"selectedRecipientIds\":[\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"]}",
+    "revision": 7,
+    "schemaVersion": 1,
+    "state": "committed",
+    "updatedAt": "2026-08-14T12:06:44.227Z",
+    "visibility": "committed"
+  },
+  "deliveryIndex": {
+    "contextId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62"
+  },
+  "deliveryScope": {
+    "current": {
+      "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+      "bindingRevision": 1,
+      "contextId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+      "contextKind": "homework",
+      "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "status": "active",
+      "updatedAt": "2026-08-14T12:06:44.227Z"
+    },
+    "operations": {
+      "7592acca-0766-4407-b6d9-ac8146048878": {
+        "fingerprint": "{\"action\":\"create\",\"binding\":{\"bindingId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery\",\"book\":{\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"bookMode\":\"pdf\",\"bookRevision\":2,\"manifestVersionId\":\"manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5\",\"publicationId\":\"publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862\",\"publicationRevision\":1,\"publicationStatus\":\"published\"},\"context\":{\"contextId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"entitlementBasis\":\"assignment\",\"kind\":\"homework\",\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"recipientId\":\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"},\"issuer\":{\"authorityBoundary\":\"book-owner\",\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\"},\"outline\":[{\"nodeKey\":\"unit-vocab-u1\",\"nodeType\":\"unit\",\"order\":1,\"parentNodeKey\":null}],\"placements\":[{\"activityId\":\"activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3\",\"activityVersion\":1,\"activityVersionId\":\"activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928\",\"contextMode\":\"required\",\"nodeKey\":\"unit-vocab-u1\",\"order\":1,\"pageGroupKeys\":[\"pages-1\"],\"placementId\":\"placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04\",\"sourcePageScopes\":[{\"pages\":[1],\"sourceKey\":\"full\"}]}],\"recipient\":{\"recipientId\":\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\",\"recipientKind\":\"student\"},\"revision\":1,\"schedulePolicy\":{\"basis\":\"immutable-reference\",\"policyId\":\"book-homework:assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"policyRevision\":1},\"schemaVersion\":3,\"scope\":{\"kind\":\"subtree\",\"nodeKeys\":[\"unit-vocab-u1\"],\"placementIds\":[]},\"sourceSet\":{\"sources\":[{\"lifecycle\":\"verified-usable\",\"localPageScope\":{\"kind\":\"all\",\"pages\":[]},\"sourceKey\":\"full\",\"sourceVersionId\":\"source-version-70f2ccf7d1a42d67\"}],\"strategy\":\"full_pdf\"},\"status\":\"draft\"},\"operationId\":\"7592acca-0766-4407-b6d9-ac8146048878\"}",
+        "result": {
+          "receipt": {
+            "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+            "bindingRevision": 1,
+            "createdAt": "2026-08-14T12:06:44.227Z",
+            "fingerprint": "{\"action\":\"create\",\"binding\":{\"bindingId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery\",\"book\":{\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"bookMode\":\"pdf\",\"bookRevision\":2,\"manifestVersionId\":\"manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5\",\"publicationId\":\"publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862\",\"publicationRevision\":1,\"publicationStatus\":\"published\"},\"context\":{\"contextId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"entitlementBasis\":\"assignment\",\"kind\":\"homework\",\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"recipientId\":\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"},\"issuer\":{\"authorityBoundary\":\"book-owner\",\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\"},\"outline\":[{\"nodeKey\":\"unit-vocab-u1\",\"nodeType\":\"unit\",\"order\":1,\"parentNodeKey\":null}],\"placements\":[{\"activityId\":\"activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3\",\"activityVersion\":1,\"activityVersionId\":\"activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928\",\"contextMode\":\"required\",\"nodeKey\":\"unit-vocab-u1\",\"order\":1,\"pageGroupKeys\":[\"pages-1\"],\"placementId\":\"placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04\",\"sourcePageScopes\":[{\"pages\":[1],\"sourceKey\":\"full\"}]}],\"recipient\":{\"recipientId\":\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\",\"recipientKind\":\"student\"},\"revision\":1,\"schedulePolicy\":{\"basis\":\"immutable-reference\",\"policyId\":\"book-homework:assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"policyRevision\":1},\"schemaVersion\":3,\"scope\":{\"kind\":\"subtree\",\"nodeKeys\":[\"unit-vocab-u1\"],\"placementIds\":[]},\"sourceSet\":{\"sources\":[{\"lifecycle\":\"verified-usable\",\"localPageScope\":{\"kind\":\"all\",\"pages\":[]},\"sourceKey\":\"full\",\"sourceVersionId\":\"source-version-70f2ccf7d1a42d67\"}],\"strategy\":\"full_pdf\"},\"status\":\"draft\"},\"operationId\":\"7592acca-0766-4407-b6d9-ac8146048878\"}",
+            "operationId": "7592acca-0766-4407-b6d9-ac8146048878",
+            "status": "created"
+          },
+          "record": {
+            "binding": {
+              "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+              "book": {
+                "bookId": "book-vocab-u1-d43935c735245dc8",
+                "bookMode": "pdf",
+                "bookRevision": 2,
+                "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+                "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+                "publicationRevision": 1,
+                "publicationStatus": "published"
+              },
+              "context": {
+                "contextId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+                "entitlementBasis": "assignment",
+                "kind": "homework",
+                "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+                "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62"
+              },
+              "createdAt": "2026-08-14T12:06:44.227Z",
+              "issuer": {
+                "authorityBoundary": "book-owner",
+                "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+              },
+              "outline": [
+                {
+                  "nodeKey": "unit-vocab-u1",
+                  "nodeType": "unit",
+                  "order": 1
+                }
+              ],
+              "placements": [
+                {
+                  "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+                  "activityVersion": 1,
+                  "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+                  "contextMode": "required",
+                  "nodeKey": "unit-vocab-u1",
+                  "order": 1,
+                  "pageGroupKeys": [
+                    "pages-1"
+                  ],
+                  "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+                  "sourcePageScopes": [
+                    {
+                      "pages": [
+                        1
+                      ],
+                      "sourceKey": "full"
+                    }
+                  ]
+                }
+              ],
+              "recipient": {
+                "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+                "recipientKind": "student"
+              },
+              "revision": 1,
+              "schedulePolicy": {
+                "basis": "immutable-reference",
+                "policyId": "book-homework:assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+                "policyRevision": 1
+              },
+              "schemaVersion": 3,
+              "scope": {
+                "kind": "subtree",
+                "nodeKeys": [
+                  "unit-vocab-u1"
+                ]
+              },
+              "sourceSet": {
+                "sources": [
+                  {
+                    "lifecycle": "verified-usable",
+                    "localPageScope": {
+                      "kind": "all"
+                    },
+                    "sourceKey": "full",
+                    "sourceVersionId": "source-version-70f2ccf7d1a42d67"
+                  }
+                ],
+                "strategy": "full_pdf"
+              },
+              "status": "draft"
+            },
+            "createdAt": "2026-08-14T12:06:44.227Z",
+            "recordRevision": 0,
+            "status": "draft",
+            "updatedAt": "2026-08-14T12:06:44.227Z"
+          },
+          "status": "created"
+        }
+      },
+      "7592acca-0766-4407-b6d9-ac8146048879": {
+        "fingerprint": "{\"action\":\"activate\",\"bindingId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery\",\"expectedRecordRevision\":0,\"operationId\":\"7592acca-0766-4407-b6d9-ac8146048879\"}",
+        "result": {
+          "pointer": {
+            "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+            "bindingRevision": 1,
+            "contextId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+            "contextKind": "homework",
+            "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+            "status": "active",
+            "updatedAt": "2026-08-14T12:06:44.227Z"
+          },
+          "receipt": {
+            "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+            "bindingRevision": 1,
+            "createdAt": "2026-08-14T12:06:44.227Z",
+            "fingerprint": "{\"action\":\"activate\",\"bindingId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery\",\"expectedRecordRevision\":0,\"operationId\":\"7592acca-0766-4407-b6d9-ac8146048879\"}",
+            "operationId": "7592acca-0766-4407-b6d9-ac8146048879",
+            "status": "activated"
+          },
+          "record": {
+            "binding": {
+              "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+              "book": {
+                "bookId": "book-vocab-u1-d43935c735245dc8",
+                "bookMode": "pdf",
+                "bookRevision": 2,
+                "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+                "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+                "publicationRevision": 1,
+                "publicationStatus": "published"
+              },
+              "context": {
+                "contextId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+                "entitlementBasis": "assignment",
+                "kind": "homework",
+                "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+                "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62"
+              },
+              "createdAt": "2026-08-14T12:06:44.227Z",
+              "issuer": {
+                "authorityBoundary": "book-owner",
+                "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+              },
+              "outline": [
+                {
+                  "nodeKey": "unit-vocab-u1",
+                  "nodeType": "unit",
+                  "order": 1
+                }
+              ],
+              "placements": [
+                {
+                  "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+                  "activityVersion": 1,
+                  "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+                  "contextMode": "required",
+                  "nodeKey": "unit-vocab-u1",
+                  "order": 1,
+                  "pageGroupKeys": [
+                    "pages-1"
+                  ],
+                  "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+                  "sourcePageScopes": [
+                    {
+                      "pages": [
+                        1
+                      ],
+                      "sourceKey": "full"
+                    }
+                  ]
+                }
+              ],
+              "recipient": {
+                "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+                "recipientKind": "student"
+              },
+              "revision": 1,
+              "schedulePolicy": {
+                "basis": "immutable-reference",
+                "policyId": "book-homework:assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+                "policyRevision": 1
+              },
+              "schemaVersion": 3,
+              "scope": {
+                "kind": "subtree",
+                "nodeKeys": [
+                  "unit-vocab-u1"
+                ]
+              },
+              "sourceSet": {
+                "sources": [
+                  {
+                    "lifecycle": "verified-usable",
+                    "localPageScope": {
+                      "kind": "all"
+                    },
+                    "sourceKey": "full",
+                    "sourceVersionId": "source-version-70f2ccf7d1a42d67"
+                  }
+                ],
+                "strategy": "full_pdf"
+              },
+              "status": "active"
+            },
+            "createdAt": "2026-08-14T12:06:44.227Z",
+            "recordRevision": 1,
+            "status": "active",
+            "updatedAt": "2026-08-14T12:06:44.227Z"
+          },
+          "status": "activated"
+        }
+      }
+    },
+    "records": {
+      "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery": {
+        "binding": {
+          "bindingId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--delivery",
+          "book": {
+            "bookId": "book-vocab-u1-d43935c735245dc8",
+            "bookMode": "pdf",
+            "bookRevision": 2,
+            "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+            "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+            "publicationRevision": 1,
+            "publicationStatus": "published"
+          },
+          "context": {
+            "contextId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+            "entitlementBasis": "assignment",
+            "kind": "homework",
+            "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+            "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62"
+          },
+          "createdAt": "2026-08-14T12:06:44.227Z",
+          "issuer": {
+            "authorityBoundary": "book-owner",
+            "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+          },
+          "outline": [
+            {
+              "nodeKey": "unit-vocab-u1",
+              "nodeType": "unit",
+              "order": 1
+            }
+          ],
+          "placements": [
+            {
+              "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+              "activityVersion": 1,
+              "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+              "contextMode": "required",
+              "nodeKey": "unit-vocab-u1",
+              "order": 1,
+              "pageGroupKeys": [
+                "pages-1"
+              ],
+              "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+              "sourcePageScopes": [
+                {
+                  "pages": [
+                    1
+                  ],
+                  "sourceKey": "full"
+                }
+              ]
+            }
+          ],
+          "recipient": {
+            "recipientId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+            "recipientKind": "student"
+          },
+          "revision": 1,
+          "schedulePolicy": {
+            "basis": "immutable-reference",
+            "policyId": "book-homework:assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+            "policyRevision": 1
+          },
+          "schemaVersion": 3,
+          "scope": {
+            "kind": "subtree",
+            "nodeKeys": [
+              "unit-vocab-u1"
+            ]
+          },
+          "sourceSet": {
+            "sources": [
+              {
+                "lifecycle": "verified-usable",
+                "localPageScope": {
+                  "kind": "all"
+                },
+                "sourceKey": "full",
+                "sourceVersionId": "source-version-70f2ccf7d1a42d67"
+              }
+            ],
+            "strategy": "full_pdf"
+          },
+          "status": "active"
+        },
+        "createdAt": "2026-08-14T12:06:44.227Z",
+        "recordRevision": 1,
+        "status": "active",
+        "updatedAt": "2026-08-14T12:06:44.227Z"
+      }
+    }
+  },
+  "authorityDocument": {
+    "name": "projects/temp-a1437/databases/(default)/documents/book_homework_authorities/assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority",
+    "fields": {
+      "visibility": {
+        "mapValue": {
+          "fields": {
+            "pointerId": {
+              "stringValue": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5"
+            },
+            "manifestVersionId": {
+              "stringValue": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5"
+            },
+            "revision": {
+              "integerValue": "2"
+            },
+            "status": {
+              "stringValue": "committed"
+            }
+          }
+        }
+      },
+      "schemaVersion": {
+        "integerValue": "1"
+      },
+      "activityPolicies": {
+        "mapValue": {
+          "fields": {
+            "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04": {
+              "mapValue": {
+                "fields": {
+                  "policyRevision": {
+                    "integerValue": "1"
+                  },
+                  "placementId": {
+                    "stringValue": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04"
+                  },
+                  "activityVersion": {
+                    "integerValue": "1"
+                  },
+                  "lateSubmissionAllowed": {
+                    "booleanValue": false
+                  },
+                  "activityId": {
+                    "stringValue": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3"
+                  },
+                  "maxAttempts": {
+                    "integerValue": "2"
+                  },
+                  "activityVersionId": {
+                    "stringValue": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928"
+                  },
+                  "policyId": {
+                    "stringValue": "book-homework:assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4"
+                  },
+                  "schemaVersion": {
+                    "integerValue": "1"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "bookManifest": {
+        "mapValue": {
+          "fields": {
+            "schemaVersion": {
+              "integerValue": "1"
+            },
+            "scheduleRules": {
+              "arrayValue": {}
+            },
+            "book": {
+              "mapValue": {
+                "fields": {
+                  "publicationStatus": {
+                    "stringValue": "published"
+                  },
+                  "bookId": {
+                    "stringValue": "book-vocab-u1-d43935c735245dc8"
+                  },
+                  "publicationId": {
+                    "stringValue": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862"
+                  },
+                  "publicationRevision": {
+                    "integerValue": "1"
+                  },
+                  "manifestVersionId": {
+                    "stringValue": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5"
+                  },
+                  "bookRevision": {
+                    "integerValue": "2"
+                  },
+                  "bookMode": {
+                    "stringValue": "pdf"
+                  }
+                }
+              }
+            },
+            "bindings": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "mapValue": {
+                      "fields": {
+                        "pageGroupKeys": {
+                          "arrayValue": {
+                            "values": [
+                              {
+                                "stringValue": "pages-1"
+                              }
+                            ]
+                          }
+                        },
+                        "activityVersionId": {
+                          "stringValue": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928"
+                        },
+                        "sourceReadiness": {
+                          "stringValue": "ready"
+                        },
+                        "sourceContext": {
+                          "arrayValue": {
+                            "values": [
+                              {
+                                "mapValue": {
+                                  "fields": {
+                                    "physicalPageNumbers": {
+                                      "arrayValue": {
+                                        "values": [
+                                          {
+                                            "integerValue": "1"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "sourceKey": {
+                                      "stringValue": "full"
+                                    },
+                                    "sourceVersionId": {
+                                      "stringValue": "source-version-70f2ccf7d1a42d67"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "bindingId": {
+                          "stringValue": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04"
+                        },
+                        "order": {
+                          "integerValue": "1"
+                        },
+                        "state": {
+                          "stringValue": "required"
+                        },
+                        "placementId": {
+                          "stringValue": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04"
+                        },
+                        "activityVersion": {
+                          "integerValue": "1"
+                        },
+                        "nodeKey": {
+                          "stringValue": "unit-vocab-u1"
+                        },
+                        "activityId": {
+                          "stringValue": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3"
+                        },
+                        "contextMode": {
+                          "stringValue": "required"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "createdByCommandId": {
+              "stringValue": "7592acca-0766-4407-b6d9-ac8146048876"
+            },
+            "bindingRevision": {
+              "integerValue": "1"
+            },
+            "outline": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "mapValue": {
+                      "fields": {
+                        "order": {
+                          "integerValue": "1"
+                        },
+                        "nodeKey": {
+                          "stringValue": "unit-vocab-u1"
+                        },
+                        "nodeType": {
+                          "stringValue": "unit"
+                        },
+                        "parentNodeKey": {
+                          "nullValue": null
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "completion": {
+              "mapValue": {
+                "fields": {
+                  "requiredBindingCount": {
+                    "integerValue": "1"
+                  },
+                  "aggregation": {
+                    "stringValue": "required-activities-submitted-over-required-activities"
+                  },
+                  "excludedBindingCount": {
+                    "integerValue": "0"
+                  },
+                  "legacyScoreFields": {
+                    "stringValue": "untouched"
+                  }
+                }
+              }
+            },
+            "assignmentKind": {
+              "stringValue": "book_activity_bundle"
+            },
+            "manifestVersionId": {
+              "stringValue": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5"
+            },
+            "selectedTarget": {
+              "mapValue": {
+                "fields": {
+                  "nodeKey": {
+                    "stringValue": "unit-vocab-u1"
+                  },
+                  "kind": {
+                    "stringValue": "unit"
+                  },
+                  "bookId": {
+                    "stringValue": "book-vocab-u1-d43935c735245dc8"
+                  }
+                }
+              }
+            },
+            "createdAt": {
+              "stringValue": "2026-08-14T12:06:44.227Z"
+            },
+            "ownerId": {
+              "stringValue": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+            },
+            "context": {
+              "mapValue": {
+                "fields": {
+                  "contextId": {
+                    "stringValue": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4"
+                  },
+                  "entitlementBasis": {
+                    "stringValue": "assignment"
+                  },
+                  "kind": {
+                    "stringValue": "homework"
+                  },
+                  "recipientId": {
+                    "stringValue": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "updatedAt": {
+        "stringValue": "2026-08-14T12:06:44.227Z"
+      },
+      "schedule": {
+        "mapValue": {
+          "fields": {
+            "schemaVersion": {
+              "integerValue": "1"
+            },
+            "scheduleRules": {
+              "arrayValue": {}
+            },
+            "finalDueAt": {
+              "stringValue": "2026-08-21T00:00:00.000Z"
+            },
+            "resolverVersion": {
+              "integerValue": "1"
+            }
+          }
+        }
+      },
+      "revision": {
+        "integerValue": "2"
+      },
+      "assignmentId": {
+        "stringValue": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority"
+      },
+      "studentExtensions": {
+        "mapValue": {}
+      },
+      "assignmentKind": {
+        "stringValue": "book_activity_bundle"
+      },
+      "saga": {
+        "mapValue": {
+          "fields": {
+            "sagaId": {
+              "stringValue": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4"
+            },
+            "state": {
+              "stringValue": "committed"
+            },
+            "lastCommandId": {
+              "stringValue": "7592acca-0766-4407-b6d9-ac8146048876--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority-commit"
+            }
+          }
+        }
+      },
+      "ownerId": {
+        "stringValue": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+      },
+      "createdAt": {
+        "stringValue": "2026-08-14T12:06:44.227Z"
+      },
+      "operations": {
+        "mapValue": {
+          "fields": {
+            "e6450e16-df33-4353-b652-eaa2c43b35a5--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority-commit": {
+              "mapValue": {
+                "fields": {
+                  "createdAt": {
+                    "stringValue": "2026-08-14T12:06:44.227Z"
+                  },
+                  "fingerprint": {
+                    "stringValue": "{\"assignmentId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority\",\"commandId\":\"7592acca-0766-4407-b6d9-ac8146048876--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority-commit\",\"expectedRevision\":1,\"idempotencyKey\":\"e6450e16-df33-4353-b652-eaa2c43b35a5--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority-commit\",\"kind\":\"set\",\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"scope\":{\"assignmentId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"authorityId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority\",\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\"},\"state\":\"committed\",\"updatedAt\":\"2026-08-14T12:06:44.227Z\"}"
+                  },
+                  "result": {
+                    "mapValue": {
+                      "fields": {
+                        "assignmentId": {
+                          "stringValue": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority"
+                        },
+                        "revision": {
+                          "integerValue": "2"
+                        },
+                        "status": {
+                          "stringValue": "committed"
+                        },
+                        "visibility": {
+                          "stringValue": "committed"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "e6450e16-df33-4353-b652-eaa2c43b35a5--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority-create": {
+              "mapValue": {
+                "fields": {
+                  "createdAt": {
+                    "stringValue": "2026-08-14T12:06:44.227Z"
+                  },
+                  "fingerprint": {
+                    "stringValue": "{\"activityPolicies\":{\"placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04\":{\"activityId\":\"activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3\",\"activityVersion\":1,\"activityVersionId\":\"activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928\",\"lateSubmissionAllowed\":false,\"maxAttempts\":2,\"placementId\":\"placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04\",\"policyId\":\"book-homework:assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"policyRevision\":1,\"schemaVersion\":1}},\"assignmentId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority\",\"commandId\":\"7592acca-0766-4407-b6d9-ac8146048876--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority-create\",\"createdAt\":\"2026-08-14T12:06:44.227Z\",\"expectedRevision\":0,\"idempotencyKey\":\"e6450e16-df33-4353-b652-eaa2c43b35a5--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority-create\",\"manifest\":{\"assignmentKind\":\"book_activity_bundle\",\"bindingRevision\":1,\"bindings\":[{\"activityId\":\"activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3\",\"activityVersion\":1,\"activityVersionId\":\"activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928\",\"bindingId\":\"placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04\",\"contextMode\":\"required\",\"nodeKey\":\"unit-vocab-u1\",\"order\":1,\"pageGroupKeys\":[\"pages-1\"],\"placementId\":\"placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04\",\"sourceContext\":[{\"physicalPageNumbers\":[1],\"sourceKey\":\"full\",\"sourceVersionId\":\"source-version-70f2ccf7d1a42d67\"}],\"sourceReadiness\":\"ready\",\"state\":\"required\"}],\"book\":{\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"bookMode\":\"pdf\",\"bookRevision\":2,\"manifestVersionId\":\"manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5\",\"publicationId\":\"publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862\",\"publicationRevision\":1,\"publicationStatus\":\"published\"},\"completion\":{\"aggregation\":\"required-activities-submitted-over-required-activities\",\"excludedBindingCount\":0,\"legacyScoreFields\":\"untouched\",\"requiredBindingCount\":1},\"context\":{\"contextId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"entitlementBasis\":\"assignment\",\"kind\":\"homework\",\"recipientId\":\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"},\"createdAt\":\"2026-08-14T12:06:44.227Z\",\"createdByCommandId\":\"7592acca-0766-4407-b6d9-ac8146048876\",\"manifestVersionId\":\"manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5\",\"outline\":[{\"nodeKey\":\"unit-vocab-u1\",\"nodeType\":\"unit\",\"order\":1,\"parentNodeKey\":null}],\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"scheduleRules\":[],\"schemaVersion\":1,\"selectedTarget\":{\"bookId\":\"book-vocab-u1-d43935c735245dc8\",\"kind\":\"unit\",\"nodeKey\":\"unit-vocab-u1\"}},\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\",\"sagaId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"schedule\":{\"finalDueAt\":\"2026-08-21T00:00:00.000Z\",\"resolverVersion\":1,\"scheduleRules\":[],\"schemaVersion\":1},\"scope\":{\"assignmentId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4\",\"authorityId\":\"assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority\",\"ownerId\":\"glMHCrzMnyS6AqFcb9I0nlOqQ6X2\"}}"
+                  },
+                  "result": {
+                    "mapValue": {
+                      "fields": {
+                        "assignmentId": {
+                          "stringValue": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority"
+                        },
+                        "status": {
+                          "stringValue": "created"
+                        },
+                        "revision": {
+                          "integerValue": "1"
+                        },
+                        "visibility": {
+                          "stringValue": "prepared"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "createTime": "2026-08-14T12:06:48.673091Z",
+    "updateTime": "2026-08-14T12:06:55.985166Z"
+  },
+  "canonicalActivity": {
+    "activity": {
+      "answerRule": {
+        "defaultPoints": 1,
+        "normalization": "exact",
+        "requiredSelectionCount": 1
+      },
+      "contextRequirement": {
+        "acceptedKinds": [
+          "book-pages"
+        ],
+        "mode": "required"
+      },
+      "instructions": [
+        {
+          "text": "Read the first page and choose the correct vocabulary answer."
+        }
+      ],
+      "interaction": {
+        "family": "choice",
+        "variant": "v1"
+      },
+      "interactions": [
+        {
+          "answerKey": {
+            "acceptedOptionItemIds": [
+              "19163ebf-fc48-4f60-845a-58788262c4ef"
+            ],
+            "family": "choice"
+          },
+          "family": "choice",
+          "interactionId": "03ed8b72-1a3e-4379-b1e0-1f479fdcd9b3",
+          "itemIdentities": {
+            "family": "choice",
+            "optionIds": [
+              "19163ebf-fc48-4f60-845a-58788262c4ef",
+              "9a33c0e2-3b00-4c0a-b3a7-a5b14bb48412"
+            ]
+          },
+          "options": [
+            "A",
+            "B"
+          ],
+          "prompt": "Choose the correct option."
+        }
+      ],
+      "presentationMode": "structured",
+      "schemaVersion": 1,
+      "scoring": {
+        "mode": "auto-where-possible"
+      },
+      "title": "Vocab Unit 1"
+    },
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityVersion": 1,
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "createdByOperationId": "842f671d-ae7f-4cc7-b08c-2beb922e0b5d",
+    "lifecycle": "published",
+    "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "payloadFingerprint": "fnv1a64:2fcc389f248bb9ae",
+    "placementIds": [
+      "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04"
+    ],
+    "projection": {
+      "answerRule": {
+        "defaultPoints": 1,
+        "normalization": "exact",
+        "requiredSelectionCount": 1
+      },
+      "contextRequirement": {
+        "acceptedKinds": [
+          "book-pages"
+        ],
+        "mode": "required"
+      },
+      "instructions": [
+        {
+          "text": "Read the first page and choose the correct vocabulary answer."
+        }
+      ],
+      "interaction": {
+        "family": "choice",
+        "variant": "v1"
+      },
+      "interactions": [
+        {
+          "family": "choice",
+          "interactionId": "03ed8b72-1a3e-4379-b1e0-1f479fdcd9b3",
+          "options": [
+            {
+              "itemId": "19163ebf-fc48-4f60-845a-58788262c4ef",
+              "label": "A"
+            },
+            {
+              "itemId": "9a33c0e2-3b00-4c0a-b3a7-a5b14bb48412",
+              "label": "B"
+            }
+          ],
+          "prompt": "Choose the correct option."
+        }
+      ],
+      "presentationMode": "structured",
+      "schemaVersion": 1,
+      "scoring": {
+        "feedbackVisibility": "none",
+        "mode": "auto-where-possible"
+      },
+      "title": "Vocab Unit 1"
+    },
+    "provenance": {
+      "activityKey": "activity-vocab-u1",
+      "bookId": "book-vocab-u1-d43935c735245dc8",
+      "kind": "initial-book-publication",
+      "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+      "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+      "publicationRevision": 1,
+      "sourcePages": [
+        {
+          "physicalPageNumber": 1,
+          "sourceKey": "full",
+          "sourceVersionId": "source-version-70f2ccf7d1a42d67"
+        }
+      ],
+      "unitKey": "unit-vocab-u1"
+    },
+    "publishedAt": "2026-08-13T23:05:59.210Z",
+    "schemaVersion": 1,
+    "sourceContextFingerprint": "fnv1a64:cdbc6673e5b77814"
+  },
+  "studentSafeProjection": {
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "content": {
+      "answerRule": {
+        "defaultPoints": 1,
+        "normalization": "exact",
+        "requiredSelectionCount": 1
+      },
+      "contextRequirement": {
+        "acceptedKinds": [
+          "book-pages"
+        ],
+        "mode": "required"
+      },
+      "instructions": [
+        {
+          "text": "Read the first page and choose the correct vocabulary answer."
+        }
+      ],
+      "interaction": {
+        "family": "choice",
+        "variant": "v1"
+      },
+      "interactions": [
+        {
+          "family": "choice",
+          "interactionId": "03ed8b72-1a3e-4379-b1e0-1f479fdcd9b3",
+          "options": [
+            {
+              "itemId": "19163ebf-fc48-4f60-845a-58788262c4ef",
+              "label": "A"
+            },
+            {
+              "itemId": "9a33c0e2-3b00-4c0a-b3a7-a5b14bb48412",
+              "label": "B"
+            }
+          ],
+          "prompt": "Choose the correct option."
+        }
+      ],
+      "presentationMode": "structured",
+      "schemaVersion": 1,
+      "scoring": {
+        "feedbackVisibility": "none",
+        "mode": "auto-where-possible"
+      },
+      "title": "Vocab Unit 1"
+    },
+    "createdByOperationId": "842f671d-ae7f-4cc7-b08c-2beb922e0b5d",
+    "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "payloadFingerprint": "fnv1a64:2fcc389f248bb9ae",
+    "projectionKind": "student-safe",
+    "publishedAt": "2026-08-13T23:05:59.210Z",
+    "schemaVersion": 1
+  }
+}

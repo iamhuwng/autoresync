@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T16:54:51Z",
+  "status": "pending_independent_review",
+  "scope": "Standards-freeze corrections followed by the single authorized same-command Milestone-1 production repair replay; no Milestone 2",
+  "standingAuthority": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md and the user's 2026-08-14 Standards-freeze instruction",
+  "supersedesCheckpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-corrected-input-checkpoint-2026-08-14.json",
+  "sourceIdentity": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "preCheckpointWorktreeStatusEntries": 603,
+    "preCheckpointWorktreeStatusManifestSha256": "6341f777a2046df353feed9c7f0950d6ef78c15b185049d3d6e6686d6abb8f95",
+    "manifestBoundary": "the status manifest was captured immediately before creating this append-only checkpoint and therefore excludes this checkpoint path itself",
+    "trackedBinaryDiffSha256ExcludingLiteralRootJson": "9ddf0473df8088e85548ab7cd08a867b4c7e9b2e915969487bb5454d7cf5bd7f",
+    "untrackedPathManifestSha256": "848483cb8398e373abcac963cf2ca5e501d93509801887d6ff0656699be3f961",
+    "literalRootJson": "exact HEAD state; absent from git diff and git status",
+    "recoveryPlanSha256": "04a6173e80ce14da5d68109efe9b59239fb835af847a381afc63d81bc0ed41f5"
+  },
+  "standardsFreeze": {
+    "observabilityActions": [
+      "bookHomeworkStudentDetailOpened",
+      "bookHomeworkStudentLaunchRequested"
+    ],
+    "registryFeature": "homework",
+    "studentLoadingEvidence": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-student-homework-data-loading-contract-2026-08-14.md",
+    "loadingContract": [
+      "StudentShellDataProvider supplies its enrolledClasses through the bounded Homework list boundary",
+      "shell Homework list does not instantiate a second getStudentClasses ownership read",
+      "Book list and Book detail do not query legacy homework_submissions",
+      "Book detail reuses the already-resolved homework document",
+      "post-success refresh preserves last-good visible content",
+      "Book progress remains trusted bridge detail-on-demand"
+    ],
+    "focusedVerification": [
+      "focused ESLint: passed",
+      "git diff --check: passed",
+      "focused list/detail/shell/registry: 12 files, 103 tests passed",
+      "Runtime host/canonical/fail-closed unit: 46 passed, 10 emulator-gated skipped",
+      "renderer registry: 12 passed",
+      "current committed-state workerd replay: 2 passed",
+      "production-normal ticket 59: 57 passed",
+      "bridge/authority/context/projection: 59 passed",
+      "v17 historical replay: 1 passed",
+      "frozen-command negative: 1 passed",
+      "canonical RTDB emulator codec: 1 passed",
+      "Firestore rules emulator: 15 passed"
+    ],
+    "environmentOnlyBrowserBlocker": "local Chromium exits 127 because libnspr4.so is unavailable; Vite was healthy and Runtime-host units passed",
+    "independentReview": {
+      "standards": "PASS",
+      "spec": "PASS after confirming the requested file is the literal tracked root path json, not database.rules.json"
+    }
+  },
+  "exactReplayInput": {
+    "path": "tmp/prd0062-bridge-m1-corrected-assignment-command.json",
+    "sha256": "0e3720ac38b0545fa51876a0230eec8e690a735af29654779208b80221c38583",
+    "literalBytesRequired": true,
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "presentationTitle": "Vocabulary U1"
+  },
+  "candidate": {
+    "entryPath": "cloudflare/worker.js",
+    "entrySha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+    "generatedBundlePath": "tmp/prd0062-bridge-m1-standards-freeze-20260814-activation-dryrun/worker.js",
+    "generatedBundleSha256": "2f9fba6a01595d336a2dcf1a58d1a014d889f3c7abb40b688b688a1335b48245",
+    "generatedBundleBytes": 1845062,
+    "generatedBundleGzipBytes": 344220,
+    "activationConfigPath": "cloudflare/wrangler.prd0062-bridge-m1-activation.jsonc",
+    "activationConfigSha256": "26988cc320562334cb04ea35fede13c572cc84f3153d7cdc77131e3f24def955",
+    "rollbackConfigPath": "cloudflare/wrangler.prd0062-bridge-m1-rollback.jsonc",
+    "rollbackConfigSha256": "3d2aec19b738a5483d8297fbb51c9c677d2e97815c2c5ef70e9cb02c4a7f7eda",
+    "scopeExpiresAt": "2026-08-14T23:13:33.276Z",
+    "diagnosticObservability": "logs and traces persist at rate 1 for projection-stage classification; no content, answers, tokens, or credentials",
+    "firestoreRulesPath": "firestore.rules",
+    "firestoreRulesSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+    "rtdbRulesPath": "database.rules.json",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f"
+  },
+  "freshInactiveVersions": {
+    "sharedScriptEtag": "b46fe291195c097485acbab88ff6239ddf81aeb67fff908f1c4e21e67d2ebd56",
+    "rollback": {
+      "versionId": "102a48a3-dbea-4bba-8003-32062129fd19",
+      "number": 115,
+      "message": "prd0062-bridge-m1-standards-freeze-rollback",
+      "createdAt": "2026-08-14T16:50:48.886506Z",
+      "hasPreview": false
+    },
+    "diagnosticActivation": {
+      "versionId": "ac176406-1ff3-4c7d-b22a-7bcbde2b07e6",
+      "number": 116,
+      "message": "prd0062-bridge-m1-standards-freeze-diagnostic-activation",
+      "createdAt": "2026-08-14T16:51:04.00963Z",
+      "hasPreview": false
+    },
+    "readback": "both versions exist; required secret binding names are present; activation routes are enabled only in version 116; neither version has production traffic"
+  },
+  "preTrafficProductionReadback": {
+    "workerDeploymentId": "8eda16bc-96f6-4291-9643-9e3da79a9b78",
+    "workerVersionId": "7f11dc93-fd77-4f33-90bf-a2d92cce828a",
+    "workerTrafficPercent": 100,
+    "workerMessage": "prd0062-bridge-m1-corrected-attempt-rollback",
+    "firestoreRelease": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "firestoreRulesSourceSha256": "e783340be524b36a7add78f02c14422686f61ef26113203b743fc39101d73350",
+    "rtdbRulesWireSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "saga": {
+      "state": "committed",
+      "visibility": "committed",
+      "revision": 7,
+      "recipientCount": 1,
+      "committedRecipientCount": 1,
+      "presentationTitle": "Vocabulary U1"
+    },
+    "compatibilityDocumentHttpStatus": 404
+  },
+  "execution": {
+    "remainingReplayBudget": 1,
+    "checkpointReviewRequiredBeforeTraffic": true,
+    "order": [
+      "independent Standards and Spec review of this exact checkpoint",
+      "activate candidate Firestore rules and verify exact source",
+      "activate candidate RTDB rules and verify exact wire content",
+      "deploy inactive diagnostic Worker ac176406-1ff3-4c7d-b22a-7bcbde2b07e6 at 100% and read back",
+      "submit the exact command bytes once",
+      "verify committed compatibility readback plus teacher and student consumption",
+      "verify trusted Homework-to-Book Runtime launch/return and hand off https://kahut1.web.app"
+    ],
+    "successCondition": "committed response, compatibility shell present, teacher/student projections consumable, trusted Runtime round trip consumable",
+    "failureAction": "immediately deploy inactive rollback Worker 102a48a3-dbea-4bba-8003-32062129fd19 at 100%, restore RTDB wire hash 62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6 and Firestore release projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6, read back diagnostics, and stop",
+    "milestone2": "forbidden before browser handoff"
+  }
+}

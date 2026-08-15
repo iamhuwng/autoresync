@@ -2,7 +2,7 @@
 
 Status: `CURRENT_IMPLEMENTATION_PLAN`
 
-- Product authority: [canonical PRD](prd-book-based-interactive-activity-runtime-and-assembly.md).
+- Product authority: the canonical PRD requirement body plus accepted current amendments, including [`PRD0062-architecture-and-delivery-amendment-2026-08-15.md`](PRD0062-architecture-and-delivery-amendment-2026-08-15.md) for the discovered Book Homework compatibility, trusted-projection, production-composition, independent-review, and browser-handoff boundaries.
 - Ticket authority: the 112 published `PRD0062` GitHub issue bodies.
 - Evidence authority: committed source, current repository artifacts, reproducible validation records, and qualified remote readback.
 

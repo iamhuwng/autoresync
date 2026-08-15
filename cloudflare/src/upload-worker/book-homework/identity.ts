@@ -1,5 +1,6 @@
 import type {
   BookHomeworkAuthorityRecord,
+  BookHomeworkAuthorityScope,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import {
   assertValidBookHomeworkAuthorityRecord,
@@ -32,62 +33,42 @@ export const bookHomeworkRecipientDeliveryBindingId = (
   recipientId: string,
 ): string => canonicalId(assignmentId, recipientId, 'delivery');
 
-/**
- * Read the canonical recipient authority first. The root fallback preserves
- * legacy single-recipient authorities without making them the new write shape.
- */
+/** Read one committed recipient authority under its complete trusted scope. */
 export const readBookHomeworkRecipientAuthority = async <
   T extends { readonly value: unknown },
 >(
-  store: { read(assignmentId: string): Promise<T | null> },
-  assignmentId: string,
+  store: { read(scope: BookHomeworkAuthorityScope): Promise<T | null> },
+  scope: BookHomeworkAuthorityScope,
   recipientId: string,
 ): Promise<T | null> => {
-  const authorityId = bookHomeworkRecipientAuthorityId(assignmentId, recipientId);
-  const canonical = await store.read(authorityId);
-  if (canonical) {
-    try {
-      assertValidBookHomeworkAuthorityRecord(canonical.value);
-    } catch {
-      return null;
-    }
-    const record = canonical.value as BookHomeworkAuthorityRecord;
-    return record.assignmentId === authorityId
-      && record.saga.sagaId === assignmentId
-      && record.bookManifest.context.contextId === assignmentId
-      && record.bookManifest.context.recipientId === recipientId
-      && record.visibility.status === 'committed'
-      && record.saga.state === 'committed'
-      ? canonical
-      : null;
-  }
-  const legacy = await store.read(assignmentId);
-  if (!legacy) return null;
+  if (scope.authorityId !== bookHomeworkRecipientAuthorityId(scope.assignmentId, recipientId)) return null;
+  const canonical = await store.read(scope);
+  if (!canonical) return null;
   try {
-    assertValidBookHomeworkAuthorityRecord(legacy.value);
+    assertValidBookHomeworkAuthorityRecord(canonical.value);
   } catch {
     return null;
   }
-  const record = legacy.value as BookHomeworkAuthorityRecord;
-  return record.assignmentId === assignmentId
-    && record.bookManifest.context.contextId === assignmentId
+  const record = canonical.value as BookHomeworkAuthorityRecord;
+  return record.assignmentId === scope.authorityId
+    && record.ownerId === scope.ownerId
+    && record.bookManifest.ownerId === scope.ownerId
+    && record.saga.sagaId === scope.assignmentId
+    && record.bookManifest.context.contextId === scope.assignmentId
     && record.bookManifest.context.recipientId === recipientId
     && record.visibility.status === 'committed'
     && record.saga.state === 'committed'
-    ? legacy
+    ? canonical
     : null;
 };
 
-/** Accept the canonical child record, plus the pre-saga root record shape. */
+/** Match a canonical child authority to its root assignment and recipient. */
 export const bookHomeworkAuthorityMatchesContext = (
   authorityAssignmentId: string,
   sagaId: string,
   assignmentId: string,
   recipientId: string,
 ): boolean => (
-  authorityAssignmentId === assignmentId
-  || (
-    authorityAssignmentId === bookHomeworkRecipientAuthorityId(assignmentId, recipientId)
-    && sagaId === assignmentId
-  )
+  authorityAssignmentId === bookHomeworkRecipientAuthorityId(assignmentId, recipientId)
+  && sagaId === assignmentId
 );

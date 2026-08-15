@@ -666,6 +666,7 @@ const reservedState = async () => {
     providerObjectKey: 'private/book-1/source-1.pdf',
     kind: 'initial',
     byteSize: 10,
+    physicalPageCount: 4,
     originalFilename: 'lesson.pdf',
     expectedChecksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
     createdAt: '2026-07-23T00:00:00.000Z',

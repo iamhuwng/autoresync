@@ -26,6 +26,94 @@ export interface BookActivityAuthoringRoot {
 }
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const plainRecord = (value: unknown): Record<string, unknown> | undefined => (
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+);
+/**
+ * RTDB drops null and empty-array object children on writes. These are the
+ * normal-path fields whose absence has a defined domain value. This codec is
+ * deliberately read-side only; mutation.next still goes through root() as
+ * supplied by the caller and is never repaired here.
+ */
+const hydrateActivity = (value: unknown): unknown => {
+  const record = plainRecord(value);
+  if (!record) return value;
+  return {
+    ...record,
+    ...(record.taskProfile === undefined ? { taskProfile: null } : {}),
+    ...(record.stimulus === undefined ? { stimulus: null } : {}),
+    ...(record.assetRefs === undefined ? { assetRefs: [] } : {}),
+  };
+};
+const hydrateCandidate = (value: unknown): unknown => {
+  const record = plainRecord(value);
+  if (!record) return value;
+  const validation = plainRecord(record.validation);
+  const isValid = validation?.valid === true;
+  return {
+    ...record,
+    ...(isValid && record.evidenceRefs === undefined ? { evidenceRefs: [] } : {}),
+    ...(isValid && record.sourceEvidenceRefs === undefined ? { sourceEvidenceRefs: [] } : {}),
+    ...(isValid && record.answerEvidenceRefs === undefined ? { answerEvidenceRefs: [] } : {}),
+    ...(isValid && validation
+      ? {
+        validation: {
+          ...validation,
+          ...(validation.errors === undefined ? { errors: [] } : {}),
+        },
+      }
+      : {}),
+    ...(isValid && record.content !== undefined ? { content: hydrateActivity(record.content) } : {}),
+  };
+};
+const hydrateOperationResult = (value: unknown): unknown => {
+  const record = plainRecord(value);
+  if (!record) return value;
+  const status = record.status;
+  const isSuccessfulProjection = status === 'staged' || status === 'validated' || status === 'saved';
+  const validation = plainRecord(record.validation);
+  return {
+    ...record,
+    ...(isSuccessfulProjection && record.evidenceRefs === undefined ? { evidenceRefs: [] } : {}),
+    ...(isSuccessfulProjection && record.sourceEvidenceRefs === undefined ? { sourceEvidenceRefs: [] } : {}),
+    ...(isSuccessfulProjection && record.answerEvidenceRefs === undefined ? { answerEvidenceRefs: [] } : {}),
+    ...(isSuccessfulProjection && validation && validation.valid === true && validation.errors === undefined
+      ? { validation: { ...validation, errors: [] } }
+      : {}),
+  };
+};
+const hydrateRoot = (value: unknown): unknown => {
+  const source = plainRecord(value);
+  if (!source) return value;
+  const hydrateMap = (
+    map: unknown,
+    hydrate: (entry: unknown) => unknown,
+  ): unknown => {
+    const records = plainRecord(map);
+    if (!records) return map;
+    return Object.fromEntries(Object.entries(records).map(([key, entry]) => [key, hydrate(entry)]));
+  };
+  const activities = hydrateMap(source.activities, (entry) => {
+    const record = plainRecord(entry);
+    if (!record) return entry;
+    return {
+      ...record,
+      ...(record.editableDraft !== undefined ? { editableDraft: hydrateActivity(record.editableDraft) } : {}),
+      ...(record.draft !== undefined ? { draft: hydrateActivity(record.draft) } : {}),
+    };
+  });
+  const candidates = hydrateMap(source.candidates, hydrateCandidate);
+  const operations = hydrateMap(source.operations, (entry) => {
+    const record = plainRecord(entry);
+    if (!record || record.result === undefined) return entry;
+    return { ...record, result: hydrateOperationResult(record.result) };
+  });
+  return { ...source, ...(activities !== undefined ? { activities } : {}),
+    ...(candidates !== undefined ? { candidates } : {}),
+    ...(operations !== undefined ? { operations } : {}) };
+};
 const recordMap = (
   value: unknown,
   maximum: number,
@@ -71,7 +159,6 @@ const assertOwnerId = (ownerId: string): void => {
 };
 const assertAllowedReadPath = (path: string): void => {
   if (/^users\/[A-Za-z0-9_-]{1,160}$/u.test(path)) return;
-  if (/^material_catalog\/books\/[A-Za-z0-9_-]{1,160}$/u.test(path)) return;
   const ownerPrefix = `${BOOK_ACTIVITY_AUTHORING_ROOT}/`;
   if (path.startsWith(ownerPrefix) && SAFE_ID.test(path.slice(ownerPrefix.length))) return;
   throw new Error('book_activity_authoring_path_forbidden');
@@ -143,7 +230,7 @@ export class FirebaseRestBookActivityAuthoringRepository {
   async readOwnerRoot(ownerId: string): Promise<BookActivityAuthoringRoot> {
     assertOwnerId(ownerId);
     const current = await this.rtdb.readWithEtag<BookActivityAuthoringRoot | null>(ownerPath(ownerId));
-    return root(current.data);
+    return root(hydrateRoot(current.data));
   }
 
   async transaction<T>(ownerId: string, mutate: (current: BookActivityAuthoringRoot) => {
@@ -154,7 +241,7 @@ export class FirebaseRestBookActivityAuthoringRepository {
     const retries = this.options.maxRetries ?? MAX_RETRIES;
     for (let attempt = 0; attempt < retries; attempt += 1) {
       const current = await this.rtdb.readWithEtag<BookActivityAuthoringRoot | null>(path);
-      const mutation = mutate(root(current.data));
+      const mutation = mutate(root(hydrateRoot(current.data)));
       if (!mutation.write) return mutation.outcome;
       const next = root(mutation.next ?? {});
       await options.beforeWrite?.(next);

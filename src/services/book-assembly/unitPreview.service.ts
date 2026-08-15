@@ -38,6 +38,8 @@ export interface UnitPreviewActivity {
 /** Candidate-scoped, answer-safe input for the shared runtime frame. */
 export interface CandidateUnitPreviewProjection {
   readonly bookId: string;
+  /** Current Book authority revision that was read when the candidate was previewed. */
+  readonly bookRevision: number;
   readonly candidateId: string;
   readonly candidateRevision: number;
   readonly sourceSetRevision: number;
@@ -50,13 +52,15 @@ export interface CandidateUnitPreviewProjection {
 export interface BookAssemblyPreviewApprovalRecord extends BookAssemblyPreviewApprovalReference {
   readonly actorId: string;
   readonly bookId: string;
+  readonly bookRevision: number;
+  readonly unitKey: string;
   readonly candidateId: string;
   readonly candidateRevision: number;
   readonly sourceSetRevision: number;
   readonly registryVersion: string;
   readonly inputFingerprint: string;
   /** Trusted server-only fingerprints of the full answer-bearing Activity payloads. */
-  readonly canonicalActivityFingerprintsByKey?: Readonly<Record<string, string>>;
+  readonly canonicalActivityFingerprintsByKey: Readonly<Record<string, string>>;
 }
 
 const stable = (value: unknown): string => {
@@ -152,6 +156,7 @@ export const createCandidateUnitPreview = (input: {
     });
   return Object.freeze({
     bookId: input.candidate.bookId,
+    bookRevision: input.candidate.bookRevision,
     candidateId: input.candidate.candidateId,
     candidateRevision: input.candidate.revision,
     sourceSetRevision: input.candidate.sourceSetRevision,
@@ -170,17 +175,32 @@ export const createPreviewApproval = (input: {
   readonly approvedAt: string;
   readonly expiresAt: string;
   readonly preview: CandidateUnitPreviewProjection;
-  readonly canonicalActivitiesByKey?: Readonly<Record<string, NormalizedActivity>>;
+  readonly canonicalActivitiesByKey: Readonly<Record<string, NormalizedActivity>>;
 }): BookAssemblyPreviewApprovalRecord => {
   const approvedAt = Date.parse(input.approvedAt);
   const expiresAt = Date.parse(input.expiresAt);
+  const bookRevision = input.preview.bookRevision;
+  const activityKeys = input.preview.activities.map((activity) => activity.activityKey);
+  const canonicalActivityKeys = Object.keys(input.canonicalActivitiesByKey);
   if (
     !nonEmpty(input.approvalId) || !nonEmpty(input.actorId) ||
     !Number.isSafeInteger(input.approvalRevision) || input.approvalRevision < 1 ||
-    Number.isNaN(approvedAt) || Number.isNaN(expiresAt) || expiresAt <= approvedAt
+    typeof bookRevision !== 'number' || !Number.isSafeInteger(bookRevision) || bookRevision < 1 ||
+    Number.isNaN(approvedAt) || Number.isNaN(expiresAt) || expiresAt <= approvedAt ||
+    canonicalActivityKeys.length !== activityKeys.length ||
+    activityKeys.some((activityKey) => input.canonicalActivitiesByKey[activityKey] === undefined) ||
+    canonicalActivityKeys.some((activityKey) => !activityKeys.includes(activityKey))
   ) {
-    throw new UnitPreviewError('approval-invalid', 'Preview approval identity or expiry is invalid.');
+    throw new UnitPreviewError('approval-invalid', 'Preview approval identity, binding, fingerprint, or expiry is invalid.');
   }
+  const canonicalActivityFingerprintsByKey = Object.freeze(Object.fromEntries(
+    canonicalActivityKeys
+      .sort()
+      .map((activityKey) => [
+        activityKey,
+        canonicalActivityPayloadFingerprint(input.canonicalActivitiesByKey[activityKey]!),
+      ]),
+  ));
   return Object.freeze({
     approvalId: input.approvalId,
     approvalRevision: input.approvalRevision,
@@ -188,18 +208,13 @@ export const createPreviewApproval = (input: {
     approvedAt: input.approvedAt,
     expiresAt: input.expiresAt,
     bookId: input.preview.bookId,
+    bookRevision,
+    unitKey: input.preview.unitKey,
     candidateId: input.preview.candidateId,
     candidateRevision: input.preview.candidateRevision,
     sourceSetRevision: input.preview.sourceSetRevision,
     registryVersion: input.preview.registryVersion,
     inputFingerprint: previewInputFingerprint(input.preview),
-    ...(input.canonicalActivitiesByKey
-      ? {
-        canonicalActivityFingerprintsByKey: Object.freeze(Object.fromEntries(
-          Object.entries(input.canonicalActivitiesByKey)
-            .map(([activityKey, activity]) => [activityKey, canonicalActivityPayloadFingerprint(activity)]),
-        )),
-      }
-      : {}),
+    canonicalActivityFingerprintsByKey,
   });
 };

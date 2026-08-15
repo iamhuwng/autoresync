@@ -656,11 +656,16 @@ describe('Class Manager - Student Access Control', () => {
     expect(studentClasses).toEqual([]);
   });
 
-  it('should merge student_classes projection with legacy class scans when the projection is incomplete', async () => {
-    vi.mocked(get).mockClear();
+  it('should retain the legacy class scan only when the student-owned projection is absent', async () => {
+    await set(ref(database, `student_classes/${TEST_STUDENT_UID}`), null);
 
-    await enrollStudent(class2Id, TEST_STUDENT_UID, 'Test Student', 'student@test.com');
-    await approveClassStudent(class2Id, TEST_STUDENT_UID, TEST_TEACHER_UID);
+    const studentClasses = await getStudentClasses(TEST_STUDENT_UID);
+
+    expect(studentClasses.map((cls) => cls.id)).toContain(class1Id);
+    expect(studentClasses.map((cls) => cls.id)).not.toContain(class2Id);
+  });
+
+  it('should use the student-owned projection without losing indexed classes when the legacy root scan is denied', async () => {
     await set(ref(database, `student_classes/${TEST_STUDENT_UID}`), {
       [class1Id]: {
         joinedAt: Date.now(),
@@ -668,10 +673,29 @@ describe('Class Manager - Student Access Control', () => {
       },
     });
 
-    const studentClasses = await getStudentClasses(TEST_STUDENT_UID);
+    const getMock = vi.mocked(get);
+    const originalGet = getMock.getMockImplementation();
+    if (!originalGet) {
+      throw new Error('Expected mocked firebase get implementation');
+    }
 
-    expect(studentClasses.map((cls) => cls.id)).toContain(class1Id);
-    expect(studentClasses.map((cls) => cls.id)).toContain(class2Id);
+    getMock.mockClear();
+    getMock.mockImplementation(async (target) => {
+      if ((target as { path: string }).path === 'classes') {
+        throw new Error('permission_denied');
+      }
+
+      return originalGet(target);
+    });
+
+    try {
+      const studentClasses = await getStudentClasses(TEST_STUDENT_UID);
+
+      expect(studentClasses.map((cls) => cls.id)).toEqual([class1Id]);
+      expect(getMock).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'classes' }));
+    } finally {
+      getMock.mockImplementation(originalGet);
+    }
   });
 
   it('should verify student can only access enrolled classes', async () => {

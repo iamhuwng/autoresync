@@ -17,6 +17,7 @@ import type {
 } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import type {
   BookHomeworkAuthorityRecord,
+  BookHomeworkAuthorityScope,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import {
   assertValidBookHomeworkAuthorityRecord,
@@ -34,6 +35,7 @@ import type {
 } from '../book-runtime/repository.ts';
 import {
   bookHomeworkAuthorityMatchesContext,
+  bookHomeworkRecipientAuthorityId,
   bookHomeworkRecipientDeliveryBindingId,
   readBookHomeworkRecipientAuthority,
 } from './identity.ts';
@@ -53,6 +55,7 @@ export interface BookHomeworkActivitySchedulePolicyResolver {
   resolve(input: {
     readonly assignmentId: string;
     readonly recipientId: string;
+    readonly ownerId: string;
     readonly bindingId: string;
     readonly bindingRevision: number;
     readonly policyId: string;
@@ -73,7 +76,11 @@ export const createBookHomeworkActivitySchedulePolicyResolver = (options: {
   async resolve(input) {
     const stored = await readBookHomeworkRecipientAuthority(
       options.authorityStore,
-      input.assignmentId,
+      {
+        authorityId: bookHomeworkRecipientAuthorityId(input.assignmentId, input.recipientId),
+        assignmentId: input.assignmentId,
+        ownerId: input.ownerId,
+      } satisfies BookHomeworkAuthorityScope,
       input.recipientId,
     );
     if (!stored) return null;
@@ -176,6 +183,7 @@ const bindingMatchesAuthority = (
       binding.recipient.recipientId,
     ))
   && authority.ownerId === binding.issuer.ownerId
+  && authority.ownerId === binding.context.ownerId
   && authority.assignmentKind === 'book_activity_bundle'
   && authority.visibility.status === 'committed'
   && authority.saga.state === 'committed'
@@ -210,12 +218,20 @@ export const createBookHomeworkScheduleEnforcement = (
   const evaluate = async (input: BookRuntimeSchedulePolicyInput): Promise<BookHomeworkScheduleEvaluation> => {
     if (input.binding.context.kind !== 'homework'
       || input.binding.recipient.recipientId !== input.actorUid
-      || input.binding.context.recipientId !== input.actorUid) {
+      || input.binding.context.recipientId !== input.actorUid
+      || input.binding.context.ownerId !== input.binding.issuer.ownerId) {
       throw new Error('runtime_schedule_context_invalid');
     }
     const stored = await readBookHomeworkRecipientAuthority(
       options.authorityStore,
-      input.binding.context.contextId,
+      {
+        authorityId: bookHomeworkRecipientAuthorityId(
+          input.binding.context.contextId,
+          input.actorUid,
+        ),
+        assignmentId: input.binding.context.contextId,
+        ownerId: input.binding.issuer.ownerId,
+      } satisfies BookHomeworkAuthorityScope,
       input.actorUid,
     );
     if (!stored) throw new Error('runtime_schedule_authority_missing');
@@ -234,6 +250,7 @@ export const createBookHomeworkScheduleEnforcement = (
     const policy = await options.activityPolicy.resolve({
       assignmentId: authority.bookManifest.context.contextId,
       recipientId: input.actorUid,
+      ownerId: input.binding.issuer.ownerId,
       bindingId: input.binding.bindingId,
       bindingRevision: input.binding.revision,
       policyId: input.binding.schedulePolicy.policyId,

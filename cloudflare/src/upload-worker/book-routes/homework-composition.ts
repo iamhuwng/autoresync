@@ -3,6 +3,7 @@ import {
   type BookHomeworkWorkerHandlersOptions,
 } from '../book-homework/worker.ts';
 import {
+  createBookHomeworkProductionContextResolver,
   createBookHomeworkProductionRuntime,
   type BookHomeworkTrustedRuntimeEnv,
 } from '../book-homework/runtime.ts';
@@ -13,13 +14,16 @@ import {
  */
 export const createCanonicalBookHomeworkHandlers = (
   options: BookHomeworkWorkerHandlersOptions = {},
-) => createBookHomeworkWorkerHandlers(
-  options.saga || options.sagaFactory
-    ? options
-    : {
-        ...options,
-        sagaFactory: (env) => createBookHomeworkProductionRuntime(
-          env as BookHomeworkTrustedRuntimeEnv,
-        ),
-      },
-);
+) => createBookHomeworkWorkerHandlers({
+  ...options,
+  ...(options.saga || options.sagaFactory ? {} : {
+    sagaFactory: (env) => createBookHomeworkProductionRuntime(
+      env as BookHomeworkTrustedRuntimeEnv,
+    ),
+  }),
+  ...(options.contextResolver || options.contextResolverFactory ? {} : {
+    contextResolverFactory: (env) => createBookHomeworkProductionContextResolver(
+      env as BookHomeworkTrustedRuntimeEnv,
+    ),
+  }),
+});

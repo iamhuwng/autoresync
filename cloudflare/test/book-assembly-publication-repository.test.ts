@@ -35,6 +35,19 @@ type FetchHarnessOptions = {
   rejectFirstPointerPut?: boolean;
   concurrentState?: unknown;
   failPutPath?: string;
+  lossyFirebaseWire?: boolean;
+};
+
+/** Firebase RTDB omits object properties with null or empty-array values. */
+const firebaseWireValue = (value: unknown): unknown => {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(firebaseWireValue);
+  return Object.fromEntries(Object.entries(value).flatMap(([key, child]) => {
+    const encoded = firebaseWireValue(child);
+    return encoded === null || (Array.isArray(encoded) && encoded.length === 0)
+      ? []
+      : [[key, encoded]];
+  }));
 };
 
 const createFetchHarness = (
@@ -118,7 +131,8 @@ const createFetchHarness = (
         etags.set('current', '"scope-concurrent"');
         return new Response('', { status: 412 });
       }
-      writeAt(path, JSON.parse(String(init?.body ?? 'null')) as unknown);
+      const submitted = JSON.parse(String(init?.body ?? 'null')) as unknown;
+      writeAt(path, options.lossyFirebaseWire ? firebaseWireValue(submitted) : submitted);
       etags.set(relative, `"committed-${relative}"`);
       return new Response('', { status: 200 });
     }
@@ -394,6 +408,63 @@ const markerScope = (
 };
 
 describe('Book Assembly publication Firebase repository', () => {
+  it('hydrates its canonical publication scope after Firebase omits nullable and empty-array fields', async () => {
+    const scope = completeScope();
+    scope.activitySafeProjections!['projection-1']!.placementIds = [];
+    scope.unitProjections!['unit-projection-1']!.placementIds = [];
+    scope.deliveryPlans!['delivery-plan-1']!.placementIds = [];
+    scope.deliveryPlans!['delivery-plan-1']!.unitProjectionIds = [];
+    scope.operations![operationId]!.result = {
+      status: 'published',
+      version: scope.versions!['manifest-1'],
+    };
+    const harness = createFetchHarness(null, { lossyFirebaseWire: true });
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      fetchImpl: harness.fetchImpl,
+      getAccessToken: async () => 'test-token',
+    });
+
+    await expect(repository.transaction('book-1', () => ({
+      outcome: 'published',
+      next: scope,
+      write: true,
+    }))).resolves.toBe('published');
+
+    await expect(repository.readScope('book-1')).resolves.toEqual(scope);
+    await expect(repository.transaction('book-1', () => ({
+      outcome: 'replayed',
+      write: false,
+    }))).resolves.toBe('replayed');
+  });
+
+  it('still rejects extra and identity-crossed records after wire hydration', async () => {
+    const extraField = toWireScope(completeScope());
+    const node = (extraField.versions as Record<string, Record<string, unknown>>)['manifest-1']!
+      .manifest as Record<string, unknown>;
+    const root = (node.nodes as Record<string, unknown>[])[0]!;
+    delete root.parentNodeKey;
+    root.extra = true;
+    const extraRepository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      fetchImpl: createFetchHarness(extraField).fetchImpl,
+      getAccessToken: async () => 'test-token',
+    });
+    await expect(extraRepository.readScope('book-1'))
+      .rejects.toThrow('invalid_book_assembly_publication_record');
+
+    const crossed = completeScope();
+    crossed.versions!['manifest-1']!.ownerId = 'teacher-2';
+    const crossedRepository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      ownerId: 'teacher-1',
+      fetchImpl: createFetchHarness(toWireScope(crossed)).fetchImpl,
+      getAccessToken: async () => 'test-token',
+    });
+    await expect(crossedRepository.readScope('book-1'))
+      .rejects.toThrow('book_assembly_publication_owner_mismatch');
+  });
+
   it('prepares exact immutable child paths, retries the pointer CAS, and heals prepared children', async () => {
     const concurrent = completeScope(concurrentOperationId);
     const scope = completeScope();
@@ -577,7 +648,7 @@ describe('Book Assembly publication Firebase repository', () => {
     expect(() => new FirebaseRestBookAssemblyPublicationRepository({
       env,
       fetchImpl: harness.fetchImpl,
-    })).toThrow('missing_book_assembly_publication_google_sa_key');
+    })).toThrow('missing_book_assembly_publication_owner_id');
 
     const exhaustedHarness = createFetchHarness(null, { rejectFirstPointerPut: true });
     const exhaustedRepository = new FirebaseRestBookAssemblyPublicationRepository({
@@ -618,6 +689,60 @@ describe('Book Assembly publication Firebase repository', () => {
     }))).resolves.toBe('read-only');
     expect(harness.authTokens).toEqual(['firebase-id-token']);
     expect(harness.authorizationHeaders).toEqual(['Bearer oauth-token', 'Bearer oauth-token']);
+  });
+
+  it('uses one server-authenticated owner/book Firebase token for reads and mutations', async () => {
+    const harness = createFetchHarness(null);
+    const claims: Array<{ bookId: string; ownerId: string }> = [];
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      fetchImpl: harness.fetchImpl,
+      ownerId: 'teacher-1',
+      getFirebaseAuthToken: async (bookId, ownerId) => {
+        claims.push({ bookId, ownerId });
+        return 'scoped-publication-id-token';
+      },
+    });
+
+    await expect(repository.transaction('book-1', () => ({
+      outcome: 'scoped',
+      write: false,
+    }))).resolves.toBe('scoped');
+    await expect(repository.readScope('book-1')).resolves.toEqual({});
+    expect(claims).toEqual([
+      { bookId: 'book-1', ownerId: 'teacher-1' },
+      { bookId: 'book-1', ownerId: 'teacher-1' },
+      { bookId: 'book-1', ownerId: 'teacher-1' },
+    ]);
+    expect(harness.authTokens).toEqual([
+      'scoped-publication-id-token',
+      'scoped-publication-id-token',
+      'scoped-publication-id-token',
+    ]);
+    expect(harness.authorizationHeaders).toEqual([]);
+  });
+
+  it('fails closed instead of using the generic assembly service-account key', () => {
+    expect(() => new FirebaseRestBookAssemblyPublicationRepository({
+      env: {
+        ...env,
+        BOOK_ASSEMBLY_GOOGLE_SA_KEY: JSON.stringify({
+          client_email: env.BOOK_ASSEMBLY_SERVICE_IDENTITY,
+          private_key: 'not-a-key',
+        }),
+      },
+      fetchImpl: createFetchHarness(null).fetchImpl,
+    })).toThrow('missing_book_assembly_publication_owner_id');
+    expect(() => new FirebaseRestBookAssemblyPublicationRepository({
+      env: {
+        ...env,
+        GOOGLE_SA_KEY: JSON.stringify({
+          client_email: env.BOOK_ASSEMBLY_SERVICE_IDENTITY,
+          private_key: 'not-a-key',
+        }),
+      },
+      fetchImpl: createFetchHarness(null).fetchImpl,
+    })).toThrow('missing_book_assembly_publication_google_sa_key');
   });
 
   it('rejects immutable updates and deletes without issuing child writes', async () => {

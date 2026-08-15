@@ -1,8 +1,10 @@
+import { decodeJwt, exportPKCS8, generateKeyPair } from 'jose';
 import { describe, expect, it } from 'vitest';
 
 import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service';
 import { projectStudentActivity } from '../../src/services/book-activity/activityProjection.service';
 import {
+  assertCanonicalPublishedActivityVersion,
   createCanonicalActivityVersionFingerprint,
 } from '../../src/services/book-assembly/canonicalActivityVersion.service';
 import {
@@ -19,7 +21,10 @@ import {
   CANONICAL_ACTIVITY_VERSION_WRITER_KEY_ENV,
   FirebaseRestCanonicalActivityVersionWriter,
   FirebaseRestExactPublishedActivityVersionReader,
+  hydrateCanonicalActivityVersionFromRtdb,
 } from '../src/upload-worker/book-assembly/canonical-activity-version-repository';
+import committedProductionState from '../../tmp/prd0062-bridge-m1-committed-state-fixture.json';
+import productionPublicationState from '../../tmp/prd0062-converged-publication.json';
 
 const dbUrl = 'https://firebase.test';
 const writerIdentity = 'canonical-writer@example.iam.gserviceaccount.com';
@@ -270,7 +275,185 @@ const readerEnv = () => ({
   [CANONICAL_ACTIVITY_VERSION_READER_IDENTITY_ENV]: readerIdentity,
 });
 
+const productionRawCanonical = committedProductionState.canonicalActivity as Record<string, unknown>;
+const productionProvenance = productionRawCanonical.provenance as Record<string, unknown>;
+const productionRequest = {
+  bookId: productionProvenance.bookId as string,
+  manifestVersionId: productionProvenance.manifestVersionId as string,
+  publicationId: productionProvenance.publicationId as string,
+  ownerId: productionRawCanonical.ownerId as string,
+  activityId: productionRawCanonical.activityId as string,
+  activityVersionId: productionRawCanonical.activityVersionId as string,
+  activityVersion: productionRawCanonical.activityVersion as number,
+  payloadFingerprint: productionRawCanonical.payloadFingerprint as string,
+};
+const productionActivityVersionKey = Object.entries(productionPublicationState.activity_versions)
+  .find(([, value]) => value.activityVersionId === productionRequest.activityVersionId)?.[0] as string;
+const productionActivityVersion = productionPublicationState.activity_versions[productionActivityVersionKey];
+const productionSafeProjection = productionPublicationState.activity_safe_projections[
+  productionActivityVersion.safeProjectionId
+];
+const productionPlacementId = (productionRawCanonical.placementIds as string[])[0];
+const productionPaths = {
+  canonical: `${CANONICAL_ACTIVITY_VERSION_ROOT}/${productionRequest.activityId}/${productionRequest.activityVersionId}`,
+  studentSafeProjection: `${CANONICAL_ACTIVITY_STUDENT_SAFE_PROJECTION_ROOT}/${productionRequest.activityId}/${productionRequest.activityVersionId}`,
+  manifest: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${productionRequest.bookId}/versions/${productionRequest.manifestVersionId}`,
+  bookActivityVersion: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${productionRequest.bookId}/activity_versions/${productionActivityVersionKey}`,
+  bookSafeProjection: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${productionRequest.bookId}/activity_safe_projections/${productionActivityVersion.safeProjectionId}`,
+  bookPlacement: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${productionRequest.bookId}/placements/${productionPlacementId}`,
+  current: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${productionRequest.bookId}/current`,
+};
+const hydrateProductionWireLoss = (value: Record<string, unknown>): Record<string, unknown> => ({
+  ...value,
+  evidenceRefs: [],
+  activity: {
+    ...(value.activity as Record<string, unknown>),
+    taskProfile: null,
+    stimulus: null,
+    assetRefs: [],
+  },
+  projection: {
+    ...(value.projection as Record<string, unknown>),
+    taskProfile: null,
+    stimulus: null,
+    assetRefs: [],
+  },
+});
+const withoutFingerprint = (value: Record<string, unknown>): Record<string, unknown> => {
+  const copy = structuredClone(value);
+  delete copy.payloadFingerprint;
+  return copy;
+};
+const productionCommittedState = (canonical: unknown = productionRawCanonical) => ({
+  [productionPaths.manifest]: productionPublicationState.versions[productionRequest.manifestVersionId],
+  [productionPaths.bookActivityVersion]: productionActivityVersion,
+  [productionPaths.bookSafeProjection]: productionSafeProjection,
+  [productionPaths.bookPlacement]: productionPublicationState.placements[productionPlacementId],
+  [productionPaths.current]: productionPublicationState.current,
+  [productionPaths.canonical]: canonical,
+  [productionPaths.studentSafeProjection]: committedProductionState.studentSafeProjection,
+});
+
 describe('canonical Activity Version Firebase repositories', () => {
+  it('keeps the exact production wire record red under raw validation and reads it only after bounded hydration', async () => {
+    const rawBefore = structuredClone(productionRawCanonical);
+    const studentSafeBefore = structuredClone(productionCommittedState()[productionPaths.studentSafeProjection]);
+    expect(() => assertCanonicalPublishedActivityVersion(productionRawCanonical))
+      .toThrow('invalid_canonical_activity_version:$.evidenceRefs:missing-field');
+
+    const evidenceOnly = { ...productionRawCanonical, evidenceRefs: [] };
+    expect(createCanonicalActivityVersionFingerprint(withoutFingerprint(productionRawCanonical) as never))
+      .toBe('fnv1a64:995d6073941e3893');
+    expect(createCanonicalActivityVersionFingerprint(withoutFingerprint(evidenceOnly) as never))
+      .toBe('fnv1a64:492f35413d79ae90');
+    expect(() => assertCanonicalPublishedActivityVersion(evidenceOnly))
+      .toThrow('invalid_canonical_activity_version:$.activity.taskProfile:missing-field');
+
+    const hydrated = hydrateProductionWireLoss(productionRawCanonical);
+    expect(createCanonicalActivityVersionFingerprint(withoutFingerprint(hydrated) as never))
+      .toBe('fnv1a64:2fcc389f248bb9ae');
+    expect(hydrated.payloadFingerprint).toBe('fnv1a64:2fcc389f248bb9ae');
+    expect(assertCanonicalPublishedActivityVersion(hydrated)).toEqual(hydrated);
+
+    const harness = createFetchHarness(productionCommittedState());
+    const reader = new FirebaseRestExactPublishedActivityVersionReader({
+      env: readerEnv(),
+      fetchImpl: harness.fetchImpl,
+      getAccessToken: accessToken,
+    });
+    await expect(reader.readExact(productionRequest)).resolves.toEqual(hydrated);
+    expect(productionRawCanonical).toEqual(rawBefore);
+    expect(harness.values.get(productionPaths.studentSafeProjection)).toEqual(studentSafeBefore);
+
+    const replayHarness = createFetchHarness({
+      [productionPaths.canonical]: productionRawCanonical,
+      [productionPaths.studentSafeProjection]: committedProductionState.studentSafeProjection,
+    });
+    const writer = new FirebaseRestCanonicalActivityVersionWriter({
+      env: writerEnv(),
+      fetchImpl: replayHarness.fetchImpl,
+      getAccessToken: accessToken,
+    });
+    await expect(writer.prepare(hydrated as never)).resolves.toEqual({ status: 'replayed' });
+    expect(replayHarness.values.get(productionPaths.canonical)).toEqual(rawBefore);
+    expect(replayHarness.values.get(productionPaths.studentSafeProjection)).toEqual(studentSafeBefore);
+
+    const rawInputHarness = createFetchHarness();
+    const strictWriter = new FirebaseRestCanonicalActivityVersionWriter({
+      env: writerEnv(),
+      fetchImpl: rawInputHarness.fetchImpl,
+      getAccessToken: accessToken,
+    });
+    await expect(strictWriter.prepare(productionRawCanonical as never))
+      .resolves.toEqual({ status: 'conflict' });
+    expect(rawInputHarness.calls).toEqual([]);
+  });
+
+  it.each([
+    ['missing content', (record: Record<string, unknown>) => {
+      const activity = { ...(record.activity as Record<string, unknown>) };
+      delete activity.title;
+      return { ...record, activity };
+    }],
+    ['non-empty evidence', (record: Record<string, unknown>) => ({
+      ...record,
+      evidenceRefs: [{ kind: 'invented' }],
+    })],
+    ['provenance', (record: Record<string, unknown>) => ({
+      ...record,
+      provenance: { ...(record.provenance as Record<string, unknown>), unitKey: 'unit-crossed' },
+    })],
+    ['placement', (record: Record<string, unknown>) => ({ ...record, placementIds: ['placement-crossed'] })],
+    ['publication', (record: Record<string, unknown>) => ({
+      ...record,
+      provenance: {
+        ...(record.provenance as Record<string, unknown>),
+        publicationId: 'publication-crossed',
+      },
+    })],
+    ['Activity Version', (record: Record<string, unknown>) => ({
+      ...record,
+      activityVersionId: 'activity-version-crossed',
+    })],
+    ['fingerprint', (record: Record<string, unknown>) => ({
+      ...record,
+      payloadFingerprint: 'fnv1a64:0000000000000000',
+    })],
+  ])('fails closed after bounded hydration for a tampered %s field', async (_label, tamper) => {
+    const tampered = tamper(structuredClone(productionRawCanonical));
+    const hydrated = hydrateCanonicalActivityVersionFromRtdb(tampered);
+    expect(() => assertCanonicalPublishedActivityVersion(hydrated)).toThrow();
+
+    const harness = createFetchHarness(productionCommittedState(tampered));
+    const reader = new FirebaseRestExactPublishedActivityVersionReader({
+      env: readerEnv(),
+      fetchImpl: harness.fetchImpl,
+      getAccessToken: accessToken,
+    });
+    await expect(reader.readExact(productionRequest)).resolves.toBeNull();
+  });
+
+  it('does not hydrate missing parents, later schemas, or present wire values', () => {
+    expect(hydrateCanonicalActivityVersionFromRtdb({ schemaVersion: 1 }))
+      .toEqual({ schemaVersion: 1, evidenceRefs: [] });
+    expect(hydrateCanonicalActivityVersionFromRtdb({
+      schemaVersion: 2,
+      activity: {},
+      projection: {},
+    })).toEqual({ schemaVersion: 2, activity: {}, projection: {} });
+    expect(hydrateCanonicalActivityVersionFromRtdb({
+      schemaVersion: 1,
+      evidenceRefs: ['present'],
+      activity: { taskProfile: 'present', stimulus: 'present', assetRefs: ['present'] },
+      projection: { taskProfile: 'present', stimulus: 'present', assetRefs: ['present'] },
+    })).toEqual({
+      schemaVersion: 1,
+      evidenceRefs: ['present'],
+      activity: { taskProfile: 'present', stimulus: 'present', assetRefs: ['present'] },
+      projection: { taskProfile: 'present', stimulus: 'present', assetRefs: ['present'] },
+    });
+  });
+
   it('uses the exact canonical path and creates, replays, or conflicts without overwriting', async () => {
     const createHarness = createFetchHarness();
     const writer = new FirebaseRestCanonicalActivityVersionWriter({
@@ -291,7 +474,6 @@ describe('canonical Activity Version Firebase repositories', () => {
       `GET ${paths.studentSafeProjection}`,
       `PUT ${paths.canonical}`,
       `PUT ${paths.studentSafeProjection}`,
-      `GET ${paths.canonical}`,
     ]);
 
     const replayHarness = createFetchHarness({
@@ -381,6 +563,84 @@ describe('canonical Activity Version Firebase repositories', () => {
       `GET ${paths.studentSafeProjection}`,
       `PUT ${paths.canonical}`,
     ]);
+  });
+
+  it('uses exact Firebase claims for canonical publication leaves', async () => {
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const assemblyIdentity = 'book-assembly@example.iam.gserviceaccount.com';
+    const exchangeClaims: unknown[] = [];
+    const rtdbRequests: Array<{ method: string; path: string; auth: string | null; authorization: string | null }> = [];
+    const values = new Map<string, unknown>();
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname === 'identitytoolkit.googleapis.com') {
+        expect(url.searchParams.get('key')).toBe('web-key');
+        expect(new Headers(init?.headers).get('referer'))
+          .toBe('https://r2-upload-signer.iamhuwng.workers.dev/');
+        const body = JSON.parse(String(init?.body)) as { token: string };
+        exchangeClaims.push(decodeJwt(body.token));
+        return Response.json({ idToken: 'assembly-firebase-id-token', expiresIn: '300' });
+      }
+      expect(url.hostname).toBe('firebase.test');
+      const method = String(init?.method ?? 'GET');
+      const path = pathFromInput(input as RequestInfo | URL);
+      const headers = new Headers(init?.headers);
+      rtdbRequests.push({
+        method,
+        path,
+        auth: url.searchParams.get('auth'),
+        authorization: headers.get('authorization'),
+      });
+      if (method === 'GET') {
+        return new Response(JSON.stringify(values.get(path) ?? null), {
+          status: 200,
+          headers: { etag: '"etag-1"' },
+        });
+      }
+      if (method === 'PUT') {
+        values.set(path, JSON.parse(String(init?.body ?? 'null')) as unknown);
+        return new Response('{}', { status: 200 });
+      }
+      return new Response('', { status: 405 });
+    };
+    const writer = new FirebaseRestCanonicalActivityVersionWriter({
+      env: {
+        FIREBASE_DB_URL: dbUrl,
+        FIREBASE_PROJECT_ID: 'project-1',
+        FIREBASE_WEB_API_KEY: 'web-key',
+        BOOK_ASSEMBLY_SERVICE_IDENTITY: assemblyIdentity,
+        BOOK_ASSEMBLY_GOOGLE_SA_KEY: JSON.stringify({
+          client_email: assemblyIdentity,
+          private_key: await exportPKCS8(privateKey),
+        }),
+      },
+      fetchImpl,
+    });
+
+    await expect(writer.prepare(canonicalRecord() as never)).resolves.toEqual({ status: 'created' });
+
+    expect(exchangeClaims).toEqual([expect.objectContaining({
+      uid: request.ownerId,
+      claims: {
+        book_activity_publication_writer_service: true,
+        book_activity_publication_writer_ownerId: request.ownerId,
+        book_activity_publication_writer_activityId: request.activityId,
+        book_activity_publication_writer_activityVersionId: request.activityVersionId,
+      },
+    })]);
+    expect(rtdbRequests).toEqual([
+      { method: 'GET', path: paths.canonical, auth: 'assembly-firebase-id-token', authorization: null },
+      { method: 'GET', path: paths.studentSafeProjection, auth: 'assembly-firebase-id-token', authorization: null },
+      { method: 'PUT', path: paths.canonical, auth: 'assembly-firebase-id-token', authorization: null },
+      { method: 'PUT', path: paths.studentSafeProjection, auth: 'assembly-firebase-id-token', authorization: null },
+    ]);
+    await expect(writer.readPrepared({
+      activityId: request.activityId,
+      activityVersionId: request.activityVersionId,
+      activityVersion: request.activityVersion,
+      canonicalPayloadFingerprint: request.payloadFingerprint,
+    })).resolves.toEqual(canonicalRecord());
+    expect(rtdbRequests).toHaveLength(4);
   });
 
   it('retries a crash after version creation and heals the missing safe sibling', async () => {
@@ -582,6 +842,17 @@ describe('canonical Activity Version Firebase repositories', () => {
     })).toThrow('missing_canonical_activity_version_writer_service_identity');
     expect(() => new FirebaseRestExactPublishedActivityVersionReader({
       env: writerOnlyIdentity,
+      getAccessToken: accessToken,
+    })).toThrow('missing_canonical_activity_version_reader_service_identity');
+    expect(() => new FirebaseRestExactPublishedActivityVersionReader({
+      env: {
+        FIREBASE_DB_URL: dbUrl,
+        BOOK_ASSEMBLY_SERVICE_IDENTITY: readerIdentity,
+        BOOK_ASSEMBLY_GOOGLE_SA_KEY: JSON.stringify({
+          client_email: readerIdentity,
+          private_key: 'not-a-key',
+        }),
+      } as never,
       getAccessToken: accessToken,
     })).toThrow('missing_canonical_activity_version_reader_service_identity');
 

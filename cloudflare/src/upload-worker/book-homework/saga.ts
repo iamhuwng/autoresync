@@ -4,10 +4,16 @@ import type { BookDeliveryRepository } from '../../../../src/services/book-deliv
 import type { BookHomeworkManifest } from '../../../../src/types/homework.types.ts';
 import { BookHomeworkAuthorityRepository } from './repository.ts';
 import {
+  ensureBookHomeworkCompatibilityProjection,
+  type BookHomeworkCompatibilityRepositoryPort,
+} from './bridge.ts';
+import {
   assertValidBookHomeworkSagaRecord,
   type BookHomeworkSagaRepository,
 } from './sagaRepository.ts';
 import type {
+  BookHomeworkAuthorityRecord,
+  BookHomeworkAuthorityScope,
   BookHomeworkActivityPolicySnapshot,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import type {
@@ -21,8 +27,14 @@ import {
   bookHomeworkRecipientAuthorityId,
   bookHomeworkRecipientDeliveryBindingId,
 } from './identity.ts';
+import {
+  BookHomeworkProjectionDiagnosticError,
+  projectionDiagnosticFrom,
+  type BookHomeworkProjectionDiagnostic,
+} from './projection-diagnostics.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
+const ASSIGNMENT_ID = /^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const MAX_RECIPIENTS = 30;
 
@@ -44,14 +56,16 @@ export interface BookHomeworkSagaDependencies {
   readonly sagaRepository: BookHomeworkSagaRepository;
   readonly authorityRepository: BookHomeworkAuthorityRepository;
   readonly deliveryRepository: BookDeliveryRepository;
+  readonly compatibilityRepository?: BookHomeworkCompatibilityRepositoryPort;
   readonly resolveCanonical: (command: BookHomeworkSagaCommand) => Promise<BookHomeworkSagaCanonicalState>;
   readonly hooks?: BookHomeworkSagaHooks;
   readonly maxRecipients?: number;
 }
 
 export interface BookHomeworkSagaResult {
-  readonly status: BookHomeworkSagaRecord['state'];
+  readonly status: BookHomeworkSagaRecord['state'] | 'committed_projection_pending';
   readonly record: BookHomeworkSagaRecord;
+  readonly projectionDiagnostic?: BookHomeworkProjectionDiagnostic;
 }
 
 export interface BookHomeworkStudentResolution {
@@ -93,6 +107,15 @@ const stable = (value: unknown): string => {
   return JSON.stringify(value);
 };
 
+const fnv1a64 = (value: string): string => {
+  let hash = 0xcbf29ce484222325n;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= BigInt(value.charCodeAt(index));
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return `fnv1a64:${hash.toString(16).padStart(16, '0')}`;
+};
+
 const deliveryContract = (binding: BookDeliveryBinding): string => {
   const { status: _status, createdAt: _createdAt, ...contract } = binding;
   return stable(contract);
@@ -100,6 +123,12 @@ const deliveryContract = (binding: BookDeliveryBinding): string => {
 
 function assertId(value: unknown, label: string): asserts value is string {
   if (typeof value !== 'string' || !ID.test(value)) throw new BookHomeworkSagaError('invalid-command', `${label} is invalid.`);
+}
+
+function assertAssignmentId(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !ASSIGNMENT_ID.test(value)) {
+    throw new BookHomeworkSagaError('invalid-command', 'assignmentId is invalid.');
+  }
 }
 
 function assertIso(value: unknown, label: string): asserts value is string {
@@ -224,12 +253,25 @@ const assertCommandEnvelope = (
   command: BookHomeworkSagaCommand,
   maxRecipients: number,
 ): readonly string[] => {
-  assertId(command.assignmentId, 'assignmentId');
+  assertAssignmentId(command.assignmentId);
   assertId(command.ownerId, 'ownerId');
   assertId(command.idempotencyKey, 'idempotencyKey');
   assertId(command.manifestVersionId, 'manifestVersionId');
   if (!command.intent || typeof command.intent !== 'object' || Array.isArray(command.intent)) {
     throw new BookHomeworkSagaError('invalid-command', 'intent is required.');
+  }
+  const presentation = command.intent.presentation;
+  if (!presentation || typeof presentation !== 'object' || Array.isArray(presentation)
+    || typeof presentation.title !== 'string'
+    || !presentation.title.trim()
+    || presentation.title.trim() !== presentation.title
+    || presentation.title.trim().length > 512
+    || (presentation.description !== undefined
+      && (typeof presentation.description !== 'string'
+        || !presentation.description.trim()
+        || presentation.description.trim() !== presentation.description
+        || presentation.description.trim().length > 512))) {
+    throw new BookHomeworkSagaError('invalid-command', 'intent.presentation is invalid.');
   }
   assertIso(command.createdAt, 'createdAt');
   if (!UUID.test(command.operationId)) throw new BookHomeworkSagaError('invalid-command', 'operationId must be a UUID.');
@@ -264,6 +306,16 @@ const entryFor = (assignmentId: string, recipientId: string): BookHomeworkSagaRe
   state: 'pending',
 });
 
+const authorityScope = (
+  assignmentId: string,
+  ownerId: string,
+  entry: Pick<BookHomeworkSagaRecipient, 'authorityId'>,
+): BookHomeworkAuthorityScope => ({
+  authorityId: entry.authorityId,
+  assignmentId,
+  ownerId,
+});
+
 const isNonTerminal = (state: BookHomeworkSagaRecord['state']): boolean => (
   state === 'prepared' || state === 'fanout_pending' || state === 'compensating' || state === 'failed_retryable'
 );
@@ -287,7 +339,7 @@ export function assertBookHomeworkSagaTransition(
   }
 }
 
-const rootFingerprint = (command: BookHomeworkSagaCommand, canonical: BookHomeworkSagaCanonicalState): string => stable({
+const rootFingerprint = (command: BookHomeworkSagaCommand, canonical: BookHomeworkSagaCanonicalState): string => fnv1a64(stable({
   assignmentId: command.assignmentId,
   ownerId: command.ownerId,
   operationId: command.operationId,
@@ -303,7 +355,7 @@ const rootFingerprint = (command: BookHomeworkSagaCommand, canonical: BookHomewo
   exposureApproval: canonical.exposureApproval,
   capabilities: canonical.capabilities,
   frozenPolicy: canonical.frozenPolicy,
-});
+}));
 
 const requestFingerprint = (command: BookHomeworkSagaCommand): string => stable({
   assignmentId: command.assignmentId,
@@ -312,6 +364,7 @@ const requestFingerprint = (command: BookHomeworkSagaCommand): string => stable(
   idempotencyKey: command.idempotencyKey,
   manifestVersionId: command.manifestVersionId,
   selectedRecipientIds: [...command.selectedRecipientIds].sort(),
+  intent: command.intent,
 });
 
 const assertCanonical = (
@@ -381,7 +434,7 @@ export class BookHomeworkAssignmentSaga {
   async readCommittedAssignment(
     assignmentId: string,
   ): Promise<BookHomeworkSagaRecord | null> {
-    assertId(assignmentId, 'assignmentId');
+    assertAssignmentId(assignmentId);
     const record = await this.dependencies.sagaRepository.read(assignmentId);
     if (!record) return null;
     assertValidBookHomeworkSagaRecord(record);
@@ -391,6 +444,42 @@ export class BookHomeworkAssignmentSaga {
       && record.recipients.every((recipient) => recipient.state === 'committed')
       ? record
       : null;
+  }
+
+  private async readCommittedAuthorities(
+    record: BookHomeworkSagaRecord,
+  ): Promise<readonly (BookHomeworkAuthorityRecord | null)[]> {
+    try {
+      return await Promise.all(record.recipients.map((entry) => (
+        this.dependencies.authorityRepository.read(authorityScope(record.assignmentId, record.ownerId, entry))
+      )));
+    } catch (error) {
+      if (error instanceof BookHomeworkProjectionDiagnosticError) throw error;
+      throw new BookHomeworkProjectionDiagnosticError({
+        stage: 'firestore_get',
+        errorClass: 'firestore-read',
+      });
+    }
+  }
+
+  private async projectCommitted(
+    record: BookHomeworkSagaRecord,
+  ): Promise<BookHomeworkSagaResult> {
+    if (!this.dependencies.compatibilityRepository) return { status: 'committed', record };
+    try {
+      await ensureBookHomeworkCompatibilityProjection(
+        this.dependencies.compatibilityRepository,
+        record,
+        await this.readCommittedAuthorities(record),
+      );
+      return { status: 'committed', record };
+    } catch (error) {
+      return {
+        status: 'committed_projection_pending',
+        record,
+        projectionDiagnostic: projectionDiagnosticFrom(error),
+      };
+    }
   }
 
   async execute(command: BookHomeworkSagaCommand): Promise<BookHomeworkSagaResult> {
@@ -412,20 +501,39 @@ export class BookHomeworkAssignmentSaga {
     assignmentId: string,
     studentId: string,
   ): Promise<BookHomeworkStudentResolution | null> {
-    assertId(assignmentId, 'assignmentId');
+    assertAssignmentId(assignmentId);
     assertId(studentId, 'studentId');
-    const record = await this.dependencies.sagaRepository.read(assignmentId);
-    if (!record || record.state !== 'committed' || record.visibility !== 'committed') return null;
+    const delivery = await this.dependencies.deliveryRepository.resolveCurrent(studentId, assignmentId);
+    const deliveryBinding = delivery?.record.binding;
+    const deliveryOwnerId = deliveryBinding?.issuer?.ownerId;
+    const deliveryContextOwnerId = deliveryBinding?.context?.ownerId;
+    if (!delivery
+      || delivery.record.status !== 'active'
+      || deliveryBinding?.status !== 'active'
+      || deliveryBinding.recipient?.recipientId !== studentId
+      || deliveryBinding.context?.contextId !== assignmentId
+      || deliveryBinding.context?.recipientId !== studentId
+      || typeof deliveryOwnerId !== 'string'
+      || !ID.test(deliveryOwnerId)
+      || typeof deliveryContextOwnerId !== 'string'
+      || !ID.test(deliveryContextOwnerId)
+      || deliveryContextOwnerId !== deliveryOwnerId) return null;
+    const record = await this.dependencies.sagaRepository.read(assignmentId, deliveryOwnerId);
+    if (!record
+      || record.state !== 'committed'
+      || record.visibility !== 'committed'
+      || record.ownerId !== deliveryOwnerId
+      || deliveryBinding.context.ownerId !== record.ownerId
+      || deliveryBinding.issuer.ownerId !== record.ownerId) return null;
     const entry = record.recipients.find((candidate) => candidate.recipientId === studentId);
     if (!entry || entry.state !== 'committed') return null;
-    const [authority, trustedAuthority, delivery] = await Promise.all([
-      this.dependencies.authorityRepository.readStudentProjection(entry.authorityId, studentId),
-      this.dependencies.authorityRepository.read(entry.authorityId),
-      this.dependencies.deliveryRepository.resolveCurrent(studentId, record.contextId),
+    const scope = authorityScope(record.assignmentId, record.ownerId, entry);
+    const [authority, trustedAuthority] = await Promise.all([
+      this.dependencies.authorityRepository.readStudentProjection(scope, studentId),
+      this.dependencies.authorityRepository.read(scope),
     ]);
     if (!authority
       || !trustedAuthority
-      || !delivery
       || authority.assignmentId !== record.contextId
       || authority.bookManifest.context.contextId !== record.contextId
       || authority.bookManifest.context.recipientId !== studentId
@@ -452,7 +560,7 @@ export class BookHomeworkAssignmentSaga {
     assignmentId: string,
     ownerId: string,
   ): Promise<readonly BookHomeworkTeacherStudentResolution[] | null> {
-    assertId(assignmentId, 'assignmentId');
+    assertAssignmentId(assignmentId);
     assertId(ownerId, 'ownerId');
     const record = await this.dependencies.sagaRepository.read(assignmentId, ownerId);
     if (!record
@@ -462,9 +570,10 @@ export class BookHomeworkAssignmentSaga {
     const rows = await Promise.all(record.recipients
       .filter((entry) => entry.state === 'committed')
       .map(async (entry): Promise<BookHomeworkTeacherStudentResolution | null> => {
+        const scope = authorityScope(record.assignmentId, record.ownerId, entry);
         const [authority, trustedAuthority, delivery] = await Promise.all([
-          this.dependencies.authorityRepository.readStudentProjection(entry.authorityId, entry.recipientId),
-          this.dependencies.authorityRepository.read(entry.authorityId),
+          this.dependencies.authorityRepository.readStudentProjection(scope, entry.recipientId),
+          this.dependencies.authorityRepository.read(scope),
           this.dependencies.deliveryRepository.resolveCurrent(entry.recipientId, record.contextId),
         ]);
         if (!authority
@@ -477,6 +586,8 @@ export class BookHomeworkAssignmentSaga {
           || trustedAuthority.visibility.status !== 'committed'
           || trustedAuthority.bookManifest.context.contextId !== record.contextId
           || trustedAuthority.bookManifest.context.recipientId !== entry.recipientId
+          || delivery.record.binding.issuer.ownerId !== record.ownerId
+          || delivery.record.binding.context.ownerId !== record.ownerId
           || delivery.record.binding.bindingId !== entry.bindingId
           || entry.bindingRevision === undefined
           || delivery.record.binding.revision !== entry.bindingRevision
@@ -512,7 +623,9 @@ export class BookHomeworkAssignmentSaga {
       if (['committed', 'compensated', 'failed_terminal'].includes(record.state) && sameIdentity && !terminalReplay) {
         throw new BookHomeworkSagaError('idempotency-conflict', 'Terminal saga replay fingerprint differs.');
       }
-      if (terminalReplay) return { status: record.state, record };
+      if (terminalReplay) {
+        return record.state === 'committed' ? this.projectCommitted(record) : { status: record.state, record };
+      }
       if (!sameIdentity) {
         throw new BookHomeworkSagaError('idempotency-conflict', 'Assignment ID was reused for a different saga.');
       }
@@ -541,6 +654,7 @@ export class BookHomeworkAssignmentSaga {
         publicationId: canonical.publication.publicationId,
         publicationRevision: canonical.publication.publicationRevision,
         contextId: canonical.manifest.context.contextId,
+        presentation: clone(command.intent.presentation),
         fingerprint,
         requestFingerprint: requestFingerprint(command),
         state: 'prepared',
@@ -581,7 +695,6 @@ export class BookHomeworkAssignmentSaga {
         recipients: record.recipients.map((entry) => ({ ...entry, state: 'committed' })),
         lastError: undefined,
       }, command.createdAt);
-      return { status: record.state, record };
     } catch (error) {
       if (error instanceof BookHomeworkSagaCrash) {
         throw error;
@@ -594,6 +707,7 @@ export class BookHomeworkAssignmentSaga {
         : await this.transition(record, { state: 'compensating', lastError: message }, command.createdAt);
       return this.compensate(record, command);
     }
+    return this.projectCommitted(record);
   }
 
   private async processRecipient(
@@ -606,6 +720,7 @@ export class BookHomeworkAssignmentSaga {
     if (entry.state === 'committed' || entry.state === 'retained' || entry.state === 'compensated') return record;
     const manifest = manifestForRecipient(canonical.manifest, entry.recipientId);
     const extensions = canonical.studentExtensions[entry.recipientId] ?? [];
+    const scope = authorityScope(command.assignmentId, command.ownerId, entry);
     const authority = await this.ensureAuthority(entry, manifest, canonical, extensions, command, index);
     entry = { ...entry, authorityRevision: authority.revision };
     let next = await this.replaceEntry(record, index, entry, command.createdAt);
@@ -656,11 +771,12 @@ export class BookHomeworkAssignmentSaga {
     }, command.createdAt);
     entry = next.recipients[index];
 
-    const currentAuthority = await this.dependencies.authorityRepository.read(entry.authorityId);
+    const currentAuthority = await this.dependencies.authorityRepository.read(scope);
     if (!currentAuthority) throw new BookHomeworkSagaError('authority-missing', 'Prepared authority disappeared.');
     if (currentAuthority.visibility.status === 'prepared') {
       await this.step('authority-commit', entry.recipientId);
       const committed = await this.dependencies.authorityRepository.setVisibility({
+        scope,
         assignmentId: entry.authorityId,
         ownerId: command.ownerId,
         state: 'committed',
@@ -673,7 +789,7 @@ export class BookHomeworkAssignmentSaga {
     } else if (currentAuthority.visibility.status !== 'committed') {
       throw new BookHomeworkSagaError('authority-conflict', 'Authority is not in a committable state.');
     }
-    const committedAuthority = await this.dependencies.authorityRepository.read(entry.authorityId);
+    const committedAuthority = await this.dependencies.authorityRepository.read(scope);
     next = await this.replaceEntry(next, index, {
       ...entry,
       state: 'committed',
@@ -691,9 +807,11 @@ export class BookHomeworkAssignmentSaga {
     index: number,
   ) {
     await this.step('authority-prepare', entry.recipientId);
-    let authority = await this.dependencies.authorityRepository.read(entry.authorityId);
+    const scope = authorityScope(command.assignmentId, command.ownerId, entry);
+    let authority = await this.dependencies.authorityRepository.read(scope);
     if (!authority) {
       await this.dependencies.authorityRepository.create({
+        scope,
         assignmentId: entry.authorityId,
         ownerId: command.ownerId,
         manifest,
@@ -705,7 +823,7 @@ export class BookHomeworkAssignmentSaga {
         expectedRevision: 0,
         createdAt: command.createdAt,
       });
-      authority = await this.dependencies.authorityRepository.read(entry.authorityId);
+      authority = await this.dependencies.authorityRepository.read(scope);
     }
     if (!authority
       || authority.assignmentId !== entry.authorityId
@@ -724,6 +842,7 @@ export class BookHomeworkAssignmentSaga {
       const extension = extensions[extensionIndex];
       if (authority.studentExtensions[entry.recipientId]?.[extension.nodeKey]?.dueAt === extension.dueAt) continue;
       const updated = await this.dependencies.authorityRepository.updateStudentExtension({
+        scope,
         assignmentId: entry.authorityId,
         ownerId: command.ownerId,
         studentId: entry.recipientId,
@@ -735,7 +854,7 @@ export class BookHomeworkAssignmentSaga {
         updatedAt: command.createdAt,
       });
       if (!['updated', 'replayed'].includes(updated.status)) throw new BookHomeworkSagaError('authority-extension-failed', 'Authority extension did not persist.');
-      authority = await this.dependencies.authorityRepository.read(entry.authorityId);
+      authority = await this.dependencies.authorityRepository.read(scope);
       if (!authority) throw new BookHomeworkSagaError('authority-missing', 'Authority disappeared after extension.');
     }
     return authority;
@@ -771,18 +890,14 @@ export class BookHomeworkAssignmentSaga {
     let current = record.state === 'compensating'
       ? record
       : await this.transition(record, { state: 'compensating', visibility: 'hidden' }, command.createdAt);
-    let retained = false;
     for (let index = 0; index < current.recipients.length; index += 1) {
       const entry = current.recipients[index];
-      if (entry.state === 'retained' || entry.state === 'compensated') continue;
-      const authority = await this.dependencies.authorityRepository.read(entry.authorityId);
-      if (authority?.visibility.status === 'committed') {
-        retained = true;
-        current = await this.replaceEntry(current, index, { ...entry, state: 'retained', authorityRevision: authority.revision }, command.createdAt);
-        continue;
-      }
-      if (authority?.visibility.status === 'prepared') {
+      if (entry.state === 'compensated') continue;
+      const scope = authorityScope(command.assignmentId, command.ownerId, entry);
+      const authority = await this.dependencies.authorityRepository.read(scope);
+      if (authority?.visibility.status === 'prepared' || authority?.visibility.status === 'committed') {
         await this.dependencies.authorityRepository.recover({
+          scope,
           assignmentId: entry.authorityId,
           ownerId: command.ownerId,
           state: 'compensating',
@@ -806,11 +921,12 @@ export class BookHomeworkAssignmentSaga {
       current = await this.replaceEntry(current, index, {
         ...entry,
         state: 'compensated',
+        authorityRevision: authority?.revision,
         ...(delivery?.status === 'draft' ? { tombstonedAt: command.createdAt } : {}),
       }, command.createdAt);
     }
     return this.transition(current, {
-      state: retained ? 'failed_terminal' : 'compensated',
+      state: 'compensated',
       visibility: 'hidden',
       lastError: current.lastError,
     }, command.createdAt).then((final) => ({ status: final.state, record: final }));

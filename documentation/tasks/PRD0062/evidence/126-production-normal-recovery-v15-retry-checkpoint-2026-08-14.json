@@ -1,0 +1,129 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-retry-checkpoint",
+  "schemaVersion": 1,
+  "status": "inactive-versions-validated-ready-to-retry",
+  "createdAt": "2026-08-13T23:06:00Z",
+  "expiresAt": "2026-08-14T11:00:00Z",
+  "standingAuthority": {
+    "path": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md",
+    "scope": "Phases A through D production-normal recovery",
+    "productionRecoveryAuthority": true,
+    "fullPrdCompletionAuthority": false
+  },
+  "predecessors": {
+    "supersededCheckpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-checkpoint-2026-08-14.json",
+    "failedAttemptResult": "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v14-failure-result-2026-08-14.json",
+    "reasonForRetry": "The exact historical saved operation receipt predates binding metadata. The repaired Worker upgrades only a receipt whose owner, fingerprint, saved candidate revision, target Activity, and durable candidate and Activity records all match before entering normal exact binding reconciliation."
+  },
+  "sourceIdentity": {
+    "gitCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "modifiedPathCountBeforeCheckpoint": 64,
+    "untrackedPathCountBeforeCheckpoint": 74,
+    "dirtyStatusSha256BeforeCheckpoint": "0ec1d87cf971c0a5dfd273e09a481deea466d608ff3f3ee3d52fdc8eec8176fa",
+    "binaryDiffSha256BeforeCheckpointExcludingUnrelatedJson": "0bd2b749dd167b2fdd590daec36313eb398fe7e4a9d090abefa925313eb976e3",
+    "untrackedPathListSha256BeforeCheckpoint": "c6e407e892f76e57068e98771247e0ee6519c0a078513ba75ec4200ef18b02b6",
+    "unrelatedDirtyPathExcluded": "json"
+  },
+  "workerArtifact": {
+    "entrypointSha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+    "repairedDryRunBundlePath": "tmp/prd0062-v18-activation-dryrun-20260814/worker.js",
+    "repairedDryRunBundleSha256": "cbb8d4e1adb47f412cc18c99398ba34e20ff895a458874a61080234ba54c9107",
+    "repairedDryRunBundleSizeBytes": 1788992,
+    "repairedDryRunBundleGzipSha256": "ad81c9f6cef31bab26685e7dd7f1f063d9d46d2ad79ce4eb1d7fb98a0e8aa6ff",
+    "repairedDryRunBundleGzipSizeBytes": 334157,
+    "cloudflareScriptEtag": "a467cff9c2692f8649d6ffa74e605f943295a29df95c6988329a71143e48f996",
+    "activationConfigSha256": "a7b5179bd734dd1e0d4e60c174ec33b21eb1976d132d10d29c208cc060f6a74a",
+    "rollbackConfigSha256": "2ef785067c5fbaff33c17c4c0a82be653961266bb791e72f5e7adfdda9ae75a9",
+    "activationRolloutSha256": "7aeeda4e245e9d16c2388a085ecf4ff0f5d292032a111caf80c9f6ec55b62cca",
+    "activationPilotSha256": "c96afa9465e6716b59eb27d3d574a8e578b8ee02f51ed51deee11f8fe05cde14",
+    "rollbackRolloutSha256": "b1cf22f8305d64feeaf5a3c9c87915527446f1c01180180150d1e2ff94a10dfe",
+    "rollbackPilotSha256": "ca48e355db95520643d20b0d77199041b7c45ea065f33335a41683704b97b854",
+    "rolloutIssuedAt": "2026-08-13T23:00:00.000Z",
+    "rolloutExpiresAt": "2026-08-14T11:00:00.000Z"
+  },
+  "rulesArtifact": {
+    "generatedRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "producerSha256": "bf298e73d912574c5323e3fedcff7b97e0bc1c5f705fb3f936b57d057a522c4c",
+    "composerSha256": "be16b90b1f64dc31218372ec037b50fe20de8285c9436a46a95d1dcdc57446c9",
+    "fragmentHashes": {
+      "16A": "4e356bca5f5c71af06394bdba90b753d5c698319bb3cdf0b46c8b86804dcc376",
+      "118A": "6425ca819f8fc4412679ddea2dd2c95bd9b29e2e63c53e87b3b0589a896d7393",
+      "118B": "ab0d0228eb16f7de7afab36e8982f59b5b90071b1d79f4061824d3b9fbc13175",
+      "118C": "c03ece773f71ccc9f09b1715b5da2d10dc771b52792671dc515ffb88cef9afe1",
+      "118D": "2a13ce6c787b1dcd14660fcd08424d8ba285fb3b333c76c7c3e1c01acb23f357"
+    }
+  },
+  "inactiveVersions": {
+    "rollbackVersionId": "0221adb5-056f-4727-8581-25ad16e13da1",
+    "activationVersionId": "98354e62-3b99-4b1f-bc96-8cc3f839ecf9",
+    "sharedScriptEtag": "a467cff9c2692f8649d6ffa74e605f943295a29df95c6988329a71143e48f996",
+    "bindingsInspected": true,
+    "zeroPercentDeployments": {
+      "rollback": "success",
+      "activation": "success"
+    },
+    "productionTrafficDuringValidation": {
+      "versionId": "46da3a52-b763-4654-8420-f96a6c21eaad",
+      "percentage": 100
+    },
+    "currentZeroPercentVersionId": "98354e62-3b99-4b1f-bc96-8cc3f839ecf9"
+  },
+  "frozenInputs": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "bookRevision": 2,
+    "sourceSetRevision": 2,
+    "sourceVersionId": "source-version-70f2ccf7d1a42d67",
+    "sourceUploadAccountId": "book_b2_primary",
+    "sourceKey": "full",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "assemblyCandidateId": "candidate-176b795f-6c37-457f-a41f-0a42e287eed0",
+    "assemblyCandidateRevision": 2,
+    "activityCandidateId": "candidate-63a7b569-aaa1-4fca-9297-2b284f88415c",
+    "activityCandidateRevision": 3,
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityRevision": 1,
+    "saveBindOperationId": "62e20638-b575-4f12-8d10-243a356103c3",
+    "saveBindExpectedRevision": 2,
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "assignmentOperationId": "b751bf00-e142-4338-9b93-7081d3572ef0",
+    "assignmentIdempotencyKey": "0c171038-deb4-4441-8f53-5e241398c664",
+    "dueDate": "2026-08-21T00:00:00.000Z",
+    "placementId": "freeze-from-final-publication-readback"
+  },
+  "durableStateBeforeRetry": {
+    "assemblyCandidate": "validated revision 2",
+    "activityCandidate": "saved revision 3",
+    "activity": "draft revision 1",
+    "saveOperation": "historical saved receipt; same-operation reconciliation required",
+    "binding": null,
+    "approval": null,
+    "publication": null,
+    "assignment": null,
+    "delivery": null
+  },
+  "verification": {
+    "historicalReceiptFocused": "28/28",
+    "ticket59": "57/57",
+    "focusedCanonicalTokenComposer": "34/34",
+    "defaultWorkerRealRtdbEmulator": "2/2",
+    "assembledRulesMatrix": "89/89; 23/23 suites; zero skipped",
+    "activationDryRun": "exit 0",
+    "rollbackDryRun": "exit 0"
+  },
+  "rollback": {
+    "workerVersionId": "0221adb5-056f-4727-8581-25ad16e13da1",
+    "rulesConfig": "firebase.prd0062-118-rollback.config.json",
+    "order": [
+      "activate exact rollback Worker version immediately",
+      "restore rollback rules",
+      "read active Worker and rules identities",
+      "preserve durable partial state and inspect the exact operation receipt"
+    ]
+  }
+}

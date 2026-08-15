@@ -1,0 +1,59 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-assignment-checkpoint",
+  "schemaVersion": 1,
+  "status": "inactive-versions-validated-ready-to-assign",
+  "createdAt": "2026-08-13T23:36:00Z",
+  "expiresAt": "2026-08-14T11:35:00Z",
+  "standingAuthority": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md Phases A-D",
+  "predecessor": "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v16-assignment-failure-result-2026-08-14.json",
+  "sourceIdentity": {
+    "gitCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "dirtyStatusSha256": "8c4938879bf06a6bee464289c5e6a87a1ae3fb7fb53f40f1b8ec48418eac7145",
+    "binaryDiffSha256ExcludingUnrelatedJson": "6ddb1b4d94b571d4e16cfa6c9453511ed14b9432d0dc2bb4a880a25baff62e26"
+  },
+  "workerArtifact": {
+    "bundleSha256": "ba9e3250b5b2ca2ff03ef4e19756ccfb539d47d1c7f3c1fb1e36024ceec5d07e",
+    "bundleSizeBytes": 1792122,
+    "scriptEtag": "666821d198b70cfea579f37bddb2e0718ef87e8ae3892f35935aff83a5ac3347",
+    "activationConfigSha256": "bceef250292d0f2a7523deeeb4a67ea11b1da38f91218330055382d896e53741",
+    "rollbackConfigSha256": "7729e7f2755359076eb46f22e38729d6fa92f18555a9393fcbb26115eaf965a3",
+    "issuedAt": "2026-08-13T23:35:00.000Z",
+    "expiresAt": "2026-08-14T11:35:00.000Z"
+  },
+  "inactiveVersions": {
+    "rollbackVersionId": "3f483e54-7501-4c37-b37d-7275e52409b4",
+    "activationVersionId": "acfa91d8-c8c9-433f-bbc0-c7a847ed8ac6",
+    "exactVersionPreflight": { "rollback": 204, "activation": 204 },
+    "productionTrafficDuringValidation": {
+      "versionId": "ec126063-d96e-41c3-a8c9-77dd2726fa7c",
+      "percentage": 100
+    }
+  },
+  "rules": {
+    "activationSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rollbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "changedSinceV16": false
+  },
+  "durableInputs": {
+    "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+    "publicationRevision": 1,
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "assignmentOperationId": "b751bf00-e142-4338-9b93-7081d3572ef0",
+    "idempotencyKey": "0c171038-deb4-4441-8f53-5e241398c664",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "homeworkRoot": null
+  },
+  "verification": {
+    "homeworkCompositionAndPublicationRepository": "22/22",
+    "ticket59": "57/57",
+    "dryRuns": "activation and rollback exit 0",
+    "inactivePreflight": "204/204"
+  },
+  "rollbackOrder": [
+    "activate 3f483e54-7501-4c37-b37d-7275e52409b4 first",
+    "restore firebase.prd0062-118-rules.rollback.json second",
+    "verify both identities and preserve partial state"
+  ]
+}

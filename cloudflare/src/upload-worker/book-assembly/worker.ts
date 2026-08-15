@@ -49,6 +49,7 @@ export interface BookAssemblyRepositoryPort {
 export type BookAssemblyAuthorityReader = (
   repository: BookAssemblyRepositoryPort,
   bookId: string,
+  context?: { readonly env: BookAssemblyRepositoryEnv; readonly ownerId: string },
 ) => Promise<BookAssemblyBookAuthority | null>;
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -222,13 +223,19 @@ export const createBookAssemblyWorkerHandlers = (options: {
   readBookAuthority?: BookAssemblyAuthorityReader;
 } = {}) => {
   const now = options.now ?? nowDefault;
-  const repositoryFor = (env: BookAssemblyRepositoryEnv): BookAssemblyRepositoryPort =>
-    options.repository ?? new FirebaseRestBookAssemblyRepository({ env });
+  const repositoryFor = (env: BookAssemblyRepositoryEnv, ownerId: string): BookAssemblyRepositoryPort =>
+    options.repository ?? new FirebaseRestBookAssemblyRepository({ env, ownerId });
   const authorityFor = async (
     repository: BookAssemblyRepositoryPort,
     bookId: string,
+    env?: BookAssemblyRepositoryEnv,
+    ownerId?: string,
   ): Promise<BookAssemblyBookAuthority | null> =>
-    options.readBookAuthority ? options.readBookAuthority(repository, bookId) : null;
+    options.readBookAuthority ? options.readBookAuthority(
+      repository,
+      bookId,
+      env && ownerId ? { env, ownerId } : undefined,
+    ) : null;
   const authenticate = async (
     repository: BookAssemblyRepositoryPort,
     uid: string,
@@ -242,7 +249,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
 
   const mutate = async (
     action: Mutation,
-    input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string },
+    input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string; bookId?: string },
   ) => {
     try {
       await enforceBookPilotScopeIfConfigured({
@@ -251,9 +258,13 @@ export const createBookAssemblyWorkerHandlers = (options: {
         request: input.request,
         operation: action === 'create' ? 'create' : 'mutation',
         actorKind: 'teacher',
+        // The canonical router supplies this from the matched path. Passing
+        // the trusted route subject prevents the direct-handler guard from
+        // treating Assembly as owner-only Activity authoring.
+        bookId: input.bookId,
         requireBook: true,
       });
-      const repository = repositoryFor(input.env);
+      const repository = repositoryFor(input.env, input.uid);
       const body = await readBody(input.request);
       await authenticate(repository, input.uid);
       if (!mutationsEnabled(input.env)) {
@@ -265,10 +276,13 @@ export const createBookAssemblyWorkerHandlers = (options: {
         : ['operationId', 'bookId', 'unitKey', 'candidateId', 'expectedCandidateRevision']);
       const operation = operationId(parsed.operationId);
       const bookId = id(parsed.bookId, 'book_id');
+      if (input.bookId !== undefined && id(input.bookId, 'route_book_id') !== bookId) {
+        throw new BookAssemblyWorkerError('book_route_mismatch', 409);
+      }
       const unitKey = id(parsed.unitKey, 'unit_key');
       const candidateId = parsed.candidateId === undefined
         ? undefined : id(parsed.candidateId, 'candidate_id');
-      const authority = await authorityFor(repository, bookId);
+      const authority = await authorityFor(repository, bookId, input.env, input.uid);
       if (!authority) return { body: { status: 'not-found' }, init: { status: 404 } };
       if (authority.ownerId !== input.uid || authority.bookMode !== 'pdf') {
         return { body: { status: 'forbidden' }, init: { status: 403 } };
@@ -401,7 +415,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
             bookId,
             requireBook: true,
           });
-          assertAuthorityUnchanged(authority, await authorityFor(repository, bookId));
+          assertAuthorityUnchanged(authority, await authorityFor(repository, bookId, input.env, input.uid));
         },
       });
       const status = outputValue.status === 'not-found' ? 404
@@ -422,10 +436,10 @@ export const createBookAssemblyWorkerHandlers = (options: {
   };
 
   return {
-    create: (input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string }) => mutate('create', input),
-    replace: (input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string }) => mutate('replace', input),
-    validate: (input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string }) => mutate('validate', input),
-    discard: (input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string }) => mutate('discard', input),
+    create: (input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string; bookId?: string }) => mutate('create', input),
+    replace: (input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string; bookId?: string }) => mutate('replace', input),
+    validate: (input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string; bookId?: string }) => mutate('validate', input),
+    discard: (input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string; bookId?: string }) => mutate('discard', input),
     async load(input: {
       env: BookAssemblyRepositoryEnv;
       uid: string;
@@ -434,7 +448,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
       candidateId: string;
     }) {
       try {
-        const repository = repositoryFor(input.env);
+        const repository = repositoryFor(input.env, input.uid);
         await authenticate(repository, input.uid);
         const bookId = id(input.bookId, 'book_id');
         const unitKey = id(input.unitKey, 'unit_key');
@@ -444,7 +458,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
         if (!candidate || candidate.ownerId !== input.uid) {
           return { body: { status: 'not-found' }, init: { status: 404 } };
         }
-        const authority = await authorityFor(repository, bookId);
+        const authority = await authorityFor(repository, bookId, input.env, input.uid);
         if (!authority || authority.ownerId !== input.uid || authority.bookMode !== 'pdf') {
           return { body: { status: 'not-found' }, init: { status: 404 } };
         }

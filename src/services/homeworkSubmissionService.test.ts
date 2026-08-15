@@ -14,6 +14,8 @@ const firestoreHarness = vi.hoisted(() => {
 });
 
 const mockGetHomeworkById = vi.hoisted(() => vi.fn());
+const mockGetHomeworkForStudent = vi.hoisted(() => vi.fn());
+const mockGetDocs = vi.hoisted(() => vi.fn());
 const mockUpdateHomework = vi.hoisted(() => vi.fn());
 const mockGetEffectiveHomeworkDueDate = vi.hoisted(() => vi.fn());
 const mockGetStudentOverride = vi.hoisted(() => vi.fn(() => ({})));
@@ -24,15 +26,6 @@ const mockCreateTrustedNotification = vi.hoisted(() => vi.fn());
 vi.mock('firebase/firestore', () => {
     const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
-    const getValueAtPath = (value: Record<string, unknown>, path: string): unknown =>
-        path.split('.').reduce<unknown>((current, segment) => {
-            if (!current || typeof current !== 'object') {
-                return undefined;
-            }
-
-            return (current as Record<string, unknown>)[segment];
-        }, value);
-
     const applyUpdates = (
         currentValue: Record<string, unknown>,
         updates: Record<string, unknown>,
@@ -40,18 +33,6 @@ vi.mock('firebase/firestore', () => {
         ...clone(currentValue),
         ...clone(updates),
     });
-
-    const listDocuments = (collectionName: string) =>
-        [...firestoreHarness.store.entries()]
-            .filter(([path]) => path.startsWith(`${collectionName}/`))
-            .map(([path, value]) => {
-                const id = path.slice(collectionName.length + 1);
-                return {
-                    id,
-                    ref: { kind: 'doc', collection: collectionName, id, path },
-                    data: () => clone(value),
-                };
-            });
 
     return {
         collection: vi.fn((_db: unknown, name: string) => ({ kind: 'collection', name })),
@@ -76,24 +57,7 @@ vi.mock('firebase/firestore', () => {
                 data: () => clone(value),
             };
         }),
-        getDocs: vi.fn(async (target: { kind: string; collection: string; conditions?: Array<{ fieldPath: string; op: string; value: unknown }> }) => {
-            const docs = listDocuments(target.collection).filter((docSnap) => (
-                target.kind !== 'query'
-                    ? true
-                    : (target.conditions ?? []).every((condition) => {
-                        const actualValue = getValueAtPath(docSnap.data(), condition.fieldPath);
-                        if (condition.op === '==') {
-                            return actualValue === condition.value;
-                        }
-                        return false;
-                    })
-            ));
-
-            return {
-                empty: docs.length === 0,
-                docs,
-            };
-        }),
+        getDocs: (...args: unknown[]) => mockGetDocs(...args),
         updateDoc: vi.fn(async (ref: { path: string }, updates: Record<string, unknown>) => {
             const currentValue = firestoreHarness.store.get(ref.path) ?? {};
             firestoreHarness.store.set(ref.path, applyUpdates(currentValue, updates));
@@ -126,6 +90,7 @@ vi.mock('./firebase', () => ({
 
 vi.mock('./homeworkManager', () => ({
     getHomeworkById: (...args: unknown[]) => mockGetHomeworkById(...args),
+    getHomeworkForStudent: (...args: unknown[]) => mockGetHomeworkForStudent(...args),
     updateHomework: (...args: unknown[]) => mockUpdateHomework(...args),
     getEffectiveHomeworkDueDate: (...args: unknown[]) => mockGetEffectiveHomeworkDueDate(...args),
     getStudentOverride: (...args: unknown[]) => mockGetStudentOverride(...args),
@@ -143,6 +108,8 @@ vi.mock('./notificationProducerClient', () => ({
 import {
     createSubmission,
     getBookHomeworkProgress,
+    getStudentHomeworkList,
+    getStudentSubmissionsForHomework,
     getTeacherBookHomeworkProgress,
     HomeworkSubmissionError,
     resetStudentHomework,
@@ -230,6 +197,29 @@ describe('homeworkSubmissionService', () => {
         vi.clearAllMocks();
         const homework = buildHomework();
         mockGetHomeworkById.mockResolvedValue(homework);
+        mockGetHomeworkForStudent.mockResolvedValue([]);
+        mockGetDocs.mockImplementation(async (target: { kind: string; collection: string; conditions?: Array<{ fieldPath: string; op: string; value: unknown }> }) => {
+            const docs = [...firestoreHarness.store.entries()]
+                .filter(([path]) => path.startsWith(`${target.collection}/`))
+                .map(([path, value]) => ({
+                    id: path.slice(target.collection.length + 1),
+                    ref: { kind: 'doc', collection: target.collection, id: path.slice(target.collection.length + 1), path },
+                    data: () => JSON.parse(JSON.stringify(value)),
+                }))
+                .filter((docSnap) => (
+                    target.kind !== 'query'
+                        ? true
+                        : (target.conditions ?? []).every((condition) => {
+                            const actualValue = condition.fieldPath.split('.').reduce<unknown>((current, segment) => (
+                                current && typeof current === 'object'
+                                    ? (current as Record<string, unknown>)[segment]
+                                    : undefined
+                            ), docSnap.data());
+                            return condition.op === '==' ? actualValue === condition.value : false;
+                        })
+                ));
+            return { empty: docs.length === 0, docs };
+        });
         mockGetEffectiveHomeworkDueDate.mockImplementation(
             async (currentHomework: HomeworkAssignment) => currentHomework.scheduling.dueDate,
         );
@@ -238,6 +228,24 @@ describe('homeworkSubmissionService', () => {
         mockDeleteTestResult.mockResolvedValue(undefined);
         mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
         mockUpdateHomework.mockResolvedValue(undefined);
+    });
+
+    it('preserves the legacy student-list query and projection semantics', async () => {
+        const homework = buildHomework();
+        mockGetHomeworkForStudent.mockResolvedValue([homework]);
+        seedSubmission(buildSubmission());
+        const [item] = await getStudentHomeworkList(mockStudentId);
+
+        expect(item).toMatchObject({
+            homework,
+            submission: { id: 'submission-1' },
+            attemptsUsed: 0,
+            attemptsRemaining: 3,
+            canSubmit: true,
+            canViewFeedback: false,
+        });
+        expect(mockGetHomeworkForStudent).toHaveBeenCalledWith(mockStudentId);
+        expect(mockGetDocs).toHaveBeenCalledTimes(1);
     });
 
     it('blocks new homework attempts after an anti-cheat nullification', async () => {
@@ -687,5 +695,57 @@ describe('homeworkSubmissionService', () => {
                 headers: { Authorization: 'Bearer teacher-token' },
             }),
         );
+    });
+
+    it('preserves teacher student rows when derived Book completion is unavailable', async () => {
+        const completion = {
+            schemaVersion: 1,
+            manifestVersionId: 'manifest-1',
+            recipientId: 'student-2',
+            contextId: mockHomeworkId,
+            deliveryBindingId: 'delivery-student-2',
+            bindingRevision: 1,
+            completion: {
+                submittedCount: 0,
+                requiredCount: 1,
+                status: 'not_started' as const,
+                isComplete: false,
+            },
+            grading: {
+                scoredCount: 0,
+                pendingReviewCount: 0,
+                ungradedSubmittedCount: 0,
+            },
+            activities: [{
+                bindingId: 'activity-binding-2',
+                placementId: 'placement-2',
+                activityId: 'activity-2',
+                activityVersion: 1,
+                activityVersionId: 'activity-version-2',
+                order: 1,
+                contextMode: 'required' as const,
+                submitted: false,
+                gradingState: 'ungraded' as const,
+            }],
+            excludedHistoricalRows: [],
+        };
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            assignmentId: mockHomeworkId,
+            students: [
+                { studentId: 'student-1', completion: null },
+                { studentId: 'student-2', completion },
+            ],
+        }), { status: 200 })) as typeof fetch;
+
+        const rows = await getTeacherBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            fetchImpl,
+            getIdToken: async () => 'teacher-token',
+        });
+
+        expect(rows).toEqual([
+            { studentId: 'student-1', completion: null },
+            { studentId: 'student-2', completion },
+        ]);
     });
 });

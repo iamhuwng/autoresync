@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T13:21:00Z",
+  "productionMutationPerformed": false,
+  "classification": "UNOBSERVABLE_CAUGHT_PROJECTION_FAILURE",
+  "target": {
+    "workerScript": "r2-upload-signer",
+    "workerVersionId": "899156dc-b8b9-44b0-8790-fc7fc956c3c2",
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876"
+  },
+  "historicalTelemetry": {
+    "window": {
+      "from": "2026-08-14T12:05:42.176Z",
+      "to": "2026-08-14T12:07:12.541Z",
+      "narrowFrom": "2026-08-14T12:06:35.000Z",
+      "narrowTo": "2026-08-14T12:06:55.000Z"
+    },
+    "cloudflareGraphql": {
+      "bucket": "2026-08-14T12:06:42Z",
+      "colo": "HKG",
+      "status": "success",
+      "requests": 1,
+      "errors": 0,
+      "subrequests": 50,
+      "responseBodyBytes": 273,
+      "durationNs": 1938891125,
+      "requestDurationUs": 15510982,
+      "customLogsRecovered": false,
+      "exceptionsRecovered": false,
+      "invocationIdsRecovered": false,
+      "tracesRecovered": false,
+      "reason": "The historical OAuth credential lacked Workers Observability API authorization and the deployed version had traces disabled."
+    },
+    "googleCloud": {
+      "entries": 2,
+      "entriesSummary": [
+        "FirebaseRulesService.UpdateRelease activation",
+        "FirebaseRulesService.UpdateRelease rollback"
+      ],
+      "identityToolkitEntries": 0,
+      "firestoreEntries": 0
+    }
+  },
+  "firebaseRulesProjectsTest": {
+    "endpoint": "POST https://firebaserules.googleapis.com/v1/projects/temp-a1437:test",
+    "inlineSourceSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+    "inlineSourceBytes": 40347,
+    "method": "create",
+    "oldResource": "absent",
+    "expectation": "ALLOW",
+    "expressionReportLevel": "VISITED",
+    "state": "SUCCESS",
+    "errorPosition": null,
+    "debugMessages": [],
+    "functionCalls": [],
+    "visitedExpressions": [
+      { "line": 418, "column": 29, "value": false },
+      { "line": 505, "column": 24, "value": true }
+    ],
+    "expressionReport": {
+      "nestedReportCount": 226,
+      "distinctSourcePositionCount": 78,
+      "selectedTruePredicates": [
+        "104:14 exact compatibility claims",
+        "105:12 safe assignment ID",
+        "106:12 auth UID equals owner",
+        "107:12 assignment claim equals path assignment",
+        "108:12 owner claim equals projection owner",
+        "112:14 authenticated request",
+        "113:12 required token keys",
+        "118:12 compatibility service claim",
+        "134:14 compatibility projection validator",
+        "147:12 projection ID equals assignment",
+        "148:12 projection creator equals owner",
+        "157:12 marker assignment equals assignment",
+        "158:12 source saga revision is integer 7",
+        "159:12 source saga revision is at least 1",
+        "160:12 source fingerprint is string",
+        "161:12 source fingerprint is nonempty",
+        "512:11 exact service authorization",
+        "513:14 exact projection validation"
+      ],
+      "sourceSagaRevision": 7,
+      "sourceFingerprint": "fnv1a64:cc3d88a5107df2b5",
+      "nonSelectedLegacyBranchInvalidArgument": true,
+      "nonSelectedLegacyBranchAffectedDecision": false
+    }
+  },
+  "tokenVerification": {
+    "liveTokenMinted": false,
+    "liveBlocker": "IAM Credentials signJwt returned 403; the caller lacks service-account signing authorization.",
+    "productionCodeTupleProof": {
+      "firebaseProjectId": "temp-a1437",
+      "serviceIdentity": "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+      "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "audience": "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",
+      "claims": {
+        "book_homework_compatibility_service": true,
+        "book_homework_compatibility_assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+        "book_homework_compatibility_ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+      },
+      "secretsRetained": false
+    }
+  },
+  "observabilityOnlyCorrection": {
+    "outwardStatusPreserved": "committed_projection_pending",
+    "outwardHttpStatusPreserved": 202,
+    "outwardBodyChanged": false,
+    "projectionCasAuthBehaviorChanged": false,
+    "diagnosticStages": [
+      "token_exchange",
+      "firestore_get",
+      "firestore_patch",
+      "cas_precondition",
+      "derived_projection_validation",
+      "readback",
+      "unknown"
+    ],
+    "diagnosticErrorClasses": [
+      "token-authentication",
+      "firestore-read",
+      "firestore-write",
+      "cas-precondition-conflict",
+      "invalid-derived-projection",
+      "readback-mismatch",
+      "unknown-projection-failure"
+    ],
+    "diagnosticActivation": {
+      "logsEnabled": true,
+      "invocationLogs": true,
+      "logsPersist": true,
+      "tracesEnabled": true,
+      "tracesPersist": true,
+      "headSamplingRate": 1
+    }
+  },
+  "liveRollbackReconciliation": {
+    "workerVersionId": "7f11dc93-fd77-4f33-90bf-a2d92cce828a",
+    "workerTrafficPercent": 100,
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "readOnlyVerification": true
+  },
+  "verification": {
+    "targetedCloudflareTests": "57 passed",
+    "exactCurrentWorkerdComposition": "1 passed",
+    "exactFirestoreEmulatorProjection": "1 passed",
+    "homeworkBrowserAndTrustedProjectionTests": "43 passed",
+    "contextResolverTests": "7 passed",
+    "wranglerDiagnosticActivationDryRun": "passed"
+  },
+  "readiness": "not_ready_for_production_replay",
+  "remainingGate": "Regenerate and independently review a new frozen diagnostic/recovery bundle and checkpoint with fresh inactive identities; no production replay is authorized by this evidence."
+}

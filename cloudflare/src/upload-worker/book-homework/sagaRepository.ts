@@ -15,6 +15,7 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const MAX_RECIPIENTS = 30;
 const MAX_BYTES = 512 * 1024;
+const PRESENTATION_TEXT = /^.{1,512}$/su;
 
 export interface BookHomeworkSagaRepository {
   read(assignmentId: string, ownerId?: string): Promise<BookHomeworkSagaRecord | null>;
@@ -52,6 +53,23 @@ function assertIso(value: unknown, label: string): asserts value is string {
   }
 }
 
+function assertPresentation(value: unknown): void {
+  if (!isRecord(value)
+    || Object.keys(value).some((key) => !['title', 'description'].includes(key))
+    || !Object.hasOwn(value, 'title')
+    || typeof value.title !== 'string'
+    || value.title.trim() !== value.title
+    || !PRESENTATION_TEXT.test(value.title)) {
+    throw new Error('invalid_book_homework_saga_presentation');
+  }
+  if (Object.hasOwn(value, 'description')
+    && (typeof value.description !== 'string'
+      || value.description.trim() !== value.description
+      || !PRESENTATION_TEXT.test(value.description))) {
+    throw new Error('invalid_book_homework_saga_presentation');
+  }
+}
+
 export function assertValidBookHomeworkSagaRecord(
   value: unknown,
 ): asserts value is BookHomeworkSagaRecord {
@@ -59,7 +77,7 @@ export function assertValidBookHomeworkSagaRecord(
   const record = value as Record<string, any>;
   const required = [
     'schemaVersion', 'assignmentId', 'operationId', 'idempotencyKey', 'ownerId', 'manifestVersionId',
-    'publicationId', 'publicationRevision', 'contextId', 'fingerprint', 'requestFingerprint', 'state', 'visibility',
+    'publicationId', 'publicationRevision', 'contextId', 'presentation', 'fingerprint', 'requestFingerprint', 'state', 'visibility',
     'recipients', 'recipientCount', 'committedRecipientCount', 'revision', 'createdAt', 'updatedAt',
   ];
   if (Object.keys(record).some((key) => !required.includes(key) && key !== 'lastError')
@@ -89,6 +107,7 @@ export function assertValidBookHomeworkSagaRecord(
   if (record.contextId !== record.assignmentId) {
     throw new Error('invalid_book_homework_saga_context_identity');
   }
+  assertPresentation(record.presentation);
   assertIso(record.createdAt, 'created_at');
   assertIso(record.updatedAt, 'updated_at');
   if (!Array.isArray(record.recipients) || record.recipients.length === 0 || record.recipients.length > MAX_RECIPIENTS) {

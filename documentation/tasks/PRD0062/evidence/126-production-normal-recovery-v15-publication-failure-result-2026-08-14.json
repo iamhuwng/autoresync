@@ -1,0 +1,84 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-attempt-result",
+  "schemaVersion": 1,
+  "status": "rolled-back-after-durable-publication-binding-reconciliation-failure",
+  "createdAt": "2026-08-13T23:14:00Z",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v15-retry-checkpoint-2026-08-14.json",
+  "activation": {
+    "workerVersionId": "98354e62-3b99-4b1f-bc96-8cc3f839ecf9",
+    "deploymentId": "1e46d552-9b42-4e55-af8a-24af54f734ef",
+    "percentage": 100,
+    "rulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rulesReadbackByteEqual": true
+  },
+  "successfulSteps": {
+    "teacherAuthentication": {
+      "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "origin": "http://localhost:5173",
+      "referer": "http://localhost:5173/",
+      "httpStatus": 200
+    },
+    "saveBindReplay": {
+      "operationId": "62e20638-b575-4f12-8d10-243a356103c3",
+      "httpStatus": 200,
+      "replayed": true,
+      "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+      "activityRevision": 1,
+      "bindingPhase": "complete",
+      "duplicateActivityCreated": false
+    },
+    "preview": { "httpStatus": 200 },
+    "stalePreview": { "httpStatus": 409, "code": "preview_candidate_stale" },
+    "approvalA": "9ddd90b1-4bc8-4dea-835d-37c332300b90",
+    "revocationA": { "httpStatus": 200, "status": "revoked" },
+    "revokedPublicationDenial": { "httpStatus": 422, "code": "full_pdf_preview_approval_invalid" },
+    "approvalB": "19f8c5b3-aa51-47b0-a838-cb94604f31c6"
+  },
+  "failure": {
+    "action": "publish once with Approval B and enrich the exact durable Activity binding",
+    "httpStatus": 503,
+    "code": "book_assembly_activity_binding_unavailable",
+    "publicationCommittedBeforeFailure": true,
+    "bindingEnrichmentCommitted": false,
+    "hiddenPhase": "recordPublishedBindings after canonical publication commit"
+  },
+  "durablePublication": {
+    "operationId": "842f671d-ae7f-4cc7-b08c-2beb922e0b5d",
+    "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+    "publicationRevision": 1,
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "activityVersion": 1,
+    "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+    "canonicalActivityVersionCommitted": true,
+    "publicationScopeParserAgainstCapturedWire": "passed"
+  },
+  "replayAttempt": {
+    "request": "identical client publication request with Approval B",
+    "httpStatus": 409,
+    "failureCode": "stale-current-pointer",
+    "newOperationId": "7a7268f1-06fb-480c-b2c9-d444d49fa510",
+    "finding": "Default production allocation generates new publication identities on replay, so the existing same-operation replay test does not cover response-loss recovery from the public route."
+  },
+  "rollback": {
+    "order": [
+      "activate exact rollback Worker",
+      "restore exact rollback rules",
+      "read both live identities"
+    ],
+    "workerVersionId": "0221adb5-056f-4727-8581-25ad16e13da1",
+    "finalDeploymentId": "e2531cbd-2ab3-49ad-8a64-228c0dd33ce0",
+    "workerPercentage": 100,
+    "rulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rulesReadbackByteEqual": true,
+    "correction": "The first rules rollback request mistakenly sent the Firebase config wrapper and left activation rules live. With the rollback Worker already active, the referenced firebase.prd0062-118-rules.rollback.json was immediately deployed and verified byte-equal before further action. The later replay rollback used the correct referenced rules artifact directly."
+  },
+  "durableStateAfterRollback": {
+    "binding": "complete candidate binding without Activity version enrichment",
+    "publication": "published revision 1",
+    "canonicalActivityVersion": "published version 1",
+    "assignment": null,
+    "delivery": null
+  },
+  "nextAction": "Add fail-closed reconciliation for a fully validated stale-current-pointer request only when the trusted persisted current publication exactly matches owner, candidate, revisions, unit, and committed operation chain; verify focused and production-shaped tests before another inactive-version checkpoint."
+}

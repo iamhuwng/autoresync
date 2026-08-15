@@ -3,6 +3,12 @@ import {
 } from './book-delivery/worker.ts';
 import { createBookActivityAuthoringWorkerHandlers } from './book-activity-authoring/worker.ts';
 import { createBookAssemblyWorkerHandlers } from './book-assembly/worker.ts';
+import {
+  CandidatePreviewWorkerError,
+  createCandidatePreviewWorkerHandlers,
+  type CandidatePreviewWorkerPort,
+} from './book-assembly/preview-worker.ts';
+import type { BookAssemblyPreviewApprovalRepository } from '../../../src/services/book-assembly/previewApproval.repository.ts';
 import { createSourceStrategyMigrationWorkerHandlers } from './book-assembly/source-strategy-migration-worker.ts';
 import {
   createBookAssemblyPublicationRouteHandlers,
@@ -44,6 +50,22 @@ export interface BookRouteHandlerInput {
   readonly uid: string;
   readonly params: BookRouteParams;
   readonly descriptor: CanonicalBookRouteDescriptor;
+}
+
+export interface BookAssemblyPreviewRouteOptions {
+  /** Deployment-owned renderer registry identity; never read from the request. */
+  readonly registryVersion?: string;
+  /** All preview reads must be supplied by a trusted production composition. */
+  readonly portFactory?: (
+    env: BookRouterEnv,
+    uid: string,
+    scope: { readonly bookId: string; readonly unitKey: string },
+  ) => Omit<CandidatePreviewWorkerPort, 'recordApproval' | 'readApproval' | 'recordRevocation'>;
+  /** Durable, append-only approval persistence; in-memory callbacks are not accepted by default. */
+  readonly approvalRepositoryFactory?: (
+    env: BookRouterEnv,
+    uid: string,
+  ) => BookAssemblyPreviewApprovalRepository;
 }
 
 export type BookRouteHandler = (input: BookRouteHandlerInput) => unknown | Promise<unknown>;
@@ -95,6 +117,7 @@ const directDescriptorFor = (
 const READ_HANDLER_NAMES = new Set([
   'loadCandidate', 'load', 'readDraft', 'status', 'resolve', 'current', 'catalog',
   'studentProjection', 'teacherStudentProjection', 'teacherProjection',
+  'homeworkStudentLaunch',
 ]);
 
 const adapt = (
@@ -145,6 +168,7 @@ export interface BookRouteHandlersOptions {
   readonly deliveryHandlers?: Record<string, unknown>;
   readonly activityAuthoringHandlers?: Record<string, unknown>;
   readonly assemblyHandlers?: Record<string, unknown>;
+  readonly assemblyPreview?: BookAssemblyPreviewRouteOptions;
   readonly assemblyMigrationHandlers?: Record<string, unknown>;
   readonly assemblyPublication?: BookAssemblyPublicationRouteOptions;
   readonly assemblySuccessorHandlers?: Record<string, unknown>;
@@ -165,6 +189,103 @@ export interface BookRouteHandlersOptions {
   /** #104 runtime-launch contributor; disabled unless composed by #59. */
   readonly runtimeLaunch?: BookRuntimeLaunchCanonicalHandlersOptions;
 }
+
+type PreviewWorkerResult = { body: unknown; init: ResponseInit };
+
+const previewUnavailable = (): PreviewWorkerResult => ({
+  body: { code: 'book_assembly_preview_dependencies_unavailable' },
+  init: { status: 503 },
+});
+
+const previewBody = async (request: Request): Promise<unknown> => {
+  if (!request.headers.get('content-type')?.toLowerCase().includes('application/json')) {
+    throw new CandidatePreviewWorkerError('content_type_required');
+  }
+  try {
+    return JSON.parse(await request.text());
+  } catch {
+    throw new CandidatePreviewWorkerError('invalid_json');
+  }
+};
+
+export const createBookAssemblyPreviewRouteHandlers = (
+  options: BookAssemblyPreviewRouteOptions = {},
+) => {
+  const unavailable = async (): Promise<PreviewWorkerResult> => previewUnavailable();
+  if (!options.portFactory || !options.approvalRepositoryFactory) {
+    return { preview: unavailable, approve: unavailable, revoke: unavailable };
+  }
+
+  const create = (action: 'preview' | 'approve' | 'revoke') => async (input: {
+    request: Request;
+    env: BookRouterEnv;
+    uid: string;
+    bookId?: unknown;
+    unitKey?: unknown;
+    candidateId?: unknown;
+    approvalId?: unknown;
+  }): Promise<PreviewWorkerResult> => {
+    let worker: ReturnType<typeof createCandidatePreviewWorkerHandlers>;
+    try {
+      if (typeof input.bookId !== 'string' || typeof input.unitKey !== 'string') return previewUnavailable();
+      const port = options.portFactory!(input.env, input.uid, { bookId: input.bookId, unitKey: input.unitKey });
+      const approvalRepository = options.approvalRepositoryFactory!(input.env, input.uid);
+      if (!port || !approvalRepository
+        || typeof approvalRepository.create !== 'function'
+        || typeof approvalRepository.read !== 'function'
+        || typeof approvalRepository.revoke !== 'function') return previewUnavailable();
+      worker = createCandidatePreviewWorkerHandlers({
+        port: {
+          ...port,
+          recordApproval: async (record) => {
+            const status = await approvalRepository.create(record);
+            if (status === 'conflict') {
+              throw new CandidatePreviewWorkerError('preview_approval_conflict', 409);
+            }
+          },
+          readApproval: ({ bookId, unitKey, approvalId }) => approvalRepository.read(bookId, unitKey, approvalId),
+          recordRevocation: (record) => approvalRepository.revoke(record),
+        },
+        registryVersion: options.registryVersion
+          ?? (typeof input.env.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION === 'string'
+            ? input.env.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION
+            : undefined),
+      });
+    } catch {
+      return previewUnavailable();
+    }
+    try {
+      const body = await previewBody(input.request);
+      if (action === 'revoke' && (!body || typeof body !== 'object' || Array.isArray(body)
+        || Object.keys(body).length !== 1 || !Object.hasOwn(body, 'expectedCandidateRevision'))) {
+        throw new CandidatePreviewWorkerError('invalid_request');
+      }
+      const requestBody = {
+        ...(body && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : { value: body }),
+        bookId: input.bookId,
+        unitKey: input.unitKey,
+        candidateId: input.candidateId,
+        ...(action === 'revoke' ? { approvalId: input.approvalId } : {}),
+      };
+      return await worker[action]({ uid: input.uid, body: requestBody });
+    } catch (error) {
+      if (error instanceof CandidatePreviewWorkerError) {
+        return {
+          body: { code: error.code },
+          init: { status: error.status },
+        };
+      }
+      return { body: { code: 'candidate_preview_failed' }, init: { status: 500 } };
+    }
+  };
+  return {
+    preview: create('preview'),
+    approve: create('approve'),
+    revoke: create('revoke'),
+  };
+};
 
 export const createBookRouteHandlers = (
   options: BookRouteHandlersOptions = {},
@@ -189,6 +310,7 @@ export const createBookRouteHandlers = (
   const activity = options.activityAuthoringHandlers
     ?? createBookActivityAuthoringWorkerHandlers();
   const assembly = options.assemblyHandlers ?? createBookAssemblyWorkerHandlers();
+  const assemblyPreview = createBookAssemblyPreviewRouteHandlers(options.assemblyPreview);
   const assemblyMigration = options.assemblyMigrationHandlers ?? createSourceStrategyMigrationWorkerHandlers();
   const assemblyPublication = createBookAssemblyPublicationRouteHandlers(options.assemblyPublication);
   const assemblySuccessor = options.assemblySuccessorHandlers ?? {};
@@ -208,8 +330,12 @@ export const createBookRouteHandlers = (
     ['stage', 'validate', 'saveDraft', 'discard'], 'bookActivityAuthoring', () => []);
   addFactoryHandlers(handlers, activity, ['loadCandidate'], 'bookActivityAuthoring', () => ['candidateId']);
   addFactoryHandlers(handlers, assembly,
-    ['create', 'replace', 'validate', 'discard'], 'bookAssembly', () => []);
+    ['create', 'replace', 'validate', 'discard'], 'bookAssembly', () => ['bookId']);
   addFactoryHandlers(handlers, assembly, ['load'], 'bookAssembly', () => ['bookId', 'unitKey', 'candidateId']);
+  addFactoryHandlers(handlers, assemblyPreview, ['preview', 'approve', 'revoke'], 'bookAssembly', (name) => [
+    'bookId', 'unitKey', 'candidateId',
+    ...(name === 'revoke' ? ['approvalId'] : []),
+  ]);
   addFactoryHandlers(handlers, assemblyMigration,
     ['migrate'], 'bookAssemblyMigration', () => []);
   addFactoryHandlers(handlers, assemblyMigration,
@@ -232,6 +358,7 @@ export const createBookRouteHandlers = (
   ]);
   addFactoryHandlers(handlers, homework, ['homeworkAssignmentCommand'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, homework, ['homeworkStudentProjection'], 'futureSeam', () => ['assignmentId']);
+  addFactoryHandlers(handlers, homework, ['homeworkStudentLaunch'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, homework, ['homeworkTeacherStudentProjection'], 'futureSeam', () => ['assignmentId', 'studentId']);
   addFactoryHandlers(handlers, homework, ['homeworkTeacherProjection'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, sourceUpload, ['begin', 'complete', 'status', 'cancel'], 'bookSource');

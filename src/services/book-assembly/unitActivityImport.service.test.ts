@@ -82,8 +82,23 @@ const authoring = (): ActivityAuthoringService => ({
     sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
     answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
   })),
-  validate: vi.fn(),
-  saveDraft: vi.fn(),
+  validate: vi.fn(async (input) => ({
+    status: 'validated' as const,
+    candidateId: input.candidateId,
+    revision: input.expectedRevision + 1,
+    lifecycle: 'validated' as const,
+    validation: { valid: true, errors: [] },
+    diff: null,
+    evidenceRefs: [...(input.evidenceRefs ?? [])],
+    sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+    answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+  })),
+  saveDraft: vi.fn(async (input) => ({
+    status: 'saved' as const, activityId: input.candidateId.replace('candidate-', ''), candidateId: input.candidateId,
+    candidateRevision: input.expectedRevision + 1, revision: 1, lifecycle: 'saved' as const,
+    validation: { valid: true, errors: [] }, diff: null, evidenceRefs: [...(input.evidenceRefs ?? [])],
+    sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])], answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+  })),
   discard: vi.fn(),
   loadCandidate: vi.fn(),
 });
@@ -139,7 +154,7 @@ describe('unit Activity JSON import', () => {
     expect(service.stage).not.toHaveBeenCalled();
   });
 
-  it('stages every slot through 12C with target Activity IDs and evidence refs', async () => {
+  it('stages, validates, and saves every slot through 12C with server binding context', async () => {
     const service = authoring();
     const result = await stageUnitActivityImportBundle({
       text: bundle(),
@@ -155,6 +170,13 @@ describe('unit Activity JSON import', () => {
       expectedRevision: 0,
       sourceEvidenceRefs: ['source:full:page:2'],
       answerEvidenceRefs: ['pageGroup:pages-full-2'],
+    }));
+    expect(service.validate).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      candidateId: 'candidate-activity-a', expectedRevision: 1,
+    }));
+    expect(service.saveDraft).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      candidateId: 'candidate-activity-a', expectedRevision: 2,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
     }));
   });
 
@@ -197,7 +219,7 @@ describe('unit Activity JSON import', () => {
     })).rejects.toThrow('stage failed');
     expect(service.discard).toHaveBeenCalledWith({
       candidateId: 'candidate-activity-a',
-      expectedRevision: 7,
+      expectedRevision: 9,
     });
   });
 

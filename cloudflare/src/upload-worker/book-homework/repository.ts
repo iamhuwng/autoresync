@@ -8,6 +8,7 @@ import {
 import type {
   BookHomeworkAuthorityMutationResult,
   BookHomeworkAuthorityRecord,
+  BookHomeworkAuthorityScope,
   BookHomeworkCreateCommand,
   BookHomeworkRecoveryCommand,
   BookHomeworkSagaState,
@@ -18,9 +19,9 @@ import type {
   BookHomeworkVisibilityCommand,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import {
-  assertIso,
-  assertValidBookHomeworkAuthorityRecord,
-  assertValidBookHomeworkSchedule,
+  assertIso as assertAuthorityIso,
+  assertValidBookHomeworkAuthorityRecord as assertValidAuthorityRecord,
+  assertValidBookHomeworkSchedule as assertValidAuthoritySchedule,
   BookHomeworkAuthorityError,
   cloneAuthorityRecord,
   fingerprint,
@@ -30,9 +31,20 @@ import {
   createFirebaseClaimTokenProvider,
   type BookFirebaseClaimTuple,
 } from '../book-activity-authoring/firebase-token.ts';
+import { BookHomeworkProjectionDiagnosticError } from './projection-diagnostics.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
+const ASSIGNMENT_ID = /^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$/u;
 const MAX_RETRIES = 5;
+
+const assertIso: (value: unknown, label: string) => asserts value is string = assertAuthorityIso;
+const assertValidBookHomeworkAuthorityRecord: (
+  value: unknown,
+) => asserts value is BookHomeworkAuthorityRecord = assertValidAuthorityRecord;
+const assertValidBookHomeworkSchedule: (
+  value: unknown,
+  outline: BookHomeworkAuthorityRecord['bookManifest']['outline'],
+) => asserts value is BookHomeworkAuthorityRecord['schedule'] = assertValidAuthoritySchedule;
 
 export interface BookHomeworkStoredDocument {
   readonly value: unknown;
@@ -40,8 +52,8 @@ export interface BookHomeworkStoredDocument {
 }
 
 export interface BookHomeworkDocumentStore {
-  read(assignmentId: string): Promise<BookHomeworkStoredDocument | null>;
-  write(assignmentId: string, value: BookHomeworkAuthorityRecord, updateTime?: string): Promise<boolean>;
+  read(scope: BookHomeworkAuthorityScope): Promise<BookHomeworkStoredDocument | null>;
+  write(scope: BookHomeworkAuthorityScope, value: BookHomeworkAuthorityRecord, updateTime?: string): Promise<boolean>;
 }
 
 const clone = <T>(value: T): T => {
@@ -49,14 +61,39 @@ const clone = <T>(value: T): T => {
   return JSON.parse(JSON.stringify(value)) as T;
 };
 
-const assertCommandId = (value: unknown, label: string): asserts value is string => {
+const assertCommandId: (value: unknown, label: string) => asserts value is string = (value, label) => {
   if (typeof value !== 'string' || !ID.test(value)) {
     throw new BookHomeworkAuthorityError('invalid-command', `${label} is invalid.`);
   }
 };
 
-const assertRevision = (value: unknown): asserts value is number => {
-  if (!Number.isSafeInteger(value) || value < 0) {
+const assertScope: (scope: BookHomeworkAuthorityScope) => void = (scope) => {
+  if (!scope || typeof scope !== 'object') {
+    throw new BookHomeworkAuthorityError('invalid-command', 'Book Homework authority scope is required.');
+  }
+  assertCommandId(scope.authorityId, 'authorityId');
+  if (!ASSIGNMENT_ID.test(scope.assignmentId)) {
+    throw new BookHomeworkAuthorityError('invalid-command', 'assignmentId is invalid.');
+  }
+  assertCommandId(scope.ownerId, 'ownerId');
+};
+
+const assertScopedRecord = (
+  scope: BookHomeworkAuthorityScope,
+  value: BookHomeworkAuthorityRecord,
+): void => {
+  if (value.ownerId !== scope.ownerId || value.bookManifest.ownerId !== scope.ownerId) {
+    throw new BookHomeworkAuthorityError('owner-mismatch', 'Book Homework authority owner does not match its scope.');
+  }
+  if (value.assignmentId !== scope.authorityId
+    || value.bookManifest.context.contextId !== scope.assignmentId
+    || value.saga.sagaId !== scope.assignmentId) {
+    throw new BookHomeworkAuthorityError('invalid-record', 'Book Homework authority does not match its scope.');
+  }
+};
+
+const assertRevision: (value: unknown) => asserts value is number = (value) => {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     throw new BookHomeworkAuthorityError('invalid-command', 'Expected revision is invalid.');
   }
 };
@@ -120,6 +157,7 @@ const withOperation = (
 });
 
 const validateCommandCommon = (input: {
+  readonly scope: BookHomeworkAuthorityScope;
   readonly assignmentId: string;
   readonly ownerId: string;
   readonly commandId: string;
@@ -128,8 +166,13 @@ const validateCommandCommon = (input: {
   readonly updatedAt?: string;
   readonly createdAt?: string;
 }): void => {
+  assertScope(input.scope);
   assertCommandId(input.assignmentId, 'assignmentId');
   assertCommandId(input.ownerId, 'ownerId');
+  if (input.ownerId !== input.scope.ownerId
+    || (input.assignmentId !== input.scope.authorityId && input.assignmentId !== input.scope.assignmentId)) {
+    throw new BookHomeworkAuthorityError('invalid-command', 'Book Homework command scope does not match its command identity.');
+  }
   assertCommandId(input.commandId, 'commandId');
   assertCommandId(input.idempotencyKey, 'idempotencyKey');
   assertRevision(input.expectedRevision);
@@ -156,26 +199,27 @@ export class BookHomeworkAuthorityRepository {
     }
   }
 
-  async read(assignmentId: string): Promise<BookHomeworkAuthorityRecord | null> {
-    assertCommandId(assignmentId, 'assignmentId');
-    const stored = await this.store.read(assignmentId);
+  async read(scope: BookHomeworkAuthorityScope): Promise<BookHomeworkAuthorityRecord | null> {
+    assertScope(scope);
+    const stored = await this.store.read(scope);
     if (!stored) return null;
     assertValidBookHomeworkAuthorityRecord(stored.value);
-    if (stored.value.assignmentId !== assignmentId) {
+    if (stored.value.assignmentId !== scope.authorityId) {
       throw new BookHomeworkAuthorityError(
         'invalid-record',
         'Book Homework authority identity does not match its document path.',
       );
     }
+    assertScopedRecord(scope, stored.value);
     return cloneAuthorityRecord(stored.value);
   }
 
   async readStudentProjection(
-    assignmentId: string,
+    scope: BookHomeworkAuthorityScope,
     studentId: string,
   ): Promise<BookHomeworkStudentProjection | null> {
     assertCommandId(studentId, 'studentId');
-    const record = await this.read(assignmentId);
+    const record = await this.read(scope);
     if (!record || record.bookManifest.context.recipientId !== studentId
       || record.visibility.status !== 'committed'
       || !await this.options.resolveCommittedRoot(record)) return null;
@@ -192,25 +236,37 @@ export class BookHomeworkAuthorityRepository {
 
   async create(input: BookHomeworkCreateCommand): Promise<BookHomeworkAuthorityMutationResult> {
     validateCommandCommon(input);
+    const scope = input.scope;
+    assertScope(scope);
+    if ((input.ownerId !== undefined && input.ownerId !== scope.ownerId)
+      || (input.assignmentId !== undefined
+        && input.assignmentId !== scope.authorityId
+        && input.assignmentId !== scope.assignmentId)) {
+      throw new BookHomeworkAuthorityError('invalid-command', 'Book Homework command scope does not match its command identity.');
+    }
     if (!input.activityPolicies || Object.keys(input.activityPolicies).length === 0) {
       throw new BookHomeworkAuthorityError('invalid-command', 'Create requires frozen Activity policies.');
     }
     if (input.expectedRevision !== 0) throw new BookHomeworkAuthorityError('invalid-command', 'Create expected revision must be zero.');
-    if (input.manifest.ownerId !== input.ownerId) throw new BookHomeworkAuthorityError('owner-mismatch', 'Manifest owner does not match create owner.');
+    if (input.manifest.ownerId !== scope.ownerId) throw new BookHomeworkAuthorityError('owner-mismatch', 'Manifest owner does not match create owner.');
+    if (input.manifest.context.contextId !== scope.assignmentId
+      || (input.sagaId !== undefined && input.sagaId !== scope.assignmentId)) {
+      throw new BookHomeworkAuthorityError('invalid-command', 'Create root assignment identity does not match its scope.');
+    }
     assertValidBookHomeworkSchedule(input.schedule, input.manifest.outline);
     if (fingerprint(input.schedule.scheduleRules) !== fingerprint(input.manifest.scheduleRules)) {
       throw new BookHomeworkAuthorityError('immutable-manifest', 'Initial authority schedule must match the frozen manifest schedule rules.');
     }
     assertValidBookHomeworkAuthorityRecord({
-      assignmentId: input.assignmentId,
+      assignmentId: scope.authorityId,
       assignmentKind: 'book_activity_bundle',
       schemaVersion: 1,
-      ownerId: input.ownerId,
+      ownerId: scope.ownerId,
       bookManifest: input.manifest,
       schedule: input.schedule,
       activityPolicies: input.activityPolicies,
       studentExtensions: {},
-      saga: { sagaId: input.sagaId, state: 'prepared', lastCommandId: input.commandId },
+      saga: { sagaId: scope.assignmentId, state: 'prepared', lastCommandId: input.commandId },
       visibility: {
         status: 'prepared',
         pointerId: input.manifest.manifestVersionId,
@@ -222,18 +278,18 @@ export class BookHomeworkAuthorityRepository {
       updatedAt: input.createdAt,
     });
 
-    return this.mutate(input.assignmentId, input.expectedRevision, input.idempotencyKey, fingerprint(input), input.createdAt, (current) => {
+    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, fingerprint(input), input.createdAt, (current) => {
       if (current) throw new BookHomeworkAuthorityError('revision-conflict', 'Book Homework assignment already exists.');
       const record: BookHomeworkAuthorityRecord = {
-        assignmentId: input.assignmentId,
+        assignmentId: scope.authorityId,
         assignmentKind: 'book_activity_bundle',
         schemaVersion: 1,
-        ownerId: input.ownerId,
+        ownerId: scope.ownerId,
         bookManifest: clone(input.manifest),
         schedule: clone(input.schedule),
         activityPolicies: clone(input.activityPolicies),
         studentExtensions: {},
-        saga: { sagaId: input.sagaId, state: 'prepared', lastCommandId: input.commandId },
+        saga: { sagaId: scope.assignmentId, state: 'prepared', lastCommandId: input.commandId },
         visibility: {
           status: 'prepared',
           pointerId: input.manifest.manifestVersionId,
@@ -251,12 +307,14 @@ export class BookHomeworkAuthorityRepository {
 
   async updateSchedule(input: BookHomeworkScheduleCommand): Promise<BookHomeworkAuthorityMutationResult> {
     validateCommandCommon(input);
+    const scope = input.scope;
+    assertScope(scope);
     if (input.changedNodeKey !== '$assignment' && input.changedNodeKey !== '$availability') {
       assertCommandId(input.changedNodeKey, 'changedNodeKey');
     }
     const operationFingerprint = fingerprint(input);
-    return this.mutate(input.assignmentId, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, async (current) => {
-      const record = this.requireOwner(current, input.ownerId);
+    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, async (current) => {
+      const record = this.requireOwner(current, scope.ownerId);
       assertValidBookHomeworkSchedule(input.schedule, record.bookManifest.outline);
       const changedKeys = changedScheduleKeys(record.schedule as BookHomeworkSchedule, input.schedule as BookHomeworkSchedule);
       const availabilityChanged = record.schedule.availableFrom !== input.schedule.availableFrom
@@ -305,12 +363,14 @@ export class BookHomeworkAuthorityRepository {
 
   async updateStudentExtension(input: BookHomeworkStudentExtensionCommand): Promise<BookHomeworkAuthorityMutationResult> {
     validateCommandCommon(input);
+    const scope = input.scope;
+    assertScope(scope);
     assertCommandId(input.studentId, 'studentId');
     assertCommandId(input.nodeKey, 'nodeKey');
     assertIso(input.dueAt, 'dueAt');
     const operationFingerprint = fingerprint(input);
-    return this.mutate(input.assignmentId, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, (current) => {
-      const record = this.requireOwner(current, input.ownerId);
+    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, async (current) => {
+      const record = this.requireOwner(current, scope.ownerId);
       if (record.bookManifest.context.recipientId !== input.studentId) {
         throw new BookHomeworkAuthorityError('invalid-command', 'Student extension is outside the frozen recipient boundary.');
       }
@@ -334,7 +394,7 @@ export class BookHomeworkAuthorityRepository {
             [input.nodeKey]: {
               nodeKey: input.nodeKey,
               dueAt: input.dueAt,
-              grantedBy: input.ownerId,
+              grantedBy: scope.ownerId,
               commandId: input.commandId,
               updatedAt: input.updatedAt,
             },
@@ -362,13 +422,16 @@ export class BookHomeworkAuthorityRepository {
     kind: 'set' | 'recover',
   ): Promise<BookHomeworkAuthorityMutationResult> {
     validateCommandCommon(input);
+    const scope = input.scope;
+    assertScope(scope);
     const operationFingerprint = fingerprint({ kind, ...input });
-    return this.mutate(input.assignmentId, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, (current) => {
-      const record = this.requireOwner(current, input.ownerId);
+    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, async (current) => {
+      const record = this.requireOwner(current, scope.ownerId);
       if (kind === 'set' && record.visibility.status !== 'prepared') {
         throw new BookHomeworkAuthorityError('visibility-conflict', 'Only prepared Book Homework can change visibility.');
       }
-      if (kind === 'recover' && record.visibility.status === 'committed' && input.state !== 'committed') {
+      if (kind === 'recover' && record.visibility.status === 'committed' && input.state !== 'committed'
+        && await this.options.resolveCommittedRoot(record)) {
         throw new BookHomeworkAuthorityError('visibility-conflict', 'Committed Book Homework cannot be compensated by recovery.');
       }
       const next: BookHomeworkAuthorityRecord = {
@@ -396,7 +459,7 @@ export class BookHomeworkAuthorityRepository {
   }
 
   private async mutate(
-    assignmentId: string,
+    scope: BookHomeworkAuthorityScope,
     expectedRevision: number,
     operationId: string,
     operationFingerprint: string,
@@ -409,13 +472,15 @@ export class BookHomeworkAuthorityRepository {
       readonly operationResult: BookHomeworkAuthorityMutationResult;
     }>,
   ): Promise<BookHomeworkAuthorityMutationResult> {
+    assertScope(scope);
     const retries = this.options.maxRetries ?? MAX_RETRIES;
     for (let attempt = 0; attempt < retries; attempt += 1) {
-      const stored = await this.store.read(assignmentId);
+      const stored = await this.store.read(scope);
       let current: BookHomeworkAuthorityRecord | null = null;
       if (stored) {
         assertValidBookHomeworkAuthorityRecord(stored.value);
         current = stored.value;
+        assertScopedRecord(scope, current);
         const previous = current.operations?.[operationId];
         if (previous) {
           if (previous.fingerprint !== operationFingerprint) {
@@ -432,7 +497,8 @@ export class BookHomeworkAuthorityRepository {
 
       const mutation = await operation(current);
       assertValidBookHomeworkAuthorityRecord(mutation.record);
-      if (await this.store.write(assignmentId, mutation.record, stored?.updateTime)) return mutation.operationResult;
+      assertScopedRecord(scope, mutation.record);
+      if (await this.store.write(scope, mutation.record, stored?.updateTime)) return mutation.operationResult;
     }
     throw new BookHomeworkAuthorityError('revision-conflict', 'Book Homework CAS retries exhausted.');
   }
@@ -443,16 +509,23 @@ export class InMemoryBookHomeworkDocumentStore implements BookHomeworkDocumentSt
   private readonly documents = new Map<string, BookHomeworkStoredDocument>();
   private clock = 0;
 
-  async read(assignmentId: string): Promise<BookHomeworkStoredDocument | null> {
-    const value = this.documents.get(assignmentId);
+  async read(scope: BookHomeworkAuthorityScope): Promise<BookHomeworkStoredDocument | null> {
+    assertScope(scope);
+    const value = this.documents.get(scope.authorityId);
     return value ? { value: clone(value.value), updateTime: value.updateTime } : null;
   }
 
-  async write(assignmentId: string, value: BookHomeworkAuthorityRecord, updateTime?: string): Promise<boolean> {
-    const current = this.documents.get(assignmentId);
+  async write(
+    scope: BookHomeworkAuthorityScope,
+    value: BookHomeworkAuthorityRecord,
+    updateTime?: string,
+  ): Promise<boolean> {
+    assertScope(scope);
+    assertScopedRecord(scope, value);
+    const current = this.documents.get(scope.authorityId);
     if (updateTime === undefined ? current !== undefined : current?.updateTime !== updateTime) return false;
     const next = { value: clone(value), updateTime: `memory-${++this.clock}` };
-    this.documents.set(assignmentId, next);
+    this.documents.set(scope.authorityId, next);
     return true;
   }
 }
@@ -510,14 +583,12 @@ const decodeMap = (value: Record<string, FirestoreValue> | undefined): unknown =
 export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocumentStore {
   private readonly projectId: string;
   private readonly fetchImpl: typeof fetch;
-  private readonly getFirebaseIdToken: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework' }>) => Promise<string>;
+  private readonly getFirebaseIdToken: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework_authority' }>) => Promise<string>;
 
   constructor(options: {
     readonly env: BookHomeworkRepositoryEnv;
     readonly fetchImpl?: typeof fetch;
-    /** Test-only seam. Production uses the dedicated SA custom-token exchange. */
-    readonly getAccessToken?: () => Promise<string>;
-    readonly getFirebaseIdToken?: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework' }>) => Promise<string>;
+    readonly getFirebaseIdToken?: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework_authority' }>) => Promise<string>;
   }) {
     this.projectId = options.env.FIREBASE_PROJECT_ID?.trim() ?? '';
     const identity = options.env.BOOK_HOMEWORK_SERVICE_IDENTITY?.trim() ?? '';
@@ -526,11 +597,6 @@ export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocume
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     if (options.getFirebaseIdToken) {
       this.getFirebaseIdToken = options.getFirebaseIdToken;
-    } else if (options.getAccessToken) {
-      // Kept solely for existing emulator/unit-test seams. It is never used
-      // by the production constructor path unless a caller explicitly injects
-      // it, and no OAuth fallback is maintained here.
-      this.getFirebaseIdToken = async () => options.getAccessToken!();
     } else {
       if (!key) throw new Error('missing_book_homework_google_sa_key');
       let serviceEmail: unknown;
@@ -551,26 +617,58 @@ export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocume
     }
   }
 
-  async read(assignmentId: string): Promise<BookHomeworkStoredDocument | null> {
-    assertCommandId(assignmentId, 'assignmentId');
-    const response = await this.fetchImpl.call(globalThis, this.url(assignmentId), {
-      headers: {
-        Authorization: `Bearer ${await this.getFirebaseIdToken({
-          service: 'book_homework', assignmentId,
-        })}`,
-      },
-    });
+  async read(scope: BookHomeworkAuthorityScope): Promise<BookHomeworkStoredDocument | null> {
+    assertScope(scope);
+    let token: string;
+    try {
+      token = await this.tokenFor(scope);
+    } catch {
+      throw new BookHomeworkProjectionDiagnosticError({
+        stage: 'token_exchange',
+        errorClass: 'token-authentication',
+      });
+    }
+    let response: Response;
+    try {
+      response = await this.fetchImpl.call(globalThis, this.url(scope.authorityId), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      throw new BookHomeworkProjectionDiagnosticError({
+        stage: 'firestore_get',
+        errorClass: 'firestore-read',
+      });
+    }
     if (response.status === 404) return null;
-    const body = await response.text();
-    if (!response.ok) throw new Error(`book_homework_firestore_read_failed:${response.status}`);
-    const document = JSON.parse(body) as { readonly fields?: Record<string, FirestoreValue>; readonly updateTime?: string };
-    if (!document.updateTime) throw new Error('book_homework_firestore_missing_update_time');
-    return { value: decodeMap(document.fields), updateTime: document.updateTime };
+    if (!response.ok) {
+      throw new BookHomeworkProjectionDiagnosticError({
+        stage: 'firestore_get',
+        errorClass: response.status === 401 || response.status === 403
+          ? 'token-authentication' : 'firestore-read',
+      });
+    }
+    try {
+      const body = await response.text();
+      const document = JSON.parse(body) as { readonly fields?: Record<string, FirestoreValue>; readonly updateTime?: string };
+      if (!document.updateTime) throw new Error('missing_update_time');
+      return { value: decodeMap(document.fields), updateTime: document.updateTime };
+    } catch {
+      throw new BookHomeworkProjectionDiagnosticError({
+        stage: 'firestore_get',
+        errorClass: 'firestore-read',
+      });
+    }
   }
 
-  async write(assignmentId: string, value: BookHomeworkAuthorityRecord, updateTime?: string): Promise<boolean> {
+  async write(
+    scope: BookHomeworkAuthorityScope,
+    value: BookHomeworkAuthorityRecord,
+    updateTime?: string,
+  ): Promise<boolean> {
     assertValidBookHomeworkAuthorityRecord(value);
-    if (value.assignmentId !== assignmentId) {
+    assertScope(scope);
+    assertScopedRecord(scope, value);
+    if (value.assignmentId !== scope.authorityId) {
       throw new BookHomeworkAuthorityError(
         'invalid-record',
         'Book Homework authority identity does not match its document path.',
@@ -579,10 +677,8 @@ export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocume
     const query = updateTime === undefined
       ? '?currentDocument.exists=false'
       : `?currentDocument.updateTime=${encodeURIComponent(updateTime)}`;
-    const firebaseIdToken = await this.getFirebaseIdToken({
-      service: 'book_homework', assignmentId, ownerId: value.ownerId,
-    });
-    const response = await this.fetchImpl.call(globalThis, `${this.url(assignmentId)}${query}`, {
+    const firebaseIdToken = await this.tokenFor(scope);
+    const response = await this.fetchImpl.call(globalThis, `${this.url(scope.authorityId)}${query}`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${firebaseIdToken}`,
@@ -605,15 +701,24 @@ export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocume
   }
 
   private url(assignmentId: string): string {
-    return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(this.projectId)}/databases/(default)/documents/${encodePath(`homework_assignments/${assignmentId}`)}`;
+    return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(this.projectId)}/databases/(default)/documents/${encodePath(`book_homework_authorities/${assignmentId}`)}`;
+  }
+
+  private async tokenFor(scope: BookHomeworkAuthorityScope): Promise<string> {
+    assertScope(scope);
+    return this.getFirebaseIdToken({
+      service: 'book_homework_authority',
+      authorityId: scope.authorityId,
+      assignmentId: scope.assignmentId,
+      ownerId: scope.ownerId,
+    });
   }
 }
 
 export const createFirebaseRestBookHomeworkRepository = (options: {
   readonly env: BookHomeworkRepositoryEnv;
   readonly fetchImpl?: typeof fetch;
-  readonly getAccessToken?: () => Promise<string>;
-  readonly getFirebaseIdToken?: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework' }>) => Promise<string>;
+  readonly getFirebaseIdToken?: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_homework_authority' }>) => Promise<string>;
   readonly resolveAffectedStudentStates: (
     record: BookHomeworkAuthorityRecord,
     nodeKey: string,

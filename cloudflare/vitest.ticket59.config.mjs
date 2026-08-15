@@ -15,6 +15,7 @@ export default {
       'test/book-router.test.ts',
       'test/book-worker-integration.test.ts',
       'test/book-publication-route-handlers.test.ts',
+      'test/book-production-normal-workflow.test.ts',
     ],
   },
 };

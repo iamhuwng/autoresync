@@ -10,6 +10,13 @@ export const bookAssemblyRouteDescriptors = [
   { method: 'GET', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'load' },
 ] as const;
 
+/** Ticket 63 candidate preview and approval. The capability stays disabled by default. */
+export const bookAssemblyPreviewRouteDescriptors = [
+  { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/preview', handler: 'preview' },
+  { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/approve', handler: 'approve' },
+  { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/approvals/:approvalId/revoke', handler: 'revoke' },
+] as const;
+
 /** Ticket 20B unpublished source-strategy migration. Publication remains a separate owner. */
 export const bookAssemblyMigrationRouteDescriptors = [
   { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/migrations', handler: 'migrate' },

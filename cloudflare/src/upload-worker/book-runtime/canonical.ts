@@ -4,6 +4,9 @@ import type {
   BookRuntimeAttemptPolicy,
   BookRuntimeCommandResult,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import type {
+  BookHomeworkAuthorityScope,
+} from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import {
   assertCanonicalPublishedActivityVersion,
 } from '../../../../src/services/book-assembly/canonicalActivityVersion.service.ts';
@@ -41,6 +44,7 @@ import {
   BookHomeworkCompletionRepositoryError,
 } from '../book-homework/completion-repository.ts';
 import {
+  bookHomeworkRecipientAuthorityId,
   readBookHomeworkRecipientAuthority,
 } from '../book-homework/identity.ts';
 import {
@@ -149,8 +153,8 @@ export const createBookRuntimeProductionDependencies = (
     });
   };
   const authorityStore = {
-    read: (assignmentId: string) =>
-      new FirebaseRestBookHomeworkDocumentStore({ env }).read(assignmentId),
+    read: (scope: BookHomeworkAuthorityScope) =>
+      new FirebaseRestBookHomeworkDocumentStore({ env }).read(scope),
   };
   const effectiveActivitySchedulePolicy = activitySchedulePolicy
     ?? createBookHomeworkActivitySchedulePolicyResolver({
@@ -204,6 +208,7 @@ export const createBookRuntimeProductionDependencies = (
       const policy = await effectiveActivitySchedulePolicy.resolve({
         assignmentId: binding.context.contextId,
         recipientId: binding.recipient.recipientId,
+        ownerId: binding.issuer.ownerId,
         bindingId: binding.bindingId,
         bindingRevision: binding.revision,
         policyId: binding.schedulePolicy.policyId,
@@ -221,7 +226,14 @@ export const createBookRuntimeProductionDependencies = (
       }
       const stored = await readBookHomeworkRecipientAuthority(
         authorityStore,
-        binding.context.contextId,
+        {
+          authorityId: bookHomeworkRecipientAuthorityId(
+            binding.context.contextId,
+            binding.context.recipientId,
+          ),
+          assignmentId: binding.context.contextId,
+          ownerId: binding.issuer.ownerId,
+        },
         binding.context.recipientId,
       );
       if (!stored || stored.value.visibility.status !== 'committed') {

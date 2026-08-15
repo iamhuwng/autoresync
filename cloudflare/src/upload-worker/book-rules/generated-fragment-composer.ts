@@ -17,7 +17,7 @@ import {
 export const GENERATED_BOOK_RULE_COMPOSER_VERSION = 'prd0062-118-composer-v2' as const;
 
 export const FINAL_BOOK_RULE_FRAGMENT_IDS = Object.freeze([
-  '04', '08B', '12C', '13A', '16', '16A', '17', '18', '19', '20A',
+  '04', '08B', '118A', '118B', '118C', '118D', '12C', '13A', '15B', '16', '16A', '17', '18', '19', '20A',
   '20C', '21', '28A', '29', '33C', '35', '36', '37A', '37B', '38B5',
   '39B', '39C', '40A', '40B', '41B', '41C', '42A', '42B', '43', '44',
   '45', '46A', '46B', '47', '49A', '49B', '49C', '49D',
@@ -268,6 +268,34 @@ const FINAL_PRODUCER_OPERATION_EXPRESSION_REMEDIATIONS: Readonly<Record<string, 
   '44:6': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 6),
   '44:7': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 7),
   '44:8': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 8),
+  '44:3': (expression: string): string => {
+    const remediated = remediateFragment44AllowedKeyValidation(expression, 3);
+    const legacySuffix = " || $other == 'brokenRefReasons'";
+    if (!remediated.endsWith(legacySuffix)) {
+      fail('malformed-fragment', 'The explicit fragment 44 Material Book authority remediation precondition failed.', {
+        fragmentId: '44', operationIndex: 3,
+      });
+    }
+    return `${remediated} || $other == 'bookRevision' || $other == 'sourceSetRevision' || $other == 'sourceSet'`;
+  },
+  '15B:7': (expression: string): string => {
+    const unsupported = " && newData.child('canonicalActivityFingerprintsByKey').numChildren() <= 500 && newData.numChildren() == 14";
+    if (!expression.includes(unsupported)) {
+      fail('malformed-fragment', 'The explicit 15B approval-count remediation precondition failed.', {
+        fragmentId: '15B', operationIndex: 7,
+      });
+    }
+    return expression.replace(unsupported, '');
+  },
+  '15B:9': (expression: string): string => {
+    const unsupported = ' && newData.numChildren() == 5';
+    if (!expression.includes(unsupported)) {
+      fail('malformed-fragment', 'The explicit 15B revocation-count remediation precondition failed.', {
+        fragmentId: '15B', operationIndex: 9,
+      });
+    }
+    return expression.replace(unsupported, '');
+  },
   '49D:9': (expression: string): string => {
     const openCount = parenthesesCount(expression, '(');
     const closeCount = parenthesesCount(expression, ')');

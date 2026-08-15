@@ -319,7 +319,9 @@ const BookPlacementLaunchPage: React.FC<{
             trackAction('bookRuntimeReturn', {
                 surface: launch.kind === 'invalid' ? 'unknown' : launch.surface,
                 reason: launch.kind === 'invalid' ? launch.reason : 'user_requested',
-                destination: launch.kind === 'class' ? 'class-detail' : 'courses',
+                destination: launch.kind === 'class'
+                    ? 'class-detail'
+                    : launch.kind === 'homework' ? 'homework' : 'courses',
                 outcome: 'returned',
             });
         }
@@ -327,6 +329,13 @@ const BookPlacementLaunchPage: React.FC<{
             navigateTo('STUDENT_CLASS_DETAIL', { classId: launch.classId }, {
                 force: true,
                 reason: 'book_runtime_return_class',
+            });
+            return;
+        }
+        if (launch.kind === 'homework') {
+            navigateTo('STUDENT_HOMEWORK', undefined, {
+                force: true,
+                reason: 'book_runtime_return_homework',
             });
             return;
         }
@@ -359,13 +368,15 @@ const BookPlacementLaunchPage: React.FC<{
                     reason: result.reason,
                     ...(launch.kind === 'course'
                         ? { courseMaterialId: launch.courseMaterialId, bindingId: launch.bindingId }
-                        : {
+                        : launch.kind === 'class'
+                            ? {
                             classId: launch.classId,
                             copyId: launch.copyId,
                             classPlacementId: launch.classPlacementId,
                             classCourseMaterialId: launch.classCourseMaterialId,
                             bindingId: launch.bindingId,
-                        }),
+                            }
+                            : { homeworkId: launch.homeworkId }),
                     outcome: 'blocked',
                 });
                 setError('This Book launch is no longer available for your account.');

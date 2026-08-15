@@ -15,6 +15,7 @@ import {
   type MaterialTestTypeConfig,
   type MaterialTestTypeId,
 } from '../../types/materialCatalog.types';
+import type { SourceSetCandidate } from '../../types/bookAssembly.types';
 import type { MaterialCatalogIndexRow } from './materialCatalogIndexes.service';
 import { createMaterialBookSummary } from './materialSummaryAdapters.service';
 import {
@@ -72,6 +73,21 @@ export interface MaterialBooksRepository {
   readonly write: (path: string, value: unknown) => Promise<void>;
   readonly remove: (path: string) => Promise<void>;
   readonly update: (payload: Record<string, unknown | null>) => Promise<void>;
+}
+
+/**
+ * The complete trusted authority needed by PDF assembly. Source attach and
+ * replacement are deliberately outside this service; this adapter only reads
+ * a complete, eligible canonical row.
+ */
+export interface MaterialBookPdfAuthority {
+  readonly bookId: MaterialBookId;
+  readonly ownerId: string;
+  readonly bookMode: 'pdf';
+  readonly status: 'ready';
+  readonly bookRevision: number;
+  readonly sourceSetRevision: number;
+  readonly sourceSet: SourceSetCandidate;
 }
 
 export interface PublicBookReviewDecisionInput {
@@ -148,6 +164,93 @@ const normalizeStringList = (value: unknown): string[] => {
 
   return [];
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const isSafeRevision = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+const hasExactKeys = (value: Record<string, unknown>, expected: readonly string[]): boolean => {
+  const actual = Object.keys(value).sort();
+  const keys = [...expected].sort();
+  return actual.length === keys.length && actual.every((key, index) => key === keys[index]);
+};
+
+const isBoundedId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u.test(value);
+
+/** Runtime guard for the existing discriminated SourceSetCandidate contract. */
+const isSourceSetCandidate = (value: unknown): value is SourceSetCandidate => {
+  if (!isRecord(value) || !hasExactKeys(value, ['sourceStrategy', 'sources'])) {
+    return false;
+  }
+
+  const strategy = value.sourceStrategy;
+  const sources = value.sources;
+  if ((strategy !== 'full_pdf' && strategy !== 'component_pdfs') || !Array.isArray(sources)) {
+    return false;
+  }
+  if (sources.length === 0 || (strategy === 'full_pdf' && sources.length !== 1)) {
+    return false;
+  }
+
+  const sourceKeys = new Set<string>();
+  const sourceVersionIds = new Set<string>();
+  const sourceOrders = new Set<number>();
+  return sources.every((entry) => {
+    if (!isRecord(entry)) return false;
+    const expectedKeys = strategy === 'component_pdfs'
+      ? ['ownerNodeKey', 'sourceKey', 'sourceOrder', 'sourceVersionId']
+      : ['sourceKey', 'sourceOrder', 'sourceVersionId'];
+    if (!hasExactKeys(entry, expectedKeys)
+      || !isBoundedId(entry.sourceKey)
+      || !isBoundedId(entry.sourceVersionId)
+      || !Number.isSafeInteger(entry.sourceOrder)
+      || entry.sourceOrder < 1
+      || sourceKeys.has(entry.sourceKey)
+      || sourceVersionIds.has(entry.sourceVersionId)
+      || sourceOrders.has(entry.sourceOrder)) {
+      return false;
+    }
+    if (strategy === 'component_pdfs' && !isBoundedId(entry.ownerNodeKey)) {
+      return false;
+    }
+    sourceKeys.add(entry.sourceKey);
+    sourceVersionIds.add(entry.sourceVersionId);
+    sourceOrders.add(entry.sourceOrder);
+    return true;
+  });
+};
+
+const materialBookPdfAuthorityFromMetadata = (
+  book: MaterialBookMetadata | null | undefined,
+): MaterialBookPdfAuthority | null => {
+  if (!book
+    || book.bookMode !== 'pdf'
+    || book.status !== 'ready'
+    || typeof book.ownerId !== 'string'
+    || !isSafeRevision(book.bookRevision)
+    || !isSafeRevision(book.sourceSetRevision)
+    || !isSourceSetCandidate(book.sourceSet)) {
+    return null;
+  }
+
+  return {
+    bookId: book.bookId,
+    ownerId: book.ownerId,
+    bookMode: 'pdf',
+    status: 'ready',
+    bookRevision: book.bookRevision,
+    sourceSetRevision: book.sourceSetRevision,
+    sourceSet: book.sourceSet,
+  };
+};
+
+/** Pure, fail-closed adapter for one canonical Material Book row. */
+export const readMaterialBookPdfAuthorityFromMetadata = (
+  book: MaterialBookMetadata | null | undefined,
+): MaterialBookPdfAuthority | null => materialBookPdfAuthorityFromMetadata(book);
 
 const assertValid = (validation: ReturnType<typeof validateMaterialBook>): void => {
   if (!validation.valid) {
@@ -375,6 +478,16 @@ export const createMaterialBooksRepository = (
   }),
 });
 
+/**
+ * Read the canonical PDF authority without exposing partial or ineligible
+ * records to downstream trusted consumers. `null` is the only failure result.
+ */
+export const readMaterialBookPdfAuthority = async (
+  repository: Pick<MaterialBooksRepository, 'readBook'>,
+  bookId: string,
+): Promise<MaterialBookPdfAuthority | null> =>
+  materialBookPdfAuthorityFromMetadata(await repository.readBook(bookId));
+
 const buildBookWithIndexesUpdate = (
   book: MaterialBookMetadata,
   previous?: MaterialBookMetadata | null,
@@ -404,6 +517,8 @@ export interface MaterialBookTreeUpdatePlanInput {
    */
   readonly touchedNodeIds?: readonly MaterialBookNode['nodeId'][];
   readonly expectedUpdatedAt?: string;
+  /** Optional canonical PDF CAS token; legacy/material Books may omit it. */
+  readonly expectedBookRevision?: number;
   readonly now: string;
   readonly context: MaterialBookValidationContext;
 }
@@ -417,6 +532,10 @@ export const planMaterialBookTreeUpdate = (
 ): MaterialBookTreeUpdatePlan => {
   if (input.expectedUpdatedAt && input.current.updatedAt !== input.expectedUpdatedAt) {
     throw new Error('Material Book changed since it was loaded; reload before saving.');
+  }
+  if (input.expectedBookRevision !== undefined
+    && input.current.bookRevision !== input.expectedBookRevision) {
+    throw new Error('Material Book revision is stale; reload before saving.');
   }
 
   const nextNodeIds = new Set(input.nextNodes.map((entry) => entry.nodeId));
@@ -437,12 +556,12 @@ export const planMaterialBookTreeUpdate = (
   const nodes = input.nextNodes.map((entry) => touchedNodeIds.has(entry.nodeId)
     ? { ...entry, updatedAt: input.now }
     : entry);
-  const metadata: MaterialBookMetadata = {
+  const metadata: MaterialBookMetadata = withBookRevisionBump(input.current, {
     ...input.current,
     status: deriveMaterialBookStatus(nodes, input.current.status === 'archived'),
     updatedAt: input.now,
     updatedBy: input.context.actorId,
-  };
+  });
 
   assertValid(validateMaterialBook({ metadata, nodes, context: input.context }));
 
@@ -477,6 +596,27 @@ const requireBook = async (
 
 const contextNow = (context: MaterialBookValidationContext, fallback?: () => string): string =>
   context.now?.() ?? fallback?.() ?? new Date().toISOString();
+
+const nextBookRevision = (current: MaterialBookMetadata): number | undefined => {
+  if (current.bookMode !== 'pdf') {
+    return current.bookRevision;
+  }
+
+  return isSafeRevision(current.bookRevision) ? current.bookRevision + 1 : 1;
+};
+
+/**
+ * Metadata/tree/moderation writes own the Book revision, while source fields
+ * remain copied from the current row. Source attach/replace must use its own
+ * trusted workflow and is intentionally not implemented here.
+ */
+const withBookRevisionBump = (
+  current: MaterialBookMetadata,
+  next: MaterialBookMetadata,
+): MaterialBookMetadata => ({
+  ...next,
+  ...(current.bookMode === 'pdf' ? { bookRevision: nextBookRevision(current) } : {}),
+});
 
 export const createBookDraft = async (
   input: CreateBookDraftInput,
@@ -516,6 +656,9 @@ export const createBookDraft = async (
     updatedAt: now,
     createdBy: context.actorId,
     updatedBy: context.actorId,
+    ...(input.bookMode === 'pdf'
+      ? { bookRevision: 0, sourceSetRevision: 0 }
+      : {}),
   };
 
   assertValid(validateMaterialBook({ metadata: book, nodes, context }));
@@ -537,7 +680,8 @@ export const updateBookMetadata = async (
   updates: Partial<Omit<
     MaterialBookMetadata,
     'bookId' | 'bookMode' | 'modeSuccessorLineage' | 'reusedActivityRefs'
-      | 'sourceStrategySuccessorLineage' | 'ownerId' | 'createdAt' | 'createdBy'
+      | 'sourceStrategySuccessorLineage' | 'bookRevision' | 'sourceSetRevision' | 'sourceSet'
+      | 'ownerId' | 'createdAt' | 'createdBy'
   >>,
   repository: MaterialBooksRepository,
   context: MaterialBookValidationContext,
@@ -554,11 +698,14 @@ export const updateBookMetadata = async (
   if ('sourceStrategySuccessorLineage' in updates) {
     throw new Error('Material Book source-strategy successor lineage is immutable.');
   }
+  if ('bookRevision' in updates || 'sourceSetRevision' in updates || 'sourceSet' in updates) {
+    throw new Error('Material Book PDF authority is immutable in metadata updates.');
+  }
 
   const current = await requireBook(repository, bookId);
   const nodes = await repository.listBookNodes(bookId);
   const now = contextNow(context);
-  const next: MaterialBookMetadata = {
+  const next: MaterialBookMetadata = withBookRevisionBump(current, {
     ...current,
     ...updates,
     bookId: current.bookId,
@@ -572,7 +719,7 @@ export const updateBookMetadata = async (
     status: updates.status ?? deriveMaterialBookStatus(nodes, current.status === 'archived'),
     updatedAt: now,
     updatedBy: context.actorId,
-  };
+  });
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
@@ -583,7 +730,7 @@ export const updateBookMetadata = async (
 export const updateBookTree = async (
   bookId: string,
   nodes: readonly MaterialBookNode[],
-  options: { readonly expectedUpdatedAt?: string },
+  options: { readonly expectedUpdatedAt?: string; readonly expectedBookRevision?: number },
   repository: MaterialBooksRepository,
   context: MaterialBookValidationContext,
 ): Promise<{ readonly metadata: MaterialBookMetadata; readonly nodes: readonly MaterialBookNode[] }> => {
@@ -594,6 +741,7 @@ export const updateBookTree = async (
     previousNodes,
     nextNodes: nodes,
     expectedUpdatedAt: options.expectedUpdatedAt,
+    expectedBookRevision: options.expectedBookRevision,
     now: contextNow(context),
     context,
   });
@@ -737,7 +885,7 @@ export const approvePublicBook = async (
     throw new Error('Only ready Books can be approved for the public library.');
   }
 
-  const next: MaterialBookMetadata = {
+  const next: MaterialBookMetadata = withBookRevisionBump(current, {
     ...current,
     visibility: 'public-library-published',
     publicReview: {
@@ -748,7 +896,7 @@ export const approvePublicBook = async (
     },
     updatedAt: now,
     updatedBy: context.actorId,
-  };
+  });
   const projection = await buildPublicBookProjection(next, nodes, repository, context);
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
@@ -770,14 +918,14 @@ export const rejectPublicBookReview = async (
   const current = await requireBook(repository, bookId);
   const nodes = await repository.listBookNodes(bookId);
   const now = contextNow(context);
-  const next: MaterialBookMetadata = {
+  const next: MaterialBookMetadata = withBookRevisionBump(current, {
     ...current,
     visibility: 'public-library-rejected',
     publicReview: publicReviewState('rejected', reviewReason(reasonInput), context),
     status: deriveMaterialBookStatus(nodes, current.status === 'archived'),
     updatedAt: now,
     updatedBy: context.actorId,
-  };
+  });
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
@@ -798,14 +946,14 @@ export const returnPublicBookToPrivate = async (
   const current = await requireBook(repository, bookId);
   const nodes = await repository.listBookNodes(bookId);
   const now = contextNow(context);
-  const next: MaterialBookMetadata = {
+  const next: MaterialBookMetadata = withBookRevisionBump(current, {
     ...current,
     visibility: 'private',
     publicReview: publicReviewState('returned-private', reviewReason(reasonInput), context),
     status: deriveMaterialBookStatus(nodes, current.status === 'archived'),
     updatedAt: now,
     updatedBy: context.actorId,
-  };
+  });
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));

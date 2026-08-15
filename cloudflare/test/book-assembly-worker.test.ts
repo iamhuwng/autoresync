@@ -8,6 +8,7 @@ import type {
   BookAssemblyRepositoryPort,
   BookAssemblyScope,
 } from '../src/upload-worker/book-assembly/worker';
+import { createBookRouteHandlers } from '../src/upload-worker/book-route-handlers.ts';
 
 const op = (suffix: string): string => `00000000-0000-4000-8000-${suffix.padStart(12, '0')}`;
 const manifest = (): BookAssemblyManifestCandidate => ({
@@ -97,6 +98,48 @@ const request = (body: unknown): Request => new Request('https://assembly.exampl
 });
 
 describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
+  it('uses the trusted canonical route Book subject for the mandatory pilot gate', async () => {
+    const repository = new MemoryRepository();
+    const handlers = createBookAssemblyWorkerHandlers({
+      repository,
+      readBookAuthority: async () => repository.book,
+      createCandidateId: () => 'candidate-scoped',
+    });
+    const scopedEnv = {
+      BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true',
+      BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+      BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+      BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+        schemaVersion: 'v1', environment: 'test', revision: 'assembly-route-subject',
+        issuedAt: new Date(Date.now() - 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'assignment-1',
+        studentIds: ['student-1'], maxStudents: 30,
+      }),
+    };
+    const routed = createBookRouteHandlers({ assemblyHandlers: handlers });
+    const created = await routed['bookAssembly.create']!({
+      request: request({
+        operationId: op('126'), bookId: 'book-1', expectedBookRevision: 4,
+        expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
+      }),
+      env: scopedEnv as never,
+      uid: 'teacher-1',
+      params: { bookId: 'book-1', unitKey: 'unit-1' },
+      descriptor: {
+        id: 'book.assembly.create', methods: ['POST'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/candidates',
+        owner: '#59', domain: 'assembly', handler: 'bookAssembly.create',
+        firebaseAuth: 'firebase-id-token', rateClass: 'book-control',
+        gateEnv: 'BOOK_ASSEMBLY_ROUTES_ENABLED', gateDefault: 'disabled',
+        requestBodyBytes: 1_200_000, responseLimitBytes: 256_000,
+        source: 'contributor', contributorTicket: '#13A',
+      },
+    }) as { body: unknown; init: ResponseInit };
+
+    expect(created).toMatchObject({ init: { status: 200 }, body: { status: 'created' } });
+  });
+
   it('creates, reloads, validates, and replaces one owner-scoped candidate with CAS revisions', async () => {
     const repository = new MemoryRepository();
     const handlers = createBookAssemblyWorkerHandlers({

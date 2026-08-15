@@ -2,8 +2,11 @@
 
 Status: Draft task list. Execute only through the master orchestration packet order.
 
-Source PRD:
+Source PRD requirement body:
 - `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
+
+Accepted current amendment:
+- `documentation/tasks/PRD0062/PRD0062-architecture-and-delivery-amendment-2026-08-15.md`
 
 Master orchestration:
 - `documentation/tasks/PRD0062/tasks-book-activity-master-orchestration.md`
@@ -31,6 +34,9 @@ Master orchestration:
 - This component closes PRD0062 only after implementation packets are complete.
 - PASS requires live source behavior, tests, docs, taskboxes, findings, traceability, guardrails, and dirty-path scope to agree.
 - Browser proof is required for UX surfaces, but screenshots/manual inspection cannot replace automated tests for security, rules, versioning, permissions, or update semantics.
+- For Book Homework production composition, separate green unit/rules suites are insufficient: the default Worker-generated service UID/custom claims must be exercised against the real RTDB/Firestore rules engine with production-shaped state before activation.
+- Once the representative production-normal path is safely active, hand the real site to the user before beginning a broad remaining-acceptance audit; then return to the complete PRD0062 acceptance delta.
+- Independent review is a documented method/scope/risk/validation gate, not a dependency on one particular reviewer account or platform session.
 - The first shippable foundation pilot is owned by Component 04 and the master Foundation Pilot Gate. This component runs full-V1 end-to-end validation after later packets exist.
 - Full-V1 validation inputs are representative Units from the three PRD-listed source books.
 
@@ -101,6 +107,8 @@ Before completing this component:
   - [ ] 4.9 Run rules and emulator tests across all PRD0062 paths.
   - [ ] 4.10 Run public-rights state/projection tests and Book integrity no-auto-submit/no-nullification tests.
   - [ ] 4.11 Record exact commands and results in findings.
+  - [ ] 4.12 For the Book Homework production composition, run a rule-enforced default-Worker acceptance proof using production-shaped committed state, exact applicable RTDB/Firestore rules, and the Worker-generated service UID/custom claims; do not substitute an in-memory Firebase transport that bypasses rule evaluation.
+  - [ ] 4.13 When the compatibility shell and committed assignment already exist, prove teacher aggregate/per-student projection, student projection, Book launch, and Runtime resolution without assignment replay, projector write, or unintended authoritative mutation.
 
 - [ ] 5.0 Complete browser verification matrix
   - [ ] 5.1 Use teacher URL `http://localhost:5173`.
@@ -121,6 +129,7 @@ Before completing this component:
   - [ ] 5.16 Verify visible feedback corrections show an audit-visible correction note.
   - [ ] 5.17 Verify no console errors.
   - [ ] 5.18 Record browser proof artifacts or notes in findings/handoff.
+  - [ ] 5.19 As soon as the representative production-normal teacher/student/Runtime path is safe, provide a real-site browser handoff with exact origin, role/account context, shortest manual flow, expected behavior, and known limitations before the broad remaining-acceptance audit.
 
 - [ ] 6.0 Run full-V1 validation Units from representative source books
   - [ ] 6.1 Validate one representative Unit from *IELTS Grammar for Bands 6.5 and Above*.
@@ -146,6 +155,7 @@ Before completing this component:
   - [ ] 7.6 Reconcile Quality and safety acceptance criteria against source/test/browser/rules evidence.
   - [ ] 7.7 Mark any unmet criteria as blockers or explicitly approved deferrals with owner/date/rationale.
   - [ ] 7.8 Ensure no V1 acceptance criterion is silently skipped.
+  - [ ] 7.9 Reconcile `AC-AMEND-01` through `AC-AMEND-07` from `PRD0062-architecture-and-delivery-amendment-2026-08-15.md` against current source, rule-enforced composition proof, review evidence, and browser/deployed behavior.
 
 - [ ] 8.0 Reconcile taskboxes, findings, handoffs, and dirty paths
   - [ ] 8.1 Ensure all completed taskboxes correspond to implemented source and passing tests.
@@ -174,3 +184,5 @@ Before completing this component:
   - [ ] 10.7 Confirm public source-assisted launch requires approved excerpt rights and public projections remain safe.
   - [ ] 10.8 Confirm completion progress never populates legacy score/grade fields.
   - [ ] 10.9 Confirm `studentId + activityId` remains viewer grouping only and every attempt retains unique/contextual identity.
+  - [ ] 10.10 Confirm Book Homework compatibility remains a bounded additive anti-corruption layer rather than a generic two-way sync/integration platform, and that ordinary Homework semantics remain unchanged.
+  - [ ] 10.11 Confirm production-composition/recovery tooling remains acceptance infrastructure rather than a new product framework or independent PRD0062 deliverable.

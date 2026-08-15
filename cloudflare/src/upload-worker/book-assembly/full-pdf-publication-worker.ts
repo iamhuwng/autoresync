@@ -41,7 +41,6 @@ export class FullPdfPublicationWorkerError extends Error {
 
 export interface FullPdfPublicationWorkerEnv {
   readonly BOOK_FULL_PDF_PUBLICATION_ENABLED?: string;
-  readonly readDatabaseValue?: (path: string) => Promise<unknown>;
 }
 
 const plain = (value: unknown): Record<string, unknown> | null => (
@@ -131,6 +130,8 @@ const commandStatus = (status: number): number =>
   status === 404 || status === 403 || status === 409 || status === 503 ? status : 422;
 
 export const createFullPdfPublicationWorkerHandlers = (options: {
+  /** Route-composed actor profile read; Wrangler env bindings cannot supply functions. */
+  readonly readUser: (uid: string) => Promise<unknown>;
   readonly repository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
   readonly readCandidate: (
     bookId: string,
@@ -151,7 +152,11 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
     },
   ) => Promise<Readonly<Record<string, FullPdfValidatedActivityPayload>>>;
   readonly readPreviewApproval: (
-    approvalId: string,
+    input: {
+      readonly bookId: string;
+      readonly unitKey: string;
+      readonly approvalId: string;
+    },
   ) => Promise<(BookAssemblyPreviewApprovalRecord & { readonly revoked?: boolean }) | null>;
   readonly sourceIsPreviewReady: (
     input: { readonly bookId: string; readonly sourceVersionId: string },
@@ -168,9 +173,11 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
   const now = options.now ?? (() => new Date().toISOString());
   const allocateOperationId = options.allocateOperationId ?? (() => crypto.randomUUID());
   const allocateId = options.allocateId ?? ((kind, key) => `${kind}-${key}-${crypto.randomUUID()}`);
-  const authenticate = async (env: FullPdfPublicationWorkerEnv, uid: string): Promise<void> => {
-    if (!env.readDatabaseValue) throw new FullPdfPublicationWorkerError('publication_auth_reader_missing', 503);
-    if (!roleAllowed(await env.readDatabaseValue(`users/${uid}`))) {
+  const authenticate = async (uid: string): Promise<void> => {
+    if (typeof options.readUser !== 'function') {
+      throw new FullPdfPublicationWorkerError('publication_auth_reader_missing', 503);
+    }
+    if (!roleAllowed(await options.readUser(uid))) {
       throw new FullPdfPublicationWorkerError('full_pdf_publication_forbidden', 403);
     }
   };
@@ -184,7 +191,7 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
       readonly uid: string;
     }): Promise<{ body: unknown; init: ResponseInit }> {
       try {
-        await authenticate(input.env, input.uid);
+        await authenticate(input.uid);
         if (!enabled(input.env)) {
           return { body: { code: 'book_full_pdf_publication_disabled' }, init: { status: 503 } };
         }
@@ -205,7 +212,13 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
           readActivities: options.readActivities,
           readPreviewApproval: options.readPreviewApproval,
           sourceIsPreviewReady: options.sourceIsPreviewReady,
-          publish: (request) => service.publish(request),
+          publish: async (request) => {
+            const current = (await options.repository.readScope(request.plan.bookId)).current;
+            if ((current?.publicationId ?? null) !== request.expectedCurrentPublicationId) {
+              return { status: 'conflict', failureCode: 'stale-current-pointer' };
+            }
+            return service.publish(request);
+          },
           allocateOperationId,
           allocateId,
           now,

@@ -80,6 +80,7 @@ const schedule = (dueAt = '2026-08-20T00:00:00.000Z'): BookHomeworkAuthoritySche
 });
 
 const createCommand = (): BookHomeworkCreateCommand => ({
+  scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
   assignmentId: 'assignment-1',
   ownerId: 'teacher-1',
   manifest,
@@ -97,7 +98,7 @@ const createCommand = (): BookHomeworkCreateCommand => ({
       maxAttempts: 2,
     },
   },
-  sagaId: 'saga-1',
+  sagaId: 'assignment-1',
   commandId: 'command-create',
   idempotencyKey: 'operation-create',
   expectedRevision: 0,
@@ -121,25 +122,73 @@ describe('Book Homework Firestore authority', () => {
     const repository = createRepository();
     const created = await repository.create(createCommand());
     expect(created).toMatchObject({ status: 'created', revision: 1, visibility: 'prepared' });
-    await expect(repository.readStudentProjection('assignment-1', 'student-1')).resolves.toBeNull();
+    await expect(repository.readStudentProjection({ authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' }, 'student-1')).resolves.toBeNull();
 
     const committed = await repository.setVisibility({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', state: 'committed',
       commandId: 'command-commit', idempotencyKey: 'operation-commit', expectedRevision: 1,
       updatedAt: '2026-07-28T00:01:00.000Z',
     });
     expect(committed).toMatchObject({ status: 'committed', revision: 2, visibility: 'committed' });
-    await expect(repository.readStudentProjection('assignment-1', 'student-1')).resolves.toMatchObject({
+    await expect(repository.readStudentProjection({ authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' }, 'student-1')).resolves.toMatchObject({
       assignmentId: 'assignment-1',
       bookManifest: { manifestVersionId: 'manifest-1' },
     });
 
     await expect(repository.create(createCommand())).resolves.toMatchObject({ status: 'replayed', revision: 1 });
     await expectAuthorityError(repository.setVisibility({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', state: 'committed',
       commandId: 'command-other', idempotencyKey: 'operation-create', expectedRevision: 2,
       updatedAt: '2026-07-28T00:02:00.000Z',
     }), 'idempotency-conflict');
+  });
+
+  it('uses one exact authority scope for missing read, create, reread, commit, update, and committed reread', async () => {
+    const scope = {
+      authorityId: 'assignment-1--student-1--authority',
+      assignmentId: 'assignment-1',
+      ownerId: 'teacher-1',
+    } as const;
+    const repository = createRepository();
+    await expect(repository.read(scope)).resolves.toBeNull();
+    await expect(repository.create({
+      ...createCommand(),
+      scope,
+      assignmentId: scope.authorityId,
+      sagaId: scope.assignmentId,
+    })).resolves.toMatchObject({ status: 'created', revision: 1, visibility: 'prepared' });
+    await expect(repository.read(scope)).resolves.toMatchObject({
+      assignmentId: scope.authorityId,
+      saga: { sagaId: scope.assignmentId },
+    });
+    await expect(repository.setVisibility({
+      scope,
+      assignmentId: scope.authorityId,
+      ownerId: scope.ownerId,
+      state: 'committed',
+      commandId: 'command-scope-commit',
+      idempotencyKey: 'operation-scope-commit',
+      expectedRevision: 1,
+      updatedAt: '2026-07-28T00:01:00.000Z',
+    })).resolves.toMatchObject({ status: 'committed', revision: 2, visibility: 'committed' });
+    await expect(repository.updateSchedule({
+      scope,
+      assignmentId: scope.authorityId,
+      ownerId: scope.ownerId,
+      schedule: schedule('2026-08-21T00:00:00.000Z'),
+      changedNodeKey: 'unit-1',
+      commandId: 'command-scope-update',
+      idempotencyKey: 'operation-scope-update',
+      expectedRevision: 2,
+      updatedAt: '2026-07-28T00:02:00.000Z',
+    })).resolves.toMatchObject({ status: 'updated', revision: 3, visibility: 'committed' });
+    await expect(repository.read(scope)).resolves.toMatchObject({
+      revision: 3,
+      visibility: { status: 'committed' },
+      schedule: { scheduleRules: [{ nodeKey: 'unit-1', dueAt: '2026-08-21T00:00:00.000Z' }] },
+    });
   });
 
   it('rejects a policy snapshot that does not match the frozen Activity Version', async () => {
@@ -165,37 +214,43 @@ describe('Book Homework Firestore authority', () => {
     await repository.create(createCommand());
 
     await expectAuthorityError(repository.updateSchedule({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-2' },
       assignmentId: 'assignment-1', ownerId: 'teacher-2', schedule: schedule('2026-08-21T00:00:00.000Z'),
       changedNodeKey: 'unit-1', commandId: 'command-owner', idempotencyKey: 'operation-owner', expectedRevision: 1,
       updatedAt: '2026-07-28T00:01:00.000Z',
     }), 'owner-mismatch');
 
     await expectAuthorityError(repository.updateSchedule({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', schedule: schedule('2026-08-21T00:00:00.000Z'),
       changedNodeKey: 'unit-1', commandId: 'command-stale', idempotencyKey: 'operation-stale', expectedRevision: 9,
       updatedAt: '2026-07-28T00:02:00.000Z',
     }), 'revision-conflict');
 
     await expectAuthorityError(repository.updateSchedule({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', schedule: schedule('2026-08-19T00:00:00.000Z'),
       changedNodeKey: 'unit-1', commandId: 'command-shorten',
       idempotencyKey: 'operation-shorten', expectedRevision: 1, updatedAt: '2026-07-28T00:03:00.000Z',
     }), 'unsafe-deadline');
 
     const extended = await repository.updateSchedule({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', schedule: schedule('2026-08-21T00:00:00.000Z'),
       changedNodeKey: 'unit-1', commandId: 'command-extend',
       idempotencyKey: 'operation-extend', expectedRevision: 1, updatedAt: '2026-07-28T00:04:00.000Z',
     });
     expect(extended).toMatchObject({ status: 'updated', revision: 2 });
     await expectAuthorityError(repository.updateSchedule({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1',
       schedule: { ...schedule('2026-08-22T00:00:00.000Z'), finalDueAt: '2026-08-31T00:00:00.000Z' },
       changedNodeKey: 'unit-1', commandId: 'command-partial',
       idempotencyKey: 'operation-partial', expectedRevision: 2, updatedAt: '2026-07-28T00:05:00.000Z',
     }), 'invalid-command');
-    await expect(repository.read('assignment-1')).resolves.toMatchObject({ bookManifest: manifest });
+    await expect(repository.read({ authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' })).resolves.toMatchObject({ bookManifest: manifest });
     await expectAuthorityError(repository.updateSchedule({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1',
       schedule: { ...schedule('2026-08-23T00:00:00.000Z'), availableFrom: '2026-08-01T00:00:00.000Z' },
       changedNodeKey: 'unit-1', commandId: 'command-availability', idempotencyKey: 'operation-availability',
@@ -222,10 +277,11 @@ describe('Book Homework Firestore authority', () => {
     };
     const repository = createRepository();
     await repository.create({
-      ...createCommand(), assignmentId: 'assignment-nested', manifest: nestedManifest, schedule: nestedSchedule,
-      sagaId: 'saga-nested', commandId: 'command-nested-create', idempotencyKey: 'operation-nested-create',
+      ...createCommand(), scope: { authorityId: 'assignment-nested', assignmentId: 'assignment-1', ownerId: 'teacher-1' }, assignmentId: 'assignment-nested', manifest: nestedManifest, schedule: nestedSchedule,
+      sagaId: 'assignment-1', commandId: 'command-nested-create', idempotencyKey: 'operation-nested-create',
     });
     await expect(repository.updateStudentExtension({
+      scope: { authorityId: 'assignment-nested', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-nested', ownerId: 'teacher-1', studentId: 'student-1', nodeKey: 'unit-1',
       dueAt: '2026-08-21T00:00:00.000Z', commandId: 'command-nested-extension',
       idempotencyKey: 'operation-nested-extension', expectedRevision: 1, updatedAt: '2026-07-28T00:01:00.000Z',
@@ -236,56 +292,60 @@ describe('Book Homework Firestore authority', () => {
     const repository = createRepository();
     await repository.create(createCommand());
     const extension = await repository.updateStudentExtension({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', studentId: 'student-1', nodeKey: 'unit-1',
       dueAt: '2026-08-25T00:00:00.000Z', commandId: 'command-extension', idempotencyKey: 'operation-extension',
       expectedRevision: 1, updatedAt: '2026-07-28T00:01:00.000Z',
     });
     expect(extension.revision).toBe(2);
     await expectAuthorityError(repository.updateStudentExtension({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', studentId: 'student-1', nodeKey: 'unit-1',
       dueAt: '2026-08-24T00:00:00.000Z', commandId: 'command-extension-shorter', idempotencyKey: 'operation-extension-shorter',
       expectedRevision: 2, updatedAt: '2026-07-28T00:02:00.000Z',
     }), 'unsafe-deadline');
 
     await expectAuthorityError(repository.updateStudentExtension({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', studentId: 'student-2', nodeKey: 'unit-1',
       dueAt: '2026-08-25T00:00:00.000Z', commandId: 'command-other-student', idempotencyKey: 'operation-other-student',
       expectedRevision: 2, updatedAt: '2026-07-28T00:02:30.000Z',
     }), 'invalid-command');
 
     const recovered = await repository.recover({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', state: 'compensating', commandId: 'command-recover',
       idempotencyKey: 'operation-recover', expectedRevision: 2, updatedAt: '2026-07-28T00:03:00.000Z',
     });
     expect(recovered).toMatchObject({ status: 'recovered', visibility: 'compensating' });
-    await expect(repository.readStudentProjection('assignment-1', 'student-1')).resolves.toBeNull();
+    await expect(repository.readStudentProjection({ authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' }, 'student-1')).resolves.toBeNull();
   });
 
   it('retries a Firestore CAS conflict without duplicating the operation', async () => {
     const inner = new InMemoryBookHomeworkDocumentStore();
     let firstWrite = true;
     const conflictedStore: BookHomeworkDocumentStore = {
-      read: (id): Promise<BookHomeworkStoredDocument | null> => inner.read(id),
-      write: async (id, value, updateTime) => {
+      read: (scope): Promise<BookHomeworkStoredDocument | null> => inner.read(scope),
+      write: async (scope, value, updateTime) => {
         if (firstWrite) {
           firstWrite = false;
           return false;
         }
-        return inner.write(id, value, updateTime);
+        return inner.write(scope, value, updateTime);
       },
     };
     const repository = createRepository(['not-started'], conflictedStore);
     await expect(repository.create(createCommand())).resolves.toMatchObject({ status: 'created', revision: 1 });
-    await expect(repository.read('assignment-1')).resolves.toMatchObject({ revision: 1 });
+    await expect(repository.read({ authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' })).resolves.toMatchObject({ revision: 1 });
   });
 
   it('reconciles a lost CAS response without duplicating committed visibility', async () => {
     const inner = new InMemoryBookHomeworkDocumentStore();
     let loseNextWrite = false;
     const flakyStore: BookHomeworkDocumentStore = {
-      read: (id): Promise<BookHomeworkStoredDocument | null> => inner.read(id),
-      write: async (id, value, updateTime) => {
-        const accepted = await inner.write(id, value, updateTime);
+      read: (scope): Promise<BookHomeworkStoredDocument | null> => inner.read(scope),
+      write: async (scope, value, updateTime) => {
+        const accepted = await inner.write(scope, value, updateTime);
         if (accepted && loseNextWrite) {
           loseNextWrite = false;
           return false;
@@ -297,25 +357,26 @@ describe('Book Homework Firestore authority', () => {
     await repository.create(createCommand());
     loseNextWrite = true;
     await expect(repository.setVisibility({
+      scope: { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' },
       assignmentId: 'assignment-1', ownerId: 'teacher-1', state: 'committed',
       commandId: 'command-commit-lost-response', idempotencyKey: 'operation-commit-lost-response', expectedRevision: 1,
       updatedAt: '2026-07-28T00:01:00.000Z',
     })).resolves.toMatchObject({ status: 'replayed', revision: 2, visibility: 'committed' });
-    await expect(repository.read('assignment-1')).resolves.toMatchObject({ revision: 2, visibility: { status: 'committed' } });
+    await expect(repository.read({ authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' })).resolves.toMatchObject({ revision: 2, visibility: { status: 'committed' } });
   });
 
   it('uses a dedicated Firestore REST document path and precondition without exposing credentials', async () => {
     const record = {
       assignmentId: 'assignment-1', assignmentKind: 'book_activity_bundle' as const, schemaVersion: 1 as const,
       ownerId: 'teacher-1', bookManifest: manifest, schedule: schedule(), studentExtensions: {},
-      saga: { sagaId: 'saga-1', state: 'prepared' as const, lastCommandId: 'command-create' },
+      saga: { sagaId: 'assignment-1', state: 'prepared' as const, lastCommandId: 'command-create' },
       visibility: { status: 'prepared' as const, pointerId: 'manifest-1', manifestVersionId: 'manifest-1', revision: 1 },
       revision: 1, createdAt, updatedAt: createdAt,
     };
     let encodedFields: Record<string, unknown> | undefined;
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      expect(url).toContain('/projects/demo-project/databases/(default)/documents/homework_assignments/assignment-1');
+      expect(url).toContain('/projects/demo-project/databases/(default)/documents/book_homework_authorities/assignment-1');
       expect(init?.headers).toMatchObject({ Authorization: 'Bearer test-token' });
       if (init?.method === 'PATCH') {
         expect(url).toContain('currentDocument.exists=false');
@@ -332,10 +393,19 @@ describe('Book Homework Firestore authority', () => {
         BOOK_HOMEWORK_SERVICE_IDENTITY: 'book-homework@example.iam.gserviceaccount.com',
       },
       fetchImpl: fetchMock,
-      getAccessToken: async () => 'test-token',
+      getFirebaseIdToken: async (claims) => {
+        expect(claims).toEqual({
+          service: 'book_homework_authority',
+          authorityId: 'assignment-1',
+          assignmentId: 'assignment-1',
+          ownerId: 'teacher-1',
+        });
+        return 'test-token';
+      },
     });
-    await expect(store.write('assignment-1', record)).resolves.toBe(true);
-    await expect(store.read('assignment-1')).resolves.toMatchObject({
+    const scope = { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' } as const;
+    await expect(store.write(scope, record)).resolves.toBe(true);
+    await expect(store.read(scope)).resolves.toMatchObject({
       updateTime: '2026-07-28T00:01:00.000000Z',
       value: { assignmentId: 'assignment-1', assignmentKind: 'book_activity_bundle', revision: 1 },
     });
@@ -358,6 +428,41 @@ describe('Book Homework Firestore authority', () => {
     })).toThrow('book_homework_service_identity_mismatch');
   });
 
+  it('preserves authority projection token and Firestore read diagnostics without token material', async () => {
+    const scope = { authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' } as const;
+    const tokenFailure = new FirebaseRestBookHomeworkDocumentStore({
+      env: {
+        FIREBASE_PROJECT_ID: 'demo-project',
+        BOOK_HOMEWORK_SERVICE_IDENTITY: 'book-homework@example.iam.gserviceaccount.com',
+      },
+      fetchImpl: async () => { throw new Error('must_not_fetch'); },
+      getFirebaseIdToken: () => new Promise((_, reject) => {
+        queueMicrotask(() => reject(new Error('secret-token-material')));
+      }),
+    });
+    let tokenError: unknown;
+    try { await tokenFailure.read(scope); } catch (error) { tokenError = error; }
+    expect(tokenError).toMatchObject({
+      diagnostic: { stage: 'token_exchange', errorClass: 'token-authentication' },
+      message: 'token-authentication',
+    });
+
+    const deniedRead = new FirebaseRestBookHomeworkDocumentStore({
+      env: {
+        FIREBASE_PROJECT_ID: 'demo-project',
+        BOOK_HOMEWORK_SERVICE_IDENTITY: 'book-homework@example.iam.gserviceaccount.com',
+      },
+      fetchImpl: async () => new Response('secret-provider-body', { status: 403 }),
+      getFirebaseIdToken: async () => 'secret-token-material',
+    });
+    let deniedError: unknown;
+    try { await deniedRead.read(scope); } catch (error) { deniedError = error; }
+    expect(deniedError).toMatchObject({
+      diagnostic: { stage: 'firestore_get', errorClass: 'token-authentication' },
+      message: 'token-authentication',
+    });
+  });
+
   it('treats Firestore FAILED_PRECONDITION 400 responses as retryable CAS conflicts', async () => {
     const store = new FirebaseRestBookHomeworkDocumentStore({
       env: {
@@ -365,12 +470,12 @@ describe('Book Homework Firestore authority', () => {
         BOOK_HOMEWORK_SERVICE_IDENTITY: 'book-homework@example.iam.gserviceaccount.com',
       },
       fetchImpl: async () => new Response(JSON.stringify({ error: { status: 'FAILED_PRECONDITION' } }), { status: 400 }),
-      getAccessToken: async () => 'test-token',
+      getFirebaseIdToken: async () => 'test-token',
     });
-    await expect(store.write('assignment-1', {
+    await expect(store.write({ authorityId: 'assignment-1', assignmentId: 'assignment-1', ownerId: 'teacher-1' }, {
       assignmentId: 'assignment-1', assignmentKind: 'book_activity_bundle', schemaVersion: 1,
       ownerId: 'teacher-1', bookManifest: manifest, schedule: schedule(), studentExtensions: {},
-      saga: { sagaId: 'saga-1', state: 'prepared', lastCommandId: 'command-create' },
+      saga: { sagaId: 'assignment-1', state: 'prepared', lastCommandId: 'command-create' },
       visibility: { status: 'prepared', pointerId: 'manifest-1', manifestVersionId: 'manifest-1', revision: 1 },
       revision: 1, createdAt, updatedAt: createdAt,
     })).resolves.toBe(false);

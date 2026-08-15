@@ -2,6 +2,7 @@ import type {
   BookHomeworkSagaAssignmentTargetIntent,
   BookHomeworkSagaAssignmentIntent,
   BookHomeworkSagaCommand,
+  BookHomeworkSagaPresentation,
   BookHomeworkSagaStudentExtensionIntent,
 } from './bookHomeworkSaga.types';
 import type { BookHomeworkSelectionTarget } from '../../types/homework.types';
@@ -20,6 +21,7 @@ const MAX_STUDENT_EXTENSIONS = MAX_RECIPIENTS * MAX_NODE_OVERRIDES;
 const MAX_BODY_BYTES = 256 * 1024;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const PRESENTATION_TEXT_MAX_LENGTH = 512;
 
 export interface CreateBookHomeworkAssignmentIntentInput {
   readonly draft: BookHomeworkPreviewDraft;
@@ -36,6 +38,10 @@ export interface BookHomeworkAssignmentPreviewSource extends BookHomeworkPreview
   readonly classId?: string;
   readonly selectedRecipientIds?: readonly string[];
   readonly studentExtensions?: readonly BookHomeworkSagaStudentExtensionIntent[];
+  readonly presentation?: {
+    readonly title?: string;
+    readonly description?: string;
+  };
 }
 
 export type BookHomeworkAssignmentIntentCommand = Omit<BookHomeworkSagaCommand, 'ownerId' | 'createdAt'>;
@@ -55,6 +61,47 @@ const assertIso: (value: unknown, label: string) => asserts value is string = (v
   if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
     throw invalid(`${label} is invalid.`);
   }
+};
+
+const sanitizePresentationText = (
+  value: unknown,
+  label: string,
+  required: boolean,
+): string | undefined => {
+  if (value === undefined) {
+    if (required) throw invalid(`${label} is unavailable.`);
+    return undefined;
+  }
+  if (typeof value !== 'string') throw invalid(`${label} is invalid.`);
+  const normalized = value.trim();
+  if (!normalized) {
+    if (required) throw invalid(`${label} is unavailable.`);
+    return undefined;
+  }
+  if (normalized.length > PRESENTATION_TEXT_MAX_LENGTH) {
+    throw invalid(`${label} exceeds the bounded presentation size.`);
+  }
+  return normalized;
+};
+
+const normalizePresentation = (
+  source: BookHomeworkAssignmentPreviewSource,
+  fallbackTitle: string,
+): BookHomeworkSagaPresentation => {
+  const title = sanitizePresentationText(
+    source.presentation?.title ?? source.bookTitle ?? fallbackTitle,
+    'Book Homework presentation title',
+    true,
+  ) as string;
+  const description = sanitizePresentationText(
+    source.presentation?.description,
+    'Book Homework presentation description',
+    false,
+  );
+  return Object.freeze({
+    title,
+    ...(description === undefined ? {} : { description }),
+  });
 };
 
 const copyTarget = (
@@ -188,6 +235,7 @@ export const createBookHomeworkAssignmentIntent = (
     publicationRevision: book.publicationRevision,
     manifestVersionId: source.identity.manifestVersionId,
   } as const;
+  const presentation = normalizePresentation(source, book.bookId);
   const intent: BookHomeworkSagaAssignmentIntent = {
     bookId: book.bookId,
     target,
@@ -207,6 +255,7 @@ export const createBookHomeworkAssignmentIntent = (
       })),
     },
     expectedPublication,
+    presentation,
   };
 
   const createId = input.createId ?? (() => globalThis.crypto?.randomUUID?.() ?? '');

@@ -1153,6 +1153,7 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
       input.contextId,
       input.placementId,
     ));
+    if (value === null) return [];
     const children = durableRecord(value);
     if (!children || Object.keys(children).length > BOOK_RUNTIME_MAX_SCOPE_ENTRIES) {
       throw new BookRuntimeRepositoryError('runtime_attempt_query_scope_invalid');

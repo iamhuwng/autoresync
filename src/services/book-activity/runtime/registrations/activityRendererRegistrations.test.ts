@@ -40,7 +40,13 @@ describe('Ticket #38 renderer registrations', () => {
     expect(activityRendererManifest.registrations.map(key).sort()).toEqual(
       activityRendererRegistrations.map(key).sort(),
     );
-    expect(bookActivityRendererRegistry.registrations()).toHaveLength(33);
+    expect(bookActivityRendererRegistry.registrations()).toHaveLength(34);
+    expect(activityRendererManifest.registrations.find((entry) =>
+      entry.family === 'choice' && entry.variant === 'v1' && entry.profile === null)).toMatchObject({
+      responseCodec: 'choice-single-v1',
+      rendererId: 'choice-v1',
+      codecId: 'choice-single-v1',
+    });
     expect(activityRendererRegistrations.filter((entry) => entry.family === 'long-response')).toHaveLength(1);
     expect(activityRendererRegistrations.find((entry) => entry.family === 'long-response')?.taskProfile).toBeUndefined();
     expect(activityRendererManifest.registrations.find((entry) =>
