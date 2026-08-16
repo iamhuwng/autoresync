@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 export const PRD0062_READING_LISTENING_COVERAGE_PATH =
@@ -57,15 +56,11 @@ const canonicalRegistrationFor = (row) => ({
 
 export const loadAcceptedAdapterRegistrations = (repoRoot = process.cwd()) => {
   try {
-    const source = execFileSync('git', [
-      '-C', repoRoot,
-      'show',
-      `${ACCEPTED_ADAPTER_COMMIT}:${ACCEPTED_ADAPTER_MANIFEST_PATH}`,
-    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const source = readFileSync(path.join(repoRoot, ACCEPTED_ADAPTER_MANIFEST_PATH), 'utf8');
     const parsed = JSON.parse(source);
     return Array.isArray(parsed.registrations) ? { registrations: parsed.registrations } : { error: 'accepted adapter manifest registrations missing.' };
   } catch {
-    return { error: 'accepted adapter manifest could not be read from Git objects.' };
+    return { error: 'current adapter manifest could not be read from the selected source checkout.' };
   }
 };
 

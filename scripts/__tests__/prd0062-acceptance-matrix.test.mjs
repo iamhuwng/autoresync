@@ -113,9 +113,11 @@ test('rejects unclassified profile and false structural Listening support', () =
 test('rejects source-conformance and PersonalTimer boundary drift', () => {
   const invalid = matrix();
   invalid.sourceConformance.acceptedAdapterCommit = '0'.repeat(40);
+  invalid.sourceConformance.currentSource.adapterManifestSha256 = '0';
   invalid.sourceConformance.personalTimer.invariants = ['no-grade-effect'];
   const errors = validatePrd0062AcceptanceMatrix(invalid).join('\n');
   assert.match(errors, /wrong accepted adapter commit/);
+  assert.match(errors, /current adapter manifest hash required/);
   assert.match(errors, /missing UI-only invariant/);
 });
 

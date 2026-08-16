@@ -10,8 +10,10 @@ export const validateHarnessContract = ({ rootDir = process.cwd() } = {}) => {
   const issues = [];
   const dispatcherPath = path.join(rootDir, 'scripts/harness/run-tool.mjs');
   const x64WrapperPath = path.join(rootDir, 'scripts/harness/run-x64.ps1');
+  const contractPath = path.join(rootDir, 'scripts/harness/contract.mjs');
   let dispatcher = '';
   let x64Wrapper = '';
+  let contract = '';
   try {
     dispatcher = fs.readFileSync(dispatcherPath, 'utf8');
   } catch (error) {
@@ -22,9 +24,18 @@ export const validateHarnessContract = ({ rootDir = process.cwd() } = {}) => {
   } catch (error) {
     issue(issues, 'harness-contract-missing', '$.harness.x64Wrapper', error instanceof Error ? error.message : String(error));
   }
-  if (dispatcher && !/new Set\(\['playwright',[\s\S]*'vite-node'/u.test(dispatcher)) issue(issues, 'harness-playwright-unsupported', '$.harness.dispatcher', 'Dispatcher must declare Playwright alongside the existing tools.');
-  if (dispatcher && !/playwright:\s*path\.join\(projectRoot, 'node_modules', '@playwright', 'test', 'cli\.js'\)/u.test(dispatcher)) issue(issues, 'harness-playwright-entrypoint-missing', '$.harness.dispatcher', 'Dispatcher must use the installed @playwright/test CLI entrypoint.');
-  if (x64Wrapper && !/\[ValidateSet\('playwright',[\s\S]*'vite-node'/u.test(x64Wrapper)) issue(issues, 'harness-playwright-unsupported', '$.harness.x64Wrapper', 'x64 wrapper must declare Playwright alongside the existing tools.');
-  if (x64Wrapper && !/'playwright'\s*\{\s*Join-Path \$cacheRoot 'node_modules\\@playwright\\test\\cli\.js'/u.test(x64Wrapper)) issue(issues, 'harness-playwright-entrypoint-missing', '$.harness.x64Wrapper', 'x64 wrapper must use the installed @playwright/test CLI entrypoint.');
+  try {
+    contract = fs.readFileSync(contractPath, 'utf8');
+  } catch {
+    // Temporary contract fixtures intentionally omit this file and are checked below.
+  }
+  if (dispatcher && (!contract || !/playwright:\s*Object\.freeze\(\{[\s\S]*?entry:\s*'@playwright\/test\/cli\.js'/u.test(contract))) {
+    issue(issues, 'harness-playwright-unsupported', '$.harness.dispatcher', 'Dispatcher contract must declare Playwright.');
+    issue(issues, 'harness-playwright-entrypoint-missing', '$.harness.dispatcher', 'Dispatcher contract must use the installed @playwright/test CLI entrypoint.');
+  }
+  if (x64Wrapper && !/run-isolated\.mjs/u.test(x64Wrapper)) {
+    issue(issues, 'harness-playwright-unsupported', '$.harness.x64Wrapper', 'x64 wrapper must delegate to the versioned isolated runner.');
+    issue(issues, 'harness-playwright-entrypoint-missing', '$.harness.x64Wrapper', 'x64 wrapper must use the versioned harness contract.');
+  }
   return issues;
 };

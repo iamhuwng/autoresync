@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import activityCoverageMatrix from '../../documentation/architecture/data/prd0062-activity-coverage.matrix.json';
@@ -37,18 +36,6 @@ const issue = (issues: AnyRecord[], code: string, pathName: string, message: str
 };
 
 const readJson = (filePath: string): AnyRecord => JSON.parse(fs.readFileSync(filePath, 'utf8')) as AnyRecord;
-
-const acceptedManifest = (rootDir: string): { value: AnyRecord; raw: string } => {
-  const raw = execFileSync(
-    'git', ['-C', rootDir, 'show', `${ACCEPTED_ADAPTER_COMMIT}:${ACCEPTED_MANIFEST_PATH}`],
-    { encoding: 'utf8' },
-  ) as string;
-  return { value: JSON.parse(raw) as AnyRecord, raw };
-};
-
-const gitSource = (rootDir: string, commit: string, sourcePath: string): string => execFileSync(
-  'git', ['-C', rootDir, 'show', `${commit}:${sourcePath}`], { encoding: 'utf8' },
-) as string;
 
 const featureProfile = (matrix: AnyRecord, profileId: string) =>
   matrix.registryConformance?.featureRegistry?.profiles?.[profileId] as AnyRecord | undefined;
@@ -216,11 +203,15 @@ export const validatePrd0062AcceptanceConformance = ({ rootDir = process.cwd(), 
   const issues: AnyRecord[] = [];
   let matrix: AnyRecord;
   let manifest: AnyRecord;
+  let currentManifest: AnyRecord;
+  let currentManifestRaw = '';
   let manifestRaw = '';
   try {
     matrix = readJson(matrixPath);
     manifestRaw = fs.readFileSync(path.join(rootDir, matrix.fixtureManifest.path), 'utf8');
     manifest = JSON.parse(manifestRaw) as AnyRecord;
+    currentManifestRaw = fs.readFileSync(path.join(rootDir, ACCEPTED_MANIFEST_PATH), 'utf8');
+    currentManifest = JSON.parse(currentManifestRaw) as AnyRecord;
   } catch (error) {
     return { ok: false, issues: [{ code: 'authority-input-unreadable', path: '$', message: error instanceof Error ? error.message : String(error) }] };
   }
@@ -242,21 +233,12 @@ export const validatePrd0062AcceptanceConformance = ({ rootDir = process.cwd(), 
   if (matrix.sourceConformance?.acceptedAdapterCommit !== ACCEPTED_ADAPTER_COMMIT) issue(issues, 'accepted-adapter-commit-drift', '$.sourceConformance.acceptedAdapterCommit', 'Accepted adapter commit is not a7522986.');
   if (matrix.sourceConformance?.acceptedTimerCommit !== ACCEPTED_TIMER_COMMIT) issue(issues, 'accepted-timer-commit-drift', '$.sourceConformance.acceptedTimerCommit', 'Accepted timer commit is not ba8b2d59.');
 
-  let accepted: AnyRecord;
-  let acceptedRaw = '';
-  try {
-    const acceptedSource = acceptedManifest(rootDir);
-    accepted = acceptedSource.value;
-    acceptedRaw = acceptedSource.raw;
-  } catch (error) {
-    issue(issues, 'accepted-manifest-unreadable', '$.sourceConformance.acceptedAdapterManifest', error instanceof Error ? error.message : String(error));
-    accepted = { registrations: [] };
+  const currentManifestHash = crypto.createHash('sha256').update(currentManifestRaw).digest('hex');
+  if (currentManifestHash !== matrix.sourceConformance?.currentSource?.adapterManifestSha256) {
+    issue(issues, 'current-adapter-manifest-hash-drift', '$.sourceConformance.currentSource.adapterManifestSha256', 'Current adapter manifest hash differs from the exact source snapshot.');
   }
-  if (acceptedRaw && crypto.createHash('sha256').update(acceptedRaw).digest('hex') !== matrix.sourceConformance?.acceptedAdapterManifestSha256) {
-    issue(issues, 'accepted-manifest-hash-drift', '$.sourceConformance.acceptedAdapterManifestSha256', 'Accepted adapter manifest hash differs from the frozen source hash.');
-  }
-  const acceptedRegistrations = (accepted.registrations ?? []).filter((entry: AnyRecord) => entry.profile !== null);
-  const expectedKeys = new Set(acceptedRegistrations.map(key));
+  const currentRegistrations = (currentManifest.registrations ?? []).filter((entry: AnyRecord) => entry.profile !== null);
+  const expectedKeys = new Set(currentRegistrations.map(key));
   const rows = Array.isArray(matrix.capabilityRows) ? matrix.capabilityRows : [];
   const taskProfileRegistry = makeTaskProfileRegistry(activityCoverageMatrix.rows);
   if (rows.length !== expectedKeys.size) issue(issues, 'capability-cardinality-drift', '$.capabilityRows', `Expected ${expectedKeys.size} accepted profiled registrations.`);
@@ -268,6 +250,17 @@ export const validatePrd0062AcceptanceConformance = ({ rootDir = process.cwd(), 
     if (!expectedKeys.has(rowKey)) issue(issues, 'source-registration-missing', `$.capabilityRows.${row.id}`, 'Capability row is not present in the accepted adapter manifest.');
     const currentRegistration = bookActivityAdapterRegistrations.find((entry) => key(entry) === rowKey);
     if (!currentRegistration) issue(issues, 'current-registration-missing', `$.capabilityRows.${row.id}`, 'Current adapter registry does not expose the accepted registration.');
+    else if (currentRegistration.adapterId !== row.sourceAdapterProfile) issue(issues, 'adapter-profile-drift', `$.capabilityRows.${row.id}.sourceAdapterProfile`, 'Matrix adapter profile differs from the current source registry.');
+    const manifestRegistration = currentRegistrations.find((entry: AnyRecord) => key(entry) === rowKey);
+    const matrixRegistrationFields = {
+      family: row.interaction?.family,
+      variant: row.interaction?.variant,
+      presentationMode: row.presentationMode,
+      responseCodec: row.responseCodec,
+    };
+    if (manifestRegistration && Object.entries(matrixRegistrationFields).some(([field, value]) => manifestRegistration[field] !== value)) {
+      issue(issues, 'source-registration-field-drift', `$.capabilityRows.${row.id}`, 'Matrix registration fields differ from the current source manifest.');
+    }
     if (row.domain === 'listening' && row.supportState === 'explicitly-unsupported-release-blocking') issue(issues, 'stale-listening-status', `$.capabilityRows.${row.id}`, 'Listening row retains a stale release-blocking unsupported status.');
     if (row.domain === 'listening' && !['structurally-supported', 'source-assisted-supported'].includes(row.supportState)) issue(issues, 'listening-support-missing', `$.capabilityRows.${row.id}`, 'Listening row must map to accepted supported coverage.');
 
@@ -313,9 +306,14 @@ export const validatePrd0062AcceptanceConformance = ({ rootDir = process.cwd(), 
   else {
     if (timer.sourceCommit !== ACCEPTED_TIMER_COMMIT) issue(issues, 'personal-timer-source-commit-drift', '$.retainedBehaviors.personal-timer-ui-only.sourceCommit', 'PersonalTimer row must pin the accepted source commit.');
     if (timer.sourcePath !== matrix.sourceConformance.acceptedTimerSource) issue(issues, 'personal-timer-source-path-drift', '$.retainedBehaviors.personal-timer-ui-only.sourcePath', 'PersonalTimer row must pin the accepted source path.');
-    const timerSource = gitSource(rootDir, ACCEPTED_TIMER_COMMIT, timer.sourcePath);
+    let timerSource = '';
+    try {
+      timerSource = fs.readFileSync(path.join(rootDir, timer.sourcePath), 'utf8');
+    } catch (error) {
+      issue(issues, 'personal-timer-source-unreadable', '$.retainedBehaviors.personal-timer-ui-only.sourcePath', error instanceof Error ? error.message : String(error));
+    }
     const timerHash = crypto.createHash('sha256').update(timerSource).digest('hex');
-    if (timerHash !== matrix.sourceConformance.acceptedTimerSourceSha256) issue(issues, 'personal-timer-source-drift', '$.sourceConformance.acceptedTimerSourceSha256', 'Accepted PersonalTimer source hash differs.');
+    if (timerHash !== matrix.sourceConformance?.currentSource?.timerSourceSha256) issue(issues, 'personal-timer-source-drift', '$.sourceConformance.currentSource.timerSourceSha256', 'Current PersonalTimer source hash differs from the exact source snapshot.');
     for (const invariant of matrix.sourceConformance.personalTimer.invariants ?? []) if (!timerFixture.invariants.includes(invariant)) issue(issues, 'personal-timer-invariant-drift', '$.retainedBehaviors.personal-timer-ui-only', `Fixture omits ${invariant}.`);
     if (timerFixture.timerKey !== timer.cleanupRoot.replace(/\/$/u, '')) issue(issues, 'personal-timer-cleanup-drift', '$.retainedBehaviors.personal-timer-ui-only.cleanupRoot', 'Timer fixture key and cleanup root differ.');
     const timerManifestEntry = (manifest.entries ?? []).find((entry: AnyRecord) => entry.id === timer.fixtureId);

@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import {
   loadPrd0062ReadingListeningCoverage,
@@ -9,6 +8,7 @@ import {
 
 export const ACCEPTANCE_MATRIX_PATH = 'documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json';
 export const FIXTURE_MANIFEST_PATH = 'scripts/fixtures/prd0062-51a-acceptance-fixture-manifest.json';
+const CURRENT_AUTHORITY_HASH_EVIDENCE_PATH = 'documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-17.json';
 const SOURCE_CONFORMANCE_EVIDENCE_PATH = 'documentation/tasks/PRD0062/evidence/51A-source-conformance-2026-08-04.json';
 const ACCEPTED_TIMER_COMMIT = 'ba8b2d59d9ccaae2b6cc7a74a34b55b32e1b1c70';
 const TIMER_INVARIANTS = [
@@ -81,6 +81,7 @@ export const validatePrd0062AcceptanceMatrix = (matrix, { repoRoot = process.cwd
     if (!matrix?.registryConformance?.featureRegistry?.path) errors.push('registryConformance: feature registry path required.');
     if (!matrix?.activityCoverage?.matrixPath) errors.push('activityCoverage: canonical matrix path required.');
     if (matrix?.authority?.semanticValidator !== 'node scripts/validate-prd0062-acceptance-matrix.mjs --semantic') errors.push('authority: semantic validator command drift.');
+    if (matrix?.authority?.hashEvidence !== CURRENT_AUTHORITY_HASH_EVIDENCE_PATH) errors.push('authority: current hash evidence path required.');
   }
   if (!matrix?.harness?.cleanupRoot?.startsWith('prd0062_acceptance/')) errors.push('harness.cleanupRoot: must be scoped.');
   if (/manual spot check|\b\d+\s*(?:tests|pass)\b/iu.test(JSON.stringify(matrix))) errors.push('matrix: forbidden manual spot check or copied evidence count.');
@@ -95,19 +96,20 @@ export const validatePrd0062AcceptanceMatrix = (matrix, { repoRoot = process.cwd
     if (!/^[a-f0-9]{64}$/u.test(conformance?.acceptedAdapterManifestSha256 ?? '')) errors.push('sourceConformance: accepted adapter manifest hash required.');
     if (conformance?.acceptedTimerSource !== 'src/components/book-runtime/PersonalTimer.tsx') errors.push('sourceConformance: accepted timer source path drift.');
     if (!/^[a-f0-9]{64}$/u.test(conformance?.acceptedTimerSourceSha256 ?? '')) errors.push('sourceConformance: accepted timer source hash required.');
+    if (!/^[a-f0-9]{40}$/u.test(conformance?.currentSource?.commit ?? '')) errors.push('sourceConformance: current source snapshot commit required.');
+    if (!/^[a-f0-9]{64}$/u.test(conformance?.currentSource?.adapterManifestSha256 ?? '')) errors.push('sourceConformance: current adapter manifest hash required.');
+    if (!/^[a-f0-9]{64}$/u.test(conformance?.currentSource?.timerSourceSha256 ?? '')) errors.push('sourceConformance: current timer source hash required.');
   }
   if (conformance?.personalTimer?.status !== 'accepted-ui-only') errors.push('personal timer trace: must remain accepted-ui-only.');
   const timerInvariants = conformance?.personalTimer?.invariants;
   if (!Array.isArray(timerInvariants) || TIMER_INVARIANTS.some((invariant) => !timerInvariants.includes(invariant))) errors.push('personal timer trace: missing UI-only invariant.');
   try {
-    const timerSource = execFileSync('git', ['-C', repoRoot, 'show', `${ACCEPTED_TIMER_COMMIT}:src/components/book-runtime/PersonalTimer.tsx`], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const timerSource = readFileSync(path.join(repoRoot, conformance?.acceptedTimerSource ?? ''), 'utf8');
     if (!timerSource.includes('Optional focus aid') || !timerSource.includes('Unrelated to assignment deadlines and results.')) {
       errors.push('personal timer trace: accepted UI-only source invariant missing.');
     }
   } catch {
-    errors.push('personal timer trace: accepted Git source unreadable.');
+    errors.push('personal timer trace: current source unreadable.');
   }
   const coverage = loadPrd0062ReadingListeningCoverage(repoRoot);
   for (const coverageError of validatePrd0062ReadingListeningCoverage(coverage, { repoRoot })) errors.push(`coverage: ${coverageError}`);

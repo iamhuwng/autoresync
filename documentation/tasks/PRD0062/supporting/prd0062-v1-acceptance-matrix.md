@@ -1,6 +1,6 @@
 # PRD0062 Full-V1 Acceptance Matrix
 
-Matrix version: `2026-08-12.1`
+Matrix version: `2026-08-17.1`
 State: `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED`
 
 The machine-readable [acceptance authority](prd0062-v1-acceptance-matrix.json)
@@ -29,9 +29,12 @@ node scripts/validate-prd0062-acceptance-matrix.mjs --semantic
 ```
 
 The frozen deterministic fixture manifest SHA-256 is recorded in the JSON
-authority and the #127 evidence record. The matrix SHA-256 and source hashes
-are recorded in
-`documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-12.json`.
+authority and the #127 evidence record. The matrix SHA-256, accepted lineage
+hashes, and the exact current-source snapshot are recorded in
+`documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-17.json`.
+Source/registry conformance reads the selected checkout's current manifest and
+timer source, so it remains executable in the isolated harness source mirror
+without depending on a copied `.git` directory.
 
 This is a definition and source-conformance artifact only. It reports no
 browser journey, deployment, canary, secret, remote mutation, or product

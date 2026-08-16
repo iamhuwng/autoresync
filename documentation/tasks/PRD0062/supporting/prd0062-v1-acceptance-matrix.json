@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "kind": "prd0062-51a-acceptance-authority",
   "matrixId": "prd0062-v1-acceptance-authority",
-  "matrixVersion": "2026-08-12.1",
+  "matrixVersion": "2026-08-17.1",
   "executionState": "DEFINED_NOT_EXECUTED",
   "sourceConformance": {
     "status": "PASS",
@@ -14,6 +14,11 @@
     "acceptedTimerCommit": "ba8b2d59d9ccaae2b6cc7a74a34b55b32e1b1c70",
     "acceptedTimerSource": "src/components/book-runtime/PersonalTimer.tsx",
     "acceptedTimerSourceSha256": "41a863d4ac96dd8b921dd683d9d34d00fc56dff8e75dd13c16726c1f11b38842",
+    "currentSource": {
+      "commit": "7b2e7f3b74c1cabb78e12f4e28a7ff6a49d1ee04",
+      "adapterManifestSha256": "2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c",
+      "timerSourceSha256": "41a863d4ac96dd8b921dd683d9d34d00fc56dff8e75dd13c16726c1f11b38842"
+    },
     "personalTimer": {
       "status": "accepted-ui-only",
       "invariants": [
@@ -34,7 +39,7 @@
     "soleMatrixAuthority": "documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json",
     "supersedesAbsentFilename": "51a-acceptance.matrix.json",
     "semanticValidator": "node scripts/validate-prd0062-acceptance-matrix.mjs --semantic",
-    "hashEvidence": "documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-12.json",
+    "hashEvidence": "documentation/tasks/PRD0062/evidence/51A-acceptance-authority-2026-08-17.json",
     "noExecutionClaim": true
   },
   "activityCoverage": {

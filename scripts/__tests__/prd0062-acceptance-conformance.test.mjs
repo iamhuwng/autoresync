@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { HARNESS_CONTRACT, toolNames } from '../harness/contract.mjs';
 import { validateHarnessContract } from '../lib/prd0062-harness-contract.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -75,6 +76,14 @@ test('semantic authority rejects schema-valid stale Listening support claims', (
   assert.ok(result.output.issues.some((issue) => issue.code === 'stale-listening-status'));
 });
 
+test('semantic authority rejects source registry adapter drift', () => {
+  const matrix = loadMatrix();
+  matrix.capabilityRows[0].sourceAdapterProfile = 'listening-authoring-v1';
+  const result = runSemantic(matrix);
+  assert.equal(result.status, 1);
+  assert.ok(result.output.issues.some((issue) => issue.code === 'adapter-profile-drift'));
+});
+
 test('semantic authority rejects schema-valid capability-to-fixture drift and hash drift', () => {
   const matrix = loadMatrix();
   matrix.capabilityRows[0].fixtureId = 'stale-fixture';
@@ -101,10 +110,13 @@ test('semantic authority rejects direct npx, vite, vitest, and wrangler command 
 test('harness dispatchers declare the supported tools and canonical Playwright entrypoint', () => {
   const dispatcher = fs.readFileSync(dispatcherPath, 'utf8');
   const x64Wrapper = fs.readFileSync(x64WrapperPath, 'utf8');
-  assert.match(dispatcher, /new Set\(\['playwright',[\s\S]*'vite-node'/u);
-  assert.match(dispatcher, /playwright:\s*path\.join\(projectRoot, 'node_modules', '@playwright', 'test', 'cli\.js'\)/u);
-  assert.match(x64Wrapper, /\[ValidateSet\('playwright',[\s\S]*'vite-node'/u);
-  assert.match(x64Wrapper, /'playwright'\s*\{\s*Join-Path \$cacheRoot 'node_modules\\@playwright\\test\\cli\.js'/u);
+  assert.ok(toolNames.includes('playwright'));
+  assert.ok(toolNames.includes('vite-node'));
+  assert.equal(HARNESS_CONTRACT.grammar, 'node scripts/harness/run-tool.mjs <tool> <project> [...args]');
+  assert.equal(HARNESS_CONTRACT.tools.playwright.entry, '@playwright/test/cli.js');
+  assert.equal(HARNESS_CONTRACT.tools['vite-node'].entry, 'vite-node/vite-node.mjs');
+  assert.match(dispatcher, /HARNESS_CONTRACT/u);
+  assert.match(x64Wrapper, /run-isolated\.mjs/u);
   assert.equal(fs.existsSync(dispatcherPath), true);
   assert.equal(fs.existsSync(x64WrapperPath), true);
   assert.equal(execFileSync(process.execPath, ['--version'], { encoding: 'utf8' }).startsWith('v'), true);
