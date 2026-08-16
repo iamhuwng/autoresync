@@ -160,3 +160,49 @@ The WSL checkout can be retired from active use when all of the following are tr
 - required dependencies install natively on Windows from lockfiles;
 - the final rule-enforced M1 test fixtures are present in the clone; and
 - Codex App can read the governing handoff/PRD0062 documents and run repository tests without referencing WSL paths.
+
+## 18. Append-only #126 acceptance reconciliation — 2026-08-16
+
+This addendum preserves the cutover record above but supersedes its current
+readiness interpretation for execution. The latest committed #126 evidence is
+more recent and more specific than the earlier handoff summary.
+
+- The current source checkpoint is branch
+  `codex/prd0062-production-normal-20260813-v2` at
+  `f103cd2e4cc4cc8d16705c6e1f7cb61f08a83eab`. The integrated Book Homework
+  task commit changes the Cloudflare test dependency/lock boundary only; this
+  reconciliation changes no production source.
+- The rule-enforced M1 composition freeze remains valid local/emulator proof:
+  3 composition tests passed, followed by the focused 23-test route/saga,
+  22-test teacher progress/cache, and 65-test student discovery/detail/
+  locator/Runtime suites. It proves the bounded read/launch composition and
+  no unintended mutation; it does not by itself close the browser gate.
+- The latest browser evidence is
+  `evidence/126-production-normal-bridge-m1-student-shell-membership-browser-failure-result-2026-08-15.json`.
+  It records committed root revision 7, authority revision 2, active Delivery
+  revision 1, active membership `2NE3KY`, and zero assignment commands. The
+  teacher Book detail rendered, but the trusted student row did not become
+  visible within 30 seconds. Student, Runtime, and ordinary Homework were not
+  run after that failure. Its disposition is `NOT READY FOR USER BROWSER
+  HANDOFF`.
+- The same evidence records Worker activation v121 at 100% and says the v119
+  rollback could not be redeployed because the Wrangler OAuth refresh
+  credential rotated. Therefore the earlier “v119 restored” statement is
+  historical, not current rollback/readback proof.
+
+The current #126 decision is therefore **incomplete and blocked by a concrete
+teacher trusted-projection/browser boundary plus deployment rollback/readback
+reauthorization**. Retain the ledger status
+`BLOCKED_DEPENDENCY_AND_APPROVAL`; do not classify #126 as fully accepted,
+closed, or administrative-only. The next diagnosis must reproduce the missing
+student-row failure in the rule-enforced default Worker composition. Only if
+that reproducer goes red should the owning Book-side projection composition be
+changed, preserving authoritative assignment identity, fail-closed identity
+checks, and explicit unavailable derived completion.
+
+`#128 / 51B1` remains held: its positive activated workflow still requires
+#126 activation/readback and the corrected #127/51A acceptance artifact. A
+fresh M1 attempt that failed with `SOURCE_MIRROR_FAILED` because the Windows
+environment exhausted disk is an environment/harness attempt only; it does
+not replace the exact-commit M1 evidence above or indicate a product
+regression.

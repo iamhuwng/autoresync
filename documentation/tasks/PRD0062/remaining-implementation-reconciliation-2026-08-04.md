@@ -195,3 +195,68 @@ at #136.
 - #136 exclusively owns the bounded real pilot and final controlled-release decision.
 - Local, emulator, preview, deployed, canary, and pilot states remain distinct.
 - The complete PRD remains required. No pilot or proof ticket creates a partial product completion claim.
+
+### 2026-08-16 post-cutover #126/#128 acceptance reconciliation
+
+This is an append-only current-state addendum. The dated snapshots and
+append-only evidence packets above remain unchanged. It reconciles the
+cutover handoff against the latest committed evidence at source checkpoint
+`f103cd2e4cc4cc8d16705c6e1f7cb61f08a83eab`.
+
+#### #126 / 50B
+
+The authoritative ledger status remains
+`BLOCKED_DEPENDENCY_AND_APPROVAL`, but the current blocker is now specific:
+
+1. The rule-enforced default-composition M1 proof is green: 3 composition
+   tests passed, with the focused route/saga, teacher progress/cache, and
+   student discovery/detail/locator/Runtime suites passing 23, 22, and 65
+   tests respectively. The proof is non-mutating and does not close the
+   production/browser acceptance boundary.
+2. The latest browser result in
+   `evidence/126-production-normal-bridge-m1-student-shell-membership-browser-failure-result-2026-08-15.json`
+   passed durable-state readback and recorded zero assignment commands, but
+   failed at the trusted Book Homework teacher detail projection: the valid
+   assigned student row was not visible within 30 seconds. Student, Runtime,
+   and ordinary Homework verification were not run after that failure.
+3. The same packet records Worker v121 still at 100% and failure to redeploy
+   the v119 rollback because the Wrangler OAuth refresh credential rotated.
+   Cloudflare reauthorization and a fresh rollback/readback are therefore
+   still required. The prior handoff claim that v119 was restored is not
+   current proof.
+
+This means #126 is **not fully accepted or closed**, and is not merely waiting
+for an administrative ledger edit. The immediate resolution owner is the
+Book-side trusted teacher-projection composition boundary described in the
+recovery plan's rule-enforced composition capsule. Its required next proof is
+deployment-equivalent reproduction of the missing-row failure. If the
+reproducer is red, fix only that owning projection seam; if it is green,
+classify the discrepancy as deployed artifact/config/claims/rules/durable
+state and do not change production semantics speculatively. Preserve the
+authoritative assignment/recipient row when derived completion is unavailable,
+keep crossed identity fail-closed, and do not replay the assignment command.
+
+The fresh M1 attempt classified as `SOURCE_MIRROR_FAILED` after Windows disk
+exhaustion is environment/harness evidence only. It does not replace the
+exact-commit M1 proof and is not a product regression.
+
+#### #127 / 51A and #128 / 51B1
+
+The independent #127/51A acceptance-definition correction remains
+`REOPEN_REQUIRED_ARTIFACT`: the matrix is defined and validated, but source/
+registry/fixture conformance and the closure-referenced artifact are not
+resolved. This is the higher-priority S0 ledger prerequisite for the final
+suite consumers and is an evidence/authority correction, not permission to
+rebuild accepted Listening or timer behavior.
+
+`#128 / 51B1` remains `DEFERRED_FINAL_PROOF` and is **not unblocked**. Its
+positive activated teacher authoring/assignment workflow is held until #126
+has a successful approved activation/readback and the #127 artifact correction
+is accepted. Required #128 evidence remains the current Mode 2 role journey,
+source/assembly/publication/assignment proof, exact case manifest, cleanup,
+and no skipped blockers; the earlier local non-activation packet does not
+substitute for it.
+
+Accordingly, the next implementation diagnosis is the #126 teacher trusted-
+projection boundary, while the next independent ledger correction is #127/51A.
+Neither authorizes starting #128 or #134 in this reconciliation task.
