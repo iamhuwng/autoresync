@@ -94,6 +94,22 @@ This is the active override for the historical tables above.
 No current evidence selects a new generic adapter, recovery, or broad product
 architecture owner.
 
+## 2026-08-20 final Windows certification overlay
+
+This append-only overlay records fresh local qualification on harness 3.7.0,
+protocol 5, dependency-cache protocol 3. It does not replace the accepted
+definition-only status of #127 or promote local proof to deployed activation.
+
+| Owner | Certified disposition | Authority / boundary |
+|---|---|---|
+| Final Windows tooling | `PASS_LOCAL_FINAL_TOOLING` | `evidence/final-windows-certification-2026-08-20.json`: one user-scoped `run-windows-arm64-tools` 2.0.0 source, distinct repository guidance, 36/36 harness regressions, and selected Windows-source/WSL-execution Wrangler boundary. |
+| #127 / 51A | `SOURCE_CONFORMANT_AND_LOCALLY_EXECUTED` | The frozen definition remains `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED` as historical authority; the final certification evidence separately records fresh schema, semantic, canary, coverage, local browser, emulator, recovery, build, and dry-run execution at the tested commit. |
+| #128–#133 / 51B1–51D2 | `PASS_LOCAL_FINAL_TOOLING_BOUNDARY` | Teacher 4/4, student 5/5, security 93/93, recovery 1/1, and focused Worker update/recovery 24/24 passed locally with zero skips. This is not deployed/canary proof. |
+| #126 / 50B | `BLOCKED_DEPENDENCY_AND_APPROVAL` | Unchanged. Local activation/rollback Wrangler dry-runs compiled; production activation, trusted readback, and rollback readback were not run. |
+| #134 / 51E | `APPROVAL_GATED_DOWNSTREAM` | Unchanged. No deployed drill, remote mutation, or canary was performed. |
+
+No historical WSL repository or worktree supplied source or execution evidence.
+
 ## Transfer ledger
 
 Add the destination requirement before marking a transfer complete.
