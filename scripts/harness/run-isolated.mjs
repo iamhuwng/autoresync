@@ -129,6 +129,13 @@ export function classifyResult({ error, exitCode, stderr = '', stdout = '', wslR
   return exitCode === 0 ? 'completed' : 'product_failure';
 }
 
+export function assertDispatcherProtocol(invocation) {
+  const expected = { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion };
+  if (!invocation?.harness || Object.entries(expected).some(([name, value]) => invocation.harness[name] !== value)) {
+    throw failure('DISPATCH_PROTOCOL_MISMATCH', `dispatcher envelope does not match ${expected.name} ${expected.version} protocol ${expected.protocolVersion}`);
+  }
+}
+
 export function wslFailureCodeFromStderr(stderr = '') {
   return stderr.match(/^HARNESS_WSL_FAILURE ([A-Z0-9_]+)(?::|$)/mu)?.[1] ?? null;
 }
@@ -806,6 +813,7 @@ async function main() {
   writeEvidence(evidenceFile, evidence, true);
   let remediationTool = invocation.tool;
   try {
+    assertDispatcherProtocol(invocation);
     project = projectContext(invocation.relativeProjectPath);
     evidence.protectedState.before = protectedProjectState(project);
     writeEvidence(evidenceFile, evidence);

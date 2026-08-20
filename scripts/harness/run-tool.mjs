@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HARNESS_CONTRACT, toolNames } from './contract.mjs';
+import { assertRepositorySkillAuthority } from './skill-authority.mjs';
 
 const harnessDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(harnessDirectory, '..', '..');
+assertRepositorySkillAuthority(repositoryRoot);
 
 if (process.argv[2] === '--contract') {
   process.stdout.write(`${JSON.stringify(HARNESS_CONTRACT, null, 2)}\n`);
@@ -36,6 +38,7 @@ if (outsideRepository || !fs.existsSync(path.join(projectRoot, 'package.json')) 
 const environment = {
   ...process.env,
   CODEX_HARNESS_INVOCATION_B64: Buffer.from(JSON.stringify({
+    harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion },
     mode: doctorMode ? 'doctor' : 'run', tool, relativeProjectPath, toolArguments,
   }), 'utf8').toString('base64'),
 };
