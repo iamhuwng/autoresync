@@ -28,7 +28,21 @@ const BROWSER_AUTHORITY_FIELDS = [
   'assetIds',
   'assetRequests',
   'bridgeVersion',
+  'url',
+  'audioUrl',
+  'streamUrl',
+  'destinationKey',
+  'permanentKey',
 ];
+const LISTENING_CANCEL_REASONS = new Set([
+  'builder-cancel',
+  'discard-draft',
+  'section-removed',
+  'replacement-cancelled',
+  'upload-aborted',
+  'navigation-away',
+  'scheduled-expired',
+]);
 const LISTENING_UPLOAD_SESSION_ALLOWED_ORIGINS = new Set([
   'https://kahut1.web.app',
   'http://localhost:5173',
@@ -107,19 +121,21 @@ const assertNoBrowserAuthority = (
 const optionalCorrelationId = (value: unknown, name: string): string | undefined => {
   if (value === undefined) return undefined;
   if (typeof value !== 'string') fail(`invalid_${name}`);
-  if (!/^[A-Za-z0-9_-]{1,160}$/.test(value)) fail(`invalid_${name}`);
-  return value;
+  const text = value as string;
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(text)) fail(`invalid_${name}`);
+  return text;
 };
 
 const requiredRequestId = (value: unknown): string => {
   if (typeof value !== 'string') fail('invalid_idempotency_key');
-  if (value.trim().length < 1 || value.length > 512) fail('invalid_idempotency_key');
-  return value;
+  const text = value as string;
+  if (text.trim().length < 1 || text.length > 512) fail('invalid_idempotency_key');
+  return text;
 };
 
 const sanitizeListeningFileName = (fileName: unknown): string => {
   if (typeof fileName !== 'string') fail('invalid_file_name');
-  const trimmed = fileName.trim();
+  const trimmed = (fileName as string).trim();
   if (trimmed === '') fail('invalid_file_name');
   if (
     CONTROL_CHARACTERS.test(trimmed) ||
@@ -153,7 +169,7 @@ export const createListeningTempKey = (input: {
   if (typeof input.ownerId !== 'string' || !/^[A-Za-z0-9._~-]{1,128}$/.test(input.ownerId)) {
     fail('invalid_owner');
   }
-  if (sanitizeListeningFileName(input.sanitizedFileName) !== input.sanitizedFileName) {
+  if (sanitizeListeningFileName(input.sanitizedFileName) !== (input.sanitizedFileName as string)) {
     fail('invalid_file_name');
   }
   return `temp/listening/${input.ownerId}/${input.uploadSessionId}/${input.assetId}-${input.sanitizedFileName}`;
@@ -177,7 +193,7 @@ export const parseIssueAssetRequest = (body: unknown, idempotencyKey: unknown) =
   if (!uploadSessionId || uploadSessionId.length < 16) fail('invalid_upload_session_id');
   const declaredMimeTypeInput = input.declaredMimeType;
   if (typeof declaredMimeTypeInput !== 'string') fail('invalid_mime_type');
-  const declaredMimeType = declaredMimeTypeInput.trim().toLowerCase();
+  const declaredMimeType = (declaredMimeTypeInput as string).trim().toLowerCase();
   if (!AUDIO_MIME_TYPES.has(declaredMimeType)) fail('unsupported_mime_type');
   const sizeBytes = Number(input.sizeBytes);
   if (!Number.isSafeInteger(sizeBytes) || sizeBytes <= 0) fail('invalid_size');
@@ -207,6 +223,23 @@ export const parseProbeAssetRequest = (body: unknown) => {
     uploadSessionId,
     assetId,
   };
+};
+
+export const parseCancelSessionRequest = (body: unknown) => {
+  const input = asObject(body);
+  assertNoBrowserAuthority(
+    input,
+    BROWSER_AUTHORITY_FIELDS.filter((field) => field !== 'assetId'),
+  );
+  const uploadSessionId = optionalCorrelationId(input.uploadSessionId, 'upload_session_id');
+  if (!uploadSessionId || uploadSessionId.length < 16) fail('invalid_upload_session_id');
+  const assetId = optionalCorrelationId(input.assetId, 'asset_id');
+  if (assetId !== undefined && assetId.length < 16) fail('invalid_asset_id');
+  const reason = (input.reason === undefined ? 'builder-cancel' : input.reason) as string;
+  if (typeof reason !== 'string' || !LISTENING_CANCEL_REASONS.has(reason)) {
+    fail('invalid_cleanup_reason');
+  }
+  return { uploadSessionId, assetId, reason };
 };
 
 export const buildListeningUploadSessionCorsHeaders = (origin: string | undefined): Record<string, string> => {

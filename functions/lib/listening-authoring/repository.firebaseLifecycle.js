@@ -11,11 +11,19 @@ const firebaseLifecycleTransaction = async (db, input) => {
     const transaction = await rootRef.transaction((currentValue) => {
         var _a, _b, _c, _d, _e, _f, _g, _h;
         const current = currentValue !== null ? cloneRootState(currentValue) : {};
+        (0, repository_shared_1.assertNoActiveListeningTempCleanupLease)(current, Date.now());
         const drafts = new Map([
             ...Object.entries((_a = current.drafts) !== null && _a !== void 0 ? _a : {}),
             ...Object.entries((_b = current.revision_drafts) !== null && _b !== void 0 ? _b : {}),
         ]);
         const versions = new Map(Object.entries((_c = current.versions) !== null && _c !== void 0 ? _c : {}));
+        if (input.operationType === 'restore') {
+            const targetDraft = drafts.get(input.targetId);
+            if (targetDraft) {
+                (0, repository_shared_1.assertNoDeletedListeningTempAssets)(current, targetDraft.assetIds);
+                (0, repository_shared_1.assertNoDeletedListeningTempAssets)(current, (0, repository_operationRecords_1.deriveAssetIds)(targetDraft.document));
+            }
+        }
         const operationsById = new Map(Object.entries((_d = current.operations) !== null && _d !== void 0 ? _d : {}));
         const operationIdsByLookupKey = new Map();
         for (const operation of operationsById.values()) {

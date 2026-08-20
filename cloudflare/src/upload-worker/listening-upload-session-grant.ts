@@ -1,6 +1,11 @@
 import { GrantAuthorityError, MAX_UPLOAD_BYTES } from './grant-authority.js';
 import { consumeGrantNonce } from './replay-authority.js';
 import { sanitizeFileName } from './path-authority.js';
+import { FirebaseRestListeningUploadSessionRepository } from './listening-upload-session-repository.ts';
+import type {
+  ListeningUploadCleanupLease,
+  ListeningUploadSessionRepository,
+} from './listening-upload-session-types.ts';
 
 const textEncoder = new TextEncoder();
 const LOCAL_UPLOAD_TRANSPORT_ORIGIN = 'http://localhost:8787';
@@ -40,7 +45,7 @@ const verifySignature = async (secret: string, encoded: string, signature: strin
       false,
       ['verify'],
     );
-    return crypto.subtle.verify('HMAC', key, base64UrlToBytes(signature), textEncoder.encode(encoded));
+    return crypto.subtle.verify('HMAC', key, base64UrlToBytes(signature) as BufferSource, textEncoder.encode(encoded));
   } catch {
     return false;
   }
@@ -49,13 +54,64 @@ const verifySignature = async (secret: string, encoded: string, signature: strin
 const stringField = (payload: Record<string, unknown>, name: string): string => {
   const value = payload[name];
   if (typeof value !== 'string' || value === '') fail('invalid_bridge_grant');
-  return value;
+  return value as string;
 };
 
 const integerField = (payload: Record<string, unknown>, name: string): number => {
   const value = payload[name];
   if (!Number.isSafeInteger(value)) fail('invalid_bridge_grant');
   return value as number;
+};
+
+type ListeningUploadSessionStateRepository = Pick<
+  ListeningUploadSessionRepository,
+  'get' | 'acquireCleanupLease' | 'assertCleanupLeaseOwned' | 'releaseCleanupLease'
+>;
+
+const resolveSessionRepository = (
+  env: Record<string, any>,
+  repository?: ListeningUploadSessionStateRepository,
+): ListeningUploadSessionStateRepository => {
+  if (repository) return repository;
+  const configured = env.LISTENING_UPLOAD_SESSION_REPOSITORY;
+  if (configured && typeof configured.get === 'function') return configured;
+  return new FirebaseRestListeningUploadSessionRepository({ env });
+};
+
+const assertListeningSessionIsActive = async (input: {
+  env: Record<string, any>;
+  repository?: ListeningUploadSessionStateRepository;
+  ownerId: string;
+  uploadSessionId: string;
+  assetId: string;
+  key: string;
+  now: number;
+}): Promise<void> => {
+  let session;
+  try {
+    session = await resolveSessionRepository(input.env, input.repository).get(
+      input.ownerId,
+      input.uploadSessionId,
+    );
+  } catch {
+    fail('listening_upload_session_state_unavailable', 503);
+  }
+  if (
+    !session
+    || session.ownerId !== input.ownerId
+    || session.uploadSessionId !== input.uploadSessionId
+    || session.purpose !== 'listening-authoring'
+    || session.status !== 'active'
+    || session.cleanupFence !== undefined
+    || !Number.isSafeInteger(session.expiresAt)
+    || session.expiresAt <= input.now
+    || !Number.isSafeInteger(session.maxEligibilityExpiresAt)
+    || session.maxEligibilityExpiresAt <= input.now
+    || !Object.values(session.assetRequests ?? {}).some((asset) =>
+      asset.assetId === input.assetId && asset.tempKey === input.key)
+  ) {
+    fail('listening_upload_session_inactive', 409);
+  }
 };
 
 const parseBridgeGrant = async (input: {
@@ -69,8 +125,9 @@ const parseBridgeGrant = async (input: {
   if (typeof secret !== 'string' || secret.length < 16) fail('missing_bridge_grant_secret', 500);
   const parts = input.grant.split('.');
   if (parts.length !== 2) fail('invalid_bridge_grant');
-  const [encoded, signature] = parts;
-  if (!await verifySignature(secret, encoded, signature)) fail('invalid_bridge_grant');
+  const encoded = parts[0] ?? '';
+  const signature = parts[1] ?? '';
+  if (!await verifySignature(secret as string, encoded, signature)) fail('invalid_bridge_grant');
   const payload = decodePayload(encoded);
   if (payload.v !== 1 || payload.kind !== 'upload' || payload.operation !== 'listening-upload-session') {
     fail('invalid_bridge_grant');
@@ -107,6 +164,9 @@ const parseBridgeGrant = async (input: {
   }
   return {
     payload,
+    ownerId,
+    uploadSessionId,
+    assetId,
     key,
     contentType,
     sizeBytes,
@@ -120,6 +180,7 @@ export const handleListeningUploadSessionGrant = async (input: {
   url: URL;
   uid: string;
   now: () => number;
+  repository?: ListeningUploadSessionStateRepository;
 }) => {
   const grant = await parseBridgeGrant({
     env: input.env,
@@ -144,12 +205,76 @@ export const handleListeningUploadSessionGrant = async (input: {
   if (sizeBytes !== grant.sizeBytes) fail('size_mismatch', 400);
 
   await consumeGrantNonce({ env: input.env, payload: grant.payload });
-  const existingObject = await input.env.R2_BUCKET.get(grant.key);
-  if (existingObject) return { body: { error: 'Destination already exists' }, init: { status: 409 } };
-  await input.env.R2_BUCKET.put(grant.key, input.request.body, {
-    httpMetadata: { contentType: grant.contentType },
+  const repository = resolveSessionRepository(input.env, input.repository);
+  await assertListeningSessionIsActive({
+    env: input.env,
+    repository,
+    ownerId: grant.ownerId,
+    uploadSessionId: grant.uploadSessionId,
+    assetId: grant.assetId,
+    key: grant.key,
+    now: input.now(),
   });
-  return {
-    body: { success: true, url: `${input.env.PUBLIC_URL}/${grant.key}`, key: grant.key },
-  };
+  if (!repository.acquireCleanupLease
+    || !repository.assertCleanupLeaseOwned
+    || !repository.releaseCleanupLease) {
+    fail('listening_upload_session_state_unavailable', 503);
+  }
+  const claimedAt = input.now();
+  const lease = await repository.acquireCleanupLease({
+    ownerId: grant.ownerId,
+    uploadSessionId: grant.uploadSessionId,
+    assetId: grant.assetId,
+    leaseId: `upload:${crypto.randomUUID()}`,
+    now: claimedAt,
+    leaseMs: 2 * 60 * 1000,
+  });
+  if (!lease) fail('listening_upload_session_mutation_busy', 503);
+  try {
+    await assertListeningSessionIsActive({
+      env: input.env,
+      repository,
+      ownerId: grant.ownerId,
+      uploadSessionId: grant.uploadSessionId,
+      assetId: grant.assetId,
+      key: grant.key,
+      now: input.now(),
+    });
+    const existingObject = await input.env.R2_BUCKET.get(grant.key);
+    if (existingObject) return { body: { error: 'Destination already exists' }, init: { status: 409 } };
+    await assertListeningSessionIsActive({
+      env: input.env,
+      repository,
+      ownerId: grant.ownerId,
+      uploadSessionId: grant.uploadSessionId,
+      assetId: grant.assetId,
+      key: grant.key,
+      now: input.now(),
+    });
+    if (!await repository.assertCleanupLeaseOwned(lease as ListeningUploadCleanupLease, input.now())) {
+      fail('listening_upload_session_mutation_lease_lost', 503);
+    }
+    await input.env.R2_BUCKET.put(grant.key, input.request.body, {
+      httpMetadata: { contentType: grant.contentType },
+    });
+    try {
+      await assertListeningSessionIsActive({
+        env: input.env,
+        repository,
+        ownerId: grant.ownerId,
+        uploadSessionId: grant.uploadSessionId,
+        assetId: grant.assetId,
+        key: grant.key,
+        now: input.now(),
+      });
+    } catch (error) {
+      await input.env.R2_BUCKET.delete(grant.key);
+      throw error;
+    }
+    return {
+      body: { success: true, url: `${input.env.PUBLIC_URL}/${grant.key}`, key: grant.key },
+    };
+  } finally {
+    await repository.releaseCleanupLease(lease as ListeningUploadCleanupLease);
+  }
 };

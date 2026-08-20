@@ -39,6 +39,19 @@ describe('PRD-0056A upload-session RTDB rules', () => {
     }));
   });
 
+  it('allows trusted lifecycle and sweep schemas without granting browser writes', () => {
+    const rules = JSON.parse(DATABASE_RULES) as { rules: Record<string, any> };
+    const sessionValidate = String(rules.rules.media_asset_upload_sessions.$ownerId.$uploadSessionId['.validate']);
+    const metricValidate = String(rules.rules.media_asset_metrics.$metricEventId['.validate']);
+    const sweepRoot = rules.rules.media_asset_sweeps as Record<string, any>;
+    expect(sessionValidate).toContain("newData.child('status').val() === 'cleanup-queued'");
+    expect(sessionValidate).toContain("newData.child('status').val() === 'completed'");
+    expect(metricValidate).toContain("newData.child('operation').val() === 'reconciliation'");
+    expect(metricValidate).toContain("newData.child('operation').val() === 'delete-failure'");
+    expect(sweepRoot['.indexOn']).toEqual(expect.arrayContaining(['updatedAt', 'leaseExpiresAt', 'notBeforeMs']));
+    expect(sweepRoot.$sweepId['.write']).toBe(false);
+  });
+
   describeEmulator('emulator enforcement', () => {
     beforeEach(async () => {
       testEnv = await initializeTestEnvironment({

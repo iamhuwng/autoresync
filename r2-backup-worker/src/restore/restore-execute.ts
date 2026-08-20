@@ -36,6 +36,10 @@ const RTDB_RESTORE_ORDER = [
 ];
 
 const RTDB_REQUIRED_SNAPSHOT_NODES = ['listening_authoring'];
+const LISTENING_MEDIA_MUTATION_LEASE_FIELD = 'listening_media_mutation_lease';
+const LISTENING_AUTHORING_CLEANUP_LEASE_FIELD = 'temp_cleanup_lease';
+const RESTORE_LEASE_MS = 24 * 60 * 60 * 1000;
+const RESTORE_LEASE_RETRIES = 5;
 
 /** Nodes excluded from restore by default (prevent spam) */
 const RTDB_SKIP_ON_RESTORE = ['notifications'];
@@ -46,6 +50,209 @@ interface RestoreOptions {
     perEntityDecisions?: Record<string, 'skip' | 'overwrite' | 'duplicate'>;
     mergeFirestoreFromBackupId?: string;
 }
+
+interface RestoreCoordinationLease {
+    schemaVersion: 1;
+    leaseId: string;
+    kind: 'restore';
+    backupId: string;
+    claimedAt: number;
+    expiresAt: number;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const systemFlagsUrl = (env: WorkerEnv, token: string): string =>
+    `${env.FIREBASE_DB_URL}/system_flags.json?access_token=${token}`;
+
+const authoringRootUrl = (env: WorkerEnv, token: string): string =>
+    `${env.FIREBASE_DB_URL}/listening_authoring.json?access_token=${token}`;
+
+const readSystemFlags = async (env: WorkerEnv, token: string): Promise<{
+    flags: Record<string, unknown>;
+    etag: string;
+}> => {
+    const response = await fetch(systemFlagsUrl(env, token), {
+        headers: { 'X-Firebase-ETag': 'true' },
+    });
+    if (!response.ok) throw new Error(`restore_coordination_read_failed:${response.status}`);
+    const etag = response.headers.get('etag');
+    if (!etag) throw new Error('restore_coordination_etag_missing');
+    const body = await response.json() as unknown;
+    return { flags: isRecord(body) ? body : {}, etag };
+};
+
+const writeSystemFlags = async (
+    env: WorkerEnv,
+    token: string,
+    flags: Record<string, unknown>,
+    etag: string,
+): Promise<boolean> => {
+    const response = await fetch(systemFlagsUrl(env, token), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'if-match': etag },
+        body: JSON.stringify(flags),
+    });
+    if (response.status === 412) return false;
+    if (!response.ok) throw new Error(`restore_coordination_write_failed:${response.status}`);
+    return true;
+};
+
+const readAuthoringRoot = async (env: WorkerEnv, token: string): Promise<{
+    root: Record<string, unknown>;
+    etag: string;
+}> => {
+    const response = await fetch(authoringRootUrl(env, token), {
+        headers: { 'X-Firebase-ETag': 'true' },
+    });
+    if (!response.ok) throw new Error(`restore_authoring_coordination_read_failed:${response.status}`);
+    const etag = response.headers.get('etag');
+    if (!etag) throw new Error('restore_authoring_coordination_etag_missing');
+    const body = await response.json() as unknown;
+    return { root: isRecord(body) ? body : {}, etag };
+};
+
+const writeAuthoringRoot = async (
+    env: WorkerEnv,
+    token: string,
+    root: Record<string, unknown>,
+    etag: string,
+): Promise<boolean> => {
+    const response = await fetch(authoringRootUrl(env, token), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'if-match': etag },
+        body: JSON.stringify(root),
+    });
+    if (response.status === 412) return false;
+    if (!response.ok) throw new Error(`restore_authoring_coordination_write_failed:${response.status}`);
+    return true;
+};
+
+const acquireRestoreCoordinationLease = async (
+    env: WorkerEnv,
+    token: string,
+    backupId: string,
+): Promise<RestoreCoordinationLease> => {
+    const claimedAt = Date.now();
+    const lease: RestoreCoordinationLease = {
+        schemaVersion: 1,
+        leaseId: `restore:${backupId}:${claimedAt}`,
+        kind: 'restore',
+        backupId,
+        claimedAt,
+        expiresAt: claimedAt + RESTORE_LEASE_MS,
+    };
+    let authoringAcquired = false;
+    for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
+        const { root, etag } = await readAuthoringRoot(env, token);
+        const existing = root[LISTENING_AUTHORING_CLEANUP_LEASE_FIELD];
+        if (isRecord(existing) && Number(existing.expiresAt) > claimedAt) {
+            throw new Error('listening_authoring_mutation_in_progress');
+        }
+        if (await writeAuthoringRoot(env, token, {
+            ...root,
+            [LISTENING_AUTHORING_CLEANUP_LEASE_FIELD]: lease,
+        }, etag)) {
+            authoringAcquired = true;
+            break;
+        }
+    }
+    if (!authoringAcquired) throw new Error('restore_authoring_coordination_retries_exhausted');
+
+    try {
+        for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
+            const { flags, etag } = await readSystemFlags(env, token);
+            const existing = flags[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
+            const restore = flags.restore_in_progress;
+            if ((isRecord(existing) && Number(existing.expiresAt) > claimedAt)
+                || restore === true
+                || (isRecord(restore) && restore.active === true)) {
+                throw new Error('listening_media_mutation_in_progress');
+            }
+            if (await writeSystemFlags(env, token, {
+                ...flags,
+                restore_in_progress: { active: true, startedAt: claimedAt, backupId },
+                [LISTENING_MEDIA_MUTATION_LEASE_FIELD]: lease,
+            }, etag)) return lease;
+        }
+        throw new Error('restore_coordination_retries_exhausted');
+    } catch (error) {
+        await releaseRestoreCoordinationLease(env, token, lease);
+        throw error;
+    }
+};
+
+const releaseRestoreCoordinationLease = async (
+    env: WorkerEnv,
+    token: string,
+    lease: RestoreCoordinationLease,
+    releaseAuthoring = true,
+): Promise<void> => {
+    if (releaseAuthoring) {
+        for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
+            const { root, etag } = await readAuthoringRoot(env, token);
+            const existing = root[LISTENING_AUTHORING_CLEANUP_LEASE_FIELD];
+            if (!isRecord(existing) || existing.leaseId !== lease.leaseId) break;
+            const next = { ...root };
+            delete next[LISTENING_AUTHORING_CLEANUP_LEASE_FIELD];
+            if (await writeAuthoringRoot(env, token, next, etag)) break;
+            if (attempt === RESTORE_LEASE_RETRIES - 1) {
+                throw new Error('restore_authoring_coordination_release_failed');
+            }
+        }
+    }
+    for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
+        const { flags, etag } = await readSystemFlags(env, token);
+        const existing = flags[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
+        if (!isRecord(existing) || existing.leaseId !== lease.leaseId) return;
+        const next = { ...flags };
+        delete next.restore_in_progress;
+        delete next[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
+        if (await writeSystemFlags(env, token, next, etag)) return;
+    }
+    throw new Error('restore_coordination_release_failed');
+};
+
+const renewRestoreCoordinationLease = async (
+    env: WorkerEnv,
+    token: string,
+    lease: RestoreCoordinationLease,
+): Promise<RestoreCoordinationLease> => {
+    const renewedAt = Date.now();
+    const renewed = { ...lease, expiresAt: renewedAt + RESTORE_LEASE_MS };
+    let authoringRenewed = false;
+    for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
+        const { root, etag } = await readAuthoringRoot(env, token);
+        const existing = root[LISTENING_AUTHORING_CLEANUP_LEASE_FIELD];
+        if (!isRecord(existing) || existing.leaseId !== lease.leaseId) {
+            throw new Error('restore_authoring_coordination_lease_lost');
+        }
+        if (await writeAuthoringRoot(env, token, {
+            ...root,
+            [LISTENING_AUTHORING_CLEANUP_LEASE_FIELD]: renewed,
+        }, etag)) {
+            authoringRenewed = true;
+            break;
+        }
+    }
+    if (!authoringRenewed) throw new Error('restore_authoring_coordination_renew_failed');
+
+    for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
+        const { flags, etag } = await readSystemFlags(env, token);
+        const existing = flags[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
+        if (!isRecord(existing) || existing.leaseId !== lease.leaseId) {
+            throw new Error('restore_coordination_lease_lost');
+        }
+        const restore = isRecord(flags.restore_in_progress) ? flags.restore_in_progress : {};
+        if (await writeSystemFlags(env, token, {
+            ...flags,
+            restore_in_progress: { ...restore, active: true, heartbeatAt: renewedAt },
+            [LISTENING_MEDIA_MUTATION_LEASE_FIELD]: renewed,
+        }, etag)) return renewed;
+    }
+    throw new Error('restore_coordination_renew_failed');
+};
 
 /**
  * Execute a full restore operation.
@@ -64,21 +271,13 @@ export async function executeRestore(
     let entitiesRestored = 0;
     let entitiesSkipped = 0;
     let entitiesFailed = 0;
+    let restoreLease: RestoreCoordinationLease | null = null;
 
     try {
         // ── Step 1: Set RTDB restore flag ───────────────────────────
         await tracker.update('snapshot', 2, 'Setting restore flag...');
         const token = await tokenCache.getToken();
-        const flagUrl = `${env.FIREBASE_DB_URL}/system_flags/restore_in_progress.json?access_token=${token}`;
-        await fetch(flagUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                active: true,
-                startedAt: Date.now(),
-                backupId,
-            }),
-        });
+        restoreLease = await acquireRestoreCoordinationLease(env, token, backupId);
 
         // ── Step 2: Pre-restore snapshot ────────────────────────────
         await tracker.update('snapshot', 5, 'Creating pre-restore safety snapshot...');
@@ -134,6 +333,11 @@ export async function executeRestore(
         let currentIndex = 0;
 
         for (const nodeName of nodesToRestore) {
+            restoreLease = await renewRestoreCoordinationLease(
+                env,
+                await tokenCache.getToken(),
+                restoreLease,
+            );
             currentIndex++;
             const progress = 25 + Math.floor((currentIndex / totalEntities) * 50);
             await tracker.update(
@@ -157,7 +361,14 @@ export async function executeRestore(
                     nodeData as Record<string, unknown>,
                     currentToken,
                     options.mode,
-                    options.perEntityDecisions
+                    options.perEntityDecisions,
+                    async () => {
+                        restoreLease = await renewRestoreCoordinationLease(
+                            env,
+                            await tokenCache.getToken(),
+                            restoreLease!,
+                        );
+                    },
                 );
 
                 entitiesRestored += nodeResult.restored;
@@ -173,6 +384,11 @@ export async function executeRestore(
 
         // ── Step 6: Restore Firestore ───────────────────────────────
         if (firestoreData) {
+            restoreLease = await renewRestoreCoordinationLease(
+                env,
+                await tokenCache.getToken(),
+                restoreLease,
+            );
             const firestoreCollections = Object.keys(firestoreData);
             const firestoreToRestore = scopeIsAll
                 ? firestoreCollections
@@ -196,7 +412,14 @@ export async function executeRestore(
                         env,
                         collName,
                         collData,
-                        currentToken
+                        currentToken,
+                        async () => {
+                            restoreLease = await renewRestoreCoordinationLease(
+                                env,
+                                await tokenCache.getToken(),
+                                restoreLease!,
+                            );
+                        },
                     );
 
                     entitiesRestored += collResult.restored;
@@ -247,12 +470,9 @@ export async function executeRestore(
         // ── Step 8: Clear RTDB flag (ALWAYS, even on failure) ───────
         try {
             const finalToken = await tokenCache.getToken();
-            const flagUrl = `${env.FIREBASE_DB_URL}/system_flags/restore_in_progress.json?access_token=${finalToken}`;
-            await fetch(flagUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: 'null',
-            });
+            if (restoreLease) {
+                await releaseRestoreCoordinationLease(env, finalToken, restoreLease);
+            }
         } catch (err: unknown) {
             console.error('[Restore] CRITICAL: Failed to clear restore flag:', err);
         }
@@ -267,11 +487,23 @@ async function restoreRtdbNode(
     backupData: Record<string, unknown>,
     token: string,
     mode: 'smart_auto' | 'per_entity',
-    perEntityDecisions?: Record<string, 'skip' | 'overwrite' | 'duplicate'>
+    perEntityDecisions?: Record<string, 'skip' | 'overwrite' | 'duplicate'>,
+    renewLease?: () => Promise<void>,
 ): Promise<{ restored: number; skipped: number; failed: number }> {
     let restored = 0;
     let skipped = 0;
     let failed = 0;
+    const protectedCoordinationKeys = nodeName === 'listening_authoring'
+        ? new Set([LISTENING_AUTHORING_CLEANUP_LEASE_FIELD, 'deleted_temp_assets'])
+        : nodeName === 'system_flags'
+            ? new Set(['restore_in_progress', LISTENING_MEDIA_MUTATION_LEASE_FIELD])
+            : new Set<string>();
+    const restorableEntries = Object.entries(backupData)
+        .filter(([key]) => {
+            if (!protectedCoordinationKeys.has(key)) return true;
+            skipped += 1;
+            return false;
+        });
 
     if (mode === 'smart_auto') {
         // ⚠️ CRITICAL: Do NOT make individual HTTP requests per entity key.
@@ -284,7 +516,7 @@ async function restoreRtdbNode(
 
         // Find entities that need restoring (don't exist in live data)
         const entitiesToRestore: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(backupData)) {
+        for (const [key, value] of restorableEntries) {
             if (liveKeys[key]) {
                 skipped++;
             } else {
@@ -310,7 +542,8 @@ async function restoreRtdbNode(
         }
     } else {
         // Per-entity mode
-        for (const [key, value] of Object.entries(backupData)) {
+        for (const [key, value] of restorableEntries) {
+            await renewLease?.();
             const decision = perEntityDecisions?.[`${nodeName}/${key}`] ?? 'skip';
 
             if (decision === 'skip') {
@@ -355,13 +588,15 @@ async function restoreFirestoreCollection(
     env: WorkerEnv,
     collectionId: string,
     docsData: Record<string, unknown>,
-    token: string
+    token: string,
+    renewLease?: () => Promise<void>,
 ): Promise<{ restored: number; skipped: number; failed: number }> {
     let restored = 0;
     const skipped = 0;
     let failed = 0;
 
     for (const [docId, fields] of Object.entries(docsData)) {
+        await renewLease?.();
         try {
             // PATCH creates or overwrites the document
             const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${collectionId}/${docId}`;

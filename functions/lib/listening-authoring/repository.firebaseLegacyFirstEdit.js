@@ -11,11 +11,14 @@ const firebaseLegacyFirstEditTransaction = async (db, input) => {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         const current = currentValue !== null ? (0, repository_shared_1.cloneRecord)(currentValue) : {};
         const authoring = (_a = current.listening_authoring) !== null && _a !== void 0 ? _a : {};
+        (0, repository_shared_1.assertNoActiveListeningTempCleanupLease)(authoring, Date.now());
         const rawLegacyTests = (_b = current.tests) !== null && _b !== void 0 ? _b : {};
         const legacyTests = new Map();
         for (const [testId, value] of Object.entries(rawLegacyTests)) {
             if (testId === input.legacyTestId) {
-                legacyTests.set(testId, (0, repository_legacyFirstEditMutation_1.normalizeLegacyListeningTest)(value, testId));
+                const normalized = (0, repository_legacyFirstEditMutation_1.normalizeLegacyListeningTest)(value, testId);
+                (0, repository_shared_1.assertNoDeletedListeningTempAssets)(authoring, (0, repository_operationRecords_1.deriveAssetIds)(normalized));
+                legacyTests.set(testId, normalized);
             }
         }
         const drafts = new Map([

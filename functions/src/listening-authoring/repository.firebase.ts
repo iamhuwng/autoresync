@@ -3,13 +3,13 @@ import * as admin from 'firebase-admin';
 import {
   cloneOperationRecord,
   createOperationScopeKey,
+  deriveAssetIds,
   inferCreatedFromResult,
   readTerminalOperationResult,
 } from './repository.operationRecords';
 import {
   findDraftLocation,
   findOperationByScopeKey,
-  pathForDraftRecord,
   pathForPrefix,
 } from './repository.firebaseSupport';
 import { firebaseLifecycleTransaction } from './repository.firebaseLifecycle';
@@ -26,6 +26,8 @@ import {
 import { runSaveDraftMutation } from './repository.saveDraftMutation';
 import {
   LISTENING_AUTHORING_ROOT,
+  assertNoActiveListeningTempCleanupLease,
+  assertNoDeletedListeningTempAssets,
   cloneDraftRecord,
   cloneRecord,
   normalizeDraftRecord,
@@ -89,7 +91,20 @@ class FirebaseListeningAuthoringRepository implements ListeningAuthoringReposito
 
   async writeDraft(record: ListeningAuthoringDraftRecord): Promise<void> {
     const normalized = normalizeDraftRecord(record);
-    await this.db.ref(`${pathForDraftRecord(normalized)}/${normalized.draftId}`).set(normalized);
+    const transaction = await this.db.ref(LISTENING_AUTHORING_ROOT).transaction((currentValue) => {
+      const current: ListeningAuthoringRootState =
+        currentValue !== null ? cloneRootState(currentValue as ListeningAuthoringRootState) : {};
+      assertNoActiveListeningTempCleanupLease(current, this.now());
+      assertNoDeletedListeningTempAssets(current, normalized.assetIds);
+      assertNoDeletedListeningTempAssets(current, deriveAssetIds(normalized.document));
+      const collection = normalized.recordType === 'draft' ? 'drafts' : 'revision_drafts';
+      current[collection] = {
+        ...(current[collection] ?? {}),
+        [normalized.draftId]: cloneDraftRecord(normalized),
+      };
+      return current;
+    }, undefined, false);
+    if (!transaction.committed) throw new Error(`write draft transaction failed for ${normalized.draftId}.`);
   }
 
   async updateDraftTransaction(
@@ -97,19 +112,17 @@ class FirebaseListeningAuthoringRepository implements ListeningAuthoringReposito
     expectedConflictToken: number,
     updateFn: (draft: ListeningAuthoringDraftRecord) => ListeningAuthoringDraftRecord,
   ): Promise<UpdateDraftTransactionResult> {
-    const located = await findDraftLocation(this.db, draftId);
-    if (located === null) {
-      return { kind: 'missing' };
-    }
-
     let transactionResult: UpdateDraftTransactionResult = { kind: 'missing' };
-    await located.ref.transaction((currentValue) => {
-      if (currentValue === null) {
+    await this.db.ref(LISTENING_AUTHORING_ROOT).transaction((currentValue) => {
+      const root: ListeningAuthoringRootState =
+        currentValue !== null ? cloneRootState(currentValue as ListeningAuthoringRootState) : {};
+      assertNoActiveListeningTempCleanupLease(root, this.now());
+      const raw = root.drafts?.[draftId] ?? root.revision_drafts?.[draftId];
+      if (!raw) {
         transactionResult = { kind: 'missing' };
         return undefined;
       }
-
-      const current = normalizeDraftRecord(currentValue as ListeningAuthoringDraftRecord);
+      const current = normalizeDraftRecord(raw);
       if (current.conflictToken !== expectedConflictToken) {
         transactionResult = {
           kind: 'conflict',
@@ -130,11 +143,15 @@ class FirebaseListeningAuthoringRepository implements ListeningAuthoringReposito
         ...next,
         updatedAt: this.now(),
       });
+      assertNoDeletedListeningTempAssets(root, stored.assetIds);
+      assertNoDeletedListeningTempAssets(root, deriveAssetIds(stored.document));
       transactionResult = {
         kind: 'updated',
         conflictToken: stored.conflictToken,
       };
-      return stored;
+      const collection = stored.recordType === 'draft' ? 'drafts' : 'revision_drafts';
+      root[collection] = { ...(root[collection] ?? {}), [draftId]: stored };
+      return root;
     }, undefined, false);
 
     return transactionResult;
@@ -158,6 +175,8 @@ class FirebaseListeningAuthoringRepository implements ListeningAuthoringReposito
     const transaction = await rootRef.transaction((currentValue) => {
       const current: ListeningAuthoringRootState =
         currentValue !== null ? cloneRootState(currentValue as ListeningAuthoringRootState) : {};
+      assertNoActiveListeningTempCleanupLease(current, this.now());
+      assertNoDeletedListeningTempAssets(current, deriveAssetIds(input.document));
       const drafts = new Map<string, ListeningAuthoringDraftRecord>([
         ...Object.entries(current.drafts ?? {}),
         ...Object.entries(current.revision_drafts ?? {}),
