@@ -1,10 +1,82 @@
 # PRD0062 remaining implementation reconciliation — 2026-08-04
 
-Status: `CURRENT_IMPLEMENTATION_PLAN`
+Status: `APPEND_ONLY_IMPLEMENTATION_PLAN`; active disposition is the latest
+dated consolidation in this file plus committed evidence.
 
 - Product authority: the canonical PRD requirement body plus accepted current amendments, including [`PRD0062-architecture-and-delivery-amendment-2026-08-15.md`](PRD0062-architecture-and-delivery-amendment-2026-08-15.md) for the discovered Book Homework compatibility, trusted-projection, production-composition, independent-review, and browser-handoff boundaries.
 - Ticket authority: the 112 published `PRD0062` GitHub issue bodies.
 - Evidence authority: committed source, current repository artifacts, reproducible validation records, and qualified remote readback.
+
+## 2026-08-16 native Windows current-live reconciliation
+
+This section records the native Windows checkpoint reconciliation. Its
+current-live conclusions are superseded by the later append-only #126/#128
+reconciliation and committed 51A authority evidence where they conflict. The
+dated snapshot and tables below remain historical evidence; they are not a
+reason to reopen completed product slices.
+
+Specifically, the #126 `PASS` and #128 next-owner statements in this checkpoint
+section are historical. The active append-only disposition below keeps #126
+blocked at the trusted-projection and rollback/readback boundary and keeps
+#128 held.
+
+State proof at reconciliation start:
+
+- Branch: `codex/prd0062-production-normal-20260813-v2`
+- HEAD: `cc1091a270d11c8536f2474b31ef46eec594491e`
+- Working tree: clean
+
+### Source and proof reconciliation
+
+- **#127 / 51A is no longer an absent-artifact gap.** The authoritative matrix,
+  fixture module, fixture manifest, validator, and four acceptance specs are
+  present. The matrix has 32 capability rows, 32 accepted registrations, 33
+  fixture entries, and all Listening rows are classified as supported. Current
+  native checks pass `node scripts/validate-prd0062-acceptance-matrix.mjs
+  --schema`, the 15-test matrix contract suite, and the 6-test cleanup suite.
+  The semantic harness command was attempted on Windows but produced no result
+  within the bounded run and was stopped; the committed 51A evidence records
+  the earlier semantic PASS. Current disposition is
+  `HISTORICAL_SOURCE_CONFORMANT_ARTIFACT_PRESENT_SEMANTIC_RERUN_BLOCKED`, not
+  `HISTORICAL_REOPEN_REQUIRED_ARTIFACT`.
+- **#111 / 40B, #113 / 41B, and #114 / 41C have current implementation owners
+  and source.** Their redo, removal, and selected-addition executors are in
+  `cloudflare/src/upload-worker/book-updates/`, with focused tests. The old
+  `BLOCKED_DEPENDENCY` rows are stale implementation claims.
+- **#115 / 45, #116 / 46A, and #117 / 46B have current source owners.** The
+  replacement plan, replacement saga, and replacement-context services are
+  present with client/route/service tests. Their remaining boundary is
+  acceptance/deployment proof, not an unowned product implementation.
+- **#118 / 09E and #120â€“#125 / 48Bâ€“49E have current proof artifacts.** The
+  accepted all-green rules evidence is recorded in
+  `evidence/118-final-rules-proof-2026-08-12.json` and
+  `evidence/118-final-composition-2026-08-11.json`; metadata inventory and
+  recovery implementations are present in source and the current #126 handoff
+  records the representative recovery path as complete.
+- **Historical checkpoint claim — #126 / 50B was recorded as PASS for the
+  bounded production-normal/browser handoff.** That checkpoint recorded the active Worker/Hosting/Firebase
+  identities, no assignment replay, teacher Book Homework detail/trusted row,
+  student Homework discovery/detail, and real Runtime launch. This does not
+  close the later integrated deployed-drill or controlled-pilot owners.
+- **#128â€“#133 have current local acceptance artifacts.** #128, #129, #130,
+  #132, and #133 record bounded local PASS results. #131 records automated
+  accessibility PASS with native screen-reader verification still open. These
+  are local proof classes and do not claim deployed or pilot completion.
+
+### Remaining acceptance delta and next owner
+
+The next owner is the **#128 / 51B1 acceptance lane** for the final activated
+teacher authoring/assignment cases, followed by the separate #131 manual
+screen-reader gate. After those proof boundaries, **#134 / 51E** owns the
+integrated deployed/canary drill and **#135 / 52A** owns the separately
+authorized remote measurement; **#136 / 52B** remains the final controlled
+pilot/release decision. No new generic adapter or recovery implementation is
+justified by the current source/evidence.
+
+The only code correction made during this reconciliation preserves the redo
+executor's specific binding-revision conflict code and aligns its retry test
+with the port idempotency contract. It is bounded to the accepted update path;
+it does not change recovery architecture or production activation scope.
 
 ## Reconciled snapshot
 
@@ -87,7 +159,7 @@ No completed product ticket is broadly reopened.
 | #100 / 38C | `CLOSED_LOCAL_VERIFIED` | Accepted commits `850ed36b`, `026c401e`, `7b89d431`, `217ebc14`, and `973ffa10`; focused 6 files/41 tests; localhost student/RTDB-emulator emission, replay, read-state, denial, and rollback evidence. | Do not reimplement. #118 owns generated/active rules proof; #134 owns deployed/canary emission, cleanup, and operational rollback. Consumer branches must integrate the accepted commits. |
 | #101 / 39B | `CLOSED_LOCAL_VERIFIED` | Accepted commits `759d597a`, `d1ec121a`, and `d387ecae`; root 3 files/76 tests, Cloudflare 1 file/5 tests, lint and changed-file type diagnostics pass. | Do not reimplement. #118 owns assembled/generated rules; #134 owns deployed/canary discovery. #107 consumes the accepted Solo/Homework adapter contract. |
 | #59 / 09D | `CLOSED_INTEGRATION_OWNER` | Live issue closed after accepting the unique Worker composition seams, including the #100 committed Homework injection boundary. | Do not reopen for domain work. Future route additions remain contributions to its accepted dispatcher contract; #134 owns active deployed route/config readback. |
-| #127 / 51A | `REOPEN_REQUIRED_ARTIFACT` | The published issue is closed and the current replacement matrix passes schema validation. However, its Listening rows claim the profile is unregistered while accepted commit `a7522986` contains registered, tested Listening adapters and the accepted activity-coverage matrix; accepted `ba8b2d59` supplies the personal timer. The closure-referenced `51a-acceptance.matrix.json` is absent from the current tree. | Do not reopen #41 or #78 and do not rebuild their behavior. #127 owns restoration/rebuild of the authoritative acceptance artifact plus source/registry/fixture conformance so a stale but schema-valid matrix cannot close. #128–#133 consume it only after correction. |
+| #127 / 51A | `HISTORICAL_REOPEN_REQUIRED_ARTIFACT` | At this snapshot, the published issue was closed and the replacement matrix passed schema validation. However, its Listening rows claimed the profile was unregistered while accepted commit `a7522986` contained registered, tested Listening adapters and the accepted activity-coverage matrix; accepted `ba8b2d59` supplied the personal timer. The closure-referenced `51a-acceptance.matrix.json` was absent from that tree. | Historical correction owner; superseded by the 2026-08-17 authority evidence and the 2026-08-20 consolidation below. |
 
 All other closed tickets remain closed at their recorded proof boundary. Downstream tickets must not promote local or feature-specific proof into generated-rules, deployed, canary, recovery, or release proof.
 
@@ -97,7 +169,7 @@ Each row has one canonical owner. “Existing” records built or defined work; 
 
 | Owner and PRD outcome | Reconciled status | Existing implementation and validation | Exact remaining delta; absorbed or superseded work | Effective prerequisites → consumers | Evidence required to close |
 |---|---|---|---|---|---|
-| **#127 / 51A** — §14 source-conformant Full V1 acceptance definition | `REOPEN_REQUIRED_ARTIFACT` | Published closed; current replacement matrix is schema-valid but says Listening is unregistered despite accepted `a7522986`, and its closure-referenced artifact is absent. Accepted `ba8b2d59` implements the timer. | Restore/rebuild one authoritative matrix and add source/registry/fixture conformance. Do not rebuild #41 Listening adapters or #78 timer. | S0 accepted lineage → #128–#134 | Exact accepted-source/registry/fixture inventory; semantic plus schema validator pass; deterministic fixture/cleanup and command manifest; review accepting the specific artifact correction. |
+| **#127 / 51A** — §14 source-conformant Full V1 acceptance definition | `HISTORICAL_REOPEN_REQUIRED_ARTIFACT` | At this snapshot the replacement matrix was schema-valid but said Listening was unregistered despite accepted `a7522986`, and its closure-referenced artifact was absent. Accepted `ba8b2d59` implemented the timer. | Historical correction delta; completed by the 2026-08-17 authority evidence. Do not rebuild #41 Listening adapters or #78 timer. | S0 accepted lineage → #128–#134 | Historical proof contract, now satisfied at the definition boundary; final suite execution remains separate. |
 | **#102 / 42A** — §§7, 10 Course Book placement, preparation, isolated progress/results | `IMPLEMENTED_LOCAL_VERIFIED` | Frozen exact Course/Class placement contract; claim-scoped direct-enrolment authority; durable placement/release repository; accepted-publication catalog and immutable pins; guarded canonical Delivery issuance; exact `courseMaterialId` preparation; teacher/student components; duplicate-placement-safe result keys; Course result projection; all-required-Activity completion aggregation; explicit default-off Course-derived Homework credit; deny-only rollback. Commits through `81194bd8`; local evidence `evidence/102-course-placement-local-2026-08-05.json`. | No #102 product reimplementation remains. #103 consumes the shared contract for Class/copy; #104 owns only launch dispatch; #118 owns active rules; #130 owns authenticated browser proof; #134 owns deployed/canary proof. Presentation and Worker gates remain default-disabled until those owners complete. | Produces frozen contract for #103; Course projection for #104/#107/#130; fragment for #118 | Local domain/Worker/component/result suites passed. Missing emulator, authenticated browser, deployed, and canary evidence is explicitly deferred to #118/#130/#134 and is not a #102 implementation claim. |
 | **#103 / 42B** — §§7, 10 Class Book placement, copy isolation, launch, progress/results | `IMPLEMENTED_LOCAL_VERIFIED` | Commit `72c1b753` implements copied-class identity, membership/owner authority, canonical Delivery, isolated progress/results, fragment, components, migration, and deny-only rollback against the frozen #102 contract. Aggregate Class anchors pass locally. | No product reimplementation remains. Active rules, authenticated Class entry/browser proof, deployed/canary proof, and activation remain with #118/#130/#134/#126. | #102 shared contract → #104, #107, #126, #130, #134 | Committed source and bounded local tests only; downstream proof classes remain open. |
 | **#104 / 42C** — §§7, 10 shared Course/Class student launch dispatch | `IMPLEMENTED_LOCAL_VERIFIED` | Commits `4196c03f`/`a10acf7e`, merged by `12951542`, add the exact context-aware dispatcher and specialized runtime host. Focused application 77/77, Cloudflare 38/38, and real-route localhost Chromium 8/8 passed with external boundaries mocked. | No #104 product reimplementation remains. The localhost harness is composition evidence, not authenticated/deployed proof. Normal Class entry still requires #103's bounded exact-placement descriptor rather than inferred IDs. | #102 + #103 → #126, #130, #134 | Local exact Course/Class dispatch, wrong/expired denial, navigation/reload/mobile proof; authenticated/deployed owners remain open. |
@@ -242,12 +314,13 @@ exact-commit M1 proof and is not a product regression.
 
 #### #127 / 51A and #128 / 51B1
 
-The independent #127/51A acceptance-definition correction remains
-`REOPEN_REQUIRED_ARTIFACT`: the matrix is defined and validated, but source/
-registry/fixture conformance and the closure-referenced artifact are not
-resolved. This is the higher-priority S0 ledger prerequisite for the final
-suite consumers and is an evidence/authority correction, not permission to
-rebuild accepted Listening or timer behavior.
+At this 2026-08-16 checkpoint, the independent #127/51A
+acceptance-definition correction remained
+`HISTORICAL_REOPEN_REQUIRED_ARTIFACT`: the matrix was defined and validated,
+but source/registry/fixture conformance and the closure-referenced artifact
+were not resolved. The 2026-08-17 authority evidence and the 2026-08-20
+consolidation below supersede this checkpoint state. It never authorized
+rebuilding accepted Listening or timer behavior.
 
 `#128 / 51B1` remains `DEFERRED_FINAL_PROOF` and is **not unblocked**. Its
 positive activated teacher authoring/assignment workflow is held until #126
@@ -260,3 +333,28 @@ substitute for it.
 Accordingly, the next implementation diagnosis is the #126 teacher trusted-
 projection boundary, while the next independent ledger correction is #127/51A.
 Neither authorizes starting #128 or #134 in this reconciliation task.
+
+### 2026-08-20 Phase 1 authority consolidation
+
+This latest append-only section supersedes conflicting active-state language
+above without deleting its historical sequence.
+
+- **#111 / 40B, #113 / 41B, and #114 / 41C remain implemented at their local
+  proof boundary.** The Windows reconciliation preserves the redo executor's
+  specific current-projection conflict code and the retry/idempotency proof.
+  Final deployed/browser evidence remains downstream.
+- **#126 / 50B remains `BLOCKED_DEPENDENCY_AND_APPROVAL`.** The trusted
+  teacher-projection row failed in the latest browser packet, rollback/readback
+  requires reauthorization, and no assignment replay is authorized.
+- **#127 / 51A is `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED`.** Commit
+  `a22f141a1db1fde9efea4f2dd1c0a124f23c2681` and
+  `evidence/51A-acceptance-authority-2026-08-17.json` establish the
+  source/registry/fixture-conformant definition and semantic PASS. The older
+  `REOPEN_REQUIRED_ARTIFACT` rows are historical; this status does not claim
+  the final acceptance suites executed.
+- **#128 / 51B1 remains `DEFERRED_FINAL_PROOF_HELD_BY_126`.** Its #127
+  definition prerequisite is corrected, but positive activated teacher
+  acceptance remains held until #126 activation/readback succeeds.
+
+The active next implementation diagnosis is therefore #126's trusted
+teacher-projection/deployment boundary. Phase 1 does not start #128 or #134.

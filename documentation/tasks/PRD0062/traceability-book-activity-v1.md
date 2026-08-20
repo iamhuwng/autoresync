@@ -1,6 +1,7 @@
 # Traceability: PRD0062 Book-Based Interactive Activity Runtime and Assembly Workspace
 
-Status: V1 acceptance baseline expanded; Packet 1 rows closed.
+Status: append-only traceability baseline; active acceptance state is the latest
+dated consolidation below.
 Created: 2026-07-09
 
 Primary PRD requirement body:
@@ -23,6 +24,39 @@ Findings:
 - Use `Historical evidence`, `Current live contract`, `Superseded claim`, or `Open blocker` in notes when a row changes meaning across packets.
 - A row may be `PLANNED`, `IMPLEMENTING`, `IMPLEMENTED_UNREVIEWED`, `REVIEW_BLOCKED`, `VERIFIED`, `CLOSURE_BLOCKED`, `CLOSED`, or `BLOCKED`.
 - `CLOSED` requires source behavior, tests, negative proof where applicable, findings, architecture/current-state docs, and taskboxes to agree.
+
+## 2026-08-16 native Windows status overlay (historical)
+
+The baseline rows below retain packet provenance and are not rewritten as if
+their historical status had always been current. This overlay records the
+native Windows checkpoint interpretation. Later committed #126 browser evidence
+and #127 source-conformance authority supersede it where they conflict; #126 is
+actively blocked at the trusted-projection and rollback/readback boundary, and
+#128 remains held.
+
+| Requirement area | Historical checkpoint status | Evidence boundary |
+|---|---|---|
+| Accepted Book Homework amendment rows AM-001â€“AM-004 and handoff sequencing AM-007 | `VERIFIED_REPRESENTATIVE_HANDOFF` | Current source, rule-enforced composition, and the #126 production-normal/browser handoff; full V1 closure remains open. |
+| #111/#113/#114 update executors | `IMPLEMENTED_UNREVIEWED_PENDING_FINAL_PROOF` | Current Worker executors and focused tests; final deployed/browser proof remains downstream. |
+| #115/#116/#117 replacement plan/saga/context | `IMPLEMENTED_UNREVIEWED_PENDING_FINAL_PROOF` | Current source and service/route tests; provider/deployed lifecycle proof remains downstream. |
+| #118 and #120â€“#125 rules/recovery | `VERIFIED_REPRESENTATIVE_PATH` | Accepted all-green rules/recovery artifacts and the current #126 handoff; no broad recovery reopening. |
+| #127 / 51A acceptance authority | `HISTORICAL_SOURCE_CONFORMANT_ARTIFACT_PRESENT_SEMANTIC_RERUN_BLOCKED` | Schema/matrix/cleanup checks passed at the checkpoint; superseded by the committed 2026-08-17 semantic authority evidence. |
+| #128â€“#133 final local acceptance | `LOCAL_PROVISIONAL_WITH_BOUNDARIES` | Current provisional evidence files; #131 still has a manual native screen-reader gate. |
+
+These overlays keep local, browser, deployed, and pilot proof classes separate;
+they do not mark PRD0062 fully accepted.
+
+## 2026-08-20 active traceability consolidation
+
+| Requirement area | Active status | Evidence boundary |
+|---|---|---|
+| #111/#113/#114 update executors | `IMPLEMENTED_UNREVIEWED_PENDING_FINAL_PROOF` | Current source and focused tests preserve resumable, idempotent update behavior; final deployed/browser proof remains downstream. |
+| #126 / 50B activation | `BLOCKED_DEPENDENCY_AND_APPROVAL` | Trusted teacher-projection browser proof failed and rollback/readback requires reauthorization; no assignment replay. |
+| #127 / 51A acceptance definition | `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED` | `evidence/51A-acceptance-authority-2026-08-17.json` records semantic PASS for the source/registry/fixture-conformant definition. Final acceptance suites remain separate. |
+| #128 / 51B1 teacher acceptance | `DEFERRED_FINAL_PROOF_HELD_BY_126` | The 51A definition is corrected; positive activated execution remains held by #126. |
+
+This is the current traceability overlay. It does not promote local or
+definition-only proof to deployed, browser, pilot, or Full V1 completion.
 
 ## Packet Owner Map
 

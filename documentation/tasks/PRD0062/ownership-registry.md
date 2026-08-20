@@ -4,10 +4,10 @@ This registry records current architectural roles and cross-ticket
 reimbursements. Ticket numbers belong here rather than in the permanent goal.
 Update this file whenever live ownership changes.
 
-Status snapshot: 2026-08-10, 112 published tickets. Exact
-remaining ownership is canonical in
+Status snapshot: 2026-08-10 (historical), 112 published tickets. Exact active
+remaining ownership is canonical in the latest append-only section of
 [remaining-implementation-reconciliation-2026-08-04.md](remaining-implementation-reconciliation-2026-08-04.md).
-Effective planning additionally includes the specific #127/51A
+At that snapshot, effective planning additionally included the specific #127/51A
 `REOPEN_REQUIRED_ARTIFACT` correction; it does not transfer or reopen #41/#78
 product implementation.
 
@@ -27,7 +27,7 @@ product implementation.
 | Acceptance-definition owner | Source-conformant Full V1 case/fixture/command matrix and semantic validator | Reimplementing accepted product behavior or claiming suite execution |
 | Integration-baseline owner | Accepted-commit ancestry/path manifest, module/test discovery, canonical composition inventory, and parent-failure classification | Repairing unrelated closed-ticket behavior inside a consumer ticket |
 
-## Current owner references
+## 2026-08-10 owner references (historical baseline)
 
 Populate and maintain this table from live GitHub contracts:
 
@@ -37,7 +37,7 @@ Populate and maintain this table from live GitHub contracts:
 | Rollout-gate owner | #44/50A | 2026-08-04 | CLOSED; default deny remains active |
 | Worker-integration owner | #59/09D | 2026-08-04 | CLOSED at dispatcher/composition boundary; #134 owns deployed drills |
 | Integration baseline | #59/09D plus accepted producer provenance | 2026-08-04 | CURRENT S0; integrate accepted source, do not rebuild it |
-| Acceptance-definition owner | #127/51A | 2026-08-04 | REOPEN_REQUIRED_ARTIFACT; source/registry/fixture conformance missing |
+| Acceptance-definition owner | #127/51A | 2026-08-04 | `HISTORICAL_REOPEN_REQUIRED_ARTIFACT`; superseded by the 2026-08-17 authority evidence |
 | Shared Course/Class placement contract and Course vertical | #102/42A | 2026-08-05 | IMPLEMENTED_LOCAL_VERIFIED through `81194bd8`; no emulator/browser/deployed claim; contract is frozen for consumers |
 | Class placement owner | #103/42B | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED at `72c1b753`; active rules/authenticated browser/deployed proof remain downstream |
 | Course/Class launch dispatcher | #104/42C | 2026-08-09 | IMPLEMENTED_LOCAL_VERIFIED at `4196c03f`, merged by `12951542`; localhost external boundaries are mocked |
@@ -57,6 +57,42 @@ Populate and maintain this table from live GitHub contracts:
 
 Do not infer current ownership from historical handoffs. Verify against live
 ticket bodies before changing the registry.
+
+## 2026-08-16 native Windows ownership overlay (historical)
+
+This append-only overlay records the native Windows checkpoint interpretation.
+Later committed #126 browser evidence and the #127 source-conformance authority
+supersede it where they conflict. In particular, the #126 `PASS` row below is
+historical, not the active disposition; #126 remains blocked at the later
+trusted-projection and rollback/readback boundary, and #128 remains held.
+
+| Checkpoint owner | Historical checkpoint disposition | Evidence / boundary |
+|---|---|---|
+| #127 / 51A acceptance definition | `HISTORICAL_SOURCE_CONFORMANT_ARTIFACT_PRESENT_SEMANTIC_RERUN_BLOCKED` | `supporting/prd0062-v1-acceptance-matrix.json`, fixture manifest/module, schema validator, 15-test matrix suite, 6-test cleanup suite, and committed `evidence/51A-acceptance-authority-2026-08-12.json`; superseded by the 2026-08-17 authority evidence. |
+| #111 / 40B, #113 / 41B, #114 / 41C | `IMPLEMENTED_LOCAL_VERIFIED_PENDING_FINAL_PROOF` | Current redo/removal/addition executors and focused Worker tests are present; final deployed/browser evidence remains downstream. |
+| #115 / 45, #116 / 46A, #117 / 46B | `IMPLEMENTED_LOCAL_VERIFIED_PENDING_FINAL_PROOF` | Current replacement-plan, replacement-saga, and replacement-context source/test owners are present; no new product implementation is selected. |
+| #118 / 09E, #120â€“#125 / 48Bâ€“49E | `IMPLEMENTED_OR_ACCEPTED_PENDING_FINAL_PROOF` | Accepted rules/recovery artifacts and current source are present; the representative production-normal recovery path is complete under the #126 handoff boundary. |
+| #126 / 50B | `HISTORICAL_PRODUCTION_NORMAL_BROWSER_HANDOFF_PASS` | This checkpoint recorded teacher/student/Runtime PASS, active deployment identities, and no assignment replay; later browser evidence supersedes the PASS disposition. |
+| #128 / 51B1 | `HISTORICAL_NEXT_ACCEPTANCE_OWNER` | This checkpoint selected final activated teacher authoring/assignment cases; the active disposition below keeps #128 held by #126. |
+| #131 / 51C2 | `MANUAL_GATE_OPEN` | Automated accessibility/device slice passed; native screen-reader announcement/order verification remains outstanding. |
+| #134 / 51E, #135 / 52A, #136 / 52B | `APPROVAL_GATED_DOWNSTREAM` | Integrated deployed drill, separately authorized remote measurement, and controlled pilot/release decision remain distinct owners. |
+
+No current evidence selects a new generic adapter, recovery, or broad product
+architecture owner.
+
+## 2026-08-20 active ownership consolidation
+
+This is the active override for the historical tables above.
+
+| Owner | Active disposition | Authority |
+|---|---|---|
+| #111 / 40B, #113 / 41B, #114 / 41C | `IMPLEMENTED_LOCAL_VERIFIED_PENDING_FINAL_PROOF` | Current executors and focused tests are present; final deployed/browser proof remains downstream. |
+| #126 / 50B | `BLOCKED_DEPENDENCY_AND_APPROVAL` | The latest browser packet failed the trusted teacher-projection row and rollback/readback requires reauthorization. No assignment replay is authorized. |
+| #127 / 51A | `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED` | `evidence/51A-acceptance-authority-2026-08-17.json` records the source/registry/fixture-conformant matrix and semantic PASS. This accepts the definition; it does not claim the final suites executed. |
+| #128 / 51B1 | `DEFERRED_FINAL_PROOF_HELD_BY_126` | The #127 definition prerequisite is corrected. Positive activated teacher acceptance remains held until #126 activation/readback succeeds. |
+
+No current evidence selects a new generic adapter, recovery, or broad product
+architecture owner.
 
 ## Transfer ledger
 

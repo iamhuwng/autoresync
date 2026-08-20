@@ -214,7 +214,7 @@ const harness = (overrides: {
         overrides.failCurrentOnce.value = false;
         throw new Error('crash-after-binding');
       }
-      if (overrides.staleCurrent) return { status: 'conflict' as const };
+      if (overrides.staleCurrent) return { status: 'conflict' as const, code: 'binding-revision-stale' };
       if (currentState.bindingId !== input.previousBindingId && currentState.bindingId !== input.bindingId) return { status: 'conflict' as const };
       currentState = {
         ...currentState,
@@ -279,11 +279,14 @@ describe('book redo update executor', () => {
     expect(current.actions.record.state).toBe('applying');
     await expect(current.executor.execute({ ownerId: 'owner-1', actionId: 'action-1' })).resolves.toMatchObject({ status: 'pending', code: 'audit-apply-failed' });
     const beforeReplay = current.counts();
-    expect(beforeReplay.currentCalls).toBe(1);
+    // The first current-projection call failed before the effect returned, so
+    // the phase receipt is absent and the operation must retry the port. The
+    // receipt and the port's own idempotency contract prevent duplicate state.
+    expect(beforeReplay.currentCalls).toBe(2);
     await expect(current.executor.execute({ ownerId: 'owner-1', actionId: 'action-1' })).resolves.toMatchObject({ status: 'committed' });
     expect(current.actions.record.state).toBe('committed');
     expect(current.checkpointRecords.size).toBe(1);
-    expect(current.counts().currentCalls).toBe(1);
+    expect(current.counts().currentCalls).toBe(2);
     expect(current.counts().bindingCalls).toBe(1);
     expect(current.counts().auditCalls).toBe(2);
   });

@@ -1,6 +1,11 @@
 # PRD0062 implementation-readiness analysis — 2026-08-04
 
-Status: `CURRENT_PLANNING_AUTHORITY`
+Status: `HISTORICAL_PLANNING_BASELINE`
+
+Current execution authority is the latest append-only consolidation in
+[`remaining-implementation-reconciliation-2026-08-04.md`](remaining-implementation-reconciliation-2026-08-04.md)
+plus the committed 2026-08-17 51A authority evidence. This document preserves
+the earlier readiness sequence; its pre-51A frontier is not active state.
 
 ## 2026-08-05 execution update
 
@@ -102,7 +107,7 @@ reimplement closed tickets.
 | Outcome | Canonical owner | Exit evidence |
 |---|---|---|
 | Inventory accepted closed-ticket commits and prove their ancestry in the chosen consumer branch. | Integration owner #59, with each closed producer retaining provenance | Machine-readable commit/required-path manifest; every required commit is reachable; no closed behavior is rebuilt. |
-| Reconcile the #127/51A acceptance definition with accepted implementations, especially Listening adapters from `a7522986` and the personal timer from `ba8b2d59`. | #127/51A, status `REOPEN_REQUIRED_ARTIFACT` | Restored/rebuilt authoritative matrix, source/registry/fixture conformance checks, and validator results. The live issue stays published-closed until its artifact correction is formally accepted. |
+| Reconcile the #127/51A acceptance definition with accepted implementations, especially Listening adapters from `a7522986` and the personal timer from `ba8b2d59`. | #127/51A, historical status `HISTORICAL_REOPEN_REQUIRED_ARTIFACT` | Historical correction contract, satisfied at the definition boundary by the 2026-08-17 authority evidence; final suite execution remains separate. |
 | Prove module resolution, test discovery, Worker configuration shape, and required canonical factories before feature changes. | Integration baseline, not a product-feature owner | Baseline report identifying pass, pre-existing failure, owner, and whether each failure blocks the selected stage. |
 | Inventory actual production routes, schemas/paths/indexes, rules fragments, fixtures, and evidence harnesses consumed by remaining work. | Planning/integration owner | Readiness packets for the next stage with no unnamed cross-ticket foundation. |
 

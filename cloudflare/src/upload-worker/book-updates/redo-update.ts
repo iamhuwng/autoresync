@@ -365,7 +365,7 @@ const processPlan = async (options: BookRedoUpdateExecutorOptions, plan: BookRed
       } catch {
         return { status: 'conflict' as const, code: 'redo-exclusion-apply-failed' };
       }
-      if (result.status === 'conflict') return { status: 'conflict' as const, code: 'redo-exclusion-conflict' };
+      if (result.status === 'conflict') return { status: 'conflict' as const, code: result.code ?? 'redo-exclusion-conflict' };
       if (result.visibility !== 'new' || !result.completionStatus) {
         return { status: 'conflict' as const, code: 'redo-exclusion-visibility-invalid' };
       }

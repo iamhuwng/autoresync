@@ -51,6 +51,7 @@ export interface BookRedoCurrentProjectionPort {
     readonly nextActivityVersionIds: Readonly<Record<string, string>>;
   }): Promise<{
     readonly status: 'applied' | 'replayed' | 'conflict';
+    readonly code?: string;
     readonly visibility?: 'new';
     readonly completionStatus?: 'in-progress' | 'completed';
   }>;

@@ -131,7 +131,8 @@ The fresh Windows clone, not the existing dirty `C:\Users\The Lord\Desktop\luyen
 
 ## 7. Windows Codex App first instruction
 
-Use this after opening the fresh native Windows clone:
+Historical first instruction, superseded by the append-only evidence in §18
+and the Phase 1 consolidation in §19. It is retained as cutover provenance:
 
 > Continue PRD0062 from this native Windows repository. This clone is the authoritative post-WSL cutover source. Do not use or reference the former WSL checkout.
 >
@@ -201,8 +202,66 @@ changed, preserving authoritative assignment identity, fail-closed identity
 checks, and explicit unavailable derived completion.
 
 `#128 / 51B1` remains held: its positive activated workflow still requires
-#126 activation/readback and the corrected #127/51A acceptance artifact. A
+#126 activation/readback. The corrected #127/51A acceptance artifact is already
+present and is no longer a blocker. A
 fresh M1 attempt that failed with `SOURCE_MIRROR_FAILED` because the Windows
 environment exhausted disk is an environment/harness attempt only; it does
 not replace the exact-commit M1 evidence above or indicate a product
 regression.
+
+## 19. Phase 1 Windows convergence completion — 2026-08-20
+
+Status: **COMPLETE — WINDOWS AUTHORITATIVE**
+
+The native checkout at
+`C:\Users\The Lord\Desktop\luyentap-prd0062` was advanced from
+`cc1091a270d11c8536f2474b31ef46eec594491e` through the GitHub continuation at
+`a22f141a1db1fde9efea4f2dd1c0a124f23c2681`. The original eight-file Windows
+working state remains recoverable on branch
+`codex/prd0062-windows-safety-20260820` at
+`b1696d9e24f125bf5ea449850fc75b88ced8b7ed`.
+
+### Eight-file reconciliation classification
+
+| Windows path | Classification | Final disposition |
+|---|---|---|
+| `cloudflare/package.json` | Already incorporated in `f103cd2e` / `a22f141a` | No duplicate manifest change. |
+| `cloudflare/package-lock.json` | Generated dependency noise around the same incorporated dependency | Retained the accepted `a22f141a` lockfile; discarded the accidental root `kahoot` file-link entries after preserving them in the safety commit. |
+| `cloudflare/src/upload-worker/book-updates/redo-update.ts` | Unique wanted PRD0062 correction | Preserved the current-projection port's specific conflict code. |
+| `cloudflare/test/book-redo-update.test.ts` | Unique wanted PRD0062 proof | Preserved the stale-binding code assertion and retry/idempotency call-count correction. |
+| `documentation/tasks/PRD0062/ownership-registry.md` | Unique wanted append-only authority overlay | Preserved; later evidence remains authoritative where more specific. |
+| `documentation/tasks/PRD0062/remaining-implementation-reconciliation-2026-08-04.md` | Same authority intent with divergent Windows and later WSL/GitHub chronology | Preserved both append-only histories and explicitly marked the earlier Windows current-live conclusions superseded where they conflict. |
+| `documentation/tasks/PRD0062/traceability-book-activity-v1.md` | Unique wanted append-only traceability overlay | Preserved without promoting local proof to deployed or pilot proof. |
+| `src/services/book-delivery/bookRedoUpdate.types.ts` | Unique wanted shared port contract | Preserved the optional conflict-code field consumed by the Worker executor. |
+
+### Authoritative environment
+
+```text
+Active PRD0062 environment: Windows
+Active PRD0062 branch: codex/prd0062-production-normal-20260813-v2
+Active PRD0062 checkout: C:\Users\The Lord\Desktop\luyentap-prd0062
+GitHub: synchronized to the same HEAD
+WSL: historical/reference only
+```
+
+Future normal PRD0062 work must use this native Windows lineage. WSL state and
+historical worktrees remain preserved for the later donor-ledger phase; this
+cutover does not authorize Phase 2 cleanup.
+
+### Current acceptance authority after consolidation
+
+- #126 / 50B remains `BLOCKED_DEPENDENCY_AND_APPROVAL` at the trusted
+  teacher-projection and rollback/readback boundary; no assignment replay is
+  authorized.
+- #127 / 51A is `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED` through
+  `a22f141a1db1fde9efea4f2dd1c0a124f23c2681` and
+  `evidence/51A-acceptance-authority-2026-08-17.json`; the definition is
+  corrected and semantic validation passes, but this is not final suite
+  execution.
+- #128 / 51B1 remains `DEFERRED_FINAL_PROOF_HELD_BY_126`. Its #127 definition
+  prerequisite is corrected; positive activated acceptance still waits for
+  successful #126 activation/readback.
+
+This consolidation is the Windows foundation for completing PRD0062. It does
+not claim PRD0062 itself is complete and does not authorize #128, #134, Phase 2,
+or cleanup.

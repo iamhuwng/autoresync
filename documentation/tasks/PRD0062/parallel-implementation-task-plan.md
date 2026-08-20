@@ -1,16 +1,18 @@
 # PRD0062 implementation task plan
 
-Status: `CURRENT` as of 2026-08-10. Product authority:
+Status: `HISTORICAL_DISPATCH_SNAPSHOT` as of 2026-08-10. Product authority:
 [PRD](prd-book-based-interactive-activity-runtime-and-assembly.md). Readiness
 authority:
 [implementation-readiness analysis](implementation-readiness-analysis-2026-08-04.md).
 Exact ticket ownership and proof contracts:
 [remaining-work reconciliation](remaining-implementation-reconciliation-2026-08-04.md).
 
-The published plan has 112 tickets: 79 closed and 33 open. One specifically
-closed artifact owner, #127/51A, is `REOPEN_REQUIRED_ARTIFACT`; this does not
-change the published count until formally accepted. Closed product behavior is
-consumed from accepted commits and is never scheduled for reimplementation.
+The published plan had 112 tickets: 79 closed and 33 open at this snapshot.
+Its #127/51A `REOPEN_REQUIRED_ARTIFACT` statement is superseded by the committed
+2026-08-17 source-conformant authority evidence. Current dispatch state is the
+latest append-only consolidation in the remaining-work reconciliation. Closed
+product behavior is consumed from accepted commits and is never scheduled for
+reimplementation.
 
 ## 2026-08-10 dispatch update
 
