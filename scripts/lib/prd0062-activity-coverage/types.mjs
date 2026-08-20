@@ -41,6 +41,7 @@ export const CANONICAL_VARIANTS_BY_FAMILY = Object.freeze({
 
 export const CANONICAL_GENERIC_VARIANTS_BY_FAMILY = Object.freeze({
   ...CANONICAL_VARIANTS_BY_FAMILY,
+  choice: Object.freeze([...CANONICAL_VARIANTS_BY_FAMILY.choice, 'v1']),
   ordering: Object.freeze(['v1']),
   'long-response': Object.freeze(['v1']),
 });

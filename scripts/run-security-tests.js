@@ -71,6 +71,32 @@ const CONFIG = {
     },
 };
 
+const PRD0062_CONFIG = Object.freeze({
+    environment: Object.freeze({
+        CODEX_HARNESS_TIMEOUT_MS: '600000',
+        VITE_FIREBASE_API_KEY: 'firebase-api-key',
+        VITE_FIREBASE_AUTH_DOMAIN: 'demo.firebaseapp.com',
+        VITE_FIREBASE_DATABASE_URL: 'https://demo.firebaseio.com',
+        VITE_FIREBASE_PROJECT_ID: 'demo-project',
+        VITE_FIREBASE_STORAGE_BUCKET: 'demo.appspot.com',
+        VITE_FIREBASE_MESSAGING_SENDER_ID: '1234567890',
+        VITE_FIREBASE_APP_ID: '1:1234567890:web:abc123',
+    }),
+    databaseTestPaths: Object.freeze([
+        'src/__tests__/security/materialCatalogFirebaseRules.test.ts',
+        'src/__tests__/security/readingV2FirebaseRules.test.ts',
+        'src/__tests__/security/prd0055-live-session-rules.emulator.test.ts',
+        'src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts',
+        'src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts',
+        'src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts',
+        'src/__tests__/security/retired-material-rules.emulator.test.ts',
+        'src/__tests__/security/prd0062-118-production-normal-rules.emulator.test.ts',
+    ]),
+    compositionTestPaths: Object.freeze([
+        'cloudflare/test/prd0062-m1-rule-enforced-composition.emulator.test.ts',
+    ]),
+});
+
 // =============================================================================
 // HELPERS
 // =============================================================================
@@ -142,6 +168,44 @@ function buildVitestCommandString(args) {
     ].join(' ');
 }
 
+export function parseSecurityMode(args) {
+    if (args.length === 0) return 'default';
+    if (args.length === 1 && args[0] === '--prd0062') return 'prd0062';
+    throw new Error(`Unknown security test arguments: ${args.join(' ')}`);
+}
+
+export function buildPrd0062SecurityPhases() {
+    const dispatcher = path.join(process.cwd(), 'scripts', 'harness', 'run-tool.mjs');
+    const baseArgs = ['--reporter=verbose', '--passWithNoTests=false', '--maxWorkers=1'];
+    const phase = (label, emulators, configPath, testPaths) => ({
+        label,
+        command: process.execPath,
+        args: [
+            dispatcher,
+            'firebase',
+            '.',
+            'emulators:exec',
+            '--only',
+            emulators,
+            [
+                'node',
+                'node_modules/vitest/vitest.mjs',
+                'run',
+                '--config',
+                configPath,
+                ...baseArgs,
+                ...testPaths,
+            ].map(quoteShellArg).join(' '),
+        ],
+        testPaths,
+        environment: PRD0062_CONFIG.environment,
+    });
+    return [
+        phase('Running PRD0062 assembled RTDB security matrix...', 'database', 'vitest.config.ts', PRD0062_CONFIG.databaseTestPaths),
+        phase('Running PRD0062 M1 RTDB/Firestore composition security...', 'database,firestore', 'cloudflare/vitest.prd0062-m1-rule-enforced-composition.config.mjs', PRD0062_CONFIG.compositionTestPaths),
+    ];
+}
+
 export function collectExistingPaths(paths, requiredPaths = new Set()) {
     const existing = [];
 
@@ -174,6 +238,12 @@ function parseVitestSummary(output) {
     };
 }
 
+export function summarizeCommandOutput(output, exitCode) {
+    const summary = parseVitestSummary(output);
+    if (exitCode !== 0 && summary.failed === 0) summary.failed = 1;
+    return summary;
+}
+
 function mergeSummary(left, right) {
     return {
         passed: left.passed + right.passed,
@@ -182,7 +252,7 @@ function mergeSummary(left, right) {
     };
 }
 
-function runCommand(label, command, args) {
+function runCommand(label, command, args, environment = {}) {
     log(label, 'blue');
     log(`Command: ${command} ${args.join(' ')}\n`, 'cyan');
 
@@ -191,6 +261,7 @@ function runCommand(label, command, args) {
             cwd: process.cwd(),
             stdio: 'pipe',
             shell: false,
+            env: { ...process.env, ...environment },
         });
 
         let stdout = '';
@@ -210,10 +281,7 @@ function runCommand(label, command, args) {
 
         child.on('close', (code) => {
             const exitCode = typeof code === 'number' ? code : 1;
-            const summary = parseVitestSummary(`${stdout}\n${stderr}`);
-            if (exitCode !== 0 && summary.passed === 0 && summary.failed === 0 && summary.skipped === 0) {
-                summary.failed = 1;
-            }
+            const summary = summarizeCommandOutput(`${stdout}\n${stderr}`, exitCode);
 
             resolve({
                 code: exitCode,
@@ -243,12 +311,42 @@ async function runSecurityTests() {
     printHeader();
 
     const startTime = Date.now();
+    const mode = parseSecurityMode(process.argv.slice(2));
 
     // Check if vitest is available
     const vitestPath = resolveVitestCli();
     if (!fs.existsSync(vitestPath)) {
         log('Error: vitest not found. Run npm install first.', 'red');
         process.exit(2);
+    }
+
+    if (mode === 'prd0062') {
+        const phases = buildPrd0062SecurityPhases();
+        const requiredPaths = phases.flatMap(({ testPaths }) => testPaths);
+        collectExistingPaths(requiredPaths, new Set(requiredPaths));
+        let exitCode = 0;
+        let totals = { passed: 0, failed: 0, skipped: 0 };
+        for (const phase of phases) {
+            const result = await runCommand(phase.label, phase.command, phase.args, phase.environment);
+            exitCode = Math.max(exitCode, result.code);
+            totals = mergeSummary(totals, result.summary);
+        }
+        const duration = Date.now() - startTime;
+        printSummary(totals.passed, totals.failed, totals.skipped, duration);
+        const results = {
+            timestamp: new Date().toISOString(),
+            mode,
+            passed: totals.passed,
+            failed: totals.failed,
+            skipped: totals.skipped,
+            duration,
+            success: exitCode === 0 && totals.failed === 0 && totals.skipped === 0,
+            phases: phases.map(({ label, testPaths }) => ({ label, testPaths })),
+        };
+        const resultsPath = path.join(process.cwd(), 'security-test-results.json');
+        fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2));
+        log(`Results saved to: ${resultsPath}`, 'cyan');
+        return results.success ? 0 : Math.max(exitCode, 1);
     }
 
     // Build test command arguments

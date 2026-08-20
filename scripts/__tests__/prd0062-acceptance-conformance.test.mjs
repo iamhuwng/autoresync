@@ -153,6 +153,24 @@ test('semantic CLI succeeds through the repository harness', () => {
   });
 });
 
+test('canary manifest CLI executes the matrix-owned names-and-scope validation', () => {
+  const result = spawnSync(process.execPath, [path.join(repoRoot, 'scripts/validate-prd0062-acceptance-matrix.mjs'), '--canary-manifest'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.schema, 'PASS');
+  assert.equal(output.semantic, 'SKIPPED');
+  assert.equal(output.canaryManifest, 'PASS');
+});
+
+test('browser acceptance enables mutation controls only in its local Vite server', async () => {
+  const source = await fs.promises.readFile(path.join(repoRoot, 'playwright.prd0062-acceptance.config.mjs'), 'utf8');
+  assert.match(source, /VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION:\s*'enabled'/u);
+  assert.doesNotMatch(source, /process\.env\.VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION/u);
+});
+
 test('semantic checker dispatcher dependencies are present for the harness', () => {
   assert.equal(fs.existsSync(dispatcherPath), true);
   assert.equal(fs.existsSync(x64WrapperPath), true);

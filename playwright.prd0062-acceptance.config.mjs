@@ -51,7 +51,10 @@ const webServer = acceptanceRole === 'teacher'
   ? {
     command: viteServer(5173),
     url: 'http://localhost:5173/',
-    env: firebaseTestEnv,
+    env: {
+      ...firebaseTestEnv,
+      VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION: 'enabled',
+    },
     reuseExistingServer: true,
     timeout: 120_000,
   }

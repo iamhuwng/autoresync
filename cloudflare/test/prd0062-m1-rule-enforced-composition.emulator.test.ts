@@ -26,6 +26,9 @@ const activationRuleHashes = {
   database: 'e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f',
   firestore: '3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc',
 };
+const activationRuleSha256 = (source: string): string => createHash('sha256')
+  .update(source.replaceAll('\r\n', '\n'))
+  .digest('hex');
 const databaseHost = process.env.FIREBASE_DATABASE_EMULATOR_HOST ?? '127.0.0.1:9000';
 const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
 
@@ -201,6 +204,10 @@ const expectClaim = (trace: Trace, uid: string, claims: Claims): void => {
 };
 
 describe('PRD0062 M1 default Worker composition under exact activation rules', () => {
+  it('keeps frozen activation identities stable across Windows line endings', () => {
+    expect(activationRuleSha256('allow read;\r\n')).toBe(activationRuleSha256('allow read;\n'));
+  });
+
   let rules: RulesTestEnvironment;
   let worker: ReturnType<typeof createUploadWorker>;
   const originalFetch = globalThis.fetch;
@@ -242,8 +249,8 @@ describe('PRD0062 M1 default Worker composition under exact activation rules', (
   });
 
   it('executes the full shell-present teacher/student/Runtime read path without any command or durable write', async () => {
-    expect(createHash('sha256').update(databaseRules).digest('hex')).toBe(activationRuleHashes.database);
-    expect(createHash('sha256').update(firestoreRules).digest('hex')).toBe(activationRuleHashes.firestore);
+    expect(activationRuleSha256(databaseRules)).toBe(activationRuleHashes.database);
+    expect(activationRuleSha256(firestoreRules)).toBe(activationRuleHashes.firestore);
     expect(fixture.root).toMatchObject({ state: 'committed', visibility: 'committed', revision: 7 });
     expect(decodeFirestoreFields(fixture.authorityDocument.fields)).toMatchObject({ revision: 2 });
     expect(fixture.deliveryScope.records[bindingId]).toMatchObject({ status: 'active', binding: { revision: 1 } });

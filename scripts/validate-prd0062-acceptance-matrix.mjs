@@ -9,14 +9,15 @@ import {
   validatePrd0062AcceptanceMatrix,
 } from './lib/prd0062-acceptance-matrix.mjs';
 
-const usage = 'Usage: node scripts/validate-prd0062-acceptance-matrix.mjs [--schema] [--semantic]';
+const usage = 'Usage: node scripts/validate-prd0062-acceptance-matrix.mjs [--schema] [--semantic] [--canary-manifest]';
 const args = process.argv.slice(2);
-const allowed = new Set(['--schema', '--semantic']);
+const allowed = new Set(['--schema', '--semantic', '--canary-manifest']);
 if (args.some((arg) => !allowed.has(arg)) || new Set(args).size !== args.length) {
   console.error(JSON.stringify({ ok: false, phase: 'arguments', issues: [{ code: 'invalid-arguments', path: '$args', message: usage }] }, null, 2));
   process.exit(2);
 }
-const runSchema = args.length === 0 || args.includes('--schema');
+const runCanaryManifest = args.includes('--canary-manifest');
+const runSchema = args.length === 0 || args.includes('--schema') || runCanaryManifest;
 const runSemantic = args.length === 0 || args.includes('--semantic');
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const issues = [];
@@ -77,6 +78,7 @@ console.log(JSON.stringify({
   ok: true,
   schema: runSchema ? 'PASS' : 'SKIPPED',
   semantic: runSemantic ? 'PASS' : 'SKIPPED',
+  canaryManifest: runCanaryManifest ? 'PASS' : 'SKIPPED',
   matrix: ACCEPTANCE_MATRIX_PATH,
   counts: semantic?.counts ?? { cases: matrix?.cases?.length ?? 0, fixtureEntries: manifest.entries?.length ?? 0 },
 }, null, 2));

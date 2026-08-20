@@ -22,6 +22,7 @@ const manifest: BookHomeworkManifest = {
     bookId: 'ticket88-book',
     bookMode: 'pdf',
     bookRevision: 1,
+    manifestVersionId: 'ticket88-manifest-2',
     publicationId: 'ticket88-publication',
     publicationRevision: 1,
     publicationStatus: 'published',

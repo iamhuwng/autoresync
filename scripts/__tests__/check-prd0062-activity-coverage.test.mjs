@@ -244,6 +244,30 @@ test('generic long-response registration is valid without an IELTS matrix row', 
   assert.equal(result.ok, true, JSON.stringify(result.issues, null, 2));
 });
 
+test('generic choice v1 registration is valid without claiming an IELTS matrix row', async () => {
+  const base = await matrix();
+  base.rows.forEach((row) => {
+    row.runtimeImplementationState = 'planned';
+  });
+  const result = await validateCoverageMatrix(base, {
+    rootDir,
+    registryManifest: {
+      schemaVersion: 1,
+      kind: 'prd0062-activity-runtime-registration-manifest',
+      registrations: [{
+        profile: null,
+        family: 'choice',
+        variant: 'v1',
+        presentationMode: 'structured',
+        responseCodec: 'choice-single-v1',
+        rendererId: 'choice-v1',
+        codecId: 'choice-single-v1',
+      }],
+    },
+  });
+  assert.equal(result.ok, true, JSON.stringify(result.issues, null, 2));
+});
+
 test('invented profiled IELTS long-response registration remains rejected', async () => {
   const base = await matrix();
   const result = await validateCoverageMatrix(base, {
