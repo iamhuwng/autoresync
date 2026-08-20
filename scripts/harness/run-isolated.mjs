@@ -676,16 +676,27 @@ function forwardedResult(command, args, options) {
   });
 }
 
-async function runWslWrangler(executionProjectRoot, executionRepositoryRoot, toolArguments, version, sourceLockSha256) {
-  const helper = path.relative(executionProjectRoot, path.join(executionRepositoryRoot, 'scripts', 'harness', 'run-wsl-wrangler.mjs')).split(path.sep).join('/');
+function wslHelperPath(executionProjectRoot, executionRepositoryRoot) {
+  return path.relative(executionProjectRoot, path.join(executionRepositoryRoot, 'scripts', 'harness', 'run-wsl-wrangler.mjs')).split(path.sep).join('/');
+}
+
+function wslPayload({ mode = 'run', toolArguments, version, manifestSha256, lockSha256 }) {
   const wslCacheRoot = process.env.CODEX_HARNESS_WSL_ROOT;
-  const payload = Buffer.from(JSON.stringify({
+  return Buffer.from(JSON.stringify({
+    mode,
     arguments: toolArguments,
     version,
-    sourceLockSha256,
+    manifestSha256,
+    lockSha256,
+    sourceLockSha256: lockSha256,
     dependencyCacheProtocolVersion: HARNESS_CONTRACT.dependencyCacheProtocolVersion,
     ...(wslCacheRoot !== undefined ? { wslCacheRoot } : {}),
   }), 'utf8').toString('base64');
+}
+
+async function runWslWrangler(executionProjectRoot, executionRepositoryRoot, toolArguments, version, manifestSha256, lockSha256) {
+  const helper = wslHelperPath(executionProjectRoot, executionRepositoryRoot);
+  const payload = wslPayload({ toolArguments, version, manifestSha256, lockSha256 });
   const runtimeLine = /^HARNESS_WSL_RUNTIME [A-Za-z0-9+/=]+$/u;
   const result = await forwardedResult('wsl.exe', ['--cd', executionProjectRoot, '--', 'node', helper, payload], {
     cwd: repositoryRoot,
@@ -700,7 +711,29 @@ async function runWslWrangler(executionProjectRoot, executionRepositoryRoot, too
   return result;
 }
 
-function discoverWslRuntime(toolName) {
+function runWslDependencyDoctor(project, version, manifestSha256, lockSha256) {
+  const helper = wslHelperPath(project.projectRoot, repositoryRoot);
+  const payload = wslPayload({ mode: 'doctor', toolArguments: [], version, manifestSha256, lockSha256 });
+  const result = commandResult('wsl.exe', ['--cd', project.projectRoot, '--', 'node', helper, payload], {
+    cwd: repositoryRoot,
+    env: process.env,
+  });
+  const runtimeLine = result.stderr?.match(/^HARNESS_WSL_RUNTIME ([A-Za-z0-9+/=]+)$/mu)?.[1];
+  if (result.status !== 0) {
+    const code = wslFailureCodeFromStderr(result.stderr) ?? 'WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING';
+    const error = failure(code, `WSL Wrangler dependency-context doctor exited ${result.status}: ${(result.stderr || result.error?.message || 'no diagnostics').trim()}`);
+    error.discovery = { kind: 'wsl', doctor: { status: result.status, stderr: result.stderr?.trim() || null } };
+    throw error;
+  }
+  if (!runtimeLine) {
+    const error = failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', 'WSL Wrangler dependency-context doctor returned no runtime metadata');
+    error.discovery = { kind: 'wsl', doctor: { status: result.status, stdout: result.stdout?.trim() || null, stderr: result.stderr?.trim() || null } };
+    throw error;
+  }
+  return JSON.parse(Buffer.from(runtimeLine, 'base64').toString('utf8'));
+}
+
+function discoverWslRuntime(toolName, project = null, verifyWranglerContext = false) {
   const status = commandResult('wsl.exe', ['--status']);
   if (status.status !== 0) {
     const error = failure('WSL_PREREQUISITE_MISSING', `WSL is required for ${toolName}`);
@@ -726,6 +759,11 @@ function discoverWslRuntime(toolName) {
     const error = failure('WSL_NPM_PREREQUISITE_MISSING', `npm is required inside the selected/default WSL distribution for ${toolName}`);
     error.discovery = { kind: 'wsl', status: status.status, node: runtime };
     throw error;
+  }
+  if (verifyWranglerContext && toolName === 'wrangler') {
+    const version = project.lock.packages['node_modules/wrangler'].version;
+    const dependencyContext = runWslDependencyDoctor(project, version, contentHash(project.manifestRaw), contentHash(project.lockRaw));
+    return { kind: 'wsl', ...runtime, dependencyCache: dependencyContext.dependencyCache };
   }
   return { kind: 'wsl', ...runtime };
 }
@@ -786,7 +824,7 @@ async function main() {
       const wslTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'wsl');
       for (const name of wslTools) {
         assertToolDeclared(project, name);
-        evidence.capabilities.push(discoverWslRuntime(name));
+        evidence.capabilities.push(discoverWslRuntime(name, project, true));
       }
       endEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
       evidence.dependencyCache = dependency ? { identity: dependency.identity, root: dependency.root, npmVersion: dependency.npmVersion } : null;
@@ -828,7 +866,7 @@ async function main() {
     let result;
     if (declaredTool.runtime === 'wsl') {
       const version = project.lock.packages[`node_modules/${declaredTool.package}`].version;
-      result = await runWslWrangler(executionProjectRoot, executionRepositoryRoot, invocation.toolArguments, version, contentHash(project.lockRaw));
+      result = await runWslWrangler(executionProjectRoot, executionRepositoryRoot, invocation.toolArguments, version, contentHash(project.manifestRaw), contentHash(project.lockRaw));
     } else {
       const toolEnvironment = composeToolEnvironment(prepared);
       for (const [name, value] of Object.entries(declaredTool.environmentDefaultsByCommand?.[invocation.toolArguments[0]] ?? {})) {

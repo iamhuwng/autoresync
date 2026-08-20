@@ -5,7 +5,7 @@ description: Run, diagnose, and resolve this repository's test, build, dev, brow
 
 # Run Windows ARM64 Tools
 
-Use the repository-versioned harness contract. Contract version `3.5.0`, this
+Use the repository-versioned harness contract. Contract version `3.6.0`, this
 skill, and `scripts/harness/` must land in the same commit lineage.
 
 ## Fail-closed lineage preflight
@@ -23,7 +23,8 @@ exact root, require all of:
 - `scripts/harness/run-wsl-wrangler.mjs`.
 
 Run `node scripts/harness/run-tool.mjs --contract` and require name
-`luyentap-windows-arm64-harness`, version `3.5.0`, protocol `3`, and grammar
+`luyentap-windows-arm64-harness`, version `3.6.0`, protocol `4`, dependency
+cache protocol `3`, and grammar
 `<tool> <project> [...args]`. If any file or value differs, report
 `HARNESS_CONTRACT_MISMATCH` with the checkout root. Do not borrow a runner or
 skill from another checkout or fall back to repository `node_modules`.
@@ -95,6 +96,9 @@ Common recovery paths are executable contract data rather than duplicated prose:
   explicit one-shot build/test/script commands.
 - Wrangler always runs through WSL using the selected project's pinned version
   and the selected live worktree, including `wrangler dev`.
+- Wrangler's immutable WSL cache is built from the selected package manifest and
+  lockfile, exposed only to the Wrangler process while live source remains the
+  selected checkout and repository `node_modules` remains untouched.
 - Immutable dependency caches may be shared only when the complete cache
   identity matches. Each invocation receives a unique writable source mirror
   and project-local dependency junction.

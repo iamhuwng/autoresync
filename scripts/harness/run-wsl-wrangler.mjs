@@ -4,14 +4,99 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
-import { wranglerDependencyCacheIdentity } from './contract.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { HARNESS_CONTRACT, wranglerDependencyCacheIdentity } from './contract.mjs';
 
 const commandResult = (command, args, options = {}) => spawnSync(command, args, { encoding: 'utf8', shell: false, ...options });
 const failure = (code, message) => Object.assign(new Error(message), { code });
 const lockMarkerName = '.harness-wrangler-lock.json';
 const lockGuardName = '.guard';
 const lockProtocolVersion = 1;
+const contentHash = (value) => crypto.createHash('sha256').update(Buffer.isBuffer(value) ? value.toString('utf8').replace(/\r\n/gu, '\n') : value).digest('hex');
+
+function packageDependencies(manifest) {
+  return { ...manifest.dependencies, ...manifest.devDependencies };
+}
+
+function explicitWranglerAliasKeys(argumentsList) {
+  const keys = new Set();
+  for (let index = 0; index < argumentsList.length; index += 1) {
+    const argument = argumentsList[index];
+    const pair = argument === '--alias' ? argumentsList[index + 1] : argument.startsWith('--alias=') ? argument.slice('--alias='.length) : null;
+    if (pair === null || pair === undefined) continue;
+    const separator = pair.indexOf(':');
+    if (separator > 0) keys.add(pair.slice(0, separator));
+  }
+  return keys;
+}
+
+function isWranglerBundleInvocation(argumentsList) {
+  let command;
+  for (let index = 0; index < argumentsList.length; index += 1) {
+    const argument = argumentsList[index];
+    if (argument === '--') break;
+    if (argument === '--alias' || argument === '--config') {
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('--alias=') || argument.startsWith('--config=')) continue;
+    if (!argument.startsWith('-')) {
+      command = argument;
+      break;
+    }
+  }
+  return command === 'dev' || command === 'deploy';
+}
+
+function wranglerConfigPath(projectRoot, argumentsList) {
+  for (let index = 0; index < argumentsList.length; index += 1) {
+    const argument = argumentsList[index];
+    const configured = argument === '--config' ? argumentsList[index + 1] : argument.startsWith('--config=') ? argument.slice('--config='.length) : null;
+    if (configured) return path.isAbsolute(configured) ? configured : path.resolve(projectRoot, configured);
+  }
+  return ['wrangler.jsonc', 'wrangler.json', 'wrangler.toml'].map((name) => path.join(projectRoot, name)).find((candidate) => fs.existsSync(candidate)) ?? null;
+}
+
+function configAliasKeys(cacheRoot, projectRoot, argumentsList) {
+  // Let the selected cached Wrangler parse JSONC/TOML; do not guess at config syntax here.
+  const configPath = wranglerConfigPath(projectRoot, argumentsList);
+  if (!configPath) return new Set();
+  const parserPath = path.join(cacheRoot, 'node_modules', 'wrangler', 'wrangler-dist', 'cli.js');
+  if (!fs.existsSync(parserPath)) throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `cannot inspect aliases in the selected Wrangler config because its cached Wrangler parser is missing: ${configPath}`);
+  const moduleUrl = pathToFileURL(parserPath).href;
+  const source = `import * as wrangler from ${JSON.stringify(moduleUrl)}; const result = wrangler.experimental_readRawConfig({ config: ${JSON.stringify(configPath)} }); process.stdout.write(JSON.stringify(Object.keys(result.rawConfig?.alias ?? {})));`;
+  const parsed = commandResult(process.execPath, ['--input-type=module', '-e', source], { cwd: projectRoot, env: cachedWranglerEnvironment(cacheRoot) });
+  if (parsed.status !== 0) throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `cannot inspect aliases in the selected Wrangler config with the cached Wrangler parser: ${configPath}: ${(parsed.stderr || parsed.error?.message || 'parser failed').trim()}`);
+  try {
+    const keys = JSON.parse(parsed.stdout);
+    if (!Array.isArray(keys) || keys.some((key) => typeof key !== 'string')) throw new Error('parser returned non-string alias keys');
+    return new Set(keys);
+  } catch (error) {
+    throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `cached Wrangler parser returned invalid alias metadata for ${configPath}: ${error.message}`);
+  }
+}
+
+export function wranglerDependencyAliases(cacheRoot, dependencyNames, argumentsList, projectRoot = process.cwd()) {
+  if (!isWranglerBundleInvocation(argumentsList)) return [];
+  const explicitKeys = explicitWranglerAliasKeys(argumentsList);
+  const configuredKeys = configAliasKeys(cacheRoot, projectRoot, argumentsList);
+  return dependencyNames.flatMap((name) => {
+    if (explicitKeys.has(name)) return [];
+    if (configuredKeys.has(name)) throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected Wrangler config alias collides with the direct dependency alias: ${name}`);
+    const packageRoot = path.join(cacheRoot, 'node_modules', ...name.split('/'));
+    if (!fs.existsSync(path.join(packageRoot, 'package.json'))) {
+      throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected dependency is not materialized in the WSL Wrangler cache: ${name}`);
+    }
+    return ['--alias', `${name}:${packageRoot}`];
+  });
+}
+
+function insertBeforeTerminator(argumentsList, injected) {
+  const terminator = argumentsList.indexOf('--');
+  return terminator === -1
+    ? [...argumentsList, ...injected]
+    : [...argumentsList.slice(0, terminator), ...injected, ...argumentsList.slice(terminator)];
+}
 
 function runtimeProbe() {
   const npm = commandResult('npm', ['--version']);
@@ -31,12 +116,56 @@ function readMarker(markerPath) {
   catch (error) { throw failure('WSL_WRANGLER_CACHE_INVALID', `invalid WSL Wrangler cache marker ${markerPath}: ${error.message}`); }
 }
 
-function validateCache(root, entry, markerPath, expected) {
+function validateInstalledDependencies(root, context) {
+  for (const name of Object.keys(packageDependencies(context.manifest))) {
+    const lockEntry = context.lock.packages?.[`node_modules/${name}`];
+    const packageJsonPath = path.join(root, 'node_modules', ...name.split('/'), 'package.json');
+    if (!lockEntry || !fs.existsSync(packageJsonPath)) {
+      throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected dependency is not materialized in the WSL Wrangler cache: ${name}`);
+    }
+    if (lockEntry.version) {
+      let packageJson;
+      try { packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')); }
+      catch (error) { throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected dependency metadata is unreadable in the WSL Wrangler cache: ${name}: ${error.message}`); }
+      if (packageJson.version !== lockEntry.version) throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected dependency version is not locked in the WSL Wrangler cache: ${name}`);
+    }
+  }
+}
+
+function validateCache(root, entry, markerPath, expected, context) {
   if (!fs.existsSync(markerPath) || !fs.existsSync(entry)) throw failure('WSL_WRANGLER_CACHE_INCOMPLETE', `incomplete WSL Wrangler cache: ${root}`);
   const marker = readMarker(markerPath);
   for (const [name, value] of Object.entries(expected)) {
     if (marker[name] !== value) throw failure('WSL_WRANGLER_CACHE_INVALID', `WSL Wrangler cache marker mismatch for ${name}: ${root}`);
   }
+  validateInstalledDependencies(root, context);
+}
+
+export function readWranglerDependencyContext(projectRoot = process.cwd(), expected = {}) {
+  const manifestPath = path.join(projectRoot, 'package.json');
+  const lockPath = path.join(projectRoot, 'package-lock.json');
+  if (!fs.existsSync(manifestPath) || !fs.existsSync(lockPath)) throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected project dependency context is missing package.json or package-lock.json: ${projectRoot}`);
+  const manifestRaw = fs.readFileSync(manifestPath);
+  const lockRaw = fs.readFileSync(lockPath);
+  let manifest;
+  let lock;
+  try {
+    manifest = JSON.parse(manifestRaw);
+    lock = JSON.parse(lockRaw);
+  } catch (error) {
+    throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected project dependency context is not valid JSON: ${error.message}`);
+  }
+  const dependencies = packageDependencies(manifest);
+  const wranglerLockEntry = lock.packages?.['node_modules/wrangler'];
+  if (!dependencies.wrangler || !wranglerLockEntry?.version) throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected project package.json/package-lock.json does not declare a locked Wrangler dependency: ${projectRoot}`);
+  const manifestSha256 = contentHash(manifestRaw);
+  const lockSha256 = contentHash(lockRaw);
+  const expectedLockSha256 = expected.lockSha256 ?? expected.sourceLockSha256;
+  if ((expected.manifestSha256 && expected.manifestSha256 !== manifestSha256) || (expectedLockSha256 && expectedLockSha256 !== lockSha256)) {
+    throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected project dependency context changed before WSL staging: ${projectRoot}`);
+  }
+  if (expected.version && expected.version !== wranglerLockEntry.version) throw failure('WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', `selected project lockfile Wrangler version does not match the dispatcher payload: ${projectRoot}`);
+  return { projectRoot, manifestPath, lockPath, manifestRaw, lockRaw, manifest, lock, manifestSha256, lockSha256, wranglerVersion: wranglerLockEntry.version };
 }
 
 function processStartTime(processId) {
@@ -167,38 +296,52 @@ export function wslCacheRoot(configuredRoot) {
   return configuredRoot;
 }
 
-function installWrangler(staging, version) {
-  const initialized = commandResult('npm', ['init', '--yes'], { cwd: staging });
-  if (initialized.status !== 0) throw failure('WSL_WRANGLER_INSTALL_FAILED', `npm init exited ${initialized.status}; staging preserved at ${staging}: ${initialized.stderr.trim()}`);
-  const installed = commandResult('npm', ['install', '--no-audit', '--no-fund', '--save-exact', `wrangler@${version}`], { cwd: staging });
+function installWrangler(staging) {
+  const installed = commandResult('npm', ['ci', '--include=dev', '--no-audit', '--no-fund'], {
+    cwd: staging,
+    env: { ...process.env, NODE_ENV: 'development', npm_config_production: 'false' },
+  });
   if (installed.stdout) process.stderr.write(installed.stdout);
   if (installed.stderr) process.stderr.write(installed.stderr);
-  if (installed.status !== 0) throw failure('WSL_WRANGLER_INSTALL_FAILED', `npm install exited ${installed.status}; staging preserved at ${staging}`);
+  if (installed.status !== 0) throw failure('WSL_WRANGLER_INSTALL_FAILED', `npm ci exited ${installed.status}; staging preserved at ${staging}`);
 }
 
 export async function ensureWranglerCache(payload, runtime, options = {}) {
+  if (payload.dependencyCacheProtocolVersion !== HARNESS_CONTRACT.dependencyCacheProtocolVersion) throw failure('WSL_WRANGLER_PROTOCOL_INVALID', `unsupported WSL Wrangler dependency-cache protocol: ${payload.dependencyCacheProtocolVersion}`);
   if (!runtime.npmVersion) throw failure('WSL_NPM_PREREQUISITE_MISSING', runtime.npmError || 'npm unavailable in WSL');
+  const context = options.context ?? readWranglerDependencyContext(options.projectRoot ?? process.cwd(), payload);
+  const nodeVersion = runtime.nodeVersion ?? process.version;
+  const nodeAbi = runtime.nodeAbi ?? process.versions.modules;
+  const architecture = runtime.architecture ?? process.arch;
+  const lockSha256 = payload.lockSha256 ?? payload.sourceLockSha256 ?? context.lockSha256;
   const identity = wranglerDependencyCacheIdentity({
     version: payload.version,
-    nodeAbi: process.versions.modules,
-    architecture: process.arch,
+    nodeVersion,
+    nodeAbi,
+    architecture,
     npmVersion: runtime.npmVersion,
-    sourceLockSha256: payload.sourceLockSha256,
+    manifestSha256: context.manifestSha256,
+    lockSha256,
     dependencyCacheProtocolVersion: payload.dependencyCacheProtocolVersion,
   });
-  const root = path.join(wslCacheRoot(payload.wslCacheRoot), identity);
+  const root = path.join(options.cacheRoot ?? wslCacheRoot(payload.wslCacheRoot), identity);
   const entry = path.join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
   const markerPath = path.join(root, '.harness-wrangler.json');
   const expected = {
     identity,
     version: payload.version,
+    nodeVersion,
+    nodeAbi,
+    architecture,
     npmVersion: runtime.npmVersion,
-    sourceLockSha256: payload.sourceLockSha256,
+    manifestSha256: context.manifestSha256,
+    lockSha256,
+    sourceLockSha256: lockSha256,
     dependencyCacheProtocolVersion: payload.dependencyCacheProtocolVersion,
   };
   if (fs.existsSync(root)) {
-    validateCache(root, entry, markerPath, expected);
-    return { identity, root, npmVersion: runtime.npmVersion, sourceLockSha256: payload.sourceLockSha256 };
+    validateCache(root, entry, markerPath, expected, context);
+    return { identity, root, npmVersion: runtime.npmVersion, manifestSha256: context.manifestSha256, lockSha256, sourceLockSha256: lockSha256, dependencyNames: Object.keys(packageDependencies(context.manifest)) };
   }
 
   fs.mkdirSync(path.dirname(root), { recursive: true });
@@ -208,15 +351,38 @@ export async function ensureWranglerCache(payload, runtime, options = {}) {
     if (!fs.existsSync(root)) {
       const staging = `${root}.install-${process.pid}-${crypto.randomUUID()}`;
       fs.mkdirSync(staging, { recursive: true });
-      await (options.install ?? installWrangler)(staging, payload.version);
+      fs.copyFileSync(context.manifestPath, path.join(staging, 'package.json'));
+      fs.copyFileSync(context.lockPath, path.join(staging, 'package-lock.json'));
+      await (options.install ?? installWrangler)(staging, payload, context);
       fs.writeFileSync(path.join(staging, '.harness-wrangler.json'), `${JSON.stringify(expected, null, 2)}\n`);
       fs.renameSync(staging, root);
     }
   } finally {
     await release();
   }
-  validateCache(root, entry, markerPath, expected);
-  return { identity, root, npmVersion: runtime.npmVersion, sourceLockSha256: payload.sourceLockSha256 };
+  validateCache(root, entry, markerPath, expected, context);
+  return { identity, root, npmVersion: runtime.npmVersion, manifestSha256: context.manifestSha256, lockSha256, sourceLockSha256: lockSha256, dependencyNames: Object.keys(packageDependencies(context.manifest)) };
+}
+
+export function cachedWranglerEnvironment(cacheRoot, base = process.env) {
+  const nodeModules = path.join(cacheRoot, 'node_modules');
+  return {
+    ...base,
+    NODE_PATH: nodeModules,
+    PATH: `${path.join(nodeModules, '.bin')}${path.delimiter}${base.PATH || ''}`,
+  };
+}
+
+export function runCachedWrangler(cacheRoot, argumentsList, options = {}) {
+  const entry = path.join(cacheRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+  const dependencyAliasArguments = options.dependencyAliasArguments ?? wranglerDependencyAliases(cacheRoot, options.dependencyNames ?? [], argumentsList, options.cwd ?? process.cwd());
+  return spawnSync(process.execPath, [entry, ...insertBeforeTerminator(argumentsList, dependencyAliasArguments)], {
+    cwd: options.cwd ?? process.cwd(),
+    env: cachedWranglerEnvironment(cacheRoot, options.baseEnvironment ?? process.env),
+    stdio: options.stdio ?? 'inherit',
+    encoding: 'utf8',
+    shell: false,
+  });
 }
 
 async function main() {
@@ -227,16 +393,16 @@ async function main() {
   let payload;
   try { payload = JSON.parse(Buffer.from(process.argv[2] || '', 'base64').toString('utf8')); }
   catch { throw failure('WSL_WRANGLER_PROTOCOL_INVALID', 'invalid WSL Wrangler payload'); }
-  if (!payload.version || !Array.isArray(payload.arguments) || !Number.isInteger(payload.dependencyCacheProtocolVersion) || !/^[a-f0-9]{64}$/u.test(payload.sourceLockSha256 || '')) {
+  if (!payload.version || !Array.isArray(payload.arguments) || !['run', 'doctor'].includes(payload.mode ?? 'run') || payload.dependencyCacheProtocolVersion !== HARNESS_CONTRACT.dependencyCacheProtocolVersion || !/^[a-f0-9]{64}$/u.test(payload.manifestSha256 || '') || !/^[a-f0-9]{64}$/u.test(payload.lockSha256 || payload.sourceLockSha256 || '')) {
     throw failure('WSL_WRANGLER_PROTOCOL_INVALID', 'incomplete WSL Wrangler payload');
   }
   const runtime = runtimeProbe();
-  const dependencyCache = await ensureWranglerCache(payload, runtime);
+  const dependencyCache = await ensureWranglerCache(payload, runtime, { projectRoot: process.cwd() });
   const metadata = { ...runtime, dependencyCache };
   process.stderr.write(`HARNESS_WSL_RUNTIME ${Buffer.from(JSON.stringify(metadata), 'utf8').toString('base64')}\n`);
   process.stderr.write(`harness WSL: Wrangler ${payload.version}, Node ${process.version} ${process.arch}, cache ${dependencyCache.root}\n`);
-  const entry = path.join(dependencyCache.root, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
-  const result = spawnSync(process.execPath, [entry, ...payload.arguments], { cwd: process.cwd(), stdio: 'inherit', shell: false });
+  if (payload.mode === 'doctor') return 0;
+  const result = runCachedWrangler(dependencyCache.root, payload.arguments, { dependencyNames: dependencyCache.dependencyNames });
   return result.status ?? 1;
 }
 
