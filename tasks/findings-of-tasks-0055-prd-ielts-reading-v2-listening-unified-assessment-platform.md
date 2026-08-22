@@ -5783,24 +5783,24 @@ Independent review must complete before commit. Main orchestrator will inspect t
 
 Task 3.14 is checked as a dedicated authoring-shell patch. Parent Task 3.0 remains unchecked. Tasks 3.15 through 3.17 remain unchecked. Task 3.15+ is not started.
 
-## PRD-0055 live `ListeningTestBuilder.tsx` guardrail truth - updated 2026-06-28
+## Historical PRD-0055 `ListeningTestBuilder.tsx` guardrail snapshot - 2026-06-28
 
 ### Findings First And Verdict
 
 Verdict: PASS for source, test, and docs corrective record at the time of each listed proof. The later Task 5 Batch C section records the current A-C source/test/docs reconciliation for Task 5.12 through Task 5.15; parent Task 5 remains open.
 
-Findings: historical Task 3.9 through Task 3.14 sections must stay historical. Current live `ListeningTestBuilder.tsx` guardrail truth is recorded here so older packets do not claim current post-Task 5 foundation state.
+Findings: historical Task 3.9 through Task 3.14 sections must stay historical. This section is the 2026-06-28 post-Task 5 foundation snapshot and is not current line-budget authority after later Listening work.
 
-Scope boundary: current live line-budget evidence covers the existing Listening builder, its focused tests, and this findings ledger. The 2026-06-28 Task 5 foundation fix routes builder Save draft and Publish through the trusted authoring workflow facade while preserving parser, audio upload, runtime/live, teacher monitor, direct Firebase/R2 mutation, Cloudflare deploy, production config, selected-teacher rollout, push, and new shared primitive boundaries.
+Scope boundary at that snapshot: line-budget evidence covered the then-existing Listening builder, its focused tests, and this findings ledger. The 2026-06-28 Task 5 foundation fix routed builder Save draft and Publish through the trusted authoring workflow facade while preserving parser, audio upload, runtime/live, teacher monitor, direct Firebase/R2 mutation, Cloudflare deploy, production config, selected-teacher rollout, push, and new shared primitive boundaries.
 
-### Current Live Correction Record
+### Historical 2026-06-28 Correction Record
 
-1. `ListeningTestBuilder.tsx` logical line count is 2948 when counted without the trailing final newline.
+1. `ListeningTestBuilder.tsx` logical line count was 2948 at this snapshot when counted without the trailing final newline.
 2. Mode-select tiles now render native `<button>` controls with `aria-pressed`, phrasing-safe inner markup, and scoped transitions for the active `text` and `image` states.
-3. Current authoring frame keeps the local `Card` / `CardBody` shell but removes the prior glass variant, using a white background, border, restrained shadow, and `backdropFilter: none`.
-4. Current `ListeningTestBuilder.tsx` has no `@mantine/core` import and no `AppShell` wrapper.
-5. Current Save draft and Publish handlers call `createListeningAuthoringWorkflow()` and no longer call `saveListeningTestToFirebase` from the builder.
-6. Guardrail proof for this live state is expected through the explicit changed-files run that includes `src/skills/listening/builders/ListeningTestBuilder.tsx`.
+3. At this snapshot, the authoring frame kept the local `Card` / `CardBody` shell but removed the prior glass variant, using a white background, border, restrained shadow, and `backdropFilter: none`.
+4. At this snapshot, `ListeningTestBuilder.tsx` had no `@mantine/core` import and no `AppShell` wrapper.
+5. At this snapshot, Save draft and Publish handlers called `createListeningAuthoringWorkflow()` and no longer called `saveListeningTestToFirebase` from the builder.
+6. Guardrail proof for that snapshot used the explicit changed-files run that included `src/skills/listening/builders/ListeningTestBuilder.tsx`.
 
 <!-- historical-assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
@@ -5813,9 +5813,9 @@ approver-role: Task Scope Reviewer
 status: approved
 -->
 
-## 2026-07-05 Retirement Gate A Line-Budget Evidence
+## 2026-07-05 Retirement Gate A And Current Recovery Line-Budget Evidence
 
-Scope boundary: the retired-material cleanup branch touches existing oversized assessment files while removing Google Drive, Reading V1, and Quiz flows, stabilizing TypeScript baselines, and recording protected-feature proof. The touched oversized files are not decomposed in this PR because splitting them would combine retirement/purge safety work with broad Reading V2 or Listening architecture refactors. These records supersede only the active machine-readable line-budget evidence for the current branch; historical line-budget records above remain preserved under historical markers.
+Historical scope boundary: the retired-material cleanup branch touched existing oversized assessment files while removing Google Drive, Reading V1, and Quiz flows, stabilizing TypeScript baselines, and recording protected-feature proof. The untouched Reading V2 and delivery-service records below retain that historical rationale. The `ListeningTestBuilder.tsx` block is the single active, superseding 2026-08-23 recovery exception; historical Listening records above remain preserved under historical markers.
 
 <!-- assessment-line-budget-exception
 path: src/components/reading-v2/studio/ReadingV2BuildWorkspace.tsx
@@ -5863,12 +5863,12 @@ status: approved
 
 ### Verification
 
-1. Logical line-count proof should use `rtk powershell -NoProfile -Command "(Get-Content -Path 'src/skills/listening/builders/ListeningTestBuilder.tsx').Count"` and return `2948`.
+1. Current logical line-count proof must return `4773` for `src/skills/listening/builders/ListeningTestBuilder.tsx` when the trailing final newline is excluded.
 2. Current control scan should show `aria-pressed` mode buttons in `src/skills/listening/builders/ListeningTestBuilder.tsx`.
 3. Current Mantine/AppShell scan should return no matches for `src/skills/listening/builders/ListeningTestBuilder.tsx`.
 4. Guardrail proof should use `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx,src/features/assessment/shared/components/AssessmentAuthoringHeader.css,src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx,src/skills/listening/builders/ListeningTestBuilder.tsx`.
 
-### Current Verification Rerun
+### Historical 2026-07-05 Verification Rerun
 
 1. Focused Listening builder proof passed: `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 1 file and 3 tests.
 2. Existing Task 3 shared/adopter focused suite passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 26 tests.
