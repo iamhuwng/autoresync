@@ -5852,10 +5852,10 @@ status: approved
 
 <!-- assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
-line-count: 4606
-responsibilities: Listening authoring wizard orchestration, audio metadata validation, R2 or authorized audio handling, question editing, preview state, draft persistence, publish controls, and retired Google Drive audio rejection; owns legacy builder UI state that this branch touches to remove Drive runtime without changing supported R2 Listening behavior
-split-alternatives: extract audio source validation and preview state into a bounded Listening authoring audio component; extract question editing and review-save workflow into route-local step components
-rejection-reason: extract audio source validation and preview state into a bounded Listening authoring audio component => current retirement work must remove Drive behavior while preserving existing builder state and test coverage rather than redesigning authoring composition; extract question editing and review-save workflow into route-local step components => valid future decomposition but it would widen Gate A beyond retired-material integration and risk unrelated authoring regressions
+line-count: 4773
+responsibilities: Listening authoring wizard orchestration, canonical upload-session creation and asset issuance, temporary-audio replacement and cleanup ownership, audio metadata validation, question editing, preview state, draft persistence, and publish controls; preserves prior canonical audio when replacement fails and releases only exact uncommitted temporary identities
+split-alternatives: extract temporary-upload session lifecycle and cleanup orchestration into a bounded Listening authoring controller hook; extract question editing audio upload and review-save workflow into route-local step components
+rejection-reason: extract temporary-upload session lifecycle and cleanup orchestration into a bounded Listening authoring controller hook => the recovery PR must restore the lost end-to-end cleanup path with its existing callback and state ownership intact rather than combine recovery with a cross-boundary lifecycle refactor; extract question editing audio upload and review-save workflow into route-local step components => this remains valid future decomposition but would widen a storage-safety recovery into broad UI surgery and obscure review of the dormant-default cleanup boundary
 approver: The Lord
 approver-role: Task Scope Reviewer
 status: approved
