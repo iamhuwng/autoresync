@@ -1420,6 +1420,22 @@ describe('PRD-0056A Worker bridge grant', () => {
     ]);
   });
 
+  it('keeps scheduled cleanup dormant unless the sweep is explicitly enabled', async () => {
+    const repository = createMemoryRepository();
+    repository.isRestoreInProgress = vi.fn(async () => false);
+    const handler = createListeningUploadSessionSweepHandler({ repository });
+
+    await expect(handler.scheduled({
+      env: {},
+      cron: '0 * * * *',
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      status: 'disabled',
+      cron: '0 * * * *',
+    });
+    expect(repository.isRestoreInProgress).not.toHaveBeenCalled();
+  });
+
   it('blocks scheduled cleanup while a restore is in progress', async () => {
     const repository = createMemoryRepository();
     repository.isRestoreInProgress = async () => true;

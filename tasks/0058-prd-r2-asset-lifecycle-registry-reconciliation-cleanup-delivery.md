@@ -14,6 +14,8 @@ This child PRD defines the storage foundation that later Listening authoring, so
 
 Original Packet 1E scope was planning only. PRD-0055 Task 4 later implemented the minimum local storage foundation from this PRD without deployment, solo/homework runtime cutover, live-session cutover, Reading V2 runtime work, Google Drive cleanup, cleanup execution, private delivery, staging, commit, push, or remote-state mutation.
 
+Recovery integration note, 2026-08-23: the Listening upload-session cleanup executor, scheduled-event hook, repository checkpoint/lease support, restore suppression, and local supporting tests are recovered as dormant implementation. Canonical `cloudflare/wrangler.jsonc` keeps `LISTENING_UPLOAD_SESSION_SWEEP_ENABLED` explicitly `false`; the hourly trigger therefore performs no repository, R2, or Firebase work by default. Re-enabling remains a separate rollout gate and requires direct orchestration tests for sweep checkpoint resume/reset, concurrent sweep-lease rejection, failed-candidate retry, owner/session limits, and final sweep-record/metric persistence, plus reconciled cutoff/rollout authority, emulator-backed rules proof, restore/deletion proof, and explicit deployment/remote-mutation approval. No live cleanup, deployment, or remote mutation is claimed by the recovery integration.
+
 ## 2. Goals
 
 1. Make upload completion non-durable until explicit Save draft or Publish succeeds.
