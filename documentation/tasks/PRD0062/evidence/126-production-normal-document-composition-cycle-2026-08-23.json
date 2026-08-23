@@ -29,8 +29,43 @@
       "adjacent": "10 files, 89 tests passed, 0 failed"
     },
     "independentReviews": {
-      "standards": "PASS",
-      "specification": "PASS"
+      "implementationStandards": "PASS",
+      "implementationSpecification": "PASS",
+      "finalEvidenceReview": {
+        "reviewedCommit": "56e5e171c53b76bc38afb6e8166b3594585281b7",
+        "method": "two independent leaf subagents performed read-only reviews of the exact commit and its parent; the primary agent retained integration and final-claim ownership",
+        "scope": [
+          "candidate source/test/config diff",
+          "new evidence JSON/Markdown",
+          "append-only PRD0062 authority overlays",
+          "remote upload/activation/readback and rollback records",
+          "browser-tool blocker, durable-state, dependency-graph, secret-redaction, and main/WSL scope claims"
+        ],
+        "governingRequirements": [
+          "AGENTS.md live-state and append-only evidence rules",
+          "PRD0062 production-normal recovery plan Sections 18-20",
+          "PRD0062 architecture amendment and Book Homework bridge contract",
+          "user-authorized bounded deployment with mandatory rollback and no assignment replay"
+        ],
+        "riskModel": [
+          "false closure from local or emulator proof",
+          "stale artifact/config identity",
+          "secret disclosure",
+          "durable assignment mutation or replay",
+          "unrecorded production traffic or scope changes",
+          "historical evidence being rewritten"
+        ],
+        "validation": [
+          "source/diff inspection at exact commit",
+          "JSON parse, UTF-8, diff-check, and pre-commit enforcement",
+          "candidate and rollback Worker identity/readback cross-check",
+          "status and residual-risk reconciliation against active authorities"
+        ],
+        "standards": "PENDING_FINAL_RERUN",
+        "specification": "FINDINGS_OPEN",
+        "finding": "The evidence previously asserted review PASS without preserving reviewer method, scope, governing requirements, risk model, validation, residual risks, and disposition.",
+        "resolution": "This review record is the corrective documentation change; both independent reviewers must rerun against the resulting exact final SHA before closure or push."
+      }
     }
   },
   "localProof": {

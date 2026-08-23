@@ -19,7 +19,32 @@ safe terminal state.
   `2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c` and
   the reviewed activation config digest is
   `86b3de6edb08d55b9a121874ca6bf6931d159c977b5e9fa52a738c30fa6fe60`.
-- Independent Standards and Specification reviews both returned PASS.
+- The initial implementation Standards and Specification reviews both returned
+  PASS. A final exact-evidence review then required the durable record below;
+  it remains open until both reviewers rerun against the resulting exact SHA.
+
+### Final review record
+
+- **Method:** two independent leaf subagents performed read-only reviews of
+  the exact commit and parent; the primary agent retained integration and
+  final-claim ownership.
+- **Scope:** source/test/config diff; this JSON/Markdown evidence; append-only
+  authority overlays; remote upload/activation/readback and rollback records;
+  browser blocker; durable-state, dependency-graph, secret-redaction, and
+  main/WSL scope claims.
+- **Governing requirements:** `AGENTS.md`; recovery plan Sections 18–20;
+  the architecture amendment; the Book Homework bridge contract; and the
+  bounded deployment/no-replay authority.
+- **Risk model:** false closure from local/emulator proof, stale artifact or
+  config identity, secret disclosure, durable assignment mutation/replay,
+  unrecorded traffic/scope changes, and rewriting historical evidence.
+- **Validation:** exact source/diff inspection; JSON parse; UTF-8,
+  diff-check, and pre-commit enforcement; candidate/rollback identity and
+  readback cross-check; status and residual-risk reconciliation.
+- **Current disposition:** the Specification reviewer found that the earlier
+  evidence omitted this durable review record. The corrective record is now
+  added; both reviewers must rerun on the resulting exact final SHA before
+  closure or push. No completion claim is made while this review is open.
 
 ## Deployment and rollback
 
