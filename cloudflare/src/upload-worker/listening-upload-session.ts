@@ -663,7 +663,6 @@ export const createListeningUploadSessionService = (dependencies: {
           }
           await dependencies.repository.recordDeletedTempAsset({
             lease: cleanupLease,
-            tempKey: finalExpectedKey,
             deletedAt: now(),
             state: 'deletion-pending',
           });
@@ -673,7 +672,6 @@ export const createListeningUploadSessionService = (dependencies: {
           await deleteUploadedAsset(input.env, finalAsset);
           await dependencies.repository.recordDeletedTempAsset({
             lease: cleanupLease,
-            tempKey: finalExpectedKey,
             deletedAt: now(),
             state: 'deleted',
           });

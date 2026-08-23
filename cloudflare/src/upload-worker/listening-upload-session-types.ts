@@ -69,7 +69,6 @@ export interface ListeningDeletedTempAssetTombstone {
   assetId: string;
   ownerId: string;
   uploadSessionId: string;
-  tempKey: string;
   cleanupLeaseId: string;
   state: 'deletion-pending' | 'deleted';
   deletedAt: number;
@@ -189,7 +188,6 @@ export interface ListeningUploadSessionRepository {
   assertCleanupLeaseOwned?(lease: ListeningUploadCleanupLease, now: number): Promise<boolean>;
   recordDeletedTempAsset?(input: {
     lease: ListeningUploadCleanupLease;
-    tempKey: string;
     deletedAt: number;
     state: ListeningDeletedTempAssetTombstone['state'];
   }): Promise<void>;

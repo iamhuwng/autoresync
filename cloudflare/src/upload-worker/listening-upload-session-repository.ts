@@ -331,7 +331,6 @@ export class FirebaseRestListeningUploadSessionRepository implements ListeningUp
   }
   async recordDeletedTempAsset(input: {
     lease: ListeningUploadCleanupLease;
-    tempKey: string;
     deletedAt: number;
     state: ListeningDeletedTempAssetTombstone['state'];
   }): Promise<void> {
@@ -340,7 +339,6 @@ export class FirebaseRestListeningUploadSessionRepository implements ListeningUp
       assetId: input.lease.assetId,
       ownerId: input.lease.ownerId,
       uploadSessionId: input.lease.uploadSessionId,
-      tempKey: input.tempKey,
       cleanupLeaseId: input.lease.leaseId,
       state: input.state,
       deletedAt: input.deletedAt,

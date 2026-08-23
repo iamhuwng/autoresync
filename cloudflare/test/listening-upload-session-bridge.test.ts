@@ -219,8 +219,8 @@ const createMemoryRepository = (): ListeningUploadSessionRepository & {
       } as const;
     },
     async assertCleanupLeaseOwned() { return true; },
-    async recordDeletedTempAsset({ lease, tempKey, deletedAt }) {
-      writes.push(`listening_authoring/deleted_temp_assets/${lease.assetId}:${tempKey}:${deletedAt}`);
+    async recordDeletedTempAsset({ lease, deletedAt }) {
+      writes.push(`listening_authoring/deleted_temp_assets/${lease.assetId}:${deletedAt}`);
     },
     async releaseCleanupLease() {},
     async markCleanupState(input) {
@@ -838,6 +838,58 @@ describe('PRD-0056A Worker bridge grant', () => {
     } finally {
       vi.stubGlobal('fetch', originalFetch);
     }
+  });
+
+  it('records deletion tombstones without persisting the raw R2 key', async () => {
+    const deletedAt = 1_700_000_000_000;
+    const lease = {
+      schemaVersion: 1 as const,
+      leaseId: 'cleanup-lease-1',
+      kind: 'listening-temp-cleanup' as const,
+      ownerId: 'teacher-1',
+      uploadSessionId: 'session-1',
+      assetId: 'asset-1',
+      claimedAt: deletedAt - 1_000,
+      expiresAt: deletedAt + 60_000,
+    };
+    const authoringRoot = { temp_cleanup_lease: lease, deleted_temp_assets: {} };
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify(authoringRoot), {
+        status: 200,
+        headers: { etag: '"authoring-etag-1"' },
+      }))
+      .mockImplementationOnce(async (_input, init) => new Response(String(init?.body), { status: 200 }));
+    const repository = new FirebaseRestListeningUploadSessionRepository({
+      env: {
+        FIREBASE_DB_URL: 'https://db.example.test',
+        GOOGLE_SA_KEY: 'unused-in-test',
+      },
+      fetchImpl,
+      getAccessToken: async () => 'worker-token',
+    });
+
+    await repository.recordDeletedTempAsset({
+      lease,
+      deletedAt,
+      state: 'deleted',
+    });
+
+    const write = fetchImpl.mock.calls[1]?.[1];
+    const writtenRoot = JSON.parse(String(write?.body)) as {
+      deleted_temp_assets: Record<string, Record<string, unknown>>;
+    };
+    expect(write).toMatchObject({ method: 'PUT' });
+    expect(writtenRoot.deleted_temp_assets[lease.assetId]).toEqual({
+      schemaVersion: 1,
+      assetId: lease.assetId,
+      ownerId: lease.ownerId,
+      uploadSessionId: lease.uploadSessionId,
+      cleanupLeaseId: lease.leaseId,
+      state: 'deleted',
+      deletedAt,
+    });
+    expect(JSON.stringify(writtenRoot)).not.toContain('temp/listening/');
+    expect(writtenRoot.deleted_temp_assets[lease.assetId]).not.toHaveProperty('tempKey');
   });
 
   it('accepts only an exact, unexpired, single-use bridge tuple and preserves S0 route handling', async () => {
