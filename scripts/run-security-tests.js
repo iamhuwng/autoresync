@@ -182,6 +182,7 @@ export function buildPrd0062SecurityPhases() {
         command: process.execPath,
         args: [
             dispatcher,
+            '--audit',
             'firebase',
             '.',
             'emulators:exec',

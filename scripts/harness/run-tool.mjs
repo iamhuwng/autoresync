@@ -9,15 +9,18 @@ const harnessDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(harnessDirectory, '..', '..');
 assertRepositorySkillAuthority(repositoryRoot);
 
-if (process.argv[2] === '--contract') {
+const auditMode = process.argv[2] === '--audit';
+const argumentOffset = auditMode ? 3 : 2;
+
+if (process.argv[argumentOffset] === '--contract') {
   process.stdout.write(`${JSON.stringify(HARNESS_CONTRACT, null, 2)}\n`);
   process.exit(0);
 }
 
-const doctorMode = process.argv[2] === '--doctor';
+const doctorMode = process.argv[argumentOffset] === '--doctor';
 const [tool, projectArgument, ...toolArguments] = doctorMode
-  ? ['doctor', process.argv[3], ...process.argv.slice(4)]
-  : process.argv.slice(2);
+  ? ['doctor', process.argv[argumentOffset + 1], ...process.argv.slice(argumentOffset + 2)]
+  : process.argv.slice(argumentOffset);
 if (!tool || !projectArgument) {
   process.stderr.write(`harness dispatcher: expected ${HARNESS_CONTRACT.grammar}\n`);
   process.exit(2);
@@ -37,9 +40,10 @@ if (outsideRepository || !fs.existsSync(path.join(projectRoot, 'package.json')) 
 
 const environment = {
   ...process.env,
+  CODEX_HARNESS_AUDIT: auditMode ? '1' : (process.env.CODEX_HARNESS_AUDIT || '0'),
   CODEX_HARNESS_INVOCATION_B64: Buffer.from(JSON.stringify({
     harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion },
-    mode: doctorMode ? 'doctor' : 'run', tool, relativeProjectPath, toolArguments,
+    mode: doctorMode ? 'doctor' : 'run', audit: auditMode, tool, relativeProjectPath, toolArguments,
   }), 'utf8').toString('base64'),
 };
 const isolatedRunner = path.join(harnessDirectory, 'run-isolated.mjs');

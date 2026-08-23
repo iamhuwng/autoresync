@@ -184,6 +184,27 @@ export function protectedProjectState(project) {
   };
 }
 
+export function dependencyCacheState(dependencyRoot) {
+  const nodeModules = path.join(dependencyRoot, 'node_modules');
+  const records = [];
+  const pending = [nodeModules];
+  while (pending.length) {
+    const current = pending.pop();
+    let entries;
+    try { entries = fs.readdirSync(current, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name)); } catch { continue; }
+    for (const entry of entries) {
+      const file = path.join(current, entry.name);
+      let metadata;
+      try { metadata = fs.lstatSync(file); } catch { continue; }
+      const relative = path.relative(nodeModules, file);
+      const kind = metadata.isSymbolicLink() ? 'link' : metadata.isDirectory() ? 'directory' : metadata.isFile() ? 'file' : 'other';
+      records.push(`${relative}\0${kind}\0${metadata.size}\0${metadata.mtimeMs}\0${kind === 'link' ? fs.readlinkSync(file) : ''}`);
+      if (kind === 'directory') pending.push(file);
+    }
+  }
+  return { sha256: hash(records.join('\n')), entries: records.length };
+}
+
 function proofFor(phase) {
   const collection = phase === 'collection';
   return {
@@ -480,10 +501,37 @@ function mirrorRepository(destination) {
   fs.cpSync(repositoryRoot, destination, { recursive: true, filter: (source) => !['.git', 'node_modules'].includes(path.basename(source)) });
 }
 
-function linkDependencies(executionProjectRoot, dependencyRoot) {
+function linkDependencyEntry(source, destination) {
+  const metadata = fs.statSync(source);
+  if (metadata.isDirectory()) {
+    fs.symlinkSync(source, destination, process.platform === 'win32' ? 'junction' : 'dir');
+    return;
+  }
+  fs.copyFileSync(source, destination);
+}
+
+export function linkDependencies(executionProjectRoot, dependencyRoot) {
   const destination = path.join(executionProjectRoot, 'node_modules');
   if (fs.existsSync(destination)) throw failure('EXECUTION_WORKSPACE_COLLISION', `execution node_modules already exists: ${destination}`);
-  fs.symlinkSync(path.join(dependencyRoot, 'node_modules'), destination, process.platform === 'win32' ? 'junction' : 'dir');
+  const source = path.join(dependencyRoot, 'node_modules');
+  if (!fs.existsSync(source)) throw failure('TOOL_ENTRYPOINT_MISSING', `dependency cache node_modules is missing: ${source}`);
+  fs.mkdirSync(destination, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    if (entry.name === '.vite' || entry.name === '.vite-temp') continue;
+    const sourceEntry = path.join(source, entry.name);
+    const destinationEntry = path.join(destination, entry.name);
+    if (entry.isDirectory() && entry.name.startsWith('@')) {
+      fs.mkdirSync(destinationEntry, { recursive: true });
+      for (const scopedEntry of fs.readdirSync(sourceEntry, { withFileTypes: true })) {
+        linkDependencyEntry(path.join(sourceEntry, scopedEntry.name), path.join(destinationEntry, scopedEntry.name));
+      }
+    } else {
+      linkDependencyEntry(sourceEntry, destinationEntry);
+    }
+  }
+  // Vite/Vitest write transient config state here. Keep it per-run instead of
+  // pointing the consumer at the immutable shared dependency cache.
+  fs.mkdirSync(path.join(destination, '.vite-temp'), { recursive: true });
 }
 
 function publishOutputs(tool, command, executionProjectRoot, projectRoot) {
@@ -497,6 +545,7 @@ function publishOutputs(tool, command, executionProjectRoot, projectRoot) {
 }
 
 function evidencePath(cacheBase, runId) {
+  if (process.env.CODEX_HARNESS_AUDIT !== '1' && !process.env.CODEX_HARNESS_EVIDENCE_FILE) return null;
   const explicit = process.env.CODEX_HARNESS_EVIDENCE_FILE;
   const file = explicit ? path.resolve(explicit) : path.join(cacheBase, 'evidence', `${runId}.json`);
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
@@ -514,8 +563,16 @@ function writeAtomically(file, content) {
 }
 
 function writeEvidence(file, evidence, announce = false) {
+  if (!file) return;
   writeAtomically(file, `${JSON.stringify(evidence, null, 2)}\n`);
   if (announce) process.stderr.write(`HARNESS_EVIDENCE ${file}\n`);
+}
+
+export function writeRunReceipt(cacheBase, runId, { status, dependencyRoot = null, evidenceFile = null, message = null }) {
+  const file = path.join(cacheBase, 'runs', runId, 'run-receipt.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  writeAtomically(file, `${JSON.stringify({ runId, status, dependencyRoot, evidenceFile, message, updatedAt: evidenceTimestamp() }, null, 2)}\n`);
+  return file;
 }
 
 function newPhaseTimings() {
@@ -740,11 +797,23 @@ function runWslDependencyDoctor(project, version, manifestSha256, lockSha256) {
   return JSON.parse(Buffer.from(runtimeLine, 'base64').toString('utf8'));
 }
 
+export function wslPrerequisiteCode(result) {
+  const combined = `${result?.error?.message || ''}\n${result?.stdout || ''}\n${result?.stderr || ''}`;
+  return result?.error?.code === 'EPERM'
+    || result?.error?.code === 'EACCES'
+    || /access denied|permission denied|not permitted|operation not permitted/iu.test(combined)
+    ? 'WSL_PREREQUISITE_BLOCKED'
+    : 'WSL_PREREQUISITE_MISSING';
+}
+
 function discoverWslRuntime(toolName, project = null, verifyWranglerContext = false) {
   const status = commandResult('wsl.exe', ['--status']);
   if (status.status !== 0) {
-    const error = failure('WSL_PREREQUISITE_MISSING', `WSL is required for ${toolName}`);
-    error.discovery = { kind: 'wsl', status: status.status, node: null };
+    const code = wslPrerequisiteCode(status);
+    const error = failure(code, code === 'WSL_PREREQUISITE_BLOCKED'
+      ? `WSL status probe was blocked for ${toolName}`
+      : `WSL is required for ${toolName}`);
+    error.discovery = { kind: 'wsl', status: status.status, node: null, probe: { stdout: status.stdout?.trim() || null, stderr: status.stderr?.trim() || null, error: status.error?.message || null } };
     throw error;
   }
   const helper = 'scripts/harness/run-wsl-wrangler.mjs';
@@ -784,12 +853,18 @@ async function main() {
   const evidenceFile = evidencePath(cacheBase, runId);
   let project = null;
   let source = null;
+  let executionRoot = null;
+  let dependencyCacheStateBefore = null;
   const evidence = {
-    harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion },
+    harness: { name: HARNESS_CONTRACT.name, version: HARNESS_CONTRACT.version, protocolVersion: HARNESS_CONTRACT.protocolVersion, audit: invocation.audit === true },
     invocation: {
-      command: invocation.mode === 'doctor'
-        ? ['node', 'scripts/harness/run-tool.mjs', '--doctor', invocation.relativeProjectPath, ...invocation.toolArguments]
-        : ['node', 'scripts/harness/run-tool.mjs', invocation.tool, invocation.relativeProjectPath, ...invocation.toolArguments],
+      command: [
+        'node',
+        'scripts/harness/run-tool.mjs',
+        ...(invocation.audit === true ? ['--audit'] : []),
+        ...(invocation.mode === 'doctor' ? ['--doctor', invocation.relativeProjectPath] : [invocation.tool, invocation.relativeProjectPath]),
+        ...invocation.toolArguments,
+      ],
       cwd: process.cwd(), project: invocation.relativeProjectPath, tool: invocation.tool, arguments: invocation.toolArguments,
     },
     source,
@@ -848,13 +923,16 @@ async function main() {
     if (declaredTool.runtime === 'windows-x64') beginEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
     const dependency = declaredTool.runtime === 'windows-x64' ? await ensureDependencies(project, cacheBase, source) : null;
     if (declaredTool.runtime === 'windows-x64') endEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
+    if (dependency) dependencyCacheStateBefore = dependencyCacheState(dependency.root);
     beginEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
     let prepared = null;
     if (dependency) prepared = preflightTool(project, dependency, invocation.tool, invocation.toolArguments[0], cacheBase);
     if (prepared) evidence.capabilities.push(...prepared.resources);
     if (declaredTool.runtime === 'wsl') evidence.capabilities.push(discoverWslRuntime(invocation.tool));
     endEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
-    const executionRoot = path.join(cacheBase, 'runs', runId);
+    executionRoot = path.join(cacheBase, 'runs', runId);
+    fs.mkdirSync(executionRoot, { recursive: true, mode: 0o700 });
+      writeRunReceipt(cacheBase, runId, { status: 'in_progress', dependencyRoot: dependency?.root ?? null, evidenceFile });
     let executionRepositoryRoot = repositoryRoot;
     let executionProjectRoot = project.projectRoot;
     if (declaredTool.sourceMode === 'snapshot') {
@@ -884,18 +962,29 @@ async function main() {
       const timeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : HARNESS_CONTRACT.defaultSnapshotTimeoutMs;
       result = await forwardedResult(process.execPath, [prepared.entry, ...invocation.toolArguments], { cwd: executionProjectRoot, env: toolEnvironment, timeout });
     }
-    const exitCode = result.timedOut ? 124 : (result.status ?? 1);
+    let exitCode = result.timedOut ? 124 : (result.status ?? 1);
     if (result.harnessRuntime) {
       evidence.toolRuntime = result.harnessRuntime;
       if (result.harnessRuntime.dependencyCache) evidence.dependencyCache = result.harnessRuntime.dependencyCache;
     }
+    let dependencyCacheMutated = false;
+    if (dependencyCacheStateBefore && dependency) {
+      const dependencyCacheStateAfter = dependencyCacheState(dependency.root);
+      if (dependencyCacheStateBefore.sha256 !== dependencyCacheStateAfter.sha256) {
+        dependencyCacheMutated = true;
+        evidence.dependencyCacheMutation = { root: dependency.root, before: dependencyCacheStateBefore, after: dependencyCacheStateAfter };
+        evidence.message = `shared dependency cache changed during ${invocation.tool} execution: ${dependency.root}`;
+        attachRemediation(evidence, 'DEPENDENCY_CACHE_MUTATED', invocation.tool);
+        exitCode = 2;
+      }
+    }
     endEvidencePhase(evidence, 'toolExecution', evidenceFile);
-    if (exitCode === 0 && declaredTool.sourceMode === 'snapshot') publishOutputs(declaredTool, invocation.toolArguments[0], executionProjectRoot, project.projectRoot);
+    if (exitCode === 0 && !dependencyCacheMutated && declaredTool.sourceMode === 'snapshot') publishOutputs(declaredTool, invocation.toolArguments[0], executionProjectRoot, project.projectRoot);
     evidence.exitCode = exitCode;
     evidence.proof.counts = proofCountsFromResult({
       tool: invocation.tool, phase: evidence.proof.phase, stdout: result.stdout, stderr: result.stderr, exitCode,
     });
-    evidence.classification = classifyResult({
+    evidence.classification = dependencyCacheMutated ? 'harness_transport_failure' : classifyResult({
       error: result.error,
       exitCode,
       stdout: result.stdout,
@@ -905,14 +994,17 @@ async function main() {
     const wslFailureCode = declaredTool.runtime === 'wsl' ? wslFailureCodeFromStderr(result.stderr) : null;
     if (result.timedOut) {
       attachRemediation(evidence, 'TOOL_TIMEOUT');
-      const artifactPublication = publishTimeoutOutputArtifact(cacheBase, runId, result);
-      evidence.timeoutOutputArtifact = artifactPublication.artifact;
-      if (artifactPublication.failure) evidence.timeoutOutputArtifactFailure = artifactPublication.failure;
+      if (evidenceFile) {
+        const artifactPublication = publishTimeoutOutputArtifact(cacheBase, runId, result);
+        evidence.timeoutOutputArtifact = artifactPublication.artifact;
+        if (artifactPublication.failure) evidence.timeoutOutputArtifactFailure = artifactPublication.failure;
+      }
     }
     else if (wslFailureCode) attachRemediation(evidence, wslFailureCode);
     else if (evidence.classification === 'zero_tests_collected') attachRemediation(evidence, 'ZERO_TESTS_COLLECTED');
     else if (evidence.classification === 'harness_startup_failure') attachRemediation(evidence, 'TOOL_STARTUP_FAILED');
     finalizeEvidence(evidenceFile, evidence, project);
+    writeRunReceipt(cacheBase, runId, { status: 'final', dependencyRoot: evidence.dependencyCache?.root ?? null, evidenceFile, message: evidence.message ?? null });
     writeRemediation(evidence.remediation);
     return evidence.failureCode === 'PROTECTED_STATE_CHANGED' ? 2 : exitCode;
   } catch (error) {
@@ -923,6 +1015,7 @@ async function main() {
     if (evidence.executionWorkspace) evidence.classification = 'harness_transport_failure';
     closeOpenEvidencePhases(evidence);
     finalizeEvidence(evidenceFile, evidence, project);
+    if (executionRoot) writeRunReceipt(cacheBase, runId, { status: 'final', dependencyRoot: evidence.dependencyCache?.root ?? null, evidenceFile, message: error.message });
     process.stderr.write(`harness preflight: ${evidence.failureCode}: ${error.message}\n`);
     writeRemediation(evidence.remediation);
     return 2;

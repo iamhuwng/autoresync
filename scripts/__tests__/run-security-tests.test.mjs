@@ -38,8 +38,9 @@ test('PRD0062 security phases use the repository harness and current production-
   assert.equal(phases.length, 2);
   for (const phase of phases) {
     assert.match(phase.args[0].replaceAll('\\', '/'), /scripts\/harness\/run-tool\.mjs$/u);
-    assert.equal(phase.args[1], 'firebase');
-    assert.equal(phase.args[2], '.');
+    assert.equal(phase.args[1], '--audit');
+    assert.equal(phase.args[2], 'firebase');
+    assert.equal(phase.args[3], '.');
     assert.ok(phase.testPaths.length > 0);
     assert.equal(phase.environment.VITE_FIREBASE_DATABASE_URL, 'https://demo.firebaseio.com');
     assert.equal(phase.environment.CODEX_HARNESS_TIMEOUT_MS, '600000');

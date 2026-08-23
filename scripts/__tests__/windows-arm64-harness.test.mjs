@@ -32,11 +32,12 @@ import {
   protectedProjectState,
   wslFailureCodeFromStderr,
 } from '../harness/run-isolated.mjs';
-import { acquireWslWranglerInstallLock, cachedWranglerEnvironment, ensureWranglerCache, readWranglerDependencyContext, runCachedWrangler, wranglerDependencyAliases, wslCacheRoot, wslWranglerLockOwner } from '../harness/run-wsl-wrangler.mjs';
+import { acquireWslWranglerInstallLock, cachedWranglerEnvironment, ensureWranglerCache, readWranglerDependencyContext, runCachedWrangler, withWranglerCacheLease, wranglerDependencyAliases, wslCacheRoot, wslWranglerLockOwner } from '../harness/run-wsl-wrangler.mjs';
 import { assertActiveGenericSkill, assertRepositorySkillAuthority, repositoryAuthorityReport, skillSourcesFromPromptInput } from '../harness/skill-authority.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const fixtureRoot = path.join(repositoryRoot, 'scripts', 'harness', '__fixtures__');
+process.env.CODEX_HARNESS_AUDIT = '1';
 
 const run = (command, args, cwd, environment = {}) => new Promise((resolve, reject) => {
   const child = spawn(command, args, { cwd, env: { ...process.env, ...environment }, shell: false });
@@ -113,11 +114,11 @@ test('contract is executable, generic, and self-describing', () => {
   assert.deepEqual(HARNESS_CONTRACT.tools.firebase.capabilities[0].commands, ['emulators:exec', 'emulators:start']);
   assert.deepEqual(HARNESS_CONTRACT.tools.playwright.capabilities[0].commands, ['test', 'show-report']);
   assert.deepEqual(HARNESS_CONTRACT.resolutionOrder, ['discover', 'reuse', 'adapt', 'install', 'verify']);
-  assert.equal(HARNESS_CONTRACT.version, '3.7.0');
+  assert.equal(HARNESS_CONTRACT.version, '3.8.0');
   assert.equal(HARNESS_CONTRACT.protocolVersion, 5);
   assert.equal(HARNESS_CONTRACT.dependencyCacheProtocolVersion, 3);
   assert.equal(HARNESS_CONTRACT.authority.genericSkill.name, 'run-windows-arm64-tools');
-  assert.equal(HARNESS_CONTRACT.authority.genericSkill.revision, '2.0.0');
+  assert.equal(HARNESS_CONTRACT.authority.genericSkill.revision, '3.0.0');
   assert.equal(HARNESS_CONTRACT.authority.repositoryGuidance.name, 'luyentap-windows-arm64-harness-contract');
   assert.equal(HARNESS_CONTRACT.authority.wsl.sourcePolicy, 'selected-windows-checkout');
   const repositoryGuidance = fs.readFileSync(path.join(repositoryRoot, HARNESS_CONTRACT.authority.repositoryGuidance.path), 'utf8');
@@ -170,8 +171,8 @@ test('active generic skill selection fails closed on stale revision', () => {
     fs.writeFileSync(source, `---\nname: run-windows-arm64-tools\ndescription: generic test skill\nmetadata:\n  revision: "${revision}"\n---\n`);
   };
   try {
-    writeRevision('2.0.0');
-    assert.equal(assertActiveGenericSkill([source], repositoryRoot).revision, '2.0.0');
+    writeRevision('3.0.0');
+    assert.equal(assertActiveGenericSkill([source], repositoryRoot).revision, '3.0.0');
     writeRevision('1.0.0');
     assert.throws(() => assertActiveGenericSkill([source], repositoryRoot), { code: 'HARNESS_CONTRACT_MISMATCH' });
     assert.throws(() => assertActiveGenericSkill([source, source], repositoryRoot), { code: 'HARNESS_CONTRACT_MISMATCH' });
@@ -633,6 +634,22 @@ test('WSL cache-root adaptation is absolute Linux-only and capability discovery 
   );
 });
 
+test('WSL Wrangler execution leases protect a cache only for the live command', () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-wsl-lease-'));
+  try {
+    let leaseDuringExecution = null;
+    const result = withWranglerCacheLease(temporary, () => {
+      leaseDuringExecution = fs.readdirSync(temporary).filter((name) => name.startsWith('.harness-wrangler-active-'));
+      return 'completed';
+    });
+    assert.equal(result, 'completed');
+    assert.equal(leaseDuringExecution.length, 1);
+    assert.deepEqual(fs.readdirSync(temporary), []);
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
 test('WSL nested-package cache installs the selected lock and exposes it to a live Wrangler project', async () => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-wsl-nested-context-'));
   const worktreeRoot = path.join(temporary, 'worktree');
@@ -1048,7 +1065,7 @@ test('supported root and Cloudflare package scripts route through the harness', 
       }
     }
   }
-  assert.equal(JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')).scripts['deploy:hosting'], 'npm run build && node scripts/harness/run-tool.mjs firebase . deploy --only hosting:kahut1');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')).scripts['deploy:hosting'], 'npm run build && node scripts/harness/run-tool.mjs --audit firebase . deploy --only hosting:kahut1');
 });
 
 const x64Node = path.join(os.homedir(), 'Tools', 'node-x64', 'node.exe');

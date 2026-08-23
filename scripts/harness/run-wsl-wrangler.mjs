@@ -12,6 +12,7 @@ const failure = (code, message) => Object.assign(new Error(message), { code });
 const lockMarkerName = '.harness-wrangler-lock.json';
 const lockGuardName = '.guard';
 const lockProtocolVersion = 1;
+const activeLeasePrefix = '.harness-wrangler-active-';
 const contentHash = (value) => crypto.createHash('sha256').update(Buffer.isBuffer(value) ? value.toString('utf8').replace(/\r\n/gu, '\n') : value).digest('hex');
 
 function packageDependencies(manifest) {
@@ -385,6 +386,16 @@ export function runCachedWrangler(cacheRoot, argumentsList, options = {}) {
   });
 }
 
+export function withWranglerCacheLease(cacheRoot, callback, { pid = process.pid } = {}) {
+  const lease = path.join(cacheRoot, `${activeLeasePrefix}${pid}-${crypto.randomUUID()}.json`);
+  fs.writeFileSync(lease, `${JSON.stringify({ pid, process: 'run-wsl-wrangler', startedAt: new Date().toISOString() })}\n`, { flag: 'wx' });
+  try {
+    return callback();
+  } finally {
+    try { fs.rmSync(lease, { force: true }); } catch { /* preserve the command result when cleanup itself is interrupted */ }
+  }
+}
+
 async function main() {
   if (process.argv[2] === '--probe') {
     process.stdout.write(`${JSON.stringify(runtimeProbe())}\n`);
@@ -402,7 +413,7 @@ async function main() {
   process.stderr.write(`HARNESS_WSL_RUNTIME ${Buffer.from(JSON.stringify(metadata), 'utf8').toString('base64')}\n`);
   process.stderr.write(`harness WSL: Wrangler ${payload.version}, Node ${process.version} ${process.arch}, cache ${dependencyCache.root}\n`);
   if (payload.mode === 'doctor') return 0;
-  const result = runCachedWrangler(dependencyCache.root, payload.arguments, { dependencyNames: dependencyCache.dependencyNames });
+  const result = withWranglerCacheLease(dependencyCache.root, () => runCachedWrangler(dependencyCache.root, payload.arguments, { dependencyNames: dependencyCache.dependencyNames }));
   return result.status ?? 1;
 }
 
