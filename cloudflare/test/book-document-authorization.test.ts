@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InMemoryBookDeliveryRepository } from '../../src/services/book-delivery/bookDelivery.entitlementRepository';
-import { makeBookDeliveryTestBinding } from './book-delivery-worker.test';
+import { makeBookDeliveryTestBinding } from './book-delivery.fixture';
 import {
   authorizeBookDocumentRequest,
   createBookDocumentAuthorizationHost,

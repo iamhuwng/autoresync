@@ -311,6 +311,7 @@ const defaultRuntimeFactory = (
   const homeworkStore = new FirebaseRestBookHomeworkDocumentStore({
     env: {
       FIREBASE_PROJECT_ID: required(env.FIREBASE_PROJECT_ID, 'missing_firebase_project_id'),
+      FIREBASE_WEB_API_KEY: required(env.FIREBASE_WEB_API_KEY, 'missing_firebase_web_api_key'),
       BOOK_HOMEWORK_SERVICE_IDENTITY: account.email,
       BOOK_HOMEWORK_GOOGLE_SA_KEY: account.raw,
     },

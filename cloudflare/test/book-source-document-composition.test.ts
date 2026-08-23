@@ -112,6 +112,35 @@ const handlerInput = (
   descriptor: {} as never,
 });
 
+const documentRuntimeEnvironment = (): Record<string, unknown> => {
+  const serviceIdentity = 'book-delivery-runtime@temp-a143.iam.gserviceaccount.com';
+  const serviceAccount = JSON.stringify({
+    client_email: serviceIdentity,
+    private_key: 'test-only',
+  });
+  return {
+    FIREBASE_PROJECT_ID: 'temp-a143',
+    FIREBASE_DB_URL: 'https://temp-a143.firebaseio.com',
+    FIREBASE_WEB_API_KEY: 'test-web-api-key',
+    BOOK_DELIVERY_SERVICE_IDENTITY: serviceIdentity,
+    BOOK_DELIVERY_GOOGLE_SA_KEY: serviceAccount,
+    BOOK_ASSEMBLY_GOOGLE_SA_KEY: serviceAccount,
+    BOOK_SOURCE_UPLOAD_ACCOUNT_ID: 'upload-account',
+    BOOK_SOURCE_B2_ENDPOINT: 'https://s3.us-west-004.backblazeb2.com/',
+    BOOK_SOURCE_B2_REGION: 'us-west-004',
+    BOOK_SOURCE_B2_STORAGE_LOCATION_ID: 'location-1',
+    BOOK_SOURCE_B2_PRIVATE_BUCKET_ID: 'bucket-id',
+    BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME: 'bookpdf',
+    BOOK_SOURCE_B2_OBJECT_KEY_PREFIX: 'book-source/',
+    BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID: 'upload-key-id',
+    BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY: 'upload-key',
+    BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID: 'metadata-key-id',
+    BOOK_SOURCE_B2_METADATA_APPLICATION_KEY: 'metadata-key',
+    BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID: 'read-key-id',
+    BOOK_SOURCE_B2_READ_APPLICATION_KEY: 'read-key',
+  };
+};
+
 describe('Ticket #49 canonical source document composition', () => {
   it('fails closed with a stable configuration error when the disabled preview is not provisioned', async () => {
     const response = await createBookRouteHandlers().serveAuthorizedDocument!(
@@ -119,6 +148,16 @@ describe('Ticket #49 canonical source document composition', () => {
     ) as Response;
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ code: 'document_configuration_unavailable' });
+  });
+
+  it('passes the Firebase Web API key through the default document homework store', async () => {
+    const response = await createBookRouteHandlers().serveAuthorizedDocument!({
+      ...handlerInput(`${canonicalBindingId}-1-full-source-v1`, ''),
+      env: documentRuntimeEnvironment(),
+    }) as Response;
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ code: 'forbidden' });
   });
 
   it('resolves a canonical projection route by indexed binding and invokes #51/#52', async () => {
