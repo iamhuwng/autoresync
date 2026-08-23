@@ -380,3 +380,25 @@ docs-only descendant at `2c77efff` reran the identical test/config blobs and
 passed 1/1 files and 4/4 tests with zero failed/skipped. The explicit 503
 completion-read case retained the committed recipient row. This strengthens
 the local proof and does not change the remote disposition.
+
+### 2026-08-23 #126 deployed-proof rollback overlay
+
+The exact reviewed Hosting artifact, current Firebase/Firestore rules, and
+bounded Worker activation were read back before browser verification. The real
+teacher and student/Runtime shell paths reached the expected surfaces, but the
+required document/PDF read path returned HTTP 503
+`document_configuration_unavailable`. Static inspection identified the default
+document repository factory's missing Firebase Web API key forwarding. The
+candidate was rolled back to the deny-only Worker at 100% and the rollback was
+read back; the direct safe probe returned 404.
+
+This is the truthful #126 terminal state: `BLOCKED_ROLLED_BACK`. Durable
+assignment/recipient state remained committed and unchanged, deliveries stayed
+absent, and no assignment replay, projector mutation, product-source change,
+Listening work, or later PRD ticket was started. The complete redacted record
+is `evidence/126-production-proof-gate-2026-08-23.json` and `.md`.
+
+The earlier #126 table row and local-reproduction paragraph that name
+`LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` are historical pre-deployment
+context. This dated rollback overlay is the current reconciliation truth:
+`BLOCKED_ROLLED_BACK`.

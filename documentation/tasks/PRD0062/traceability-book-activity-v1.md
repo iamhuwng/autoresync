@@ -267,3 +267,30 @@ Use this table whenever a packet finds active docs that still present old or con
 | 2026-08-09 | Post-#104 integration | `scripts/__tests__/prd0062b-dormant-plan.test.mjs` | Active Book product paths must remain absent. | The dormant archive remains historical, while approved PRD0062 implementation now exists on the active lineage. | Scope the dormant absence assertion to its retired reset baseline; do not delete active source or promote archived taskboxes. | OPEN_CHECKER_SCOPE_DRIFT |
 | 2026-08-09 | Post-#104 integration | `scripts/__tests__/prd0062-acceptance-matrix.test.mjs` | The Full V1 acceptance fixture modules and validator CLI are available. | Required E2E fixture modules and the referenced CLI are absent, so the matrix test cannot collect. | #127 restores one source-conformant acceptance artifact and executable harness before #128–#133 final proof. | ACCEPTANCE_HARNESS_BLOCKED |
 | 2026-08-09 | Post-#104 integration | `scripts/validate-prd0062-102-readiness.mjs` | Any downstream path outside the frozen #102 successor allowlist makes the current baseline stale. | Accepted #103/#104/#106/#107 integration legitimately adds paths beyond the frozen #102 packet. | Retain the validator as historical #102 evidence or version a post-integration checker; do not treat downstream paths as a #102 regression. | OPEN_CHECKER_SCOPE_DRIFT |
+
+## 2026-08-23 #126 deployed-proof overlay
+
+The exact-artifact production proof was attempted under the active PRD0062
+recovery authority and was rolled back safely. Local AC-AMEND-04 rule-enforced
+proof remains green, but the deployed student reference-only/PDF document gate
+returned HTTP 503 `document_configuration_unavailable`. The deployed
+artifact/configuration boundary is therefore not accepted as production proof.
+
+- AC-AMEND-04: local rule-enforced composition passed; deployed document
+  composition did not pass.
+- AC-AMEND-05: production divergence was diagnosed at the default document
+  repository composition, which omits the Firebase Web API key from the
+  constructed homework-store environment. No product-source change was made.
+- AC-AMEND-07: the representative path was not left active; the deny-only
+  rollback was deployed and read back at 100%.
+- Release taskboxes 5.0, 5.8, 5.19, and 7.9 remain open. #128 and later
+  acceptance work remain held.
+
+Evidence: `evidence/126-production-proof-gate-2026-08-23.json` and its
+redacted Markdown companion. The durable assignment/recipient state was read
+back unchanged; no replay or projector mutation occurred.
+
+The earlier #126 row under the traceability table's “Active status” column is
+historical pre-deployment local-proof context. This dated overlay supersedes it
+as current truth: #126 is `BLOCKED_ROLLED_BACK`, and the deployed
+reference-only/PDF gate plus dependent acceptance remain open.

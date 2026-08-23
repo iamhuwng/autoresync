@@ -192,3 +192,17 @@ and Firestore rules engines. This closes only the local rule-enforced taskbox;
   - [ ] 10.9 Confirm `studentId + activityId` remains viewer grouping only and every attempt retains unique/contextual identity.
   - [ ] 10.10 Confirm Book Homework compatibility remains a bounded additive anti-corruption layer rather than a generic two-way sync/integration platform, and that ordinary Homework semantics remain unchanged.
   - [ ] 10.11 Confirm production-composition/recovery tooling remains acceptance infrastructure rather than a new product framework or independent PRD0062 deliverable.
+
+## 2026-08-23 #126 deployed-proof reconciliation
+
+The local rule-enforced taskboxes 4.12 and 4.13 remain complete at their local
+proof class. The bounded deployed attempt is recorded in
+`evidence/126-production-proof-gate-2026-08-23.json` and ended
+`BLOCKED_ROLLED_BACK`: teacher trusted-row/progress and student Runtime shell
+navigation passed, but the required student reference-only/PDF focus returned
+HTTP 503 `document_configuration_unavailable`. Taskboxes 5.0, 5.8, 5.19, and
+7.9 remain open; they are not promoted by shell navigation or local evidence.
+
+The deny-only Worker rollback is active at 100%, Firebase/Firestore durable
+state was read back unchanged, and no assignment replay or product-source
+change occurred. #128 and all later release work remain held.

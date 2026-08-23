@@ -164,3 +164,23 @@ Record producer/consumer relationships separately from hard prerequisites:
 
 A contribution relationship becomes a hard dependency only when the consumer's
 owned implementation cannot proceed without the producer's output.
+
+## Current #126 ownership overlay — 2026-08-23
+
+The PRD0062 production-proof gate remains owned by the active recovery owner
+until a complete deployed/browser acceptance result exists. The current
+blocking boundary is the default Book Runtime document repository composition,
+not the assignment owner, recipient projector, Firebase rules, or Hosting
+artifact. The exact candidate was rolled back safely, so no ownership transfer
+or product-source correction is implied by this finding.
+
+Disposition: `BLOCKED_ROLLED_BACK`; evidence is
+`evidence/126-production-proof-gate-2026-08-23.json` plus its redacted Markdown
+companion. #128 and all later PRD0062 tickets remain held. No assignment replay,
+new durable state, Listening work, or unrelated ticket work was started.
+
+The earlier table row labeled as the active
+`LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` disposition is now historical
+pre-deployment context. This dated ownership overlay is the current
+`BLOCKED_ROLLED_BACK` disposition and keeps the source-document composition
+boundary as the next bounded owner; no transfer is implied.

@@ -623,3 +623,35 @@ authorized exact-artifact deployment/readback/browser verification. Section
 17's old WSL checkout path is historical; current source and Git operations use
 the Windows-authoritative worktree contract recorded in
 `evidence/windows-git-operational-contract-2026-08-23.md`.
+
+## 19. Active #126 deployed-proof result — 2026-08-23
+
+The bounded Phase C deployment/readback/browser attempt is now complete as a
+safe failure. The exact Hosting artifact finalized and matched the local
+entry/assets; RTDB and Firestore rules read back byte-identically to the
+checked-in sources; the activation Worker read back the expected launch-only
+scope and bindings; and the existing committed state was consumed without a
+write or assignment replay.
+
+The real browser path passed teacher trusted-row/progress and student
+Homework-to-Runtime shell/activity navigation. The document HEAD and a
+redacted authenticated GET probe both returned HTTP 503
+`document_configuration_unavailable`. This is a required Runtime/reference
+document gate failure, not an accepted limitation. The source trace shows the
+default document runtime's Firestore homework repository is constructed
+without the Firebase Web API key required by its default claim-token provider.
+The certified local rule-enforced proof remains green, so no speculative
+product-source correction is selected in this mission.
+
+The pre-proven deny-only rollback was uploaded, inspected, deployed at 100%,
+and directly probed fail-closed with HTTP 404. Post-rollback Firebase and
+Firestore readback preserved the committed root/recipient, authority revision,
+compatibility shell, and empty Delivery collection. The exact record is
+`evidence/126-production-proof-gate-2026-08-23.json`. #126 remains blocked;
+the next owner is the source-document default-composition seam, followed by a
+fresh reviewed artifact/config/browser cycle. No #128 or later work starts.
+
+This §19 overlay supersedes the earlier local-only disposition
+`LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` in the preceding recovery
+overlay. That text remains historical pre-deployment context; the current
+active #126 disposition is `BLOCKED_ROLLED_BACK`.

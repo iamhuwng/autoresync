@@ -322,3 +322,16 @@ This amendment must be read together with:
 - `documentation/tasks/PRD0062/traceability-book-activity-v1.md` for acceptance mapping.
 
 The amendment records requirements. Evidence files record whether a particular candidate/deployment satisfies them. Historical #126 failure packets remain append-only evidence and do not redefine these requirements.
+
+## 11. #126 deployed-proof evidence overlay — 2026-08-23
+
+The active requirements remain unchanged. Under the amendment's production
+divergence rule, the exact deployed candidate was investigated at the
+artifact/configuration boundary after the real browser path returned HTTP 503
+`document_configuration_unavailable`. The default document repository
+composition was found not to forward the Firebase Web API key required by its
+claim-token provider. The candidate was rolled back safely before closure;
+therefore AC-AMEND-07 and the student reference-only/PDF acceptance remain
+unmet. No product-source change, assignment replay, or durable-state
+substitution was made. See the redacted append-only record in
+`evidence/126-production-proof-gate-2026-08-23.json` and `.md`.

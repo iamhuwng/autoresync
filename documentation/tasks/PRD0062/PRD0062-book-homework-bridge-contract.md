@@ -923,3 +923,33 @@ projection, rules, or product-source change is selected. The active status is
 artifact/configuration/claims/rules/durable-state readback and real browser
 proof remain after Wrangler reauthorization. The assignment must not be
 replayed.
+
+## 24. Active #126 deployed-proof disposition — 2026-08-23
+
+The exact reviewed frontend, generated rules, Worker configuration, Firebase
+identities, and existing committed assignment were read back in the target
+project. The live browser path passed teacher Homework, student Homework, Book
+launch, and Runtime shell/activity navigation, but the real document request
+returned HTTP 503 `document_configuration_unavailable`. The required
+reference-only/PDF focus therefore did not pass.
+
+The failure is at the default Book source document runtime initialization, not
+at the assignment, compatibility marker, Delivery, rules, or B2 object read.
+The runtime constructs `FirebaseRestBookHomeworkDocumentStore` without passing
+the Firebase Web API key required by its default claim-token provider. No
+bridge, projection, rules, or product-source change is selected under the
+current #126 authority. See
+`evidence/126-production-proof-gate-2026-08-23.json`.
+
+Per the recovery plan's production-failure rule, deny-only Worker version
+`bbc55301-0c59-4edf-a6d6-bb527b7f3080` is active at 100% and its relevant
+routes are disabled. Post-rollback readback preserved the committed root at
+revision 7, the exact recipient authority at revision 2, the compatibility
+document, and the absence of Book Delivery records. #126 is
+`BLOCKED_ROLLED_BACK`; #128 remains held, and assignment replay remains
+forbidden.
+
+This §24 overlay supersedes the document header and §23 wording that described
+`LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` as the active status. Those
+lines remain historical pre-deployment context; the current #126 status is
+`BLOCKED_ROLLED_BACK` after the verified rollback recorded here.

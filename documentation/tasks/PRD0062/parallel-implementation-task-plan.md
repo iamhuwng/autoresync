@@ -132,3 +132,14 @@ not merely because multiple issue nodes are graph-clear.
 - #126, #134, and #136 require explicit approval before remote mutation.
 - Local, emulator, preview, deployed, canary, review-blocked, and pilot evidence
   remain distinct.
+
+## 2026-08-23 #126 remote gate result
+
+The explicit bounded authorization for #126 was exercised using the Windows
+Git/harness authority and WSL Wrangler execution path. The exact Hosting,
+rules, Worker, durable-state, and browser evidence was collected, then the
+Worker candidate was rolled back after the required document/PDF read path
+returned HTTP 503 `document_configuration_unavailable`. The rollback was
+deployed/read back at 100%; no assignment replay or unrelated remote mutation
+occurred. #126 is `BLOCKED_ROLLED_BACK`, #128 remains held, and no later ticket
+was started.

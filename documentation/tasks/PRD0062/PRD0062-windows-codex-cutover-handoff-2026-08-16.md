@@ -303,3 +303,25 @@ resolve its Windows absolute pointer and does not support the relative-worktree
 extension used by Git 2.55. The supported worktree lock prevents accidental
 native-WSL pruning. Full contract:
 `evidence/windows-git-operational-contract-2026-08-23.md`.
+
+## 22. #126 bounded production-proof handoff — 2026-08-23
+
+The authorized exact-artifact attempt reached the real teacher, student, and
+Runtime browser paths. Teacher trusted-row/progress and student Runtime shell
+navigation passed, but the required reference-only/PDF document path returned
+HTTP 503 `document_configuration_unavailable`. The exact candidate was not
+left active: the deny-only rollback was deployed at 100%, read back, and
+verified with a safe 404 probe. Firebase/Firestore rules, Hosting identity, and
+the committed assignment/recipient state were preserved.
+
+The remaining blocker is the diagnosed default document-repository environment
+composition; no speculative product-source patch or assignment replay was
+made. Main remains untouched and clean, the Windows Git/harness authority
+remains active, and #128/later tickets remain held. A separate post-#126 task
+may evaluate a fresh native-WSL ext4 clone through full burn-in before any
+authority change; that evaluation is outside this task.
+
+This §22 handoff supersedes the earlier local-only
+`LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` wording in this file. That
+wording remains historical pre-deployment context; the current handoff status
+is `BLOCKED_ROLLED_BACK` with the rollback and blocker above.

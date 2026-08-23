@@ -688,3 +688,23 @@ Packet 0 historical note: feature code had not been implemented at that time, an
 - rtk npx tsc --noEmit => exit 0; no TypeScript errors.
 - rtk npm run build => exit 0; production build passed.
 ```
+
+## F-126-PROD-001 — deployed document composition is unavailable — 2026-08-23
+
+- **Status:** `BLOCKED_ROLLED_BACK`
+- **Boundary:** the exact PRD0062 deployed Book Runtime document read path.
+- **Observed evidence:** teacher trusted-row/progress and student Runtime shell
+  navigation passed, while the required reference-only/PDF document probe
+  returned HTTP 503 `document_configuration_unavailable`.
+- **Diagnosis:** the default document repository factory constructs the
+  Firebase homework store without forwarding `FIREBASE_WEB_API_KEY`; the
+  downstream claim-token provider therefore cannot initialize. This is a
+  source-composition diagnosis only, not authorization to patch product source
+  during this proof attempt.
+- **Disposition:** the exact deployed candidate was rolled back to the
+  deny-only Worker version and read back with a safe 404 probe. Hosting and
+  Firebase rules remained exact; durable assignment/recipient state was
+  preserved; no assignment replay or projector write occurred.
+- **Evidence:**
+  `evidence/126-production-proof-gate-2026-08-23.json` and
+  `evidence/126-production-proof-gate-2026-08-23.md`.
