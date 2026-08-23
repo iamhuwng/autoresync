@@ -358,3 +358,18 @@ above without deleting its historical sequence.
 
 The active next implementation diagnosis is therefore #126's trusted
 teacher-projection/deployment boundary. Phase 1 does not start #128 or #134.
+
+### 2026-08-23 #126 local reproduction overlay
+
+At unchanged PRD0062 source `36ce82eb784c02d35e1b499e182e2ebcaca92d9f`,
+the production-shaped rule-enforced M1 composition passed 4/4 tests through
+the Windows ARM64 harness. The committed recipient row remained visible when
+derived completion returned unavailable; no assignment command was replayed
+and no remote state changed. See
+`evidence/126-production-normal-local-reproduction-2026-08-23.md`.
+
+This supersedes the earlier instruction to change the Book projection seam
+only if the reproducer went red: it did not. No local causal source change is
+selected. #126 remains open as `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED`
+pending Wrangler reauthorization and an authorized exact deployment/readback
+plus real browser proof. #128 remains held by that remote gate.

@@ -265,3 +265,19 @@ cutover does not authorize Phase 2 cleanup.
 This consolidation is the Windows foundation for completing PRD0062. It does
 not claim PRD0062 itself is complete and does not authorize #128, #134, Phase 2,
 or cleanup.
+
+## 20. #126 unchanged-lineage local reproduction — 2026-08-23
+
+The exact production-shaped rule-enforced M1 composition was rerun at
+`36ce82eb784c02d35e1b499e182e2ebcaca92d9f` through the repository Windows
+ARM64 harness. The single Vitest file passed 4/4 tests, including retention of
+the committed recipient row when derived completion is unavailable. No
+assignment was replayed and no remote state was mutated. The durable record is
+`evidence/126-production-normal-local-reproduction-2026-08-23.md`.
+
+This green local result selects no causal source change. The active #126
+disposition is `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED`: the remaining
+cause must be resolved at the deployed artifact/configuration/claims/rules/
+durable-state boundary. Wrangler OAuth reauthorization and an authorized
+deployment/readback/browser pass are required before closure. #128 remains
+held and the assignment must not be replayed.

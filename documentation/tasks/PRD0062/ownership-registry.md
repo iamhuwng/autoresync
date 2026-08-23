@@ -110,6 +110,15 @@ definition-only status of #127 or promote local proof to deployed activation.
 
 No historical WSL repository or worktree supplied source or execution evidence.
 
+## 2026-08-23 #126 local reproduction overlay
+
+| Owner | Active disposition | Authority / boundary |
+|---|---|---|
+| #126 / 50B | `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` | `evidence/126-production-normal-local-reproduction-2026-08-23.md`: unchanged-lineage production-shaped composition passed 4/4, including committed-row retention with unavailable derived completion. No assignment replay or remote mutation occurred. Remaining owner is exact deployed artifact/configuration/claims/rules/durable-state readback plus browser proof after Wrangler reauthorization. |
+| #128 / 51B1 | `DEFERRED_FINAL_PROOF_HELD_BY_126` | Unchanged. Positive activated acceptance remains held until #126 exact deployment/readback/browser proof succeeds. |
+
+No local product-code owner is selected by the #126 reproduction.
+
 ## Transfer ledger
 
 Add the destination requirement before marking a transfer complete.
