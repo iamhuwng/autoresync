@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "prd0062-126-reviewed-source-composition-cycle",
+  "recordedAt": "2026-08-23T18:45:00+07:00",
+  "ticket": "#126 / 50B",
+  "status": "BLOCKED_ROLLED_BACK",
+  "supersedes": [
+    "126-production-proof-gate-2026-08-23.json",
+    "126-production-proof-gate-2026-08-23.md"
+  ],
+  "authority": {
+    "assignmentReplayAuthorized": false,
+    "listeningInScope": false,
+    "laterTicketsStarted": false,
+    "activeWorkerMustEndRolledBack": true
+  },
+  "source": {
+    "candidateCommit": "31496c20d0abaf5e56e8a2dade24339aa5413a9c",
+    "branch": "codex/prd0062-continuation-after-cleanup",
+    "worktreeAtCandidateCommit": "clean",
+    "rootCorrection": "defaultRuntimeFactory now forwards required FIREBASE_WEB_API_KEY into FirebaseRestBookHomeworkDocumentStore",
+    "ordinaryHomeworkAndBookAuthorityChanged": false,
+    "assignmentIdentityChanged": false,
+    "rendererManifestSha256": "2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c",
+    "activationConfigSha256": "86b3de6edb08d55b9a121874ca6bf6931d159c977b5e9fa52a738c30fa6fe60",
+    "focusedRedGreen": {
+      "red": "composition suite 7 passed, 1 failed: expected configured 403 but received document_configuration_unavailable 503",
+      "green": "composition suite 8 passed, 0 failed",
+      "adjacent": "10 files, 89 tests passed, 0 failed"
+    },
+    "independentReviews": {
+      "standards": "PASS",
+      "specification": "PASS"
+    }
+  },
+  "localProof": {
+    "ruleComposer": "13 passed",
+    "recoveryRules": "7 passed",
+    "authz": "6 passed",
+    "windowsArm64WranglerDryRun": {
+      "runId": "b04b1668-1df5-4c3a-bba4-5a31cfbd2e51",
+      "exitCode": 0,
+      "wrangler": "4.103.0",
+      "wslNode": "v22.22.0 arm64",
+      "uploadBytes": "1807.62 KiB",
+      "gzipBytes": "337.08 KiB"
+    },
+    "build": {
+      "status": "BLOCKED_TOOLING",
+      "reason": "Windows harness snapshot path denied during Vite build finalization; no candidate assertion failure"
+    },
+    "emulator": {
+      "status": "BLOCKED_TOOLING",
+      "reason": "Firebase emulator loopback startup failed before test collection with Netty Invalid argument"
+    },
+    "security": {
+      "prd0062StaticAndWorkerRules": "PASS",
+      "legacyPrd0056UploadWorkerSuite": "historical test drift; not changed"
+    },
+    "encodingAndGuardrails": "UTF-8, diff-check, and pre-commit enforcement passed"
+  },
+  "remote": {
+    "worker": "r2-upload-signer",
+    "accountId": "e41db829dabe9993f03674afdfd56510",
+    "candidate": {
+      "versionId": "49d86f37-7365-4b13-ae4c-d79e5ee720a1",
+      "versionNumber": 128,
+      "uploadRunId": "3b6cffdb-e53b-4302-8412-8741cdf73fb5",
+      "listReadbackRunId": "273eafa7-4872-47b9-8238-6e78646ebb83",
+      "viewReadbackRunId": "acd0dc54-ea6d-4f6c-b3d3-8ad76aa5c9c5",
+      "sourceMessage": "prd0062-126-source-composition-fix-31496c20",
+      "rendererManifestReadback": "2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c",
+      "firebaseWebApiKeyBinding": "secret_text",
+      "secretValuesReadBack": false
+    },
+    "activation": {
+      "runId": "fff69c8b-1f70-467c-88f6-dc8c76ee22a0",
+      "deploymentId": "d87c0e9c-2977-4540-8bfb-13dbe130798b",
+      "traffic": "100% candidate before rollback",
+      "readbackRunId": "6d092207-bcfc-42db-938a-218c5baf954c"
+    },
+    "hostingAndFirebaseRules": "unchanged; no candidate Hosting, RTDB, or Firestore deployment",
+    "durableStateMutation": false
+  },
+  "browser": {
+    "status": "NOT_EXECUTED",
+    "requiredFlows": "teacher trusted progress, student Homework, reference-only/PDF document, Runtime",
+    "blocker": "in-app browser runtime failed before connection with kernel-assets path-not-found; reset and storage cleanup did not repair it",
+    "productionBrowserProof": false
+  },
+  "rollback": {
+    "required": true,
+    "completed": true,
+    "versionId": "bbc55301-0c59-4edf-a6d6-bb527b7f3080",
+    "traffic": "100%",
+    "runId": "bc6979e0-d85f-4365-8f3a-8dea98f0689d",
+    "deploymentId": "829a062c-0ecb-4d4c-961a-d9537a8313fa",
+    "readbackRunId": "0b6466be-afba-45a7-a179-dd9259e431c9",
+    "unauthenticatedDirectProbes": {
+      "workerRoot": 401,
+      "documentRoute": 401,
+      "meaning": "authentication boundary reached; this is not substituted for the historical authenticated 404 rollback probe"
+    },
+    "preProvenRollbackEvidence": "126-production-proof-gate-2026-08-23.json"
+  },
+  "durableState": {
+    "assignmentReplayed": false,
+    "existingAssignmentPreserved": true,
+    "noProjectorWrite": true,
+    "noUnexpectedMutationObserved": true
+  },
+  "scopePreserved": {
+    "mainUntouched": true,
+    "listeningUntouched": true,
+    "unrelatedDataUntouched": true,
+    "forensicArchivesAndRefsUntouched": true,
+    "wslAuthorityUntouched": true
+  },
+  "remainingBlocker": {
+    "status": "EXTERNAL",
+    "description": "Required authenticated browser acceptance cannot be executed because the configured browser control runtime cannot initialize; #126 remains rolled back",
+    "nextAction": "Repair or provide the browser-control runtime, then repeat the reviewed candidate activation/browser/rollback gate without replaying the assignment"
+  }
+}

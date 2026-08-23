@@ -708,3 +708,20 @@ Packet 0 historical note: feature code had not been implemented at that time, an
 - **Evidence:**
   `evidence/126-production-proof-gate-2026-08-23.json` and
   `evidence/126-production-proof-gate-2026-08-23.md`.
+
+### F-126-CANDIDATE-001 — reviewed document-composition correction, browser gate unavailable
+
+- **Observed:** The default document repository factory omitted the Firebase
+  Web API key required by its claim-token provider.
+- **Correction:** Candidate `31496c20d0abaf5e56e8a2dade24339aa5413a9c`
+  forwards the key and adds an owning-seam regression. Red/green and the
+  adjacent 89-test Worker suite passed; Standards and Specification reviews
+  both passed.
+- **Remote disposition:** The exact candidate Worker was uploaded, read back,
+  and activated at 100%, then rolled back to the pre-proven deny-only version
+  when the browser-control runtime failed before authenticated browser
+  execution.
+- **Current finding:** Source correction is locally reviewed; #126 remains
+  `BLOCKED_ROLLED_BACK` because browser acceptance is unproven. No assignment
+  replay or durable mutation occurred.
+- **Evidence:** `evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.

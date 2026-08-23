@@ -184,3 +184,13 @@ The earlier table row labeled as the active
 pre-deployment context. This dated ownership overlay is the current
 `BLOCKED_ROLLED_BACK` disposition and keeps the source-document composition
 boundary as the next bounded owner; no transfer is implied.
+
+## Append-only #126 correction-cycle ownership overlay — 2026-08-23
+
+The Book source document default-composition seam remains the owning boundary
+for the Web API key correction. The implementation and two independent reviews
+passed; activation was rolled back only because the external browser-control
+runtime was unavailable. No ownership transfer, assignment replay, durable
+state change, Listening work, or later-ticket start is implied. Current status:
+`BLOCKED_ROLLED_BACK`. Evidence:
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.

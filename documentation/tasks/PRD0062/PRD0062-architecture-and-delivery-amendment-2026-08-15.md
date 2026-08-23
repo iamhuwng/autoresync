@@ -335,3 +335,16 @@ therefore AC-AMEND-07 and the student reference-only/PDF acceptance remain
 unmet. No product-source change, assignment replay, or durable-state
 substitution was made. See the redacted append-only record in
 `evidence/126-production-proof-gate-2026-08-23.json` and `.md`.
+
+## Append-only #126 correction-cycle overlay — 2026-08-23
+
+The default document production composition now forwards the required Firebase
+Web API key at its owning boundary. The owning regression, adjacent Worker
+proof, exact config/manifest identities, and independent Standards/
+Specification reviews are recorded in
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+The candidate was uploaded, activated, and read back, but the required real
+authenticated browser proof could not start because the browser-control
+runtime failed during initialization. The candidate was rolled back at 100%;
+AC-AMEND-07 and the reference-only/PDF gate remain unmet. No assignment replay
+or durable-state substitution is authorized.

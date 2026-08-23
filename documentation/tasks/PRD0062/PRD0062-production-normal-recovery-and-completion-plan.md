@@ -655,3 +655,25 @@ This §19 overlay supersedes the earlier local-only disposition
 `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` in the preceding recovery
 overlay. That text remains historical pre-deployment context; the current
 active #126 disposition is `BLOCKED_ROLLED_BACK`.
+
+## 20. Active #126 source-composition correction cycle — 2026-08-23
+
+The documented source boundary was corrected at the owning seam. Candidate
+commit `31496c20d0abaf5e56e8a2dade24339aa5413a9c` forwards the required
+Firebase Web API key into the default document Homework repository. The new
+regression was red at the documented 503 and green at the configured 403;
+the adjacent candidate suite passed 10 files and 89 tests. Standards and
+Specification reviews both returned PASS. The renderer manifest and active
+config identities were regenerated; the exact details are in
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+
+The exact candidate uploaded as Worker version
+`49d86f37-7365-4b13-ae4c-d79e5ee720a1`, read back with the expected bindings,
+and was activated at 100%. The required authenticated teacher/student/
+reference-only/PDF/Runtime browser proof could not begin because the
+configured browser-control runtime failed before connection with a
+kernel-assets path error. The candidate was immediately rolled back to
+`bbc55301-0c59-4edf-a6d6-bb527b7f3080` at 100% and read back. No assignment
+replay or durable-state mutation occurred. #126 therefore remains
+`BLOCKED_ROLLED_BACK`; #128 and later tickets remain held. The blocker is the
+external browser-control runtime, not a newly observed product failure.

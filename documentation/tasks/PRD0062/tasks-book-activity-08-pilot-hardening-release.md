@@ -206,3 +206,12 @@ HTTP 503 `document_configuration_unavailable`. Taskboxes 5.0, 5.8, 5.19, and
 The deny-only Worker rollback is active at 100%, Firebase/Firestore durable
 state was read back unchanged, and no assignment replay or product-source
 change occurred. #128 and all later release work remain held.
+
+## Append-only #126 correction-cycle overlay — 2026-08-23
+
+The reviewed source correction reached an exact remote candidate and was
+activated at 100%, but release acceptance was not closed: the browser-control
+runtime failed before the required authenticated flows could execute. The
+candidate is rolled back at 100%; taskboxes 5.0, 5.8, 5.19, and 7.9 remain
+open, and no #128+ pilot/release work began. Evidence:
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.

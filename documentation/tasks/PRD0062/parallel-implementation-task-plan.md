@@ -143,3 +143,14 @@ returned HTTP 503 `document_configuration_unavailable`. The rollback was
 deployed/read back at 100%; no assignment replay or unrelated remote mutation
 occurred. #126 is `BLOCKED_ROLLED_BACK`, #128 remains held, and no later ticket
 was started.
+
+## Append-only #126 correction-cycle overlay — 2026-08-23
+
+The missing Web API key was corrected at the default document composition seam,
+with red/green owning proof, adjacent Worker proof, exact ARM64 Wrangler
+dry-run, and independent Standards/Specification PASS. A bounded candidate
+upload/activation/readback completed; the required authenticated browser gate
+was unavailable because the browser-control runtime failed before connection,
+so rollback restored the pre-proven version at 100%. The dependency graph is
+unchanged: #126 remains blocked and #128–#136 remain held. Evidence:
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.

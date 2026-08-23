@@ -402,3 +402,14 @@ The earlier #126 table row and local-reproduction paragraph that name
 `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` are historical pre-deployment
 context. This dated rollback overlay is the current reconciliation truth:
 `BLOCKED_ROLLED_BACK`.
+
+## Append-only #126 correction-cycle reconciliation — 2026-08-23
+
+The previous root-cause diagnosis was confirmed with a red-capable default
+composition test and corrected with the smallest source change. Local proof,
+config/manifest regeneration, exact Worker readback, and independent reviews
+passed. The candidate was safely rolled back after the browser-control runtime
+failed before authenticated acceptance. This reconciliation leaves #126
+`BLOCKED_ROLLED_BACK`, preserves the existing assignment and durable state, and
+does not start #128 or later work. Evidence:
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.

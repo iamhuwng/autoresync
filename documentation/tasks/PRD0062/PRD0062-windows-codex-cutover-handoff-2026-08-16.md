@@ -325,3 +325,14 @@ This §22 handoff supersedes the earlier local-only
 `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` wording in this file. That
 wording remains historical pre-deployment context; the current handoff status
 is `BLOCKED_ROLLED_BACK` with the rollback and blocker above.
+
+## Append-only #126 Windows correction-cycle overlay — 2026-08-23
+
+The Windows-authoritative source/test/config candidate passed the owning
+regression, adjacent Worker checks, exact ARM64 Wrangler dry-run, and two
+independent reviews. The candidate uploaded and activated, but the required
+authenticated browser proof was unavailable because browser-control kernel
+assets could not initialize. Production is safely back on the pre-proven
+rollback at 100%; WSL remains only the Wrangler execution environment and its
+authority was not changed. Evidence:
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.

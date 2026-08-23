@@ -294,3 +294,13 @@ The earlier #126 row under the traceability table's “Active status” column i
 historical pre-deployment local-proof context. This dated overlay supersedes it
 as current truth: #126 is `BLOCKED_ROLLED_BACK`, and the deployed
 reference-only/PDF gate plus dependent acceptance remain open.
+
+## Append-only #126 correction-cycle overlay — 2026-08-23
+
+The source-composition root fix is implemented and independently reviewed at
+candidate commit `31496c20d0abaf5e56e8a2dade24339aa5413a9c`; its owning
+regression and adjacent Worker proof are green. The exact candidate was
+activated and then rolled back because the browser-control runtime could not
+initialize, so no deployed browser claim is made. #126 remains
+`BLOCKED_ROLLED_BACK`; #128 and later remain deferred. Evidence:
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.

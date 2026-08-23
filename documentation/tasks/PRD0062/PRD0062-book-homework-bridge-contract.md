@@ -953,3 +953,14 @@ This §24 overlay supersedes the document header and §23 wording that described
 `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` as the active status. Those
 lines remain historical pre-deployment context; the current #126 status is
 `BLOCKED_ROLLED_BACK` after the verified rollback recorded here.
+
+## Append-only #126 correction-cycle overlay — 2026-08-23
+
+The source-document default composition correction passed its red/green owning
+seam and was independently reviewed. The exact Worker candidate was uploaded,
+activated at 100%, and then rolled back because the authenticated browser
+control runtime could not initialize. The existing assignment and committed
+recipient authority remain preserved; no same-command replay or projector
+write occurred. See
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+The active status remains `BLOCKED_ROLLED_BACK`; #128 and later work stay held.
