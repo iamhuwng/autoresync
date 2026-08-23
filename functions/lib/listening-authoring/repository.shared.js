@@ -1,7 +1,7 @@
 "use strict";
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.normalizeVersionMap = exports.normalizeVersionRecord = exports.normalizeDraftRecord = exports.cloneVersionRecord = exports.cloneDraftRecord = exports.extractSequence = exports.cloneRecord = exports.cloneJsonCompatibleValue = exports.isPlainObject = exports.LISTENING_AUTHORING_ROOT = void 0;
+exports.normalizeVersionMap = exports.normalizeVersionRecord = exports.normalizeDraftRecord = exports.cloneVersionRecord = exports.cloneDraftRecord = exports.extractSequence = exports.cloneRecord = exports.cloneJsonCompatibleValue = exports.assertNoDeletedListeningTempAssets = exports.assertNoActiveListeningTempCleanupLease = exports.isPlainObject = exports.LISTENING_AUTHORING_ROOT = void 0;
 const constants_1 = require("./constants");
 exports.LISTENING_AUTHORING_ROOT = (_a = constants_1.LISTENING_AUTHORING_PATHS.drafts.split('/')[0]) !== null && _a !== void 0 ? _a : 'listening_authoring';
 const isPlainObject = (value) => {
@@ -12,6 +12,27 @@ const isPlainObject = (value) => {
     return prototype === Object.prototype || prototype === null;
 };
 exports.isPlainObject = isPlainObject;
+const assertNoActiveListeningTempCleanupLease = (value, now) => {
+    if (!(0, exports.isPlainObject)(value))
+        return;
+    const lease = value.temp_cleanup_lease;
+    if ((0, exports.isPlainObject)(lease) && Number(lease.expiresAt) > now) {
+        throw new Error('listening_asset_cleanup_in_progress');
+    }
+};
+exports.assertNoActiveListeningTempCleanupLease = assertNoActiveListeningTempCleanupLease;
+const assertNoDeletedListeningTempAssets = (value, assetIds) => {
+    if (!(0, exports.isPlainObject)(value))
+        return;
+    const tombstones = value.deleted_temp_assets;
+    if (!(0, exports.isPlainObject)(tombstones))
+        return;
+    const ids = Array.isArray(assetIds) ? assetIds : Object.keys(assetIds);
+    if (ids.some((assetId) => Object.prototype.hasOwnProperty.call(tombstones, assetId))) {
+        throw new Error('listening_asset_was_deleted');
+    }
+};
+exports.assertNoDeletedListeningTempAssets = assertNoDeletedListeningTempAssets;
 const cloneJsonCompatibleValue = (value) => {
     if (value === null || typeof value === 'string' || typeof value === 'boolean') {
         return value;

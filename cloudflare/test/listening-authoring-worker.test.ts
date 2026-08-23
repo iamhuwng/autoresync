@@ -317,4 +317,55 @@ describe('PRD-0057 Worker authoring backend', () => {
     expect(Object.values(writtenAuthoring.revision_drafts)).toHaveLength(1);
     expect(Object.values(writtenAuthoring.operations)).toHaveLength(1);
   });
+
+  it('rejects authoring mutations while temporary cleanup holds the authoring lease', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(JSON.stringify({
+      temp_cleanup_lease: {
+        leaseId: 'cleanup-lease-1',
+        expiresAt: 9_000_000_000_000,
+      },
+    }), {
+      status: 200,
+      headers: { etag: '"authoring-etag-lease"' },
+    }));
+    const repository = new FirebaseRestListeningAuthoringRepository({
+      env: { FIREBASE_DB_URL: 'https://db.example.test' },
+      fetchImpl,
+      getAccessToken: async () => 'worker-token',
+      now: () => 1_700_000_000_000,
+    });
+
+    await expect(publishListeningDraftCore({
+      auth: { uid: 'teacher-1', role: 'teacher' },
+      body: { legacyTestId: 'legacy-test-1', idempotencyKey: 'legacy-key-lease' },
+      repo: repository,
+      idempotencySecret: 'authoring-secret-test-value',
+    })).rejects.toThrow('listening_asset_cleanup_in_progress');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects delayed authoring saves that reference a deleted temporary asset tombstone', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(JSON.stringify({
+      deleted_temp_assets: {
+        'asset-1': { assetId: 'asset-1', ownerId: 'teacher-1', deletedAt: 1_700_000_000_000 },
+      },
+    }), { status: 200, headers: { etag: '"authoring-etag-tombstone"' } }));
+    const repository = new FirebaseRestListeningAuthoringRepository({
+      env: { FIREBASE_DB_URL: 'https://db.example.test' },
+      fetchImpl,
+      getAccessToken: async () => 'worker-token',
+      now: () => 1_700_000_000_001,
+    });
+
+    await expect(repository.saveDraftTransaction({
+      ownerId: 'teacher-1',
+      draftId: 'draft-1',
+      operationId: 'operation-1',
+      idempotencyKeyHash: 'idempotency-hash',
+      requestHash: 'request-hash',
+      document,
+      allowCreate: true,
+    })).rejects.toThrow('listening_asset_was_deleted');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
 });

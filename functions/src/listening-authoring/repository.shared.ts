@@ -68,6 +68,30 @@ export const isPlainObject = (value: unknown): value is Record<string, unknown> 
   return prototype === Object.prototype || prototype === null;
 };
 
+export const assertNoActiveListeningTempCleanupLease = (
+  value: unknown,
+  now: number,
+): void => {
+  if (!isPlainObject(value)) return;
+  const lease = value.temp_cleanup_lease;
+  if (isPlainObject(lease) && Number(lease.expiresAt) > now) {
+    throw new Error('listening_asset_cleanup_in_progress');
+  }
+};
+
+export const assertNoDeletedListeningTempAssets = (
+  value: unknown,
+  assetIds: Record<string, true> | readonly string[],
+): void => {
+  if (!isPlainObject(value)) return;
+  const tombstones = value.deleted_temp_assets;
+  if (!isPlainObject(tombstones)) return;
+  const ids = Array.isArray(assetIds) ? assetIds : Object.keys(assetIds);
+  if (ids.some((assetId) => Object.prototype.hasOwnProperty.call(tombstones, assetId))) {
+    throw new Error('listening_asset_was_deleted');
+  }
+};
+
 export const cloneJsonCompatibleValue = <T>(value: T): T => {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') {
     return value;

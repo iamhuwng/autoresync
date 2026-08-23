@@ -26,6 +26,10 @@ export interface UploadProgress {
     (percent: number, bytesUploaded: number, totalBytes: number): void;
 }
 
+export interface UploadOptions {
+    signal?: AbortSignal;
+}
+
 export interface MoveResult {
     success: boolean;
     newUrl: string;
@@ -37,11 +41,13 @@ export interface R2UploadClientContract {
         file: File,
         operationKind: UploadOperationKind,
         onProgress?: UploadProgress,
+        options?: UploadOptions,
     ): Promise<UploadResult>;
     uploadWithAssetGrant(
         file: File,
         authorization: AssetGrantUploadAuthorization,
         onProgress?: UploadProgress,
+        options?: UploadOptions,
     ): Promise<UploadResult>;
     move(key: string): Promise<MoveResult>;
 }
@@ -182,7 +188,9 @@ export class R2UploadClient implements R2UploadClientContract {
         file: File,
         operationKind: UploadOperationKind,
         onProgress?: UploadProgress,
+        options: UploadOptions = {},
     ): Promise<UploadResult> {
+        this.throwIfAborted(options.signal);
         const authorization = await this.authorize(file, operationKind);
         const isTemp = temporaryOperations.has(operationKind);
         if (isTemp && !assertString(authorization.moveGrant)) {
@@ -195,11 +203,13 @@ export class R2UploadClient implements R2UploadClientContract {
 
         this.assertUploadUrl(authorization.uploadUrl);
         const token = await this.requireToken();
+        this.throwIfAborted(options.signal);
         const uploaded = await this.putFile({
             file,
             token,
             uploadUrl: authorization.uploadUrl,
             onProgress,
+            signal: options.signal,
         });
 
         if (
@@ -233,7 +243,9 @@ export class R2UploadClient implements R2UploadClientContract {
         file: File,
         authorization: AssetGrantUploadAuthorization,
         onProgress?: UploadProgress,
+        options: UploadOptions = {},
     ): Promise<UploadResult> {
+        this.throwIfAborted(options.signal);
         if (
             !assertString(authorization.assetGrant)
             || !assertString(authorization.key)
@@ -250,12 +262,14 @@ export class R2UploadClient implements R2UploadClientContract {
         uploadUrl.searchParams.set('assetGrant', authorization.assetGrant);
         this.assertUploadUrl(uploadUrl.toString());
         const token = await this.requireToken();
+        this.throwIfAborted(options.signal);
         const uploaded = await this.putFile({
             file,
             token,
             uploadUrl: uploadUrl.toString(),
             contentType: authorization.contentType,
             onProgress,
+            signal: options.signal,
         });
         if (
             uploaded.key !== authorization.key
@@ -401,26 +415,86 @@ export class R2UploadClient implements R2UploadClientContract {
         uploadUrl,
         contentType,
         onProgress,
+        signal,
     }: {
         file: File;
         token: string;
         uploadUrl: string;
         contentType?: string;
         onProgress?: UploadProgress;
+        signal?: AbortSignal;
     }): Promise<UploadResponse> {
         return new Promise((resolve, reject) => {
-            const xhr = this.xhrFactory();
-            if (onProgress) {
-                xhr.upload.addEventListener('progress', (event) => {
-                    if (!event.lengthComputable) return;
-                    onProgress(
-                        Math.round((event.loaded / event.total) * 100),
-                        event.loaded,
-                        event.total,
-                    );
-                });
+            if (signal?.aborted) {
+                reject(new R2UploadClientError('upload_aborted', 'Upload was cancelled', true));
+                return;
             }
-            xhr.addEventListener('load', () => {
+
+            let xhr: XMLHttpRequest;
+            try {
+                xhr = this.xhrFactory();
+            } catch {
+                reject(new R2UploadClientError('network_error', 'Upload failed; retry', true));
+                return;
+            }
+
+            let settled = false;
+            const remove = (
+                target: { removeEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void },
+                type: string,
+                listener: EventListenerOrEventListenerObject | undefined,
+            ) => {
+                if (listener && typeof target.removeEventListener === 'function') {
+                    target.removeEventListener(type, listener);
+                }
+            };
+            let loadListener: EventListenerOrEventListenerObject;
+            let errorListener: EventListenerOrEventListenerObject;
+            let abortListener: EventListenerOrEventListenerObject;
+            let progressListener: EventListenerOrEventListenerObject | undefined;
+            const abortUpload = () => {
+                try {
+                    xhr.abort();
+                } catch {
+                    finishReject(new R2UploadClientError('upload_aborted', 'Upload was cancelled', true));
+                }
+            };
+            const cleanup = () => {
+                signal?.removeEventListener('abort', abortUpload);
+                remove(xhr, 'load', loadListener);
+                remove(xhr, 'error', errorListener);
+                remove(xhr, 'abort', abortListener);
+                remove(xhr.upload, 'progress', progressListener);
+            };
+            const finishResolve = (value: UploadResponse) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve(value);
+            };
+            const finishReject = (error: unknown) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                reject(error instanceof R2UploadClientError
+                    ? error
+                    : new R2UploadClientError('network_error', 'Upload failed; retry', true));
+            };
+            progressListener = onProgress
+                ? ((event: ProgressEvent) => {
+                    if (!event.lengthComputable || settled) return;
+                    try {
+                        onProgress(
+                            Math.round((event.loaded / event.total) * 100),
+                            event.loaded,
+                            event.total,
+                        );
+                    } catch (error) {
+                        finishReject(error);
+                    }
+                }) as EventListener
+                : undefined;
+            loadListener = (() => {
                 if (xhr.status < 200 || xhr.status >= 300) {
                     const workerError = readWorkerErrorCode(xhr.responseText);
                     if (import.meta.env.DEV) {
@@ -430,7 +504,7 @@ export class R2UploadClient implements R2UploadClientContract {
                         })}`);
                     }
                     const error = this.httpError(xhr.status, 'upload_failed');
-                    reject(new R2UploadClientError(
+                    finishReject(new R2UploadClientError(
                         error.code,
                         error.message,
                         error.recoverable,
@@ -444,23 +518,48 @@ export class R2UploadClient implements R2UploadClientContract {
                     if (!body.success || !assertString(body.key) || !assertString(body.url)) {
                         throw new Error('invalid');
                     }
-                    resolve(body);
+                    finishResolve(body);
                 } catch {
-                    reject(new R2UploadClientError('invalid_response', 'Upload service returned an invalid response'));
+                    finishReject(new R2UploadClientError('invalid_response', 'Upload service returned an invalid response'));
                 }
-            });
-            xhr.addEventListener('error', () => {
-                reject(new R2UploadClientError('network_error', 'Upload failed; retry', true));
-            });
-            xhr.addEventListener('abort', () => {
-                reject(new R2UploadClientError('upload_aborted', 'Upload was cancelled', true));
-            });
-            xhr.open('PUT', uploadUrl);
-            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-            xhr.setRequestHeader('Content-Type', contentType || file.type || 'application/octet-stream');
-            xhr.setRequestHeader('X-Upload-Size', String(file.size));
-            xhr.send(file);
+            }) as EventListener;
+            errorListener = (() => {
+                finishReject(new R2UploadClientError('network_error', 'Upload failed; retry', true));
+            }) as EventListener;
+            abortListener = (() => {
+                finishReject(new R2UploadClientError('upload_aborted', 'Upload was cancelled', true));
+            }) as EventListener;
+
+            signal?.addEventListener('abort', abortUpload, { once: true });
+            try {
+                if (progressListener) xhr.upload.addEventListener('progress', progressListener);
+                xhr.addEventListener('load', loadListener);
+                xhr.addEventListener('error', errorListener);
+                xhr.addEventListener('abort', abortListener);
+            } catch {
+                finishReject(new R2UploadClientError('network_error', 'Upload failed; retry', true));
+                return;
+            }
+            try {
+                xhr.open('PUT', uploadUrl);
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                xhr.setRequestHeader('Content-Type', contentType || file.type || 'application/octet-stream');
+                xhr.setRequestHeader('X-Upload-Size', String(file.size));
+                if (signal?.aborted) {
+                    abortUpload();
+                    return;
+                }
+                xhr.send(file);
+            } catch {
+                finishReject(new R2UploadClientError('network_error', 'Upload failed; retry', true));
+            }
         });
+    }
+
+    private throwIfAborted(signal?: AbortSignal): void {
+        if (signal?.aborted) {
+            throw new R2UploadClientError('upload_aborted', 'Upload was cancelled', true);
+        }
     }
 
     private assertHttpSuccess(response: Response, code: string): void {

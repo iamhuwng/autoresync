@@ -7,11 +7,20 @@ import {
 export interface ListeningUploadSessionResponse {
   uploadSessionId: string;
   ownerId: string;
-  status: 'active';
+  status: ListeningUploadSessionStatus;
   createdAt: number;
   expiresAt: number;
   maxEligibilityExpiresAt: number;
 }
+
+/** States returned by the trusted upload-session authority. */
+export type ListeningUploadSessionStatus =
+  | 'active'
+  | 'committing'
+  | 'completed'
+  | 'cleanup-queued'
+  | 'abandoned'
+  | 'expired';
 
 export interface ListeningUploadAssetResponse {
   assetId: string;
@@ -36,24 +45,56 @@ export interface ListeningUploadAssetProbeResponse {
   };
 }
 
+export type ListeningUploadCleanupReason =
+  | 'builder-cancel'
+  | 'discard-draft'
+  | 'section-removed'
+  | 'replacement-cancelled'
+  | 'upload-aborted'
+  | 'navigation-away';
+
+export interface ListeningUploadCancelResponse {
+  status: 'cleanup-queued' | 'abandoned' | 'expired';
+  uploadSessionId: string;
+  deletedCount: number;
+  preservedCount: number;
+  skippedCount: number;
+}
+
+export interface ListeningUploadRequestOptions {
+  signal?: AbortSignal;
+}
+
+const createAbortError = (): Error => {
+  if (typeof DOMException !== 'undefined') return new DOMException('The request was aborted', 'AbortError');
+  const error = new Error('The request was aborted');
+  error.name = 'AbortError';
+  return error;
+};
+
 export interface ListeningUploadSessionApi {
   createSession(input: {
     idempotencyKey: string;
     draftId?: string;
     testId?: string;
     revisionId?: string;
-  }): Promise<ListeningUploadSessionResponse>;
+  }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadSessionResponse>;
   issueAsset(input: {
     idempotencyKey: string;
     uploadSessionId: string;
     fileName: string;
     declaredMimeType: string;
     sizeBytes: number;
-  }): Promise<ListeningUploadAssetResponse>;
+  }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadAssetResponse>;
   probeAsset(input: {
     uploadSessionId: string;
     assetId: string;
-  }): Promise<ListeningUploadAssetProbeResponse>;
+  }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadAssetProbeResponse>;
+  cancelSession(input: {
+    uploadSessionId: string;
+    assetId?: string;
+    reason: ListeningUploadCleanupReason;
+  }): Promise<ListeningUploadCancelResponse>;
 }
 
 type ListeningUploadSessionEnv = R2UploadEndpointEnv & {
@@ -74,21 +115,42 @@ export class WorkerListeningUploadSessionApi implements ListeningUploadSessionAp
     path: string,
     body: Record<string, unknown>,
     idempotencyKey?: string,
+    options?: ListeningUploadRequestOptions,
   ): Promise<T> {
     const endpoint = resolveListeningUploadSessionEndpoint();
+    if (options?.signal?.aborted) {
+      throw createAbortError();
+    }
     const user = getAuth().currentUser;
     if (!endpoint || !user) throw new Error('Listening upload session service unavailable');
     const token = await user.getIdToken();
-    const response = await globalThis.fetch(`${endpoint}/${path}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error('Listening upload session request failed');
+    let response: Response;
+    try {
+      response = await globalThis.fetch(`${endpoint}/${path}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: options?.signal,
+      });
+    } catch (error) {
+      if (options?.signal?.aborted) {
+        throw createAbortError();
+      }
+      throw error;
+    }
+    if (!response.ok) {
+      const error = new Error('Listening upload session request failed') as Error & {
+        status?: number;
+        retryable?: boolean;
+      };
+      error.status = response.status;
+      error.retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+      throw error;
+    }
     return response.json() as Promise<T>;
   }
 
@@ -97,9 +159,9 @@ export class WorkerListeningUploadSessionApi implements ListeningUploadSessionAp
     draftId?: string;
     testId?: string;
     revisionId?: string;
-  }): Promise<ListeningUploadSessionResponse> {
+  }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadSessionResponse> {
     const { idempotencyKey, ...body } = input;
-    return this.post('createListeningUploadSession', body, idempotencyKey);
+    return this.post('createListeningUploadSession', body, idempotencyKey, options);
   }
 
   issueAsset(input: {
@@ -108,15 +170,23 @@ export class WorkerListeningUploadSessionApi implements ListeningUploadSessionAp
     fileName: string;
     declaredMimeType: string;
     sizeBytes: number;
-  }): Promise<ListeningUploadAssetResponse> {
+  }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadAssetResponse> {
     const { idempotencyKey, ...body } = input;
-    return this.post('issueListeningUploadAsset', body, idempotencyKey);
+    return this.post('issueListeningUploadAsset', body, idempotencyKey, options);
   }
 
   probeAsset(input: {
     uploadSessionId: string;
     assetId: string;
-  }): Promise<ListeningUploadAssetProbeResponse> {
-    return this.post('probeListeningUploadAsset', input);
+  }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadAssetProbeResponse> {
+    return this.post('probeListeningUploadAsset', input, undefined, options);
+  }
+
+  cancelSession(input: {
+    uploadSessionId: string;
+    assetId?: string;
+    reason: ListeningUploadCleanupReason;
+  }): Promise<ListeningUploadCancelResponse> {
+    return this.post('cancelListeningUploadSession', input);
   }
 }

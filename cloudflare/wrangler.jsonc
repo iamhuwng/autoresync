@@ -8,6 +8,11 @@
   ],
   "workers_dev": true,
   "preview_urls": false,
+  "triggers": {
+    "crons": [
+      "0 * * * *"
+    ]
+  },
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",
@@ -43,6 +48,10 @@
   "vars": {
     "PUBLIC_URL": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev",
     "FIREBASE_PROJECT_ID": "temp-a1437",
-    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com"
+    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
+    "LISTENING_UPLOAD_SESSION_SWEEP_ENABLED": "false",
+    "LISTENING_UPLOAD_SESSION_SWEEP_NOT_BEFORE_MS": "1782976636347",
+    "LISTENING_UPLOAD_SESSION_SWEEP_MAX_OWNERS": "50",
+    "LISTENING_UPLOAD_SESSION_SWEEP_MAX_SESSIONS": "100"
   }
 }

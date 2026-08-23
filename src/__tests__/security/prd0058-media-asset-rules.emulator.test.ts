@@ -139,6 +139,9 @@ describe('PRD-0058 media-asset RTDB rules', () => {
       'status',
       'createdAt',
       'approvedAt',
+      'updatedAt',
+      'leaseExpiresAt',
+      'notBeforeMs',
     ]);
     expect(rules.rules['.write']).toContain("newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val()");
     expect(rules.rules['.write']).toContain("newData.child('media_assets').val() === data.child('media_assets').val()");

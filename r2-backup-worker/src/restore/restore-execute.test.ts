@@ -272,10 +272,34 @@ describe('registry restore drill', () => {
       const method = init?.method ?? 'GET';
       const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
 
-      if (path === 'system_flags/restore_in_progress' && method === 'PUT') {
-        const body = JSON.parse(String(init?.body ?? 'null'));
+      if (path === 'system_flags' && method === 'GET') {
+        return new Response(JSON.stringify(liveRtdb.get('system_flags') ?? null), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', etag: '"system-flags-etag"' },
+        });
+      }
+
+      if (path === 'system_flags' && method === 'PUT') {
+        const body = JSON.parse(String(init?.body ?? '{}'));
         liveRtdb.set('system_flags', body);
-        return json({ ok: true });
+        return json(body);
+      }
+
+      if (
+        path === 'listening_authoring'
+        && method === 'GET'
+        && (init?.headers as Record<string, string> | undefined)?.['X-Firebase-ETag'] === 'true'
+      ) {
+        return new Response(JSON.stringify(liveRtdb.get('listening_authoring') ?? null), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', etag: '"authoring-etag"' },
+        });
+      }
+
+      if (path === 'listening_authoring' && method === 'PUT') {
+        const body = JSON.parse(String(init?.body ?? '{}'));
+        liveRtdb.set('listening_authoring', body);
+        return json(body);
       }
 
       if (path === '' && method === 'GET' && url.searchParams.get('shallow') === 'true') {
@@ -455,5 +479,30 @@ describe('registry restore drill', () => {
       'tests.legacy-live.authoringVersioning.versionId',
       'version-live',
     );
+  });
+
+  it('refuses to start restore while Listening cleanup holds the shared mutation lease', async () => {
+    const now = Date.now();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      listening_media_mutation_lease: {
+        leaseId: 'cleanup-lease-active',
+        kind: 'listening-temp-cleanup',
+        expiresAt: now + 120_000,
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', etag: '"system-flags-etag"' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(executeRestore({
+      FIREBASE_PROJECT_ID: 'temp-a1437',
+      FIREBASE_DB_URL: 'https://db.example.test',
+      GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, new FakeR2Client() as never, 'BK-blocked', {
+      scope: ['all'],
+      mode: 'smart_auto',
+    }, new StatusTracker('restore'))).rejects.toThrow('listening_media_mutation_in_progress');
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 });

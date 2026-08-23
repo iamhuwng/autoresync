@@ -2,6 +2,12 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## Listening temporary-upload cleanup recovery integration - 2026-08-23
+
+The lost Listening upload-session cleanup implementation was recovered onto a clean branch from canonical `main`. The recovered code includes the trusted scheduled handler, bounded candidate paging, sweep lease/checkpoint persistence, restore suppression, reference-preserving cleanup, backup/restore integration, and supporting local tests. It does not include the separate Stitch/Claudian cleanup commits.
+
+Activation remains gated: `cloudflare/wrangler.jsonc` retains the hourly scheduled hook but sets `LISTENING_UPLOAD_SESSION_SWEEP_ENABLED` to `false`, and a direct regression test proves the disabled path returns before repository access. Editor-tab heartbeat and multi-tab edit-turn lease aggregation remain unimplemented. Before re-enabling, implement those lifecycle semantics; add direct sweep-orchestration coverage for checkpoint resume/reset, concurrent sweep-lease rejection, failed-candidate retry, owner/session limits, and final metric/sweep-record persistence; reconcile the authoritative cutoff and rollout contract; run emulator-backed rules proof and restore/deletion proof; and obtain separate deployment/remote-mutation approval. This integration makes no deployed/current, live cleanup, browser, Firebase, R2, or Cloudflare mutation claim.
+
 ## PRD-0055 localhost-only scope correction after drift - 2026-07-01
 
 Status: CURRENT GOVERNING BOUNDARY. The current PRD-0055 implementation/proof slice is localhost-only. Use `http://localhost:5173` for teacher proof and `http://localhost:5174` for student proof. Do not use `https://kahut1.web.app` or any live domain as a current unlock path until a future deployment/rollout PRD is explicitly approved.
