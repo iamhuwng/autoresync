@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "validated-captured-runner-output",
+  "disposition": "LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED",
+  "source": {
+    "commit": "2c77efff58ab2dad7353c7f591b6c6ec0c6817c5",
+    "dirty": false,
+    "dirtyFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "previousDocsOnlyEvidenceCommit": "3a0266fb0788d5c6edf3e1f639e88e53ce627af9",
+    "productSourceCommit": "36ce82eb784c02d35e1b499e182e2ebcaca92d9f",
+    "testBlobAtBothCommits": "b8394a108d39d553e8aa9bd770ce02ee28c5f5ed",
+    "configBlobAtBothCommits": "a4196d8232eedeabcb5cd3f8f6f48fc105b0cd9d"
+  },
+  "harness": {
+    "name": "luyentap-windows-arm64-harness",
+    "version": "3.7.0",
+    "protocolVersion": 5,
+    "runId": "46150346-22d6-40f4-9c3c-726589af7bc0",
+    "classification": "completed",
+    "exitCode": 0,
+    "sidecarSha256": "212a96a3093661d007af7a122ed56f801b506d2814c443fe86b1700042111ccf",
+    "sidecarCounters": "null; counts are validated from the captured verbose runner output"
+  },
+  "capturedOutput": {
+    "normalizedCompanionPath": "documentation/tasks/PRD0062/evidence/126-production-normal-rule-enforced-rerun-output-2026-08-23.txt",
+    "normalizedCompanionSha256": "695543bcc7c10bceb0b85b5ebda4e6910c53664c556663fcedb1c57443a47bb7",
+    "rawExternalSha256": "735ff698030d58284ae0ec7c6baf2c9933d4588e05e35780fa892883aa8564dd",
+    "offlineArchive": "C:\\Users\\The Lord\\archives\\luyentap-consolidation-20260823\\ticket126-harness-rerun-evidence.tar.gz",
+    "offlineArchiveSha256": "35a2ca723d0ae4528122c0b862b568fe8798d1af3e88a1bffbf67db46f5d600b",
+    "parser": {
+      "testFilesPattern": "Test Files\\s+(\\d+) passed\\s+\\((\\d+)\\)",
+      "testsPattern": "Tests\\s+(\\d+) passed\\s+\\((\\d+)\\)",
+      "requiredExitText": "Script exited successfully (code 0)",
+      "requiredAssertionTitle": "retains the committed recipient row when only derived completion is unavailable"
+    },
+    "nestedNodeInvocation": "C:\\Users\\THELOR~1\\Tools\\node-x64\\node.exe",
+    "nestedNodeReason": "The Firebase nested Windows shell did not inherit command discovery; pinning the already-selected x64 runtime changed no test, config, rules, fixture, or product semantics."
+  },
+  "counts": {
+    "testFilesCollected": 1,
+    "testFilesPassed": 1,
+    "testsCollected": 4,
+    "testsExecuted": 4,
+    "testsPassed": 4,
+    "testsFailed": 0,
+    "testsSkipped": 0
+  },
+  "committedRecipientAssertion": {
+    "sourcePath": "cloudflare/test/prd0062-m1-rule-enforced-composition.emulator.test.ts",
+    "sourceLines": "314-329",
+    "sourceSha256": "a42eb68860b1a1187a9f700700e538c509af68d0d4642e681ee315b72b010248",
+    "completionReadStatus": 503,
+    "expectedCompletion": null,
+    "recipientRowRetained": true,
+    "testPassed": true
+  },
+  "mutations": {
+    "assignmentReplay": false,
+    "projectorWrite": false,
+    "remoteFirebase": false,
+    "remoteCloudflare": false,
+    "remoteR2": false
+  },
+  "remainingGate": "Wrangler OAuth reauthorization followed by authorized exact-artifact deployment/readback and real browser verification"
+}

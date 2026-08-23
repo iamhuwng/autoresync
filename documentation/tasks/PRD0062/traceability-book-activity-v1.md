@@ -46,7 +46,7 @@ actively blocked at the trusted-projection and rollback/readback boundary, and
 These overlays keep local, browser, deployed, and pilot proof classes separate;
 they do not mark PRD0062 fully accepted.
 
-## 2026-08-20 active traceability consolidation
+## 2026-08-20 traceability consolidation (historical)
 
 | Requirement area | Active status | Evidence boundary |
 |---|---|---|
@@ -55,8 +55,19 @@ they do not mark PRD0062 fully accepted.
 | #127 / 51A acceptance definition | `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED` | `evidence/51A-acceptance-authority-2026-08-17.json` records semantic PASS for the source/registry/fixture-conformant definition. Final acceptance suites remain separate. |
 | #128 / 51B1 teacher acceptance | `DEFERRED_FINAL_PROOF_HELD_BY_126` | The 51A definition is corrected; positive activated execution remains held by #126. |
 
-This is the current traceability overlay. It does not promote local or
-definition-only proof to deployed, browser, pilot, or Full V1 completion.
+This historical overlay records the 2026-08-20 checkpoint and is preserved
+append-only. It does not promote local or definition-only proof to deployed,
+browser, pilot, or Full V1 completion.
+
+## 2026-08-23 #126 active traceability overlay
+
+| Requirement area | Active status | Evidence boundary |
+|---|---|---|
+| #126 / 50B activation | `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` | The unchanged default composition passed the exact rule-enforced emulator path at clean docs-only source `2c77efff`, whose test/config blobs match product source `36ce82eb`: 1/1 files and 4/4 tests, zero failed/skipped, including committed-row retention with derived completion unavailable. No assignment replay or remote mutation occurred. Wrangler reauthorization plus authorized exact-artifact deployment/readback/browser proof remains open. |
+| #128 / 51B1 teacher acceptance | `DEFERRED_FINAL_PROOF_HELD_BY_126` | The local #126 causal boundary is closed; positive activated execution remains held by the authorized deployment/readback/browser gate. |
+
+This is the current traceability overlay. It supersedes the #126 interpretation
+in the preserved 2026-08-20 checkpoint without rewriting that history.
 
 ## Packet Owner Map
 
@@ -87,11 +98,12 @@ The `AC-*` table below provides one row per PRD V1 acceptance criterion. Packet 
 | AM-006 / AC-AMEND-06 | Independent Standards/Spec review is a method/scope/risk/validation gate, not a dependency on a particular reviewer account/session; equivalent independent review may replace a failed reviewer tool session without weakening review. | Amendment §6 | 8 | Documentation/review process only | N/A | Reviewer record must capture method, inspected scope, governing requirements, risk model, validation rerun/not rerun, residual risk, and disposition | A revoked/expired reviewer session cannot itself be treated as a product defect or justify source mutation | N/A | amendment; master Review And Closure Protocol | #126 frozen-candidate review record/evidence | Component 08 review gate | IMPLEMENTING | Accepted governance rule; durable reviewer evidence must accompany the relevant freeze/closure record. |
 | AM-007 / AC-AMEND-07 | Once the representative production-normal path is safely active, hand the real site to the user before broad remaining-acceptance audit; then return to the complete PRD0062 acceptance delta rather than adapter completion. | Amendment §7 | 8 | `documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md` sequencing; product surfaces remain owned by their components | Existing release/browser safety gates | Representative path must already satisfy automated/rule-enforced gates; no extra product framework required | Do not delay handoff for cleanup/evidence polish; no adapter Milestone 2; user observations supplement rather than replace canonical acceptance | Real site teacher Book detail + student Book detail → Runtime; report ordinary Homework smoke or fixture unavailability | amendment; recovery/completion plan §2.1.1 | #126 browser-handoff evidence | Component 08 / 5.19, 7.9 | IMPLEMENTING | User-visible M1 handoff remains pending final operational deployment. |
 
-The 2026-08-23 unchanged-lineage reproduction record is
-`evidence/126-production-normal-local-reproduction-2026-08-23.md`. It passed
-the production-shaped rule-enforced composition 4/4, selects no local causal
-source change, and leaves deployed readback/browser proof blocked on Wrangler
-reauthorization. Any older active reference to the removed
+The 2026-08-23 unchanged-lineage reproduction records are
+`evidence/126-production-normal-local-reproduction-2026-08-23.md` and
+`evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`. The
+captured rerun passed 1/1 files and 4/4 tests with zero failed/skipped, selects
+no local causal source change, and leaves deployed readback/browser proof
+blocked on Wrangler reauthorization. Any older active reference to the removed
 `book-homework-current-production-composition.workerd.test.ts` is stale; the
 current route owner is `cloudflare/test/book-homework-route.test.ts`.
 | T-001 | Central Material Capability Registry precedes `interactive-activity` support in UI, assignment, launch, result, or security flows. | 6, 7, 9, 29 | 1 | `src/services/materialCatalog/materialCapabilityRegistry.service.ts`; `src/types/materialCatalog.types.ts`; `src/services/materialCatalog/materialIntegrationRegistry.ts`; `src/services/materialCatalog/materialSummaryPort.service.ts` | Activity data uses `database.rules.json` RTDB `book_activity/*` | `src/services/materialCatalog/materialCapabilityRegistry.service.test.ts` `returns complete interactive-activity capabilities and fails closed when adapter is missing` | Missing capability/adapter fails closed before picker/assignment/launch/result/projection use | N/A | `documentation/architecture/book-activity-runtime-and-assembly.md`; `documentation/tasks/PRD0062/contracts-book-activity-packet-1.md` | `F-P1-001` | Component 01 / 1.0 | CLOSED | Current live Packet 1 implementation. |

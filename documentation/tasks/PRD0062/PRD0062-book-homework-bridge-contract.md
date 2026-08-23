@@ -1,6 +1,6 @@
 # PRD0062 Book Homework Bridge Contract
 
-Status: accepted target architecture; Milestone 1 bridge core implemented; production rollback active after committed compatibility-projection failure
+Status: accepted target architecture; `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` under the 2026-08-23 active overlay
 
 Prepared: 2026-08-14
 
@@ -10,6 +10,11 @@ Governing current amendment:
 - `documentation/tasks/PRD0062/PRD0062-architecture-and-delivery-amendment-2026-08-15.md`
 
 This file supplies the detailed bridge contract beneath that amendment. The amendment governs current PRD0062 scope, trusted-projection, acceptance-proof, and browser-handoff boundaries; this bridge has no independent product roadmap or completion target.
+
+Active authority note: Sections 1-22 retain the implementation and recovery
+history that led to the current boundary. Section 23 is the current #126
+overlay and supersedes any earlier statement that a local compatibility,
+projection, codec, or source correction remains selected.
 
 ## 1. Current State
 
@@ -899,3 +904,22 @@ The separate-authority architecture remains accepted. This revision adds two-way
 - the current committed assignment with missing compatibility shell is a repair target, not permission to create another assignment.
 
 This documentation revision authorizes no immediate production replay by itself. The next activation remains gated by exact compatibility-failure reproduction, owning-seam correction, minimum return-path provenance proof, regenerated frozen identities, and the bounded same-command replay described in Sections 18.1 and the controlling recovery plan.
+
+## 23. Active #126 local-proof disposition — 2026-08-23
+
+The exact production-shaped default-Worker composition has now been rerun under
+the real RTDB and Firestore rules engines. Run
+`46150346-22d6-40f4-9c3c-726589af7bc0` passed 1/1 files and 4/4 tests with zero
+failed/skipped. Its explicit 503 completion-read case retained the committed
+recipient row with `completion: null`; crossed authority and binding revision
+continued to fail closed. No assignment replay, projector write, or remote
+mutation occurred. See
+`evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`.
+
+Accordingly, the historical instruction above to reproduce and correct a local
+owning seam is satisfied without reproducing the failure. No bridge, codec,
+projection, rules, or product-source change is selected. The active status is
+`LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED`; only authorized deployed
+artifact/configuration/claims/rules/durable-state readback and real browser
+proof remain after Wrangler reauthorization. The assignment must not be
+replayed.

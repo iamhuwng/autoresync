@@ -107,8 +107,14 @@ Before completing this component:
   - [ ] 4.9 Run rules and emulator tests across all PRD0062 paths.
   - [ ] 4.10 Run public-rights state/projection tests and Book integrity no-auto-submit/no-nullification tests.
   - [ ] 4.11 Record exact commands and results in findings.
-  - [ ] 4.12 For the Book Homework production composition, run a rule-enforced default-Worker acceptance proof using production-shaped committed state, exact applicable RTDB/Firestore rules, and the Worker-generated service UID/custom claims; do not substitute an in-memory Firebase transport that bypasses rule evaluation.
-  - [ ] 4.13 When the compatibility shell and committed assignment already exist, prove teacher aggregate/per-student projection, student projection, Book launch, and Runtime resolution without assignment replay, projector write, or unintended authoritative mutation.
+  - [x] 4.12 For the Book Homework production composition, run a rule-enforced default-Worker acceptance proof using production-shaped committed state, exact applicable RTDB/Firestore rules, and the Worker-generated service UID/custom claims; do not substitute an in-memory Firebase transport that bypasses rule evaluation.
+  - [x] 4.13 When the compatibility shell and committed assignment already exist, prove teacher aggregate/per-student projection, student projection, Book launch, and Runtime resolution without assignment replay, projector write, or unintended authoritative mutation.
+
+2026-08-23 evidence for 4.12-4.13:
+`evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json` records
+1/1 files and 4/4 tests passed with zero failed/skipped under the exact RTDB
+and Firestore rules engines. This closes only the local rule-enforced taskbox;
+5.19, 7.9, and the deployed/browser release boundary remain open.
 
 - [ ] 5.0 Complete browser verification matrix
   - [ ] 5.1 Use teacher URL `http://localhost:5173`.

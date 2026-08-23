@@ -80,9 +80,10 @@ trusted-projection and rollback/readback boundary, and #128 remains held.
 No current evidence selects a new generic adapter, recovery, or broad product
 architecture owner.
 
-## 2026-08-20 active ownership consolidation
+## 2026-08-20 historical active-ownership checkpoint
 
-This is the active override for the historical tables above.
+This was the active override at the 2026-08-20 checkpoint. The 2026-08-23
+overlay below is current.
 
 | Owner | Active disposition | Authority |
 |---|---|---|
@@ -94,7 +95,7 @@ This is the active override for the historical tables above.
 No current evidence selects a new generic adapter, recovery, or broad product
 architecture owner.
 
-## 2026-08-20 final Windows certification overlay
+## 2026-08-20 historical final Windows certification overlay
 
 This append-only overlay records fresh local qualification on harness 3.7.0,
 protocol 5, dependency-cache protocol 3. It does not replace the accepted
@@ -114,7 +115,7 @@ No historical WSL repository or worktree supplied source or execution evidence.
 
 | Owner | Active disposition | Authority / boundary |
 |---|---|---|
-| #126 / 50B | `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` | `evidence/126-production-normal-local-reproduction-2026-08-23.md`: unchanged-lineage production-shaped composition passed 4/4, including committed-row retention with unavailable derived completion. No assignment replay or remote mutation occurred. Remaining owner is exact deployed artifact/configuration/claims/rules/durable-state readback plus browser proof after Wrangler reauthorization. |
+| #126 / 50B | `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` | `evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`: unchanged default composition passed 1/1 files and 4/4 tests with zero failed/skipped, including committed-row retention with unavailable derived completion. No assignment replay or remote mutation occurred. Remaining owner is exact deployed artifact/configuration/claims/rules/durable-state readback plus browser proof after Wrangler reauthorization. |
 | #128 / 51B1 | `DEFERRED_FINAL_PROOF_HELD_BY_126` | Unchanged. Positive activated acceptance remains held until #126 exact deployment/readback/browser proof succeeds. |
 
 No local product-code owner is selected by the #126 reproduction.

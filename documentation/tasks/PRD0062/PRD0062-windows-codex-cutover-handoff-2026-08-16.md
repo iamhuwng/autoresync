@@ -1,8 +1,12 @@
 # PRD0062 Windows Codex Cutover Handoff — 2026-08-16
 
-Status: **READY FOR GIT CHECKPOINT → FRESH NATIVE WINDOWS CLONE**
+Status: **HISTORICAL CUTOVER RECORD — CURRENT AUTHORITY IN SECTIONS 20-21**
 
 Purpose: make the active PRD0062 implementation and completion state fully available to Codex App on Windows without any dependency on the WSL checkout or WSL-local Codex session state.
+
+Active authority note: Sections 1-19 preserve the cutover chronology, including
+deployment/browser claims later contradicted by more specific evidence.
+Sections 20-21 are current and supersede those claims without deleting history.
 
 ## 1. Current WSL source checkout
 
@@ -209,7 +213,7 @@ environment exhausted disk is an environment/harness attempt only; it does
 not replace the exact-commit M1 evidence above or indicate a product
 regression.
 
-## 19. Phase 1 Windows convergence completion — 2026-08-20
+## 19. Historical Phase 1 Windows convergence completion — 2026-08-20
 
 Status: **COMPLETE — WINDOWS AUTHORITATIVE**
 
@@ -281,3 +285,21 @@ cause must be resolved at the deployed artifact/configuration/claims/rules/
 durable-state boundary. Wrangler OAuth reauthorization and an authorized
 deployment/readback/browser pass are required before closure. #128 remains
 held and the assignment must not be replayed.
+
+## 21. Durable rerun and Git operating contract — 2026-08-23
+
+The exact rule-enforced command was rerun from clean docs-only descendant
+`2c77efff`; its test/config blobs are identical to `36ce82eb`. Harness run
+`46150346-22d6-40f4-9c3c-726589af7bc0` passed 1/1 files and 4/4 tests with zero
+failed/skipped and explicitly retained the committed recipient row when
+completion returned 503. Evidence:
+`evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`.
+
+Current Git authority is the canonical Windows database with worktrees at
+`C:\Users\The Lord\repos\luyentap` and
+`C:\Users\The Lord\repos\luyentap-prd0062`. From Windows or WSL, manage the
+PRD worktree only with Git for Windows (`git.exe`). Native WSL Git 2.43 cannot
+resolve its Windows absolute pointer and does not support the relative-worktree
+extension used by Git 2.55. The supported worktree lock prevents accidental
+native-WSL pruning. Full contract:
+`evidence/windows-git-operational-contract-2026-08-23.md`.

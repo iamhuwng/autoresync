@@ -24,6 +24,20 @@ The repository Windows ARM64 harness ran the command with x64 Node.js and x64 Ja
 - Vitest: 1 file passed, 4/4 tests passed, zero skipped, 57.04 seconds.
 - The red-capable regression `retains committed recipient row when only derived completion is unavailable` passed under the real RTDB and Firestore rules engines.
 
+## Durable count/assertion companion
+
+The exact composition was rerun from clean docs-only descendant `2c77efff`.
+The test and config Git blobs are identical to `36ce82eb`. Captured output and
+validated machine-readable evidence are committed at:
+
+- `126-production-normal-rule-enforced-rerun-output-2026-08-23.txt`
+- `126-production-normal-rule-enforced-rerun-2026-08-23.json`
+
+Harness run `46150346-22d6-40f4-9c3c-726589af7bc0` completed with exit code 0:
+1/1 test files and 4/4 tests passed, with zero failed and zero skipped. The
+named committed-recipient-row assertion passed. The raw captured output and
+sidecar are also retained in the checksummed consolidation archive.
+
 ## Disposition
 
 The unchanged local production-shaped composition does not reproduce the trusted teacher-projection failure. There is no evidence for a local causal-source change. Under the accepted amendment, the remaining discrepancy is therefore at the deployed artifact/configuration/claims/rules/durable-state boundary.

@@ -131,6 +131,17 @@ Regression tests to preserve:
 - src/__tests__/security/materialCatalogFirebaseRules.test.ts / `gates Book nodes and denies hidden fields inside node payloads`
 ```
 
+## 2026-08-23 #126 production-shaped local finding
+
+| Finding | State | Evidence / boundary |
+|---|---|---|
+| `F-126-LOCAL-RULE-COMPOSITION` | `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` | `evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`: clean docs-only source `2c77efff`, with test/config blobs unchanged from product source `36ce82eb`; harness 3.7.0/protocol 5 passed 1/1 files and 4/4 tests, zero failed/skipped. The explicit 503 completion-read test retained the committed recipient row with `completion: null`. No assignment replay, projector write, or remote mutation occurred. |
+
+No local causal source change is selected. The remaining #126 boundary is
+Wrangler OAuth reauthorization followed by an authorized exact-artifact
+deployment/readback and real browser verification. This finding does not close
+Component 08 browser, deployed, pilot, or Full-V1 gates.
+
 ### Activity Domain
 
 Expected new or confirmed owner paths:

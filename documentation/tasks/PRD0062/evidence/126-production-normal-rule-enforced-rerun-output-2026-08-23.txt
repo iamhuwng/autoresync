@@ -1,0 +1,29 @@
+PRD0062 #126 production-shaped rule-enforced rerun
+Captured: 2026-08-23
+Source: 2c77efff58ab2dad7353c7f591b6c6ec0c6817c5 (clean)
+Harness: luyentap-windows-arm64-harness 3.7.0 / protocol 5
+Run: 46150346-22d6-40f4-9c3c-726589af7bc0
+
+Exact nested command:
+C:\Users\THELOR~1\Tools\node-x64\node.exe node_modules/vitest/vitest.mjs run --config cloudflare/vitest.prd0062-m1-rule-enforced-composition.config.mjs --reporter=verbose --passWithNoTests=false --maxWorkers=1 cloudflare/test/prd0062-m1-rule-enforced-composition.emulator.test.ts
+
+PASS: keeps frozen activation identities stable across Windows line endings
+PASS: executes the full shell-present teacher/student/Runtime read path without any command or durable write
+PASS: fails closed for crossed authority claims and a mismatched binding revision without mutating emulator state
+PASS: retains the committed recipient row when only derived completion is unavailable
+
+Test Files  1 passed (1)
+Tests       4 passed (4)
+Duration    27.09s (transform 6.00s, setup 0ms, collect 14.61s, tests 11.59s, environment 0ms, prepare 454ms)
+
+Firebase emulator result: Script exited successfully (code 0)
+Harness classification: completed
+Harness exitCode: 0
+
+The fourth test forces the completion read to return HTTP 503 and asserts the
+exact aggregate result:
+
+{"status":200,"body":{"assignmentId":"<frozen assignment>","students":[{"studentId":"<frozen recipient>","completion":null}]}}
+
+No assignment command, projector write, or remote Firebase/Cloudflare/R2
+mutation occurred.

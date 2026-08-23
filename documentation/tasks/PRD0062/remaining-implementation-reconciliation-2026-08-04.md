@@ -193,7 +193,7 @@ Each row has one canonical owner. “Existing” records built or defined work; 
 | **#123 / 49C** — §§7–8, 11 recover runtime/results/completion | `BLOCKED_DEPENDENCY` | Runtime/result/completion repositories exist; no recovery-mode adapter exists. | Rebuild only from canonical exact bindings without executing student commands, scoring side effects, or terminal fan-out. | #121 + #122 → #124, #125 | Two-pass reconstruction hashes/counts; malformed/orphan denial; no command/notification side effects; result/history continuity. |
 | **#124 / 49D** — §§6, 9, 11 recover updates/notifications/replacement/audit | `BLOCKED_DEPENDENCY` | #100 notification behavior is locally verified; update/replacement producers remain open. No recovery adapter exists. | Restore canonical action authority first, deterministically derive permitted effects, and suppress every external action until reconciliation. | #110 + #123 + closed #100 → #125 | Idempotent restore/replay, no duplicate notification/checkpoint/delete, replacement/audit continuity, suppressed-provider proof, failure recovery. |
 | **#125 / 49E** — §§11, 14 deterministic recovery reconciliation | `BLOCKED_DEPENDENCY` | No orchestrator or complete two-pass final-root evidence exists. | Order #122–#124 phases, reconcile stable hashes/counts, execute two passes, and produce release-gate evidence with zero new external side effects. | #122 + #123 + #124 → #126, #133, #134 | Orchestrator tests; exact phase/readiness gates; two-pass equality; failure/resume; no side-effect ledger; recovery decision artifact. |
-| **#126 / 50B** — §§2, 11, 14 truthful bounded activation | `BLOCKED_DEPENDENCY_AND_APPROVAL` | #44/50A default-deny scaffold is closed and remotely proven all-deny; capability/feature registries and allowlist validation seams exist. No positive pilot activation or enforcement across every trusted path is authorized/proven. | After #104/#118/#125, enforce the exact named-teacher/≤30-student/one-assignment scope in server-side create/upload/publish/assign/launch/mutation paths, then make registries/gates/observability truthful. Browser hints are not authorization. No partial release. | #104 + #118 + #125 → #128, #134 | Server enforcement and bypass negatives; registry/gate consistency; scoped identity/config readback; dashboards/alerts; positive/negative canary; rollback to all-deny. Remote mutation requires approval. |
+| **#126 / 50B** — §§2, 11, 14 truthful bounded activation | `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` | #44/50A default-deny remains preserved. The exact default-Worker RTDB/Firestore rule-enforced composition passed 1/1 files and 4/4 tests with zero failed/skipped at clean docs-only source `2c77efff`, whose test/config blobs match product source `36ce82eb`, including committed-recipient retention when completion is unavailable; no assignment replay or remote mutation occurred. | No local causal source change is selected. Wrangler OAuth reauthorization and authorized exact-artifact deployment/readback/browser proof remain required; no partial release. | #104 + #118 + #125 → #128, #134 | `evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`; remaining scoped identity/config/rules/artifact readback, browser journey, canary/rollback evidence require remote authorization. |
 | **#128 / 51B1** — §14 teacher authoring/assignment browser acceptance | `DEFERRED_FINAL_PROOF` | Ticket- and preview-level teacher browser artifacts exist, but no complete source-conformant 51A execution record exists. | Execute current Mode 2 creation, B2 source, Assembly, publication/revision, assignment/schedule/integrity configuration after activation; do not substitute older component proofs. | #126 + corrected #127 → #134 | Reproducible role journey, network/trace/screenshots, deterministic fixture cleanup, exact case manifest, zero skipped blocker. |
 | **#129 / 51B2** — §§6, 9, 14 teacher update/replacement/results acceptance | `DEFERRED_FINAL_PROOF` | Suite definition exists; 2026-07-22 AC-TR attempt is `LOCAL_HARNESS_BLOCKED` before page inspection. No product pass. | Execute AC-TU/AC-TR only after #112–#117 are stable; refresh result proof. Earlier route interception cannot prove Worker/B2/Firebase state. | Effective: #112–#117 + corrected #127 → #134 | Current local browser pass with real owned services/fixtures, update/checkpoint/result/replacement assertions, artifacts and cleanup; deployed behavior remains #134. |
 | **#130 / 51C1** — §§7–10, 14 student runtime/persistence acceptance | `DEFERRED_FINAL_PROOF` | Suite definition exists; earlier ticket-level runtime proofs are narrower. No complete AC-SR execution. | Run Solo/Homework/Course/Class, all Activity families, autosave/submit/results, schedules, notifications, replacement invalidation, and previous-version review after #104/#117. | Effective: #104 + #110 + #117 + closed #75 + corrected #127 → #134 | Current desktop student role suite; reload/network/trace evidence; exact context isolation and denial; artifact manifest and cleanup. |
@@ -268,7 +268,7 @@ at #136.
 - Local, emulator, preview, deployed, canary, and pilot states remain distinct.
 - The complete PRD remains required. No pilot or proof ticket creates a partial product completion claim.
 
-### 2026-08-16 post-cutover #126/#128 acceptance reconciliation
+### 2026-08-16 historical post-cutover #126/#128 acceptance reconciliation
 
 This is an append-only current-state addendum. The dated snapshots and
 append-only evidence packets above remain unchanged. It reconciles the
@@ -334,10 +334,10 @@ Accordingly, the next implementation diagnosis is the #126 teacher trusted-
 projection boundary, while the next independent ledger correction is #127/51A.
 Neither authorizes starting #128 or #134 in this reconciliation task.
 
-### 2026-08-20 Phase 1 authority consolidation
+### 2026-08-20 historical Phase 1 authority consolidation
 
-This latest append-only section supersedes conflicting active-state language
-above without deleting its historical sequence.
+This historical append-only checkpoint was superseded by the 2026-08-23 #126
+local reproduction overlay below; it remains unchanged as sequence evidence.
 
 - **#111 / 40B, #113 / 41B, and #114 / 41C remain implemented at their local
   proof boundary.** The Windows reconciliation preserves the redo executor's
@@ -373,3 +373,10 @@ only if the reproducer went red: it did not. No local causal source change is
 selected. #126 remains open as `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED`
 pending Wrangler reauthorization and an authorized exact deployment/readback
 plus real browser proof. #128 remains held by that remote gate.
+
+The durable count/assertion companion is now
+`evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`. A clean
+docs-only descendant at `2c77efff` reran the identical test/config blobs and
+passed 1/1 files and 4/4 tests with zero failed/skipped. The explicit 503
+completion-read case retained the committed recipient row. This strengthens
+the local proof and does not change the remote disposition.

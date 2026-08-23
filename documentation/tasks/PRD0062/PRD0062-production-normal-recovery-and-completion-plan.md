@@ -600,3 +600,26 @@ Do not narrate every command, create approval ceremony around routine bounded fi
 ## 17. Fresh-Thread Launch Prompt
 
 > Work in `/home/iamhuwng/worktrees/prd0062-production-normal-20260813-v2`. Read `documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md` completely before acting; it is the controlling recovery and completion execution plan. The goal is the shortest credible path to working PRD0062 behavior: first recover the existing production-normal path, then close only the remaining canonical V1 acceptance delta. Do not redesign or refactor by default. Begin by converging current state and verifying the fixes already present in the worktree, including exact #118C absent-leaf Activity binding access, save/bind replay reconciliation, RTDB hydration, and the default production-normal workflow harness. If they pass, freeze exact Worker/rules/config/input identities, validate inactive rollback and activation versions, and proceed directly to the existing durable production recovery under the standing authority in this plan. On any production failure, roll back, reproduce that exact failure locally, fix only the owning seam, rerun the production-shaped gate, regenerate invalidated identities, and retry. Treat production-normal recovery and full PRD0062 completion as separate milestones. Keep updates to current state, decisive evidence, and next action.
+
+## 18. Active #126 overlay — 2026-08-23
+
+Sections 9.3.8 and 17 preserve the pre-reproduction recovery sequence. Their
+instruction to reproduce the trusted-row failure before selecting a source
+change has now been executed; it did not reproduce locally.
+
+At clean docs-only source `2c77efff`, whose composition test and config blobs are
+identical to tested source `36ce82eb`, harness run
+`46150346-22d6-40f4-9c3c-726589af7bc0` completed the exact production-shaped
+RTDB/Firestore rule-enforced command. Captured proof records 1/1 files and 4/4
+tests passed, zero failed/skipped, including committed-recipient-row retention
+when derived completion returns 503. No assignment replay, projector write, or
+remote mutation occurred. Authority:
+`evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`.
+
+The active disposition is
+`LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED`. No local causal source change
+is selected. The only #126 next action is Wrangler OAuth reauthorization and an
+authorized exact-artifact deployment/readback/browser verification. Section
+17's old WSL checkout path is historical; current source and Git operations use
+the Windows-authoritative worktree contract recorded in
+`evidence/windows-git-operational-contract-2026-08-23.md`.
