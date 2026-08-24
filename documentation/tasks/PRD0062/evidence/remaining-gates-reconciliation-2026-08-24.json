@@ -10,6 +10,15 @@
     "finalCommitNotEstablished": true,
     "inspectionState": "PRE_COMMIT_CURRENT_SOURCE_RECONCILIATION"
   },
+  "finalization": {
+    "reconciledSourceCommit": "fdf5c0ed54275be3001c027547e0a677ec507adf",
+    "featureBranchRemoteCommit": "fdf5c0ed54275be3001c027547e0a677ec507adf",
+    "remoteParityVerified": true,
+    "worktreeCleanAfterCommit": true,
+    "protectedMainHead": "3d72f11cda77b5f5aa5791c86b154744c1926fec",
+    "protectedMainClean": true,
+    "recordedAt": "2026-08-24T14:25:56.2503053+07:00"
+  },
   "currentChecks": {
     "frontendFocused": { "files": 4, "tests": 25, "passed": true },
     "cloudflareFocused": { "files": 3, "tests": 17, "passedTests": 16, "passed": true, "skipped": 1, "command": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts --maxWorkers=1 --passWithNoTests=false --reporter=dot src/__tests__/security/bookActivityFirebaseRules.test.ts src/__tests__/security/bookActivityRevisionRuleFragment.test.ts src/__tests__/security/bookAssemblyPublicationRuleFragment.test.ts" },
