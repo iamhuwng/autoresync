@@ -23,6 +23,7 @@ export type SourcePdfInspectionErrorCode =
   | 'not_pdf'
   | 'empty_pdf'
   | 'unreadable'
+  | 'timeout'
   | 'aborted';
 
 export class SourcePdfInspectionError extends Error {

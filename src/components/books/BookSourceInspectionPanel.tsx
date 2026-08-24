@@ -28,12 +28,15 @@ interface BookSourceInspectionPanelProps {
   readonly onRequestUploadAuthorization: (selection: SourceUploadSelection) => void;
 }
 
+const SOURCE_PDF_INSPECTION_TIMEOUT_MS = 30_000;
+
 const inspectionErrorMessage = (error: unknown): string => {
   if (error instanceof SourcePdfInspectionError) {
     if (error.code === 'file_too_large') return 'Choose a PDF no larger than 500 MiB.';
     if (error.code === 'invalid_filename') return 'The source filename must be a safe .pdf name.';
     if (error.code === 'not_pdf') return 'The selected file is not a readable PDF.';
     if (error.code === 'empty_pdf') return 'The PDF has no readable pages.';
+    if (error.code === 'timeout') return 'PDF inspection timed out. Check the file and try again.';
   }
   return 'The source PDF could not be inspected. Choose Retry or select another file.';
 };
@@ -51,6 +54,7 @@ const BookSourceInspectionPanel = ({
   const [error, setError] = useState('');
   const runRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
+  const inspectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const fileRef = useRef<File | null>(null);
   const onClaimChangeRef = useRef(onClaimChange);
@@ -58,6 +62,12 @@ const BookSourceInspectionPanel = ({
   fileRef.current = file;
   onClaimChangeRef.current = onClaimChange;
   onActionRef.current = onAction;
+
+  const clearInspectionTimeout = () => {
+    if (inspectionTimeoutRef.current === null) return;
+    clearTimeout(inspectionTimeoutRef.current);
+    inspectionTimeoutRef.current = null;
+  };
 
   const clearClaim = () => {
     const currentFile = file;
@@ -70,6 +80,7 @@ const BookSourceInspectionPanel = ({
     runRef.current += 1;
     const run = runRef.current;
     controllerRef.current?.abort();
+    clearInspectionTimeout();
     const controller = new AbortController();
     controllerRef.current = controller;
     if (file) invalidateSourcePdfInspectionClaim(file);
@@ -82,17 +93,9 @@ const BookSourceInspectionPanel = ({
       retry ? 'book_source_pdf_inspection_retried' : 'book_source_pdf_inspection_started',
       { exactByteSize: nextFile.size },
     );
-    void inspectSourcePdf(nextFile, { signal: controller.signal }).then((nextClaim) => {
-      if (!mountedRef.current || runRef.current !== run || controller.signal.aborted) return;
-      setClaim(nextClaim);
-      setPhase('complete');
-      onClaimChange({ file: nextFile, claim: nextClaim });
-      onActionRef.current?.('book_source_pdf_inspection_completed', {
-        exactByteSize: nextClaim.exactByteSize,
-        physicalPageCount: nextClaim.physicalPageCount,
-      });
-    }).catch((inspectionError: unknown) => {
-      if (!mountedRef.current || runRef.current !== run || controller.signal.aborted) return;
+
+    const handleInspectionFailure = (inspectionError: unknown) => {
+      if (!mountedRef.current || runRef.current !== run) return;
       if (inspectionError instanceof SourcePdfInspectionError
         && inspectionError.code === 'aborted') return;
       invalidateSourcePdfInspectionClaim(nextFile);
@@ -107,7 +110,32 @@ const BookSourceInspectionPanel = ({
           : 'unexpected',
       });
       toast.error(message);
+    };
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    timeoutId = setTimeout(() => {
+      if (!mountedRef.current || runRef.current !== run || controller.signal.aborted) return;
+      controller.abort();
+      inspectionTimeoutRef.current = null;
+      handleInspectionFailure(new SourcePdfInspectionError('timeout'));
+    }, SOURCE_PDF_INSPECTION_TIMEOUT_MS);
+    inspectionTimeoutRef.current = timeoutId;
+
+    void inspectSourcePdf(nextFile, { signal: controller.signal }).then((nextClaim) => {
+      if (!mountedRef.current || runRef.current !== run || controller.signal.aborted) return;
+      setClaim(nextClaim);
+      setPhase('complete');
+      onClaimChange({ file: nextFile, claim: nextClaim });
+      onActionRef.current?.('book_source_pdf_inspection_completed', {
+        exactByteSize: nextClaim.exactByteSize,
+        physicalPageCount: nextClaim.physicalPageCount,
+      });
+    }).catch((inspectionError: unknown) => {
+      if (controller.signal.aborted) return;
+      handleInspectionFailure(inspectionError);
     }).finally(() => {
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      if (inspectionTimeoutRef.current === timeoutId) inspectionTimeoutRef.current = null;
       if (controllerRef.current === controller) controllerRef.current = null;
     });
   };
@@ -116,6 +144,7 @@ const BookSourceInspectionPanel = ({
     mountedRef.current = false;
     runRef.current += 1;
     controllerRef.current?.abort();
+    clearInspectionTimeout();
     if (fileRef.current) invalidateSourcePdfInspectionClaim(fileRef.current);
     onClaimChangeRef.current(null);
   }, []);
@@ -124,6 +153,7 @@ const BookSourceInspectionPanel = ({
     runRef.current += 1;
     controllerRef.current?.abort();
     controllerRef.current = null;
+    clearInspectionTimeout();
     clearClaim();
     setPhase('idle');
     setError('');

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import BookSourceInspectionPanel from './BookSourceInspectionPanel';
@@ -14,7 +14,14 @@ vi.mock('../../services/book-source-delivery/sourcePdfInspection.browser', () =>
   inspectSourcePdf,
   invalidateSourcePdfInspectionClaim,
   isSourcePdfInspectionClaimForFile,
-  SourcePdfInspectionError: class SourcePdfInspectionError extends Error {},
+  SourcePdfInspectionError: class SourcePdfInspectionError extends Error {
+    readonly code: string;
+
+    constructor(code: string) {
+      super(code);
+      this.code = code;
+    }
+  },
 }));
 vi.mock('../modern/ToastNotification', () => ({ toast }));
 
@@ -93,6 +100,36 @@ describe('BookSourceInspectionPanel', () => {
     expect(harness.onClaimChange).toHaveBeenLastCalledWith(null);
     expect(harness.onAction).toHaveBeenCalledWith('book_source_pdf_inspection_canceled');
     expect(toast.info).toHaveBeenCalledWith('PDF inspection canceled.');
+  });
+
+  it('turns a hung local inspection into a retryable error', async () => {
+    vi.useFakeTimers();
+    try {
+      inspectSourcePdf.mockImplementation(() => new Promise(() => undefined));
+      const selected = file();
+      const harness = renderPanel();
+      fireEvent.change(screen.getByLabelText('Source PDF'), { target: { files: [selected] } });
+
+      expect(screen.getByText('Inspecting PDF locally…')).toBeInTheDocument();
+      await act(async () => {
+        await vi.runOnlyPendingTimersAsync();
+      });
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'PDF inspection timed out. Check the file and try again.',
+      );
+      expect(screen.getByRole('button', { name: 'Retry inspection' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Continue to upload' })).toBeDisabled();
+      expect(harness.onAction).toHaveBeenCalledWith(
+        'book_source_pdf_inspection_failed',
+        { code: 'timeout' },
+      );
+      expect(toast.error).toHaveBeenCalledWith(
+        'PDF inspection timed out. Check the file and try again.',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('offers a retry after failure and invalidates on unmount', async () => {
