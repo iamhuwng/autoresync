@@ -7,9 +7,13 @@ const hostProps = vi.hoisted(() => vi.fn());
 afterEach(cleanup);
 
 vi.mock('./BookPdfViewerHost', () => ({
-  BookPdfViewerHost: (props: { title: string; route: { opaqueRouteKey: string; sourceVersionId: string; physicalPageNumber?: number } }) => {
+  BookPdfViewerHost: (props: {
+    title: string;
+    route: { opaqueRouteKey: string; sourceVersionId: string; physicalPageNumber?: number };
+    initialPage?: number;
+  }) => {
     hostProps(props);
-    return <div data-testid="pdf-host">{props.title}:{props.route.opaqueRouteKey}:{props.route.sourceVersionId}:{props.route.physicalPageNumber}</div>;
+    return <div data-testid="pdf-host">{props.title}:{props.route.opaqueRouteKey}:{props.route.sourceVersionId}:{props.initialPage}</div>;
   },
 }));
 
@@ -46,5 +50,21 @@ describe('BookRuntimeViewerAdapter', () => {
       <BookRuntimeViewerAdapterView title="Second" request={{ ...request }} physicalPageNumber={7} />,
     );
     expect(hostProps.mock.calls.at(-1)?.[0].route).toBe(firstRoute);
+  });
+
+  it('keeps the document route stable when the selected physical page changes', () => {
+    const request = {
+      sourceKey: 'source-1', sourceVersionId: 'version-1', opaqueRouteKey: 'opaque-1',
+      localPageScope: { kind: 'pages' as const, pages: [7, 9] },
+    };
+    const view = render(
+      <BookRuntimeViewerAdapterView title="Book" request={request} physicalPageNumber={7} />,
+    );
+    const firstRoute = hostProps.mock.calls.at(-1)?.[0].route;
+    view.rerender(
+      <BookRuntimeViewerAdapterView title="Book" request={request} physicalPageNumber={9} />,
+    );
+    expect(hostProps.mock.calls.at(-1)?.[0].route).toBe(firstRoute);
+    expect(hostProps.mock.calls.at(-1)?.[0].initialPage).toBe(9);
   });
 });

@@ -348,3 +348,20 @@ authenticated browser proof could not start because the browser-control
 runtime failed during initialization. The candidate was rolled back at 100%;
 AC-AMEND-07 and the reference-only/PDF gate remain unmet. No assignment replay
 or durable-state substitution is authorized.
+
+## Append-only current #126 evidence overlay — 2026-08-24
+
+The 2026-08-23 browser-initialization failure is historical. The corrected
+bounded candidate was read back and verified in the real Codex in-app Browser:
+the authenticated Worker returned `HEAD 200` and ranged `GET 206`, Teacher
+quick-login reached the assigned Homework Detail, and Student quick-login
+reached Reference-only Book Runtime and rendered PDF pages 1 and 2. The fresh
+student proof tab recorded zero console errors or warnings. See
+`evidence/126-production-browser-proof-2026-08-24.md` and its JSON companion.
+
+The current candidate satisfies the amendment's representative browser-handoff
+boundary for #126. The existing assignment was preserved, mutation gates stayed
+denied, and no durable Firebase, R2, projector, or Listening mutation occurred.
+The amendment's requirements remain unchanged; #127–#136 still require their
+own acceptance, manual accessibility, deployed-drill, measurement, pilot, and
+release-decision evidence.

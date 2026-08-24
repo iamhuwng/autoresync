@@ -137,6 +137,33 @@ describe('Book Homework canonical resolver', () => {
     await expect(resolver.resolve(command())).rejects.toMatchObject({ code: 'stale-publication' });
   });
 
+  it('rejects component PDF publications at the Book Homework authority boundary', async () => {
+    const full = publication();
+    const componentPublication: BookDeliveryPublishedPublicationReference = {
+      ...full,
+      sourceSet: {
+        strategy: 'component_pdfs',
+        sources: [{
+          sourceKey: 'component-a',
+          sourceVersionId: 'source-v1',
+          sourceOrder: 1,
+          ownerNodeKey: 'unit-1',
+          lifecycle: 'verified-usable',
+          localPageScope: { kind: 'pages', pages: [1] },
+        }],
+      },
+      placements: full.placements.map((placement) => ({
+        ...placement,
+        sourcePageScopes: [{ sourceKey: 'component-a', pages: [1] }],
+      })),
+    };
+    const resolver = resolverFor(async () => componentPublication);
+    await expect(resolver.resolve(command())).rejects.toMatchObject({
+      code: 'not-ready',
+      message: 'Book Homework requires one complete student-safe PDF source.',
+    });
+  });
+
   it('requires exactly one policy for every required Placement', async () => {
     const base = command();
     const resolver = resolverFor(async () => publication());

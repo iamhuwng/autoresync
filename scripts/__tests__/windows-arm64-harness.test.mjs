@@ -114,11 +114,11 @@ test('contract is executable, generic, and self-describing', () => {
   assert.deepEqual(HARNESS_CONTRACT.tools.firebase.capabilities[0].commands, ['emulators:exec', 'emulators:start']);
   assert.deepEqual(HARNESS_CONTRACT.tools.playwright.capabilities[0].commands, ['test', 'show-report']);
   assert.deepEqual(HARNESS_CONTRACT.resolutionOrder, ['discover', 'reuse', 'adapt', 'install', 'verify']);
-  assert.equal(HARNESS_CONTRACT.version, '3.8.0');
-  assert.equal(HARNESS_CONTRACT.protocolVersion, 5);
+  assert.equal(HARNESS_CONTRACT.version, '4.0.1');
+  assert.equal(HARNESS_CONTRACT.protocolVersion, 6);
   assert.equal(HARNESS_CONTRACT.dependencyCacheProtocolVersion, 3);
   assert.equal(HARNESS_CONTRACT.authority.genericSkill.name, 'run-windows-arm64-tools');
-  assert.equal(HARNESS_CONTRACT.authority.genericSkill.revision, '3.0.0');
+  assert.equal(HARNESS_CONTRACT.authority.genericSkill.revision, '4.0.0');
   assert.equal(HARNESS_CONTRACT.authority.repositoryGuidance.name, 'luyentap-windows-arm64-harness-contract');
   assert.equal(HARNESS_CONTRACT.authority.wsl.sourcePolicy, 'selected-windows-checkout');
   const repositoryGuidance = fs.readFileSync(path.join(repositoryRoot, HARNESS_CONTRACT.authority.repositoryGuidance.path), 'utf8');
@@ -156,6 +156,7 @@ test('authority report and Codex prompt parsing expose one generic source and se
   assert.equal(report.authoritativeCheckoutRoot, repositoryRoot);
   assert.equal(report.selectedExecutionBoundary.runtime, 'wsl');
   assert.equal(report.selectedExecutionBoundary.sourceMode, 'live');
+  assert.equal(report.selectedExecutionBoundary.auditSourceMode, 'live');
   assert.equal(report.selectedExecutionBoundary.wslRole, 'execution-substrate-only');
   const genericSource = path.join(os.tmpdir(), 'user-skills', 'run-windows-arm64-tools', 'SKILL.md');
   const promptInput = [{ content: [{ type: 'input_text', text: `<skills_instructions>\n- run-windows-arm64-tools: generic (file: ${genericSource})\n- luyentap-windows-arm64-harness-contract: repository (file: ${report.repositoryGuidance.source})\n</skills_instructions>` }] }];
@@ -171,8 +172,8 @@ test('active generic skill selection fails closed on stale revision', () => {
     fs.writeFileSync(source, `---\nname: run-windows-arm64-tools\ndescription: generic test skill\nmetadata:\n  revision: "${revision}"\n---\n`);
   };
   try {
-    writeRevision('3.0.0');
-    assert.equal(assertActiveGenericSkill([source], repositoryRoot).revision, '3.0.0');
+    writeRevision('4.0.0');
+    assert.equal(assertActiveGenericSkill([source], repositoryRoot).revision, '4.0.0');
     writeRevision('1.0.0');
     assert.throws(() => assertActiveGenericSkill([source], repositoryRoot), { code: 'HARNESS_CONTRACT_MISMATCH' });
     assert.throws(() => assertActiveGenericSkill([source, source], repositoryRoot), { code: 'HARNESS_CONTRACT_MISMATCH' });
@@ -749,6 +750,10 @@ test('WSL nested-package cache installs the selected lock and exposes it to a li
       wranglerDependencyAliases(dependencyCache.root, dependencyNames, ['deploy', '--alias', 'user-alias:/user-target'], projectRoot),
       ['--alias', `wrangler:${path.join(dependencyCache.root, 'node_modules', 'wrangler')}`, '--alias', `esbuild:${path.join(dependencyCache.root, 'node_modules', 'esbuild')}`, '--alias', `synthetic-neutral-dependency:${path.join(dependencyCache.root, 'node_modules', 'synthetic-neutral-dependency')}`, '--alias', `@synthetic/scoped-dependency:${path.join(dependencyCache.root, 'node_modules', '@synthetic', 'scoped-dependency')}`],
     );
+    assert.deepEqual(
+      wranglerDependencyAliases(dependencyCache.root, dependencyNames, ['versions', 'upload', '--config', 'wrangler.jsonc'], projectRoot),
+      ['--alias', `wrangler:${path.join(dependencyCache.root, 'node_modules', 'wrangler')}`, '--alias', `esbuild:${path.join(dependencyCache.root, 'node_modules', 'esbuild')}`, '--alias', `synthetic-neutral-dependency:${path.join(dependencyCache.root, 'node_modules', 'synthetic-neutral-dependency')}`, '--alias', `@synthetic/scoped-dependency:${path.join(dependencyCache.root, 'node_modules', '@synthetic', 'scoped-dependency')}`],
+    );
     assert.equal(wranglerDependencyAliases(dependencyCache.root, dependencyNames, ['deploy', '--alias', 'synthetic-neutral-dependency:/user-target'], projectRoot).includes('synthetic-neutral-dependency'), false, 'an explicit user alias key is not replaced');
     fs.writeFileSync(path.join(projectRoot, 'wrangler.jsonc'), JSON.stringify({ alias: { 'synthetic-neutral-dependency': './replacement.js' } }));
     assert.throws(() => wranglerDependencyAliases(dependencyCache.root, dependencyNames, ['deploy'], projectRoot), { code: 'WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING' });
@@ -894,7 +899,8 @@ test('snapshot harness rejects live watchers while WSL Wrangler keeps live workt
   assert.throws(() => assertInvocationMode('vitest', HARNESS_CONTRACT.tools.vitest, ['watch']), { code: 'LIVE_WORKLOAD_REQUIRES_CHECKOUT' });
   assert.doesNotThrow(() => assertInvocationMode('vite', HARNESS_CONTRACT.tools.vite, ['build']));
   assert.doesNotThrow(() => assertInvocationMode('vitest', HARNESS_CONTRACT.tools.vitest, ['run']));
-  assert.equal(HARNESS_CONTRACT.tools.wrangler.sourceMode, 'live');
+  assert.equal(HARNESS_CONTRACT.tools.wrangler.normalSourceMode, 'live');
+  assert.equal(HARNESS_CONTRACT.tools.wrangler.auditSourceMode, 'live');
 });
 
 test('ordinary harness execution preserves selected-project dependency metadata', { timeout: 30_000 }, async () => {
@@ -1081,7 +1087,7 @@ test('Windows x64 bootstrap failure names a contract remediation code', { skip: 
   assert.ok(HARNESS_CONTRACT.remediations.X64_NODE_PREREQUISITE_MISSING);
 });
 
-test('Windows dispatcher preserves arguments through the x64 PowerShell boundary', { skip: process.platform !== 'win32' || !fs.existsSync(x64Node), timeout: 120_000 }, async () => {
+test('ordinary Windows dispatcher preserves arguments without audit artifacts or retained source', { skip: process.platform !== 'win32' || !fs.existsSync(x64Node), timeout: 120_000 }, async () => {
   const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-dispatcher-'));
   try {
     const result = await run(process.execPath, [
@@ -1091,11 +1097,11 @@ test('Windows dispatcher preserves arguments through the x64 PowerShell boundary
     ], repositoryRoot, { CODEX_HARNESS_ROOT: cache });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout), { marker: 'base', arguments: ['value with spaces', '--equals=a=b', 'quote"roundtrip'] });
-    const evidence = evidenceFrom(result);
-    assert.equal(evidence.runtime.architecture, 'x64');
-    assert.equal(evidence.discovery.x64Node.selected, evidence.runtime.executable);
-    assert.match(evidence.discovery.x64Node.adaptation, /harness child/u);
-    assert.deepEqual(evidence.invocation.arguments, ['value with spaces', '--equals=a=b', 'quote"roundtrip']);
+    assert.doesNotMatch(result.stderr, /HARNESS_EVIDENCE/u);
+    assert.equal(fs.existsSync(path.join(cache, 'runs')), false);
+    assert.equal(fs.existsSync(path.join(cache, 'evidence')), false);
+    assert.equal(fs.existsSync(path.join(repositoryRoot, 'scripts/harness/__fixtures__/synthetic-project/node_modules')), false);
+    assert.deepEqual(fs.existsSync(path.join(cache, 'overlays')) ? fs.readdirSync(path.join(cache, 'overlays')) : [], []);
   } finally {
     fs.rmSync(cache, { recursive: true, force: true });
   }

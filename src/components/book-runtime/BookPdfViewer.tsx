@@ -80,6 +80,9 @@ const isTransportError = (error: unknown): error is BookDocumentTransportError =
   && isRecord(error)
   && typeof (error as Record<string, unknown>).code === 'string';
 
+const isPdfJsUnauthorizedFailure = (error: unknown): boolean =>
+  isRecord(error) && error.status === 401;
+
 const readStream = async (body: ReadableStream<Uint8Array>): Promise<Uint8Array> => {
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
@@ -190,6 +193,8 @@ export const BookPdfViewer = ({
   const loadingTaskRef = useRef<PdfDocumentLoadingTask | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const pdfDocumentRef = useRef<PdfDocumentProxy | null>(null);
+  const initialPageRef = useRef(initialPage);
+  initialPageRef.current = initialPage;
   const [loadStatus, setLoadStatus] = useState<LoadStatus>({
     state: 'loading',
     message: 'Loading PDF...',
@@ -206,7 +211,6 @@ export const BookPdfViewer = ({
     let disposed = false;
     const abortController = new AbortController();
     let rangeTransport: import('pdfjs-dist').PDFDataRangeTransport | null = null;
-    let workerReady = false;
 
     const cleanup = async (): Promise<void> => {
       abortController.abort();
@@ -231,29 +235,63 @@ export const BookPdfViewer = ({
         ]);
         if (abortController.signal.aborted || disposed) return;
         GlobalWorkerOptions.workerSrc = workerModule.default;
-        workerReady = true;
-        rangeTransport = createRangeTransport(
-          PDFDataRangeTransport,
-          transport,
-          metadata.contentLength,
-          (error) => {
-            if (disposed || abortController.signal.aborted) return;
-            void cleanup();
-            const failure = transportErrorMessage(error);
-            setLoadStatus({ state: 'error', ...failure });
-            setRenderState('error');
-            setRenderMessage(failure.message);
-          },
-        );
-        const loadingTask = getDocument({
-          range: rangeTransport,
-          rangeChunkSize: RANGE_CHUNK_SIZE,
-          disableAutoFetch: true,
-          disableStream: true,
-          stopAtErrors: true,
-        });
+        const pdfJsSource = transport.getPdfJsSource
+          ? await transport.getPdfJsSource({
+              signal: abortController.signal,
+              // PDF.js owns subsequent range requests; refresh once after
+              // the validating HEAD so its static header starts fresh.
+              forceRefresh: true,
+            })
+          : undefined;
+        if (abortController.signal.aborted || disposed) return;
+        if (pdfJsSource === undefined) {
+          rangeTransport = createRangeTransport(
+            PDFDataRangeTransport,
+            transport,
+            metadata.contentLength,
+            (error) => {
+              if (disposed || abortController.signal.aborted) return;
+              void cleanup();
+              const failure = transportErrorMessage(error);
+              setLoadStatus({ state: 'error', ...failure });
+              setRenderState('error');
+              setRenderMessage(failure.message);
+            },
+          );
+        }
+        const createLoadingTask = (source: typeof pdfJsSource): PdfDocumentLoadingTask => source === undefined
+          ? getDocument({
+              range: rangeTransport!,
+              rangeChunkSize: RANGE_CHUNK_SIZE,
+              disableAutoFetch: true,
+              disableStream: true,
+              stopAtErrors: true,
+            })
+          : getDocument({
+              url: source.url,
+              httpHeaders: source.httpHeaders,
+              length: metadata.contentLength,
+              rangeChunkSize: RANGE_CHUNK_SIZE,
+              stopAtErrors: true,
+            });
+        let loadingTask = createLoadingTask(pdfJsSource);
         loadingTaskRef.current = loadingTask;
-        const document = await loadingTask.promise;
+        let document: PdfDocumentProxy;
+        try {
+          document = await loadingTask.promise;
+        } catch (error) {
+          if (pdfJsSource === undefined || !isPdfJsUnauthorizedFailure(error)) throw error;
+          await loadingTask.destroy().catch(() => undefined);
+          if (abortController.signal.aborted || disposed) return;
+          const refreshedSource = await transport.getPdfJsSource?.({
+            signal: abortController.signal,
+            forceRefresh: true,
+          });
+          if (refreshedSource === undefined) throw error;
+          loadingTask = createLoadingTask(refreshedSource);
+          loadingTaskRef.current = loadingTask;
+          document = await loadingTask.promise;
+        }
         if (disposed || abortController.signal.aborted) {
           await document.destroy().catch(() => undefined);
           return;
@@ -264,7 +302,7 @@ export const BookPdfViewer = ({
           metadata,
           pageCount: document.numPages,
         });
-        const nextPage = clamp(initialPage, 1, document.numPages);
+        const nextPage = clamp(initialPageRef.current, 1, document.numPages);
         setPageNumber(nextPage);
         setPageDraft(String(nextPage));
         setRenderState('idle');
@@ -281,9 +319,7 @@ export const BookPdfViewer = ({
 
     return () => {
       disposed = true;
-      if (workerReady) {
-        rangeTransport?.abort();
-      }
+      rangeTransport?.abort();
       renderTaskRef.current?.cancel();
       renderTaskRef.current = null;
       pdfDocumentRef.current = null;
@@ -291,7 +327,14 @@ export const BookPdfViewer = ({
       loadingTaskRef.current = null;
       abortController.abort();
     };
-  }, [initialPage, transport]);
+  }, [transport]);
+
+  useEffect(() => {
+    if (loadStatus.state !== 'ready') return;
+    const nextPage = clamp(initialPage, 1, loadStatus.pageCount);
+    setPageNumber(nextPage);
+    setPageDraft(String(nextPage));
+  }, [initialPage, loadStatus]);
 
   useEffect(() => {
     if (loadStatus.state !== 'ready') return;

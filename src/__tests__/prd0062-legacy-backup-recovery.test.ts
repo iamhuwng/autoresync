@@ -242,7 +242,7 @@ describe('PRD0062 AC-LR-001 legacy, metadata-only, and deterministic recovery', 
         'LEGACY-118-READING-V2-THIN-MASTER-SOFT-REMOVE',
       ],
       readingV2: 'read-only evidence classification only; no Reading V2 source or test changes',
-      activation: 'not claimed; #126 is engineering-proof-only and gates remain disabled',
+      activation: 'not claimed; this local fixture neither authorizes nor proves production activation',
     }, null, 2));
   });
 });

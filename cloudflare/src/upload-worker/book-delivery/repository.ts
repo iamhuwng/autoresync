@@ -235,11 +235,13 @@ const createRtdb = (options: {
 }, errorPrefix: string): FirebaseRtdbRestClient => {
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   if (options.getAccessToken) {
+    // An injected service-account token is an OAuth access token. Firebase's
+    // REST API accepts it through the Authorization header (or access_token),
+    // not through the auth= query parameter reserved for Firebase ID tokens.
     return new FirebaseRtdbRestClient({
       env: options.env,
       fetchImpl,
       getAccessToken: options.getAccessToken,
-      firebaseAuthToken: true,
     });
   }
   const identity = options.identity?.trim();

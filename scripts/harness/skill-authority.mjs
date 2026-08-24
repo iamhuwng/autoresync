@@ -101,7 +101,8 @@ export function selectedExecutionBoundary(repositoryRoot, toolName, contract = H
     authoritativeCheckoutRoot: fs.realpathSync.native(repositoryRoot),
     sourceAuthority: contract.authority.sourceAuthority,
     runtime: tool.runtime,
-    sourceMode: tool.sourceMode,
+    sourceMode: tool.normalSourceMode,
+    auditSourceMode: tool.auditSourceMode,
     ...(tool.runtime === 'wsl' ? { wslRole: contract.authority.wsl.role, wslSourcePolicy: contract.authority.wsl.sourcePolicy } : {}),
   };
 }

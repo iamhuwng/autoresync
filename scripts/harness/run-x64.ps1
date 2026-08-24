@@ -2,8 +2,8 @@
 .SYNOPSIS
     Bootstrap the repository harness with Windows x64 Node.
 .DESCRIPTION
-    This file never installs into or links from repository node_modules. The
-    versioned Node harness owns immutable dependency caches and per-run mirrors.
+    This file only selects a compatible x64 Node. The selected versioned runner
+    owns either the temporary live dependency overlay or explicit audit mirror.
 #>
 
 [CmdletBinding()]
@@ -72,7 +72,11 @@ $discovery = [ordered]@{
 $discoveryJson = $discovery | ConvertTo-Json -Compress
 $env:CODEX_HARNESS_X64_DISCOVERY_B64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($discoveryJson))
 
-$runner = Join-Path $PSScriptRoot 'run-isolated.mjs'
+$runnerName = $env:CODEX_HARNESS_RUNNER
+if ($runnerName -notin @('run-normal.mjs', 'run-isolated.mjs')) {
+    Fail 'DISPATCH_PROTOCOL_MISMATCH' "unsupported runner selection: $runnerName"
+}
+$runner = Join-Path $PSScriptRoot $runnerName
 if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) {
     Fail 'HARNESS_CONTRACT_MISMATCH' "versioned runner missing: $runner"
 }

@@ -4,8 +4,11 @@ import activationConfig from '../wrangler.prd0062-ticket126-vocab-u1-activation.
 import { canonicalBookRouteManifest } from '../src/upload-worker/book-routes/manifest.ts';
 
 describe('#126 route and observability registry consistency', () => {
-  it('binds enabled source upload routes to the production control origin', () => {
-    expect(activationConfig).toContain('"BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "enabled"');
+  it('binds the bounded read-only candidate to the production control origin', () => {
+    expect(activationConfig).toContain('"BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "disabled"');
+    expect(activationConfig).toContain('"BOOK_DELIVERY_READ_ROUTES_ENABLED": "enabled"');
+    expect(activationConfig).toContain('"BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "enabled"');
+    expect(activationConfig).toContain('"BOOK_HOMEWORK_READ_ROUTES_ENABLED": "enabled"');
     expect(activationConfig).toContain(
       '"BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "https://kahut1.web.app"',
     );

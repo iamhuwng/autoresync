@@ -37,8 +37,7 @@ export const BookRuntimeViewerAdapterView = ({
   const route = useMemo(() => request === null ? null : ({
     opaqueRouteKey: request.opaqueRouteKey,
     sourceVersionId: request.sourceVersionId,
-    physicalPageNumber,
-  }), [physicalPageNumber, request?.opaqueRouteKey, request?.sourceVersionId]);
+  }), [request?.opaqueRouteKey, request?.sourceVersionId]);
   if (route === null) return unavailable();
   return (
     <BookPdfViewerHost

@@ -304,3 +304,18 @@ activated and then rolled back because the browser-control runtime could not
 initialize, so no deployed browser claim is made. #126 remains
 `BLOCKED_ROLLED_BACK`; #128 and later remain deferred. Evidence:
 `evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+
+## Append-only current #126 browser status — 2026-08-24
+
+Current live truth for the #126 traceability row is
+`CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS`. Evidence:
+`evidence/126-production-browser-proof-2026-08-24.md` and
+`evidence/126-production-browser-proof-2026-08-24.json`.
+
+The exact bounded Worker/Hosting candidate was read back; authenticated direct
+document requests returned `HEAD 200` and ranged `GET 206`; the fresh Codex
+in-app Browser teacher flow reached Book Homework detail, and the fresh
+student flow reached Book Runtime and rendered pages 1 and 2 of the immutable
+full PDF in Reference-only mode. The earlier rollback/browser-runtime failure
+remains historical and is not erased. Downstream #127–#136 rows are unchanged
+until their own gates are proven.

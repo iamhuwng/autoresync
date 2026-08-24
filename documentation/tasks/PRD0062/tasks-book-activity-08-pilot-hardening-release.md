@@ -215,3 +215,25 @@ runtime failed before the required authenticated flows could execute. The
 candidate is rolled back at 100%; taskboxes 5.0, 5.8, 5.19, and 7.9 remain
 open, and no #128+ pilot/release work began. Evidence:
 `evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+
+## Append-only #126 current-candidate production closure evidence — 2026-08-24
+
+The missing production browser proof was captured against the exact current
+candidate using the Codex in-app Browser. The current Worker is version
+`db9a6657-bcdc-439c-aeae-b0b5793f142c` / number `146` at 100% under the bounded
+teacher/book/assignment/student scope. The live Hosting artifact is the
+`kahut1` release read back at `2026-08-24 11:33:16`.
+
+The authenticated Worker document route returned `HEAD 200` with a 977,013-byte
+PDF and ranged `GET 206` for bytes `0-65535`, followed by the fresh student
+browser flow: assignment detail → `Open Book Activities` → one-activity
+`Reference-only` Runtime → visible `Page 1 of 4` → `Page 2 of 4` after Next
+page. Fresh student-tab console output was clean. Fresh Teacher quick-login
+reached Lobby → Homework → Vocabulary U1 detail and showed the trusted
+unavailable progress state without mutation controls. The detailed proof is
+`evidence/126-production-browser-proof-2026-08-24.md` and its JSON companion.
+
+This closes the previously missing current-candidate browser proof for #126;
+the broad Component 08 matrix remains open until its own taskboxes, later
+ticket gates, independent review, and release decision are reconciled. The
+earlier `BLOCKED_ROLLED_BACK` records remain historical.

@@ -114,8 +114,13 @@ const handlerInput = (
 
 const documentRuntimeEnvironment = (): Record<string, unknown> => {
   const serviceIdentity = 'book-delivery-runtime@temp-a143.iam.gserviceaccount.com';
+  const assemblyIdentity = 'book-assembly-p2-runtime@temp-a143.iam.gserviceaccount.com';
   const serviceAccount = JSON.stringify({
     client_email: serviceIdentity,
+    private_key: 'test-only',
+  });
+  const assemblyServiceAccount = JSON.stringify({
+    client_email: assemblyIdentity,
     private_key: 'test-only',
   });
   return {
@@ -124,7 +129,7 @@ const documentRuntimeEnvironment = (): Record<string, unknown> => {
     FIREBASE_WEB_API_KEY: 'test-web-api-key',
     BOOK_DELIVERY_SERVICE_IDENTITY: serviceIdentity,
     BOOK_DELIVERY_GOOGLE_SA_KEY: serviceAccount,
-    BOOK_ASSEMBLY_GOOGLE_SA_KEY: serviceAccount,
+    BOOK_ASSEMBLY_GOOGLE_SA_KEY: assemblyServiceAccount,
     BOOK_SOURCE_UPLOAD_ACCOUNT_ID: 'upload-account',
     BOOK_SOURCE_B2_ENDPOINT: 'https://s3.us-west-004.backblazeb2.com/',
     BOOK_SOURCE_B2_REGION: 'us-west-004',
@@ -158,6 +163,110 @@ describe('Ticket #49 canonical source document composition', () => {
 
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ code: 'forbidden' });
+  });
+
+  it('resolves the persisted homework recipient delivery binding route shape', async () => {
+    const bindingId = 'assignment-1--student-1--delivery';
+    const binding = {
+      ...studentBinding(),
+      bindingId,
+      context: {
+        kind: 'homework' as const,
+        contextId: 'assignment-1',
+        recipientId: 'student-1',
+        ownerId: 'teacher-1',
+        entitlementBasis: 'assignment' as const,
+      },
+    };
+    const repository = new InMemoryBookDeliveryRepository();
+    await repository.createDraft({
+      binding,
+      operationId: operation(3),
+      now: '2026-07-30T00:00:00.000Z',
+    });
+    await repository.activate({
+      bindingId,
+      expectedRecordRevision: 0,
+      operationId: operation(4),
+      now: '2026-07-30T00:01:00.000Z',
+    });
+    const readObjectMetadata = vi.fn(async ({ identity }) => ({
+      identity,
+      contentType: 'application/pdf' as const,
+    }));
+    const handlers = createBookRouteHandlers({
+      sourceDocument: {
+        runtimeFactory: () => ({
+          repository,
+          provider: { readObjectMetadata, readBounded: vi.fn() },
+          readProfile: async () => ({ role: 'student', status: 'active' }),
+          readCurrentAuthority: async () => liveAuthority(),
+        }),
+      },
+    });
+
+    const response = await handlers.serveAuthorizedDocument!(
+      handlerInput(`${bindingId}-1-full-source-v1`),
+    ) as Response;
+
+    expect(response.status).toBe(200);
+    expect(readObjectMetadata).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed for a component source binding instead of exposing a student document resource', async () => {
+    const bindingId = `bd_${'b'.repeat(40)}`;
+    const fullBinding = studentBinding();
+    const binding = {
+      ...fullBinding,
+      bindingId,
+      sourceSet: {
+        strategy: 'component_pdfs' as const,
+        sources: [{
+          ...fullBinding.sourceSet.sources[0]!,
+          sourceKey: 'component-a',
+          sourceOrder: 1,
+          ownerNodeKey: 'unit-1',
+        }],
+      },
+      placements: fullBinding.placements.map((placement) => ({
+        ...placement,
+        sourcePageScopes: placement.sourcePageScopes.map((scope) => ({
+          ...scope,
+          sourceKey: 'component-a',
+        })),
+      })),
+    } as BookDeliveryBinding;
+    const repository = new InMemoryBookDeliveryRepository();
+    await repository.createDraft({
+      binding,
+      operationId: operation(5),
+      now: '2026-07-30T00:00:00.000Z',
+    });
+    await repository.activate({
+      bindingId,
+      expectedRecordRevision: 0,
+      operationId: operation(6),
+      now: '2026-07-30T00:01:00.000Z',
+    });
+    const readObjectMetadata = vi.fn();
+    const handlers = createBookRouteHandlers({
+      sourceDocument: {
+        runtimeFactory: () => ({
+          repository,
+          provider: { readObjectMetadata, readBounded: vi.fn() },
+          readProfile: async () => ({ role: 'student', status: 'active' }),
+          readCurrentAuthority: async () => liveAuthority(),
+        }),
+      },
+    });
+
+    const response = await handlers.serveAuthorizedDocument!(
+      handlerInput(`${bindingId}-1-component-a-source-v1`),
+    ) as Response;
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ code: 'stale-binding' });
+    expect(readObjectMetadata).not.toHaveBeenCalled();
   });
 
   it('resolves a canonical projection route by indexed binding and invokes #51/#52', async () => {

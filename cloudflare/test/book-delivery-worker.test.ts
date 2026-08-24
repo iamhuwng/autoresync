@@ -20,6 +20,20 @@ const operation = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(1
 
 const env = {
   BOOK_DELIVERY_SERVICE_IDENTITY: 'book-delivery@example.iam.gserviceaccount.com',
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'production',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1',
+    environment: 'production',
+    revision: 'test-book-delivery',
+    issuedAt: '2026-08-24T00:00:00.000Z',
+    expiresAt: '2026-08-24T23:59:59.000Z',
+    teacherId: 'teacher-1',
+    bookId: 'book-pdf-1',
+    assignmentId: 'homework-1',
+    studentIds: ['student-1'],
+    maxStudents: 30,
+  }),
   readDatabaseValue: async () => ({ role: 'teacher' }),
 } as any;
 

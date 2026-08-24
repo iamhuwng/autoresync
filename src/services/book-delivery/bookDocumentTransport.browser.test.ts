@@ -140,6 +140,27 @@ describe('bookDocumentTransport.browser', () => {
     ]);
   });
 
+  it('provides native PDF.js with the canonical Worker URL and Firebase ID token', async () => {
+    const getIdToken = vi.fn(async () => 'id-token');
+    const transport = createBookDocumentTransport({
+      route: route({ expectedByteLength: undefined }),
+      getIdToken,
+      fetchImpl: vi.fn() as typeof fetch,
+    });
+
+    await expect(transport.getPdfJsSource?.()).resolves.toEqual({
+      url: routeUrl,
+      httpHeaders: { Authorization: 'Bearer id-token' },
+    });
+    expect(getIdToken).toHaveBeenCalledWith(false);
+
+    await expect(transport.getPdfJsSource?.({ forceRefresh: true })).resolves.toEqual({
+      url: routeUrl,
+      httpHeaders: { Authorization: 'Bearer id-token' },
+    });
+    expect(getIdToken).toHaveBeenCalledWith(true);
+  });
+
   it('refreshes the Firebase token exactly once on authentication expiry', async () => {
     const getIdToken = vi.fn()
       .mockResolvedValueOnce('stale-token')

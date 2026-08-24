@@ -1,5 +1,6 @@
 import { createHash, createPublicKey, generateKeyPairSync } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import databaseRulesSource from '../../database.rules.json?raw';
+import firestoreRulesSource from '../../firestore.rules?raw';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   assertFails,
@@ -13,6 +14,16 @@ import fixture from '../../tmp/prd0062-bridge-m1-committed-state-fixture.json';
 import publication from '../../tmp/prd0062-converged-publication.json';
 
 const projectId = 'demo-prd0062-m1-rule-enforced';
+const emulatorAddress = (value: string, fallbackPort: number): { host: string; port: number } => {
+  const separator = value.lastIndexOf(':');
+  if (separator < 0) return { host: value, port: fallbackPort };
+  const port = Number(value.slice(separator + 1));
+  return Number.isInteger(port) && port > 0
+    ? { host: value.slice(0, separator), port }
+    : { host: value, port: fallbackPort };
+};
+const databaseEmulator = emulatorAddress(process.env.FIREBASE_DATABASE_EMULATOR_HOST ?? '127.0.0.1:9000', 9000);
+const firestoreEmulator = emulatorAddress(process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080', 8080);
 const ownerId = 'glMHCrzMnyS6AqFcb9I0nlOqQ6X2';
 const studentId = fixture.recipientId;
 const assignmentId = fixture.assignmentId;
@@ -20,8 +31,8 @@ const authorityId = fixture.authorityId;
 const bindingId = fixture.bindingId;
 const bookId = 'book-vocab-u1-d43935c735245dc8';
 const placementId = fixture.deliveryScope.records[bindingId].binding.placements[0].placementId;
-const databaseRules = readFileSync(new URL('../../database.rules.json', import.meta.url), 'utf8');
-const firestoreRules = readFileSync(new URL('../../firestore.rules', import.meta.url), 'utf8');
+const databaseRules = databaseRulesSource;
+const firestoreRules = firestoreRulesSource;
 const activationRuleHashes = {
   database: 'e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f',
   firestore: '3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc',
@@ -213,7 +224,11 @@ describe('PRD0062 M1 default Worker composition under exact activation rules', (
   const originalFetch = globalThis.fetch;
 
   beforeAll(async () => {
-    rules = await initializeTestEnvironment({ projectId, database: { rules: databaseRules }, firestore: { rules: firestoreRules } });
+    rules = await initializeTestEnvironment({
+      projectId,
+      database: { rules: databaseRules, ...databaseEmulator },
+      firestore: { rules: firestoreRules, ...firestoreEmulator },
+    });
   });
 
   beforeEach(async () => {
@@ -245,7 +260,7 @@ describe('PRD0062 M1 default Worker composition under exact activation rules', (
 
   afterAll(async () => {
     globalThis.fetch = originalFetch;
-    await rules.cleanup();
+    await rules?.cleanup();
   });
 
   it('executes the full shell-present teacher/student/Runtime read path without any command or durable write', async () => {

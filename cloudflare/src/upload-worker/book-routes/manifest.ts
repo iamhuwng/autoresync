@@ -104,7 +104,12 @@ const deliveryRoutes = bookDeliveryRouteDescriptors.map((route) => contributor({
   handler: `bookDelivery.${route.handler}`,
   firebaseAuth: 'firebase-id-token-owner',
   rateClass: route.handler === 'resolve' ? 'book-read' : 'book-control',
-  gateEnv: 'BOOK_DELIVERY_ROUTES_ENABLED',
+  // Keep the existing delivery command family disabled during read-only
+  // acceptance. The current projection is the only delivery route needed by
+  // the student browser flow, so it has an independent read gate.
+  gateEnv: route.method === 'GET'
+    ? 'BOOK_DELIVERY_READ_ROUTES_ENABLED'
+    : 'BOOK_DELIVERY_ROUTES_ENABLED',
   requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
   responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
   identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',

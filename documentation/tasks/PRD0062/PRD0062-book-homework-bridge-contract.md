@@ -964,3 +964,19 @@ recipient authority remain preserved; no same-command replay or projector
 write occurred. See
 `evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
 The active status remains `BLOCKED_ROLLED_BACK`; #128 and later work stay held.
+
+## Append-only current #126 browser-proof overlay — 2026-08-24
+
+The prior `BLOCKED_ROLLED_BACK` status is historical for the current candidate.
+After the documented source-composition and OAuth RTDB transport corrections,
+the bounded Worker/Hosting candidate was read back and exercised in the real
+Codex in-app Browser. Authenticated document `HEAD` returned 200, a byte-range
+GET returned 206, Teacher reached the assigned Homework Detail, and Student
+reached Reference-only Book Runtime and rendered PDF pages 1 and 2. Evidence:
+`evidence/126-production-browser-proof-2026-08-24.md` and its JSON companion.
+
+The current #126 status is `CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS`.
+This does not authorize assignment replay or broad production mutation. The
+existing assignment was preserved, mutation gates remain denied, and #127–#136
+retain their separate acceptance, manual accessibility, deployed-drill,
+measurement, pilot, and release-decision gates.

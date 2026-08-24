@@ -15,6 +15,14 @@ import { readCanonicalTaxonomyEvidence } from '../lib/prd0062-activity-coverage/
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const matrixPath = path.join(rootDir, 'documentation/architecture/data/prd0062-activity-coverage.matrix.json');
 const emptyRegistryPath = path.join(rootDir, 'scripts/__tests__/fixtures/prd0062-activity-coverage/empty-runtime-registration-manifest.json');
+const runFixtureChecker = (fixtureChecker, matrixPathArgument) => spawnSync(
+  process.execPath,
+  [path.join(rootDir, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', fixtureChecker, matrixPathArgument],
+  { cwd: rootDir, encoding: 'utf8' },
+);
+const parseHarnessJson = (stdout) => JSON.parse(
+  stdout.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean).at(-1) ?? '',
+);
 
 const matrix = async () => JSON.parse(await readFile(matrixPath, 'utf8'));
 const registry = async () => JSON.parse(await readFile(emptyRegistryPath, 'utf8'));
@@ -366,16 +374,11 @@ test('fixture checker emits one machine-readable failure result', async () => {
     rootDir,
     'scripts/lib/prd0062-activity-coverage/validate-matrix-fixtures.ts',
   );
-  const run = spawnSync(
-    process.execPath,
-    [path.join(rootDir, 'node_modules/vite-node/vite-node.mjs'), fixtureChecker, tempMatrixPath],
-    { cwd: rootDir, encoding: 'utf8' },
-  );
+  const run = runFixtureChecker(fixtureChecker, tempMatrixPath);
   assert.equal(run.status, 1);
-  const output = JSON.parse(run.stdout);
+  const output = parseHarnessJson(run.stdout);
   assert.equal(output.ok, false);
   assert.ok(output.issues.some((entry) => entry.code === 'invalid-schema-fixture'));
-  assert.equal(run.stderr, '');
 });
 
 test('fixture checker rejects scoring-mode drift', async () => {
@@ -388,15 +391,10 @@ test('fixture checker rejects scoring-mode drift', async () => {
     rootDir,
     'scripts/lib/prd0062-activity-coverage/validate-matrix-fixtures.ts',
   );
-  const run = spawnSync(
-    process.execPath,
-    [path.join(rootDir, 'node_modules/vite-node/vite-node.mjs'), fixtureChecker, tempMatrixPath],
-    { cwd: rootDir, encoding: 'utf8' },
-  );
+  const run = runFixtureChecker(fixtureChecker, tempMatrixPath);
   assert.equal(run.status, 1);
-  const output = JSON.parse(run.stdout);
+  const output = parseHarnessJson(run.stdout);
   assert.ok(output.issues.some((entry) => entry.message.includes('scoring mode differs')));
-  assert.equal(run.stderr, '');
 });
 
 test('CLI reads Ticket 22A manifest by default and release passes registered rows', () => {

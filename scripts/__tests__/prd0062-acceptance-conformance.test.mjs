@@ -112,10 +112,11 @@ test('harness dispatchers declare the supported tools and canonical Playwright e
   const x64Wrapper = fs.readFileSync(x64WrapperPath, 'utf8');
   assert.ok(toolNames.includes('playwright'));
   assert.ok(toolNames.includes('vite-node'));
-  assert.equal(HARNESS_CONTRACT.grammar, 'node scripts/harness/run-tool.mjs <tool> <project> [...args]');
+  assert.equal(HARNESS_CONTRACT.grammar, 'node scripts/harness/run-tool.mjs [--audit] <tool> <project> [...args]');
   assert.equal(HARNESS_CONTRACT.tools.playwright.entry, '@playwright/test/cli.js');
   assert.equal(HARNESS_CONTRACT.tools['vite-node'].entry, 'vite-node/vite-node.mjs');
   assert.match(dispatcher, /HARNESS_CONTRACT/u);
+  assert.match(x64Wrapper, /run-normal\.mjs/u);
   assert.match(x64Wrapper, /run-isolated\.mjs/u);
   assert.equal(fs.existsSync(dispatcherPath), true);
   assert.equal(fs.existsSync(x64WrapperPath), true);

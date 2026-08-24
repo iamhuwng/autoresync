@@ -79,6 +79,8 @@ import {
 
 const CANONICAL_BINDING_ID = /^bd_[0-9a-f]{40}$/u;
 const CANONICAL_BINDING_ROUTE = /^(bd_[0-9a-f]{40})-/u;
+const HOMEWORK_DELIVERY_BINDING_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}--[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}--delivery$/u;
+const HOMEWORK_DELIVERY_BINDING_ROUTE = /^([A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}--[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}--delivery)-\d+-/u;
 const ROUTE_KEY_SAFE = /[^A-Za-z0-9._~-]/gu;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const SERVICE_ACCOUNT_JSON_MAX_BYTES = 64 * 1024;
@@ -199,8 +201,12 @@ const resolveDocumentRoute = async (
   repository: Pick<BookDeliveryRepository, 'readBinding'>,
   routeKey: string,
 ): Promise<ResolvedDocumentRoute | null> => {
-  const bindingId = CANONICAL_BINDING_ROUTE.exec(routeKey)?.[1];
-  if (!bindingId || !CANONICAL_BINDING_ID.test(bindingId)) return null;
+  const routeMatch = CANONICAL_BINDING_ROUTE.exec(routeKey)
+    ?? HOMEWORK_DELIVERY_BINDING_ROUTE.exec(routeKey);
+  const bindingId = routeMatch?.[1];
+  if (!bindingId
+    || (!CANONICAL_BINDING_ID.test(bindingId)
+      && !HOMEWORK_DELIVERY_BINDING_ID.test(bindingId))) return null;
   const record = await repository.readBinding(bindingId);
   if (!record) return null;
   const matches = record.binding.sourceSet.sources.filter(
@@ -292,10 +298,7 @@ const defaultRuntimeFactory = (
     serviceAccountPrivateKey: account.privateKey,
   });
   const getAccessToken = () => accessTokenProvider.getAccessToken();
-  const repository = new FirebaseRestBookDeliveryRepository({
-    env,
-    getAccessToken,
-  });
+  const repository = new FirebaseRestBookDeliveryRepository({ env, getAccessToken });
   const rtdb = new FirebaseRtdbRestClient({
     env,
     fetchImpl: globalThis.fetch,
@@ -305,6 +308,7 @@ const defaultRuntimeFactory = (
     env: {
       ...env,
       BOOK_ASSEMBLY_SERVICE_IDENTITY: account.email,
+      BOOK_ASSEMBLY_GOOGLE_SA_KEY: undefined,
     },
     getAccessToken,
   });
@@ -474,6 +478,13 @@ export const createBookSourceDocumentDeliveryHandler = (
       if (!routeKey) return { ok: false, status: 404, code: 'not-found' };
       const resolved = await resolveDocumentRoute(runtime.repository, routeKey);
       if (!resolved) return { ok: false, status: 404, code: 'not-found' };
+      // The active student contract authorizes one complete immutable PDF.
+      // Component source bindings remain historical/authoring data and must
+      // never become student document resources through this route.
+      if (resolved.binding.sourceSet.strategy !== 'full_pdf'
+        || resolved.binding.sourceSet.sources.length !== 1) {
+        return { ok: false, status: 409, code: 'stale-binding' };
+      }
       const result = await authorizeBookDocumentRequest({
         repository: runtime.repository,
         uid: input.uid,

@@ -52,6 +52,7 @@
     "FIREBASE_PROJECT_ID": "temp-a1437",
     "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
     "BOOK_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_DELIVERY_READ_ROUTES_ENABLED": "disabled",
     "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "disabled",
     "BOOK_ASSEMBLY_ROUTES_ENABLED": "disabled",
     "BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED": "disabled",

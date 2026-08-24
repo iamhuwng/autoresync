@@ -198,6 +198,86 @@ describe('BookPdfViewer', () => {
     expect(container.querySelector('canvas')).toBeInTheDocument();
   });
 
+  it('lets native PDF.js own streaming and range loading when the transport provides a URL source', async () => {
+    const { document } = makeDocument();
+    const fakeTransport = {
+      ...transport(),
+      getPdfJsSource: vi.fn(async () => ({
+        url: 'https://worker.example/v1/book-delivery/document/opaque-1',
+        httpHeaders: { Authorization: 'Bearer id-token' },
+      })),
+    } satisfies BookDocumentTransport;
+    vi.mocked(getDocument).mockImplementation(() => ({
+      promise: Promise.resolve(document),
+      destroy: vi.fn(async () => undefined),
+    }));
+
+    render(
+      <BookPdfViewer documentTitle="Native PDF.js PDF" transport={fakeTransport} />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Page 1 of 2 rendered at Fit width.')).toBeInTheDocument());
+    expect(fakeTransport.getPdfJsSource).toHaveBeenCalledTimes(1);
+    expect(fakeTransport.getPdfJsSource).toHaveBeenCalledWith(
+      expect.objectContaining({ forceRefresh: true, signal: expect.any(AbortSignal) }),
+    );
+    expect(getDocument).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'https://worker.example/v1/book-delivery/document/opaque-1',
+      httpHeaders: { Authorization: 'Bearer id-token' },
+      length: pdfBytes.byteLength,
+      rangeChunkSize: 64 * 1024,
+      stopAtErrors: true,
+    }));
+    expect(getDocument.mock.calls[0]?.[0]).not.toHaveProperty('range');
+    expect(getDocument.mock.calls[0]?.[0]).not.toHaveProperty('disableAutoFetch');
+    expect(getDocument.mock.calls[0]?.[0]).not.toHaveProperty('disableStream');
+  });
+
+  it('refreshes the native PDF.js authorization once when a range request is denied', async () => {
+    const { document } = makeDocument();
+    const firstDestroy = vi.fn(async () => undefined);
+    const fakeTransport = {
+      ...transport(),
+      getPdfJsSource: vi.fn()
+        .mockResolvedValueOnce({
+          url: 'https://worker.example/v1/book-delivery/document/opaque-1',
+          httpHeaders: { Authorization: 'Bearer stale-token' },
+        })
+        .mockResolvedValueOnce({
+          url: 'https://worker.example/v1/book-delivery/document/opaque-1',
+          httpHeaders: { Authorization: 'Bearer fresh-token' },
+        }),
+    } satisfies BookDocumentTransport;
+    vi.mocked(getDocument)
+      .mockImplementationOnce(() => ({
+        promise: Promise.reject(Object.assign(new Error('unauthorized'), { status: 401 })),
+        destroy: firstDestroy,
+      }))
+      .mockImplementationOnce(() => ({
+        promise: Promise.resolve(document),
+        destroy: vi.fn(async () => undefined),
+      }));
+
+    render(
+      <BookPdfViewer documentTitle="Native PDF.js refresh" transport={fakeTransport} />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Page 1 of 2 rendered at Fit width.')).toBeInTheDocument());
+    expect(firstDestroy).toHaveBeenCalledTimes(1);
+    expect(fakeTransport.getPdfJsSource).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ forceRefresh: true, signal: expect.any(AbortSignal) }),
+    );
+    expect(fakeTransport.getPdfJsSource).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ forceRefresh: true, signal: expect.any(AbortSignal) }),
+    );
+    expect(getDocument).toHaveBeenCalledTimes(2);
+    expect(getDocument.mock.calls[1]?.[0]).toMatchObject({
+      httpHeaders: { Authorization: 'Bearer fresh-token' },
+    });
+  });
+
   it('shows a safe retryable message when the transport fails', async () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();

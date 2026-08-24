@@ -413,3 +413,23 @@ failed before authenticated acceptance. This reconciliation leaves #126
 `BLOCKED_ROLLED_BACK`, preserves the existing assignment and durable state, and
 does not start #128 or later work. Evidence:
 `evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+
+## 2026-08-24 current live #126 reconciliation
+
+The 2026-08-23 `BLOCKED_ROLLED_BACK` status is historical and is superseded for
+the current candidate by
+`evidence/126-production-browser-proof-2026-08-24.md` and its JSON companion.
+The exact active Worker version `db9a6657-bcdc-439c-aeae-b0b5793f142c` (number
+`146`) and live Hosting release were read back before the browser run. The
+authenticated document route returned `HEAD 200` and ranged `GET 206`; the
+fresh in-app student run rendered PDF pages 1 and 2, and the fresh teacher run
+reached the assigned Book Homework detail.
+
+The production composition also required a second source correction discovered
+from the first current-candidate probe: injected Google OAuth RTDB reads were
+being sent as Firebase `auth=` tokens, which Firebase rejected with 401. The
+explicit OAuth path now uses the bearer Authorization transport; its focused
+regression passed 3 files / 42 tests. No durable assignment, projector, R2, or
+Listening mutation occurred. #126's current deployed/browser proof is
+verified; #127–#136 retain their distinct downstream acceptance, review,
+measurement, pilot, and release-decision statuses until separately proven.

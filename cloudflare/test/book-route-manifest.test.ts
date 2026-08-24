@@ -342,7 +342,7 @@ describe('canonical Book route contract catalog', () => {
     }));
   });
 
-  it('keeps every manifest gate disabled in wrangler source configuration', () => {
+  it('keeps every manifest gate disabled in the safe-deny wrangler source configuration', () => {
     const vars = wranglerConfig().vars;
     for (const gate of new Set(canonicalBookRouteManifest.map((route) => route.gateEnv))) {
       expect(vars[gate]).toBe('disabled');

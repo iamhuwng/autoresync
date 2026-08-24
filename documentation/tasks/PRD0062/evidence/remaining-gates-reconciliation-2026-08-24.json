@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "prd0062-remaining-gates-reconciliation",
+  "recordedDate": "2026-08-24",
+  "disposition": "PARTIAL_CURRENT_CANDIDATE_PROOF_DOWNSTREAM_GATES_OPEN",
+  "source": {
+    "branch": "codex/prd0062-continuation-after-cleanup",
+    "gitHeadAtInspection": "bec7f897c7a17c9b04eade111a0044de7305034d",
+    "worktreeDirty": true,
+    "finalCommitNotEstablished": true
+  },
+  "currentChecks": {
+    "frontendFocused": { "files": 4, "tests": 25, "passed": true },
+    "cloudflareFocused": { "files": 3, "tests": 42, "passed": true },
+    "productionBuild": { "modulesTransformed": 9504, "rootEntryKb": 245, "bundleBudgetPassed": true },
+    "acceptanceSchema": { "cases": 9, "fixtureEntries": 33, "passed": true },
+    "acceptanceSemantic": {
+      "passed": false,
+      "productAssertionsStarted": false,
+      "classification": "TOOLING_BLOCKED",
+      "failure": "HARNESS_FAILURE LIVE_DEPENDENCY_OVERLAY_COLLISION"
+    },
+    "activityCoverage": {
+      "passed": false,
+      "productAssertionsStarted": false,
+      "classification": "TOOLING_BLOCKED",
+      "failure": "HARNESS_FAILURE LIVE_DEPENDENCY_OVERLAY_COLLISION"
+    },
+    "rollbackReadback": {
+      "version": "511a9ca5-3245-4765-b032-46690e8cc20f",
+      "versionNumber": 142,
+      "message": "prd0062-126-safe-deny-excerpt-authority-20260824",
+      "safeDenyOnly": true,
+      "trackedV18RollbackConfigHistorical": true
+    },
+    "repositoryTypecheck": {
+      "passed": false,
+      "classification": "PRE_EXISTING_UNRELATED_DIAGNOSTICS",
+      "changedPdfOrWorkerFilesReported": false
+    }
+  },
+  "tickets": {
+    "127": "SOURCE_CONFORMANT_DEFINITION_ACCEPTED_LOCAL_EXECUTION_SEPARATE",
+    "128": "LOCAL_NON_ACTIVATION_PROOF_WITH_HELD_POSITIVE_CASE",
+    "129": "LOCAL_ACCEPTANCE_NOT_DEPLOYED",
+    "130": "LOCAL_ACCEPTANCE_PLUS_BOUNDED_CURRENT_RUNTIME_PROOF_NOT_FULL_SUITE",
+    "131": "LOCAL_AUTOMATED_PASS_NATIVE_SCREEN_READER_PENDING",
+    "132": "LOCAL_BOUNDED_SECURITY_PASS_NOT_DEPLOYED",
+    "133": "LOCAL_RECOVERY_PASS_NOT_DEPLOYED",
+    "134": "APPROVAL_GATED_DOWNSTREAM",
+    "135": "LOCAL_PREPARATION_ACCEPTED_REMOTE_MEASUREMENT_BLOCKED",
+    "136": "PILOT_APPROVAL_GATED"
+  },
+  "safety": {
+    "assignmentReplay": false,
+    "firebaseDurableMutation": false,
+    "r2Mutation": false,
+    "listeningChange": false,
+    "mainChanged": false,
+    "broadRollout": false,
+    "pilotRun": false,
+    "mutationGatesRemainDenied": true
+  },
+  "independentReview": {
+    "method": "parallel standards and specification inspection of fixed-point, current unstaged, and untracked PRD0062 changes",
+    "spec": {
+      "productionAcceptanceComplete": false,
+      "productionNormalRecoveryComplete": false,
+      "nativeScreenReaderComplete": false,
+      "deployedDrillAuthorized": false,
+      "remoteMeasurementAuthorized": false,
+      "pilotReleaseDecisionRecorded": false,
+      "laterNativeRangeExpiryRefreshProven": false
+    },
+    "standards": {
+      "productAuthorityCorrectionApplied": true,
+      "staleExcerptOnlyArchitectureOverlay": "documentation/architecture/book-activity-runtime-and-assembly.md",
+      "harnessFindingsDeferredOutOfProductScope": true
+    }
+  },
+  "markdownCompanion": "remaining-gates-reconciliation-2026-08-24.md"
+}

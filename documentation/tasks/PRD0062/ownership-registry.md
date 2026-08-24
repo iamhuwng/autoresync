@@ -194,3 +194,33 @@ runtime was unavailable. No ownership transfer, assignment replay, durable
 state change, Listening work, or later-ticket start is implied. Current status:
 `BLOCKED_ROLLED_BACK`. Evidence:
 `evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+
+## Append-only current #126 ownership overlay — 2026-08-24
+
+The 2026-08-23 rollback and browser-runtime failure are historical. The current
+bounded candidate was read back after the source correction and verified through
+the real Codex in-app Browser. Worker version
+`db9a6657-bcdc-439c-aeae-b0b5793f142c` / number `146` served the authenticated
+document route with `HEAD 200` and ranged `GET 206`; fresh Teacher quick-login
+reached the assigned Homework Detail, and fresh Student quick-login reached
+Book Runtime and rendered PDF pages 1 and 2 in Reference-only mode. The full
+redacted record is `evidence/126-production-browser-proof-2026-08-24.md` and
+its JSON companion.
+
+| Owner | Current disposition | Boundary |
+|---|---|---|
+| #126 / 50B | `CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS` | Bounded read-only Worker/Hosting/Teacher/Student/PDF proof passed; mutation gates remain denied and no durable state was changed. |
+| #127 / 51A | `SOURCE_CONFORMANT_DEFINITION_WITH_CURRENT_SEMANTIC_TOOLING_BLOCKER` | Matrix schema passes; the current semantic command is blocked by the existing dependency-overlay collision. Older semantic evidence remains tied to its exact source identity. |
+| #128 / 51B1 | `LOCAL_NON_ACTIVATION_PROOF_WITH_HELD_POSITIVE_CASE` | Existing local authoring/assignment evidence remains bounded; a full positive activated authoring run is not claimed. |
+| #129 / 51B2 | `LOCAL_ACCEPTANCE_NOT_DEPLOYED` | Existing deterministic update/replacement/results evidence is local only. |
+| #130 / 51C1 | `LOCAL_ACCEPTANCE_PLUS_BOUNDED_CURRENT_RUNTIME_PROOF_NOT_FULL_SUITE` | Existing local runtime matrix and the current Homework PDF browser path are separate; all-context final acceptance is not claimed. |
+| #131 / 51C2 | `LOCAL_AUTOMATED_PASS_NATIVE_SCREEN_READER_PENDING` | Automated keyboard/device/zoom evidence remains valid; native screen-reader announcement/order verification is open. |
+| #132 / 51D1 | `LOCAL_BOUNDED_SECURITY_PASS_NOT_DEPLOYED` | The recorded 9/9 emulator/security result remains local; deployed security is downstream. |
+| #133 / 51D2 | `LOCAL_RECOVERY_PASS_NOT_DEPLOYED` | The recorded bounded recovery result remains local; deployed recovery/rollback is downstream. |
+| #134 / 51E | `APPROVAL_GATED_DOWNSTREAM` | Integrated deployed drill requires its own authorized mutation/readback/rollback boundary; current read-only gates do not satisfy it. |
+| #135 / 52A | `LOCAL_PREPARATION_ACCEPTED_REMOTE_MEASUREMENT_BLOCKED` | Representative remote capacity/cost/egress measurement requires separate authorization and is not inferred from the PDF read probe. |
+| #136 / 52B | `PILOT_APPROVAL_GATED` | Controlled one-class pilot and explicit release/fail decision remain unexecuted. |
+
+No ticket after #126 is marked closed by this overlay. The current candidate is
+bounded to read-only delivery, preserves the existing assignment, and does not
+authorize mutation, broad rollout, or a pilot.

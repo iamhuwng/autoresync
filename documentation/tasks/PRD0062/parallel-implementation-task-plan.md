@@ -154,3 +154,20 @@ was unavailable because the browser-control runtime failed before connection,
 so rollback restored the pre-proven version at 100%. The dependency graph is
 unchanged: #126 remains blocked and #128–#136 remain held. Evidence:
 `evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+
+## Append-only current #126 browser-proof overlay — 2026-08-24
+
+The 2026-08-23 browser-control initialization failure is historical. The
+corrected bounded candidate was read back and verified in the real Codex
+in-app Browser: the authenticated Worker returned `HEAD 200` and ranged
+`GET 206`, Teacher quick-login reached the assigned Homework Detail, and
+Student quick-login reached Reference-only Book Runtime and rendered PDF pages
+1 and 2. Evidence: `evidence/126-production-browser-proof-2026-08-24.md` and
+its JSON companion.
+
+The current #126 disposition is `CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS`.
+The dependency graph remains intact: #127–#133 retain their separate local,
+manual, current-source, and deployed proof boundaries; #134 is approval-gated;
+#135 requires separately authorized remote measurement; and #136 requires an
+approved bounded pilot and release decision. No assignment replay, durable
+mutation, broad rollout, or later-ticket closure occurred.

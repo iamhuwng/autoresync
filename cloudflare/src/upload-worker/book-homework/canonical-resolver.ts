@@ -604,6 +604,9 @@ const resolveCanonical = async (
     || publication.bookMode !== 'pdf') {
     fail('stale-publication', 'Trusted Delivery publication does not match the command.');
   }
+  if (publication.sourceSet.strategy !== 'full_pdf' || publication.sourceSet.sources.length !== 1) {
+    fail('not-ready', 'Book Homework requires one complete student-safe PDF source.');
+  }
   publicationTargetMatches(target, publication);
 
   const delivery = createProjection(publication, command.assignmentId, selected[0]!);

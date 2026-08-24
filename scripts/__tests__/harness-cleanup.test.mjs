@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   cleanupHarnessStorage,
   collectCleanupCandidates,
+  discoverCleanupRoots,
   parseCleanupArguments,
   validateCleanupRoot,
 } from '../harness/cleanup.mjs';
@@ -85,6 +86,29 @@ test('apply removes only old complete caches and finalized runs', () => {
   }
 });
 
+test('runs-only cleanup reclaims finalized mirrors without evicting reusable dependencies', () => {
+  const { container, root } = fixture();
+  try {
+    const runId = '55555555-5555-4555-8555-555555555555';
+    const run = path.join(root, 'runs', runId);
+    const identity = 'e'.repeat(64);
+    const dependency = path.join(root, 'dependencies', identity);
+    fs.mkdirSync(run, { recursive: true });
+    writeJson(path.join(run, 'run-receipt.json'), { runId, status: 'final', dependencyRoot: dependency });
+    fs.mkdirSync(dependency, { recursive: true });
+    writeJson(path.join(dependency, '.harness-dependencies.json'), { identity, dependencyCacheProtocolVersion: 3 });
+    age(run);
+    age(dependency);
+
+    const report = cleanupHarnessStorage({ roots: [root], apply: true, minAgeHours: 0.25, kinds: ['run'] });
+    assert.deepEqual(report.removed.map((item) => item.kind), ['run']);
+    assert.equal(fs.existsSync(run), false);
+    assert.equal(fs.existsSync(dependency), true);
+  } finally {
+    fs.rmSync(container, { recursive: true, force: true });
+  }
+});
+
 test('normal-mode run receipts let cleanup reclaim runs without retaining full audit evidence', () => {
   const { container, root } = fixture();
   try {
@@ -122,6 +146,12 @@ test('active, incomplete, locked, recent, and unrelated entries are preserved', 
     fs.mkdirSync(`${locked}.lock`);
     age(locked);
 
+    const leased = path.join(root, 'dependencies', 'd'.repeat(64));
+    fs.mkdirSync(leased, { recursive: true });
+    writeJson(path.join(leased, '.harness-dependencies.json'), { identity: 'd'.repeat(64), dependencyCacheProtocolVersion: 3 });
+    writeJson(path.join(leased, `.harness-active-${process.pid}-fixture.json`), { pid: process.pid });
+    age(leased);
+
     const recent = path.join(root, 'runs', 'not-a-run');
     fs.mkdirSync(recent, { recursive: true });
     writeJson(path.join(root, 'evidence', 'not-a-run.json'), finalEvidence('not-a-run'));
@@ -131,7 +161,33 @@ test('active, incomplete, locked, recent, and unrelated entries are preserved', 
     assert.equal(fs.existsSync(activeRun), true);
     assert.equal(fs.existsSync(incomplete), true);
     assert.equal(fs.existsSync(locked), true);
+    assert.equal(fs.existsSync(leased), true);
     assert.equal(fs.existsSync(recent), true);
+  } finally {
+    fs.rmSync(container, { recursive: true, force: true });
+  }
+});
+
+test('cleanup discovers stable, configured, and historical temporary harness roots together', () => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-root-discovery-test-'));
+  try {
+    const localAppData = path.join(container, 'local');
+    const temporary = path.join(container, 'temp');
+    const configured = path.join(container, 'custom-cache');
+    const historical = path.join(temporary, 'codex-harness-v3');
+    const investigation = path.join(temporary, 'codex-harness-investigation');
+    fs.mkdirSync(path.join(localAppData, 'codex-harness-v3'), { recursive: true });
+    fs.mkdirSync(configured, { recursive: true });
+    fs.mkdirSync(historical, { recursive: true });
+    fs.mkdirSync(investigation, { recursive: true });
+
+    const roots = discoverCleanupRoots({ LOCALAPPDATA: localAppData, TEMP: temporary, CODEX_HARNESS_ROOT: configured });
+    assert.deepEqual(new Set(roots), new Set([
+      path.join(localAppData, 'codex-harness-v3'),
+      configured,
+      historical,
+      investigation,
+    ]));
   } finally {
     fs.rmSync(container, { recursive: true, force: true });
   }
@@ -160,6 +216,7 @@ test('cleanup validates roots and arguments before any deletion', () => {
     minAgeHours: 72,
   });
   assert.equal(parseCleanupArguments(['--wsl']).includeWsl, true);
-  assert.throws(() => parseCleanupArguments(['--min-age-hours', '0']), /number >= 1/);
+  assert.deepEqual(parseCleanupArguments(['--runs-only']).kinds, ['run']);
+  assert.throws(() => parseCleanupArguments(['--min-age-hours', '0']), /number >= 0\.25/);
   assert.throws(() => parseCleanupArguments(['--unknown']), /unknown cleanup argument/);
 });

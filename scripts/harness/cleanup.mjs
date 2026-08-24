@@ -28,7 +28,7 @@ function isUnsafeRoot(root, allowCustom = false) {
     || base === ''
     || base === '.'
     || base === '..'
-    || (!allowCustom && !/^codex-(?:harness-v\d+|prd0062-[A-Za-z0-9._-]+)$/u.test(base));
+    || (!allowCustom && !/^codex-(?:harness(?:-v\d+|-[A-Za-z0-9._-]+)?|prd0062-[A-Za-z0-9._-]+)$/u.test(base));
 }
 
 export function validateCleanupRoot(root, { allowCustom = false } = {}) {
@@ -45,17 +45,19 @@ export function validateCleanupRoot(root, { allowCustom = false } = {}) {
 }
 
 function defaultHarnessRoot(environment = process.env) {
-  const configured = environment.CODEX_HARNESS_ROOT;
-  return validateCleanupRoot(configured || path.join(environment.LOCALAPPDATA || os.tmpdir(), 'codex-harness-v3'), { allowCustom: Boolean(configured) });
+  return validateCleanupRoot(path.join(environment.LOCALAPPDATA || os.tmpdir(), 'codex-harness-v3'));
 }
 
 function tempRoots(environment = process.env) {
   const root = path.resolve(environment.TEMP || environment.TMP || os.tmpdir());
   if (path.basename(root) === '' || path.parse(root).root === root) return [];
-  return fs.readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith(TEMP_PREFIX))
+  let entries;
+  try { entries = fs.readdirSync(root, { withFileTypes: true }); }
+  catch { return []; }
+  return entries
+    .filter((entry) => entry.isDirectory() && (entry.name.startsWith(TEMP_PREFIX) || /^codex-harness(?:-v\d+|-[A-Za-z0-9._-]+)?$/u.test(entry.name)))
     .map((entry) => path.join(root, entry.name))
-    .filter((candidate) => !isUnsafeRoot(candidate));
+    .filter((candidate) => !isUnsafeRoot(candidate, true));
 }
 
 function readJson(file) {
@@ -64,6 +66,25 @@ function readJson(file) {
   } catch {
     return null;
   }
+}
+
+function processIsActive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
+
+function hasActiveDependencyLease(dependencyPath) {
+  return fs.readdirSync(dependencyPath)
+    .filter((name) => name.startsWith('.harness-active-'))
+    .some((name) => {
+      const lease = readJson(path.join(dependencyPath, name));
+      return !lease || processIsActive(lease.pid);
+    });
 }
 
 function directoryBytes(root) {
@@ -185,6 +206,7 @@ function collectDependencyCandidates(root, cutoff, activeReferences) {
       if (!marker || marker.identity !== entry.name || !marker.dependencyCacheProtocolVersion) return null;
       if (!oldEnough(dependencyPath, cutoff)) return null;
       if (fs.existsSync(lockPath)) return null;
+      if (hasActiveDependencyLease(dependencyPath)) return null;
       if (activeReferences.has(normalize(dependencyPath))) return null;
       return candidate('dependency', dependencyPath, `complete cache marker preserved at ${markerPath}`);
     })
@@ -206,14 +228,19 @@ function collectArtifactCandidates(root, cutoff, finalRunIds) {
 }
 
 export function discoverCleanupRoots(environment = process.env) {
-  const roots = [defaultHarnessRoot(environment), ...tempRoots(environment)];
+  const configured = environment.CODEX_HARNESS_ROOT
+    ? [validateCleanupRoot(environment.CODEX_HARNESS_ROOT, { allowCustom: true })]
+    : [];
+  const roots = [defaultHarnessRoot(environment), ...configured, ...tempRoots(environment)];
   return [...new Set(roots)];
 }
 
-export function collectCleanupCandidates({ roots, now = Date.now(), minAgeHours = DEFAULT_MIN_AGE_HOURS } = {}) {
+export function collectCleanupCandidates({ roots, now = Date.now(), minAgeHours = DEFAULT_MIN_AGE_HOURS, kinds } = {}) {
   const resolvedRoots = [...new Set((roots ?? discoverCleanupRoots()).map((root) => validateCleanupRoot(root, { allowCustom: roots !== undefined })) )];
   const ageHours = Number(minAgeHours);
-  if (!Number.isFinite(ageHours) || ageHours < 1) throw new Error('--min-age-hours must be a number >= 1');
+  if (!Number.isFinite(ageHours) || ageHours < 0.25) throw new Error('--min-age-hours must be a number >= 0.25');
+  const selectedKinds = kinds ? new Set(kinds) : null;
+  if (selectedKinds && [...selectedKinds].some((kind) => !['run', 'dependency', 'artifact'].includes(kind))) throw new Error('cleanup kinds must be run, dependency, or artifact');
   const cutoff = now - (ageHours * 60 * 60 * 1000);
   const records = resolvedRoots.flatMap((root) => [...evidenceRecords(root), ...receiptRecords(root)]);
   const activeReferences = activeDependencyReferences(records);
@@ -225,7 +252,7 @@ export function collectCleanupCandidates({ roots, now = Date.now(), minAgeHours 
       ...collectArtifactCandidates(root, cutoff, finalRuns),
     ];
   });
-  return candidates.filter(({ path: target }) => resolvedRoots.some((root) => isWithin(root, target)));
+  return candidates.filter((item) => (!selectedKinds || selectedKinds.has(item.kind)) && resolvedRoots.some((root) => isWithin(root, item.path)));
 }
 
 function removeCandidate(item, roots) {
@@ -233,12 +260,17 @@ function removeCandidate(item, roots) {
   if (!roots.some((root) => isWithin(root, target))) throw new Error(`refusing cleanup target outside validated roots: ${target}`);
   const metadata = fs.lstatSync(target);
   if (metadata.isSymbolicLink() || (!metadata.isDirectory() && !(metadata.isFile() && item.kind === 'artifact'))) throw new Error(`refusing invalid cleanup target: ${target}`);
+  if (item.kind === 'dependency') {
+    if (fs.existsSync(`${target}.lock`) || hasActiveDependencyLease(target)) {
+      throw new Error(`refusing active dependency cache: ${target}`);
+    }
+  }
   fs.rmSync(target, { recursive: true, force: false });
 }
 
-export function cleanupHarnessStorage({ apply = false, json = false, roots, now, minAgeHours = DEFAULT_MIN_AGE_HOURS } = {}) {
+export function cleanupHarnessStorage({ apply = false, json = false, roots, now, minAgeHours = DEFAULT_MIN_AGE_HOURS, kinds } = {}) {
   const validatedRoots = [...new Set((roots ?? discoverCleanupRoots()).map((root) => validateCleanupRoot(root, { allowCustom: roots !== undefined })) )];
-  const candidates = collectCleanupCandidates({ roots: validatedRoots, now, minAgeHours });
+  const candidates = collectCleanupCandidates({ roots: validatedRoots, now, minAgeHours, kinds });
   const removed = [];
   const errors = [];
   if (apply) {
@@ -254,6 +286,7 @@ export function cleanupHarnessStorage({ apply = false, json = false, roots, now,
   return {
     mode: apply ? 'apply' : 'dry-run',
     minAgeHours: Number(minAgeHours),
+    kinds: kinds ?? ['run', 'dependency', 'artifact'],
     roots: validatedRoots,
     candidates,
     removed,
@@ -301,10 +334,11 @@ export function parseCleanupArguments(argumentsList) {
     if (argument === '--apply') options.apply = true;
     else if (argument === '--wsl') options.includeWsl = true;
     else if (argument === '--json') options.json = true;
+    else if (argument === '--runs-only') options.kinds = ['run'];
     else if (argument === '--dry-run') options.apply = false;
     else if (argument === '--min-age-hours') {
       const value = Number(argumentsList[++index]);
-      if (!Number.isFinite(value) || value < 1) throw new Error('--min-age-hours must be a number >= 1');
+      if (!Number.isFinite(value) || value < 0.25) throw new Error('--min-age-hours must be a number >= 0.25');
       options.minAgeHours = value;
     } else if (argument === '--help') options.help = true;
     else throw new Error(`unknown cleanup argument: ${argument}`);
@@ -322,7 +356,7 @@ function printReport(report) {
 async function main() {
   const options = parseCleanupArguments(process.argv.slice(2));
   if (options.help) {
-    process.stdout.write('Usage: node scripts/harness/cleanup.mjs [--dry-run|--apply] [--wsl] [--json] [--min-age-hours N]\n');
+    process.stdout.write('Usage: node scripts/harness/cleanup.mjs [--dry-run|--apply] [--runs-only] [--wsl] [--json] [--min-age-hours N]\n');
     return;
   }
   const report = cleanupHarnessStorageWithWsl(options);

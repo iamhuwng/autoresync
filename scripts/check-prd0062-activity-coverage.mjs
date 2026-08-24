@@ -49,12 +49,13 @@ try {
     const matrixPath = path.join(rootDir, 'documentation/architecture/data/prd0062-activity-coverage.matrix.json');
     const fixtureRun = spawnSync(
       process.execPath,
-      [path.join(rootDir, 'node_modules/vite-node/vite-node.mjs'), fixtureChecker, matrixPath],
+      [path.join(rootDir, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', fixtureChecker, matrixPath],
       { cwd: rootDir, encoding: 'utf8' },
     );
     let fixtureResult;
     try {
-      fixtureResult = JSON.parse(fixtureRun.stdout.trim());
+      const records = fixtureRun.stdout.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+      fixtureResult = JSON.parse(records.at(-1) ?? '');
     } catch {
       fixtureResult = {
         ok: false,

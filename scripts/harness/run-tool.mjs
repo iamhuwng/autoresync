@@ -7,7 +7,6 @@ import { assertRepositorySkillAuthority } from './skill-authority.mjs';
 
 const harnessDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(harnessDirectory, '..', '..');
-assertRepositorySkillAuthority(repositoryRoot);
 
 const auditMode = process.argv[2] === '--audit';
 const argumentOffset = auditMode ? 3 : 2;
@@ -18,6 +17,7 @@ if (process.argv[argumentOffset] === '--contract') {
 }
 
 const doctorMode = process.argv[argumentOffset] === '--doctor';
+if (auditMode || doctorMode) assertRepositorySkillAuthority(repositoryRoot);
 const [tool, projectArgument, ...toolArguments] = doctorMode
   ? ['doctor', process.argv[argumentOffset + 1], ...process.argv.slice(argumentOffset + 2)]
   : process.argv.slice(argumentOffset);
@@ -46,9 +46,9 @@ const environment = {
     mode: doctorMode ? 'doctor' : 'run', audit: auditMode, tool, relativeProjectPath, toolArguments,
   }), 'utf8').toString('base64'),
 };
-const isolatedRunner = path.join(harnessDirectory, 'run-isolated.mjs');
+const selectedRunner = path.join(harnessDirectory, auditMode || doctorMode ? 'run-isolated.mjs' : 'run-normal.mjs');
 let command = process.execPath;
-let args = [isolatedRunner];
+let args = [selectedRunner];
 let cwd = repositoryRoot;
 
 const doctorNeedsX64 = doctorMode && (toolArguments.length === 0 || toolArguments.some((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'windows-x64'));
@@ -58,6 +58,7 @@ if (process.platform === 'win32' && (doctorNeedsX64 || HARNESS_CONTRACT.tools[to
     : 'powershell.exe';
   command = powershell;
   args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(harnessDirectory, 'run-x64.ps1')];
+  environment.CODEX_HARNESS_RUNNER = path.basename(selectedRunner);
 }
 
 const result = spawnSync(command, args, { cwd, env: environment, stdio: 'inherit', shell: false });

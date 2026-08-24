@@ -536,7 +536,11 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
   private async s3Fetch(input: { readonly method: 'HEAD' | 'GET'; readonly objectKey: string; readonly versionId: string; readonly headers?: Record<string, string>; readonly options?: SourceProviderRequestOptions; readonly credentials: BackblazeB2ApplicationKey }): Promise<Response> {
     const signed = await this.presign({
       method: input.method, objectKey: input.objectKey, expiresSeconds: 60,
-      query: { versionId: input.versionId }, headers: input.headers ?? {}, credentials: input.credentials,
+      query: { versionId: input.versionId },
+      // B2's presigned GET contract follows the standard AWS CLI shape:
+      // only `host` is signed. Range is still sent on the request, but is
+      // deliberately not part of the query-signature header set.
+      headers: {}, credentials: input.credentials,
     });
     return this.request(signed.url, { method: input.method, headers: input.headers }, input.options);
   }

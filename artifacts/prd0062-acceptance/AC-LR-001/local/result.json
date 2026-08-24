@@ -1,0 +1,17 @@
+{
+  "caseId": "AC-LR-001",
+  "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
+  "proof": [
+    "legacy Mode 1 summary and removed tombstone",
+    "metadata-only preview remains source-blocked and non-launchable",
+    "source identity and explicit availability fencing without PDF bytes",
+    "runtime and update recovery replay/idempotency with held unavailable rows"
+  ],
+  "baselineIdentical118Cases": [
+    "LEGACY-118-MATERIAL-CATALOG-SUMMARY",
+    "LEGACY-118-READING-V2-SOFT-REMOVE-WITHOUT-CLEANUP",
+    "LEGACY-118-READING-V2-THIN-MASTER-SOFT-REMOVE"
+  ],
+  "readingV2": "read-only evidence classification only; no Reading V2 source or test changes",
+  "activation": "not claimed; this local recovery fixture neither authorizes nor proves production activation"
+}

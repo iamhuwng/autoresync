@@ -725,3 +725,13 @@ Packet 0 historical note: feature code had not been implemented at that time, an
   `BLOCKED_ROLLED_BACK` because browser acceptance is unproven. No assignment
   replay or durable mutation occurred.
 - **Evidence:** `evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+
+## F-126-PROD-002 — current candidate authenticated browser proof — 2026-08-24
+
+- **Status:** `CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS`
+- **Boundary:** exact bounded production Worker → Firebase Hosting → Teacher/Student Book Homework → Book Runtime → immutable PDF path.
+- **Source correction:** `FIREBASE_WEB_API_KEY` is forwarded to the default Homework document store; an explicitly injected Google OAuth RTDB token now uses the bearer Authorization transport instead of Firebase's `auth=` ID-token query mode. The focused owning suite passed 3 files / 42 tests.
+- **Worker proof:** version `db9a6657-bcdc-439c-aeae-b0b5793f142c` / number `146` at 100%; authenticated `HEAD 200` and ranged `GET 206`, 65,536 bytes, `Content-Range: bytes 0-65535/977013`.
+- **Browser proof:** fresh Codex in-app Browser Teacher quick-login reached the assigned Homework Detail; fresh Student quick-login reached the exact Runtime, showed Reference-only and `source-version-70f2ccf7d1a42d67`, rendered `Page 1 of 4`, and navigated to `Page 2 of 4`. The fresh student tab recorded zero console errors/warnings.
+- **Safety:** no assignment replay, projector write, Firebase durable mutation, R2 mutation, Listening change, or main-worktree change. Teacher-side existing ReportingService root-write permission warnings are recorded as unrelated background noise, not suppressed.
+- **Evidence:** `evidence/126-production-browser-proof-2026-08-24.md` and `.json`.

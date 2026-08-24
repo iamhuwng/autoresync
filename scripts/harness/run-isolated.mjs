@@ -10,7 +10,7 @@ import { HARNESS_CONTRACT, remediationFor, toolNames } from './contract.mjs';
 const harnessDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(harnessDirectory, '..', '..');
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
-const contentHash = (value) => hash(Buffer.isBuffer(value) ? value.toString('utf8').replace(/\r\n/gu, '\n') : value);
+export const contentHash = (value) => hash(Buffer.isBuffer(value) ? value.toString('utf8').replace(/\r\n/gu, '\n') : value);
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const commandResult = (command, args, options = {}) => spawnSync(command, args, { encoding: 'utf8', shell: false, ...options });
 const failure = (code, message) => Object.assign(new Error(message), { code });
@@ -373,7 +373,7 @@ export function publishDependencyCache(staging, root, rename = fs.renameSync) {
   }
 }
 
-async function ensureDependencies(project, cacheBase, source) {
+export async function ensureDependencies(project, cacheBase, source) {
   const npm = npmInvocation();
   const npmVersionResult = commandResult(npm.command, [...npm.prefix, '--version']);
   if (npmVersionResult.status !== 0) throw failure('NPM_UNAVAILABLE', `npm failed: ${npmVersionResult.stderr || npmVersionResult.error?.message || npm.command}`);
@@ -482,7 +482,7 @@ export function verifyCapabilities(tool, dependencyRoot, command = null, cacheBa
   return result;
 }
 
-function preflightTool(project, dependency, toolName, command = null, cacheBase) {
+export function preflightTool(project, dependency, toolName, command = null, cacheBase) {
   const tool = assertToolDeclared(project, toolName);
   const entry = path.join(dependency.root, 'node_modules', ...tool.entry.split('/'));
   requireFile(entry, 'TOOL_ENTRYPOINT_MISSING', `${toolName} entrypoint`);
@@ -676,7 +676,7 @@ function writeRemediation(remediation) {
   }
 }
 
-function forwardedResult(command, args, options) {
+export function forwardedResult(command, args, options) {
   return new Promise((resolve) => {
     const { timeout, inheritStdin = false, suppressStderrLine, ...spawnOptions } = options;
     const child = spawn(command, args, { ...spawnOptions, shell: false, stdio: [inheritStdin ? 'inherit' : 'ignore', 'pipe', 'pipe'] });
@@ -758,7 +758,7 @@ function wslPayload({ mode = 'run', toolArguments, version, manifestSha256, lock
   }), 'utf8').toString('base64');
 }
 
-async function runWslWrangler(executionProjectRoot, executionRepositoryRoot, toolArguments, version, manifestSha256, lockSha256) {
+export async function runWslWrangler(executionProjectRoot, executionRepositoryRoot, toolArguments, version, manifestSha256, lockSha256) {
   const helper = wslHelperPath(executionProjectRoot, executionRepositoryRoot);
   const payload = wslPayload({ toolArguments, version, manifestSha256, lockSha256 });
   const runtimeLine = /^HARNESS_WSL_RUNTIME [A-Za-z0-9+/=]+$/u;
@@ -935,7 +935,7 @@ async function main() {
       writeRunReceipt(cacheBase, runId, { status: 'in_progress', dependencyRoot: dependency?.root ?? null, evidenceFile });
     let executionRepositoryRoot = repositoryRoot;
     let executionProjectRoot = project.projectRoot;
-    if (declaredTool.sourceMode === 'snapshot') {
+    if (declaredTool.auditSourceMode === 'snapshot') {
       executionRepositoryRoot = path.join(executionRoot, 'repository');
       beginEvidencePhase(evidence, 'sourceMirror', evidenceFile);
       mirrorRepository(executionRepositoryRoot);
@@ -946,7 +946,7 @@ async function main() {
       fs.mkdirSync(executionRoot, { recursive: true });
     }
     evidence.dependencyCache = dependency ? { identity: dependency.identity, root: dependency.root, npmVersion: dependency.npmVersion } : null;
-    evidence.executionWorkspace = { identity: runId, mode: declaredTool.sourceMode, root: executionRoot, repository: executionRepositoryRoot, project: executionProjectRoot };
+    evidence.executionWorkspace = { identity: runId, mode: declaredTool.auditSourceMode, root: executionRoot, repository: executionRepositoryRoot, project: executionProjectRoot };
     process.stderr.write(`harness ${HARNESS_CONTRACT.version}: ${invocation.tool} project=${invocation.relativeProjectPath} run=${runId}\n`);
     beginEvidencePhase(evidence, 'toolExecution', evidenceFile);
     let result;
@@ -979,7 +979,7 @@ async function main() {
       }
     }
     endEvidencePhase(evidence, 'toolExecution', evidenceFile);
-    if (exitCode === 0 && !dependencyCacheMutated && declaredTool.sourceMode === 'snapshot') publishOutputs(declaredTool, invocation.toolArguments[0], executionProjectRoot, project.projectRoot);
+    if (exitCode === 0 && !dependencyCacheMutated && declaredTool.auditSourceMode === 'snapshot') publishOutputs(declaredTool, invocation.toolArguments[0], executionProjectRoot, project.projectRoot);
     evidence.exitCode = exitCode;
     evidence.proof.counts = proofCountsFromResult({
       tool: invocation.tool, phase: evidence.proof.phase, stdout: result.stdout, stderr: result.stderr, exitCode,

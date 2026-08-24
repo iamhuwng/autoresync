@@ -11,7 +11,7 @@ const saveAcceptanceArtifact = async (proof: string[]) => {
     caseId: 'AC-SR-001',
     status: 'PASS_LOCAL_SMOKE_ASSERTIONS',
     proof,
-    activation: 'not claimed; #126 remains disabled',
+    activation: 'not claimed; this local fixture neither authorizes nor proves production activation',
   }, null, 2));
 };
 

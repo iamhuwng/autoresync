@@ -185,3 +185,22 @@ These files may remain for unrelated legacy flows until separately retired. Any 
 - `documentation/rules/announcements.md`
 - `documentation/rules/observability.md`
 - `documentation/rules/infrastructure.md`
+
+## Current PRD0062b Source Delivery Authority — 2026-08-24
+
+The original excerpt-only Source PDF boundary in this planning document is
+superseded for PRD0062b by the approved student-safe full-document decision in
+`documentation/tasks/PRD0062b/approval-record-2026-07-17-student-safe-full-pdf-streaming.md`.
+That decision authorizes delivery of one complete immutable student-safe PDF
+through the authenticated Book Delivery Worker, with native PDF.js owning
+normal streaming and byte-range loading. The student-safe boundary remains
+mandatory: the pinned PDF must exclude teacher notes, answer keys, unpublished
+authoring material, and other teacher-only content; students receive neither
+R2 authority nor storage credentials.
+
+Earlier excerpt, rendition, per-page-grant, and Browser Run statements in this
+planning document remain historical requirements and do not override the
+approved PRD0062b source-delivery contract. Authorization, entitlement,
+revocation, reload safety, range behavior, and negative security checks remain
+active acceptance obligations; this authority correction does not close those
+gates or promote local evidence to deployed proof.

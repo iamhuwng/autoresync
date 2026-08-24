@@ -15,8 +15,8 @@ adapter.
 Before changing the harness:
 
 1. Run `node scripts/harness/run-tool.mjs --contract` and require a successful
-   contract readback. Use the repository authority guard in the dispatcher as
-   the normal checkout check.
+   contract readback. Repository and skill authority checks belong to explicit
+   audit or doctor execution, never the ordinary command path.
 2. Run `node scripts/harness/skill-authority.mjs --tool <tool>` only when an
    audit needs actual Codex skill discovery and selected-boundary proof; it is
    not part of ordinary tool execution.
@@ -31,14 +31,18 @@ Before changing the harness:
    preflight success, or an earlier readiness layer is not product proof.
 
 Ordinary execution should be a thin adapter boundary: preserve the selected
-project, command, arguments, and output. Use the heavier evidence and authority
-validators explicitly for audit, CI, or deployment proof.
+project, command, arguments, and output. It may create an owned temporary
+dependency overlay, but no Git provenance scan, protected-state reconciliation,
+source mirror, evidence, receipt, or retained run directory. Use the heavier
+validators explicitly for audit, CI, deployment, or forensic proof.
 
 Use `npm run harness:cleanup` for a dry-run storage report and
 `npm run harness:cleanup:apply` for the bounded Windows and WSL cleanup. It may
 remove only old finalized run directories, timeout artifacts, unreferenced
 complete dependency caches, and stale WSL install staging under the validated
-harness roots; it never removes audit evidence sidecars or an active WSL lease.
+harness roots; it never removes audit evidence sidecars or an active Windows or
+WSL dependency lease. Ordinary overlays are removed immediately on process exit;
+scheduled cleanup is a crash-recovery fallback, not the normal lifecycle.
 
 Windows checkout identity is authoritative for this repository. A declared WSL
 runtime is an execution substrate for that same checkout, never an alternate

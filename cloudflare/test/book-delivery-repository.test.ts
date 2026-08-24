@@ -74,6 +74,27 @@ const productionEnv = async () => {
 };
 
 describe('Book Delivery Firebase repository', () => {
+  it('uses the OAuth bearer transport for an explicitly injected service-account token', async () => {
+    const requests: Array<{ readonly authQuery: string | null; readonly authorization: string | null }> = [];
+    const repository = new FirebaseRestBookDeliveryRepository({
+      env,
+      getAccessToken: async () => 'oauth-access-token',
+      fetchImpl: async (input, init) => {
+        const url = new URL(String(input));
+        requests.push({
+          authQuery: url.searchParams.get('auth'),
+          authorization: new Headers(init?.headers).get('authorization'),
+        });
+        return new Response('null', { status: 200 });
+      },
+    });
+
+    await expect(repository.readCurrent('student-1', 'homework-1')).resolves.toBeNull();
+    expect(requests).toEqual([
+      { authQuery: null, authorization: 'Bearer oauth-access-token' },
+    ]);
+  });
+
   it('uses path-bound Firebase custom ID tokens for production scope reads', async () => {
     const production = await productionEnv();
     const customTokens: string[] = [];

@@ -33,6 +33,7 @@ function explicitWranglerAliasKeys(argumentsList) {
 
 function isWranglerBundleInvocation(argumentsList) {
   let command;
+  let subcommand;
   for (let index = 0; index < argumentsList.length; index += 1) {
     const argument = argumentsList[index];
     if (argument === '--') break;
@@ -42,11 +43,15 @@ function isWranglerBundleInvocation(argumentsList) {
     }
     if (argument.startsWith('--alias=') || argument.startsWith('--config=')) continue;
     if (!argument.startsWith('-')) {
-      command = argument;
-      break;
+      if (command === undefined) command = argument;
+      else {
+        subcommand = argument;
+        break;
+      }
     }
   }
-  return command === 'dev' || command === 'deploy';
+  return command === 'dev' || command === 'deploy'
+    || (command === 'versions' && subcommand === 'upload');
 }
 
 function wranglerConfigPath(projectRoot, argumentsList) {

@@ -551,18 +551,6 @@ export const createBookDeliveryWorkerHandlers = (options: {
   ): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     try {
       const value = await body(input.request);
-      if (action === 'create' || action === 'supersede') {
-        await enforceBookPilotScopeIfConfigured({
-          env: input.env,
-          uid: input.uid,
-          request: input.request,
-          operation: 'assign-place',
-          actorKind: 'teacher',
-          requireBook: true,
-          requireAssignment: true,
-          requireStudents: true,
-        });
-      }
       const repository = repositoryFor(input.env);
       const lifecycle = new BookDeliveryEntitlementLifecycle({
         repository,
@@ -583,6 +571,23 @@ export const createBookDeliveryWorkerHandlers = (options: {
         if (!(await authorize(input.env, input.uid, publication.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
+        // The issuance body carries one authoritative recipient. Check the
+        // bounded pilot only after the trusted owner/context checks so an
+        // unauthorized actor cannot learn pilot configuration details.
+        await enforceBookPilotScopeIfConfigured({
+          env: input.env,
+          uid: input.uid,
+          request: input.request,
+          operation: 'assign-place',
+          actorKind: 'teacher',
+          bookId: intent.bookId,
+          assignmentId: intent.contextId,
+          contextKind: intent.contextKind,
+          selectedStudentIds: intent.contextKind === 'preview' ? [] : [intent.recipientId],
+          requireBook: true,
+          requireAssignment: intent.contextKind !== 'preview',
+          requireStudents: intent.contextKind !== 'preview',
+        });
         const timestamp = now();
         const binding = createBookDeliveryBinding({
           bindingId: await allocateBindingId(operationId),
@@ -621,10 +626,12 @@ export const createBookDeliveryWorkerHandlers = (options: {
           bookId: record.binding.book.bookId,
           assignmentId: record.binding.context.contextId,
           contextKind: record.binding.context.kind,
-          selectedStudentIds: [record.binding.recipient.recipientId],
+          selectedStudentIds: record.binding.context.kind === 'preview'
+            ? []
+            : [record.binding.recipient.recipientId],
           requireBook: true,
-          requireAssignment: true,
-          requireStudents: true,
+          requireAssignment: record.binding.context.kind !== 'preview',
+          requireStudents: record.binding.context.kind !== 'preview',
         });
         const result = await lifecycle.activate(String(request.bindingId), Number(request.expectedRecordRevision), String(request.operationId), now());
         return { body: result as unknown as Record<string, unknown>, init: { status: 200 } };
@@ -644,6 +651,20 @@ export const createBookDeliveryWorkerHandlers = (options: {
         if (!(await authorize(input.env, input.uid, publication.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
+        await enforceBookPilotScopeIfConfigured({
+          env: input.env,
+          uid: input.uid,
+          request: input.request,
+          operation: 'assign-place',
+          actorKind: 'teacher',
+          bookId: intent.bookId,
+          assignmentId: intent.contextId,
+          contextKind: intent.contextKind,
+          selectedStudentIds: intent.contextKind === 'preview' ? [] : [intent.recipientId],
+          requireBook: true,
+          requireAssignment: intent.contextKind !== 'preview',
+          requireStudents: intent.contextKind !== 'preview',
+        });
         const timestamp = now();
         const binding = createBookDeliveryBinding({
           bindingId: await allocateBindingId(operationId),
@@ -686,10 +707,12 @@ export const createBookDeliveryWorkerHandlers = (options: {
           bookId: record.binding.book.bookId,
           assignmentId: record.binding.context.contextId,
           contextKind: record.binding.context.kind,
-          selectedStudentIds: [record.binding.recipient.recipientId],
+          selectedStudentIds: record.binding.context.kind === 'preview'
+            ? []
+            : [record.binding.recipient.recipientId],
           requireBook: true,
-          requireAssignment: true,
-          requireStudents: true,
+          requireAssignment: record.binding.context.kind !== 'preview',
+          requireStudents: record.binding.context.kind !== 'preview',
         });
         const result = await lifecycle.revoke(
         String(request.bindingId),

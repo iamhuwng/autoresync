@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const viteServer = (port) => (
-  `npm run dev -- --host localhost --port ${port} --strictPort`
+  `node node_modules/vite/bin/vite.js --host localhost --port ${port} --strictPort`
 );
 
 const firebaseTestEnv = {
@@ -66,7 +66,7 @@ const webServer = acceptanceRole === 'teacher'
       reuseExistingServer: true,
       timeout: 120_000,
     }, {
-      command: 'node scripts/harness/run-tool.mjs vite-node . scripts/prd0062-ticket87-proof-server.ts',
+      command: 'node node_modules/vite-node/vite-node.mjs scripts/prd0062-ticket87-proof-server.ts',
       url: 'http://localhost:5187/__proof/health',
       env: {
         CODEX_HARNESS_EVIDENCE_FILE: 'artifacts/prd0062-acceptance/proof-server-harness.json',

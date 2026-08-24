@@ -1,5 +1,6 @@
 import { createPublicKey, generateKeyPairSync } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import generatedDatabaseRulesSource from '../../database.rules.json?raw';
+import bindingFragmentSource from '../src/upload-worker/book-rules/fragments/118C.json?raw';
 import { exportJWK, generateKeyPair, importSPKI, jwtVerify, SignJWT } from 'jose';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -410,12 +411,8 @@ describe('production-normal #59 workflow', () => {
     // The in-memory REST transport deliberately does not reimplement Firebase
     // rules. Bind this harness to the generated #118C identity and exact-leaf
     // claim shape; the real emulator suite executes those rules separately.
-    const bindingFragment = JSON.parse(readFileSync(
-      new URL('../src/upload-worker/book-rules/fragments/118C.json', import.meta.url), 'utf8',
-    )) as { ticketId: string; owner: { serviceIdentity: string }; operations: Array<{ path: string; rule: string; expression: string }> };
-    const generatedRules = JSON.parse(readFileSync(
-      new URL('../../database.rules.json', import.meta.url), 'utf8',
-    )) as GeneratedBindingRules;
+    const bindingFragment = JSON.parse(bindingFragmentSource) as { ticketId: string; owner: { serviceIdentity: string }; operations: Array<{ path: string; rule: string; expression: string }> };
+    const generatedRules = JSON.parse(generatedDatabaseRulesSource) as GeneratedBindingRules;
     const generatedBindingRead = generatedRules.rules.book_assembly_activity_bindings.owners.$ownerId.books.$bookId
       .units.$unitKey.activities.$activityKey['.read'] as string;
     expect(bindingFragment).toMatchObject({ ticketId: '118C', owner: { serviceIdentity: 'book_assembly_service' } });
@@ -433,7 +430,7 @@ describe('production-normal #59 workflow', () => {
 const rtdbEmulatorHost = process.env.FIREBASE_DATABASE_EMULATOR_HOST;
 let rtdbRules: RulesTestEnvironment | undefined;
 const emulatorProjectId = 'demo-prd0062-production-normal-worker';
-const generatedDatabaseRules = readFileSync(new URL('../../database.rules.json', import.meta.url), 'utf8');
+const generatedDatabaseRules = generatedDatabaseRulesSource;
 const jwtSegment = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
 /** The RTDB emulator accepts Firebase-emulator ID tokens with this documented unsigned test shape. */
 const emulatorIdToken = (uid: string, claims: Record<string, unknown>): string => {

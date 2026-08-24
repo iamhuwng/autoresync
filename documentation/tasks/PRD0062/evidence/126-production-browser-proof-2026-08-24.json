@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "current-live-deployed-browser-proof",
+  "ticket": "#126 / 50B",
+  "recordedDate": "2026-08-24",
+  "disposition": "CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS",
+  "authority": {
+    "activePlan": "PRD0062-production-normal-recovery-and-completion-plan.md",
+    "activeAmendment": "PRD0062-architecture-and-delivery-amendment-2026-08-15.md",
+    "acceptedDeliveryArchitecture": "immutable student-safe full PDF; native PDF.js owns ordinary range loading",
+    "assignmentReplayAuthorized": false,
+    "laterTicketsStartedByThisRun": false
+  },
+  "source": {
+    "branch": "codex/prd0062-continuation-after-cleanup",
+    "gitHeadBeforeFinalCommit": "bec7f897c7a17c9b04eade111a0044de7305034d",
+    "worktreeWasDirty": true,
+    "sha256": {
+      "cloudflare/src/upload-worker/book-delivery/repository.ts": "2E14092B58191FC615E94D559451606AB7D001DB4AD6DBAF3936905F3EE2CE10",
+      "cloudflare/src/upload-worker/book-source/document.ts": "C8152CFDD638AA7D30360893F66F5EC4F358739A29AD5EB0E7F4231D95EF6C3E",
+      "src/components/book-runtime/BookPdfViewer.tsx": "73D560F5FDCECAB59235957F606BC837A6582D0A5712ABEA8535D2D3841C9202",
+      "src/services/book-delivery/bookDocumentTransport.browser.ts": "34E0F39E4AF614E4CB9D609403A1F5D6CD509FDCB82A3C47FE3B09CB4C7AE448"
+    },
+    "relevantCorrections": [
+      "Forward FIREBASE_WEB_API_KEY into the default Homework document store.",
+      "Use the Authorization bearer transport for injected Google OAuth RTDB reads; reserve auth= for Firebase ID-token reads.",
+      "Give native PDF.js the authorized Worker URL and bearer header; keep the explicit range bridge only as a legacy fallback."
+    ]
+  },
+  "worker": {
+    "name": "r2-upload-signer",
+    "version": "db9a6657-bcdc-439c-aeae-b0b5793f142c",
+    "versionNumber": 146,
+    "deploymentId": "4028c190-34eb-494a-bd3f-cf32def32471",
+    "traffic": "100%",
+    "message": "prd0062-126-oauth-rtdb-read-fix-20260824",
+    "scriptEtag": "6dd3a15d643e5bd77546a6e336c2e7ef8c5459bbd954b7de4c45db9abb5761c0",
+    "pilot": {
+      "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "bookId": "book-vocab-u1-d43935c735245dc8",
+      "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+      "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "maxStudents": 30,
+      "expiresAt": "2026-08-24T11:45:00.000Z"
+    },
+    "enabledReadGates": [
+      "BOOK_DELIVERY_READ_ROUTES_ENABLED",
+      "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED",
+      "BOOK_HOMEWORK_READ_ROUTES_ENABLED"
+    ],
+    "mutationGatesRemainDenied": true,
+    "rollbackTargetProven": "511a9ca5-3245-4765-b032-46690e8cc20f",
+    "rollbackReadback": {
+      "version": "511a9ca5-3245-4765-b032-46690e8cc20f",
+      "versionNumber": 142,
+      "message": "prd0062-126-safe-deny-excerpt-authority-20260824",
+      "trafficPreparedAs": "safe deny-only target",
+      "deliveryDocumentHomeworkRuntimeSourceAssemblyAndMutationGates": "disabled",
+      "trackedV18RollbackConfig": "historical; not the selected current version identity"
+    }
+  },
+  "hosting": {
+    "project": "temp-a1437",
+    "site": "kahut1",
+    "liveReleaseReadBack": "2026-08-24 11:33:16",
+    "liveHttpStatus": 200,
+    "liveEntryScript": "/assets/index-DOANuFLz.js",
+    "liveHtmlSha256": "e17f006aa496f00e2e5846dc4f8046917e131609665e975289e76762adbb1707"
+  },
+  "directAuthenticatedWorkerProbe": {
+    "origin": "https://kahut1.web.app",
+    "routeKeyLength": 135,
+    "head": {
+      "status": 200,
+      "contentLength": 977013,
+      "contentType": "application/pdf",
+      "acceptRanges": "bytes"
+    },
+    "rangeGet": {
+      "requested": "bytes=0-65535",
+      "status": 206,
+      "bytesRead": 65536,
+      "contentRange": "bytes 0-65535/977013",
+      "contentType": "application/pdf",
+      "acceptRanges": "bytes",
+      "firstChunkSha256": "5694782d729bda145cf6097bf5391e741444dad8e32124f9e97e9cae1f180e95"
+    },
+    "secretValuesPrintedOrPersisted": false
+  },
+  "browser": {
+    "tool": "Codex in-app Browser",
+    "origin": "https://kahut1.web.app",
+    "teacher": {
+      "auth": "fresh production Teacher quick-login",
+      "lobbyUrl": "https://kahut1.web.app/lobby",
+      "homeworkUrl": "https://kahut1.web.app/teacher/homework",
+      "detailUrl": "https://kahut1.web.app/teacher/homework/assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+      "assertions": [
+        "Teacher shell loaded",
+        "Vocabulary U1 appeared in Homework Management",
+        "Homework Detail rendered the assigned student row",
+        "Book progress unavailable was shown as a trusted unavailable projection, with no mutation control exposed"
+      ],
+      "backgroundWarnings": "Existing ReportingService RTDB root-update permission_denied warnings appeared during sign-out/teacher navigation; they were unrelated to the document route and are retained as a known limitation."
+    },
+    "student": {
+      "auth": "fresh production Student quick-login",
+      "assignmentUrl": "https://kahut1.web.app/student/homework/assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+      "runtimeUrl": "https://kahut1.web.app/student/practice/assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4?bookSurface=homework&homeworkId=assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+      "assertions": [
+        "Assignment detail showed Vocabulary U1 and Open Book Activities",
+        "Book Runtime loaded one activity and Reference-only mode",
+        "PDF source metadata showed source-version-70f2ccf7d1a42d67 and 977,013 bytes",
+        "Page 1 of 4 rendered at Fit width",
+        "Next page changed the visible state to Page 2 of 4 rendered at Fit width",
+        "Fresh student proof tab produced zero console errors and zero warnings"
+      ],
+      "screenshot": "Visible in the Codex in-app Browser during the run; no screenshot file contains credentials or tokens."
+    }
+  },
+  "historicalContext": {
+    "previousFailure": "The 2026-08-23 candidate was blocked/rolled back before browser proof; the browser-control runtime had not initialized.",
+    "currentEarly503": "The first 2026-08-24 candidate returned authorization_unavailable because OAuth RTDB reads were sent through auth=; this was corrected and redeployed.",
+    "oldEvidencePreserved": true
+  },
+  "scopeAndSafety": {
+    "assignmentReplayed": false,
+    "projectorWrites": false,
+    "remoteFirebaseMutation": false,
+    "remoteR2Mutation": false,
+    "remoteCloudflareMutation": "bounded Worker deployment only",
+    "mainChanged": false,
+    "listeningChanged": false,
+    "secretValuesPrintedOrPersisted": false
+  },
+  "remaining": "#126 production browser proof is current-candidate verified. #127-#136 remain separate acceptance/review/measurement/pilot gates until their own source, proof, and authority records are reconciled."
+}

@@ -144,6 +144,7 @@ describe('Backblaze B2 private Source provider adapter', () => {
     expect(new URL(calls[0]!.url).searchParams.get('fileId')).toBe(identity.providerFileVersionId);
     expect(calls[0]?.headers.get('authorization')).toBe('temporary-metadata-key-id');
     expect(new URL(calls[1]!.url).searchParams.get('versionId')).toBe(identity.providerFileVersionId);
+    expect(new URL(calls[1]!.url).searchParams.get('X-Amz-SignedHeaders')).toBe('host');
     await expect(provider.readBounded({ identity, range: { offset: 0 } })).rejects.toMatchObject({ code: 'metadata_mismatch' });
     await expect(provider.readBounded({ identity, range: { offset: 0, length: 2 } }))
       .rejects.toMatchObject({ code: 'metadata_mismatch' });

@@ -72,6 +72,6 @@ test('AC-AD-001 keeps Book runtime keyboard, touch, focus, zoom, and overflow co
     project: testInfo.project.name,
     status: 'PASS_LOCAL_SMOKE_ASSERTIONS',
     proof: ['student quick-login on localhost:5174', 'keyboard focus and Enter navigation', '44px controls', 'mobile and 200% zoom overflow checks'],
-    activation: 'not claimed; #126 is engineering-proof-only and gates remain disabled',
+    activation: 'not claimed; this local fixture neither authorizes nor proves production activation',
   }, null, 2));
 });

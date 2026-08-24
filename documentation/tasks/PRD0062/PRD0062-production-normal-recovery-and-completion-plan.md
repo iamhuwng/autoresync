@@ -677,3 +677,27 @@ kernel-assets path error. The candidate was immediately rolled back to
 replay or durable-state mutation occurred. #126 therefore remains
 `BLOCKED_ROLLED_BACK`; #128 and later tickets remain held. The blocker is the
 external browser-control runtime, not a newly observed product failure.
+
+## 21. Current #126 candidate proof and downstream reconciliation — 2026-08-24
+
+The browser-runtime failure in Section 20 is historical. After the source
+composition correction and the separate OAuth RTDB transport correction, the
+bounded current candidate was read back and exercised in the real Codex in-app
+Browser. Worker version `db9a6657-bcdc-439c-aeae-b0b5793f142c` / number `146`
+served authenticated `HEAD 200` and ranged `GET 206` for the immutable PDF.
+Fresh Teacher quick-login reached Lobby → Homework → `Vocabulary U1` detail;
+fresh Student quick-login reached assignment detail → `Open Book Activities` →
+Reference-only Book Runtime, rendered PDF pages 1 and 2, and recorded no fresh
+console errors or warnings. Evidence:
+`evidence/126-production-browser-proof-2026-08-24.md` and its JSON companion.
+
+The current #126 disposition is
+`CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS`. The previous
+`BLOCKED_ROLLED_BACK` packets remain append-only historical records. This proof
+does not close #127–#136: #127 retains its source-conformant definition and
+current semantic-tooling boundary; #128–#133 retain their local/provisional
+boundaries (with #131 native screen-reader verification open); #134 requires an
+authorized deployed drill; #135 requires separately authorized remote
+measurement; and #136 requires an approved controlled pilot and explicit
+release decision. Mutation gates remain denied, the existing assignment was not
+replayed, and no broad rollout is authorized.

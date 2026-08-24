@@ -69,6 +69,11 @@ export interface BookDocumentTransportResponse extends BookDocumentTransportMeta
   readonly release: () => void;
 }
 
+export interface BookDocumentPdfJsSource {
+  readonly url: string;
+  readonly httpHeaders: Readonly<Record<string, string>>;
+}
+
 export interface BookDocumentTransportOptions {
   readonly route: BookDocumentRoute;
   readonly fetchImpl?: typeof fetch;
@@ -82,6 +87,15 @@ export interface BookDocumentTransportOptions {
 export interface BookDocumentTransport {
   head(range?: BookDocumentByteRange, options?: { readonly signal?: AbortSignal }): Promise<BookDocumentTransportMetadata>;
   get(range?: BookDocumentByteRange, options?: { readonly signal?: AbortSignal }): Promise<BookDocumentTransportResponse>;
+  /**
+   * Returns a canonical Worker URL and short-lived browser authorization for
+   * PDF.js' native network stream/range loader. Optional for test and legacy
+   * transports that still use the explicit range bridge.
+   */
+  readonly getPdfJsSource?: (options?: {
+    readonly signal?: AbortSignal;
+    readonly forceRefresh?: boolean;
+  }) => Promise<BookDocumentPdfJsSource>;
   switchRoute(route: BookDocumentRoute): void;
   destroy(): void;
   readonly activeRequestCount: number;
@@ -506,9 +520,37 @@ export const createBookDocumentTransport = (
     }
   };
 
+  const getPdfJsSource = async (
+    requestOptions?: {
+      readonly signal?: AbortSignal;
+      readonly forceRefresh?: boolean;
+    },
+  ): Promise<BookDocumentPdfJsSource> => {
+    const capturedGeneration = generation;
+    const capturedRoute = current;
+    if (requestOptions?.signal?.aborted) {
+      throw new BookDocumentTransportError('aborted');
+    }
+    try {
+      const idToken = await token(getIdToken, requestOptions?.forceRefresh === true);
+      if (requestOptions?.signal?.aborted) {
+        throw new BookDocumentTransportError('aborted');
+      }
+      assertCurrent(capturedGeneration);
+      return Object.freeze({
+        url: capturedRoute.url,
+        httpHeaders: Object.freeze({ Authorization: `Bearer ${idToken}` }),
+      });
+    } catch (error) {
+      if (error instanceof BookDocumentTransportError) throw error;
+      throw new BookDocumentTransportError('token_unavailable', 401, { cause: error });
+    }
+  };
+
   return Object.freeze({
     head,
     get,
+    getPdfJsSource,
     switchRoute(route) {
       current = normalizeRoute(route, trustedOrigins).route;
       generation += 1;

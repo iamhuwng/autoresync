@@ -25,7 +25,7 @@ const saveArtifact = async (caseId: string, testInfo: { project: { name: string 
     project: testInfo.project.name,
     status: 'PASS_LOCAL_SMOKE_ASSERTIONS',
     proof,
-    activation: 'not claimed; #126 is engineering-proof-only and gates remain disabled',
+    activation: 'not claimed; this local fixture neither authorizes nor proves production activation',
   }, null, 2));
 };
 

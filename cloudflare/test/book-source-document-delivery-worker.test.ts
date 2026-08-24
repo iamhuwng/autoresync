@@ -3,7 +3,6 @@ import type { BookDocumentAuthorizationDecision } from '../src/upload-worker/boo
 import { createBookDocumentWorker } from '../src/upload-worker/book-delivery/document-worker';
 import documentWorkerSource from '../src/upload-worker/book-delivery/document-worker.ts?raw';
 import type { BookSourceVersionStorageIdentity } from '../../src/types/bookSource.types';
-import type { SourceProviderPort } from '../../src/services/book-source-delivery/sourceProvider.port';
 
 const bytes = Uint8Array.from({ length: 32 }, (_, index) => index);
 const identity: BookSourceVersionStorageIdentity = {
@@ -79,6 +78,7 @@ const request = (init: RequestInit = {}) => new Request(
 
 describe('Ticket #52 private Book PDF responder', () => {
   it('authorizes once and streams a full GET from the exact pinned identity', async () => {
+    authorized.mockClear();
     const adapter = provider();
     const worker = createBookDocumentWorker({ authorize: authorized, provider: adapter });
     const response = await worker.fetch(request({ method: 'GET' }), {});
