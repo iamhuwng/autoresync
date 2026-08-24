@@ -12,12 +12,13 @@
   },
   "finalization": {
     "reconciledSourceCommit": "fdf5c0ed54275be3001c027547e0a677ec507adf",
-    "featureBranchRemoteCommit": "fdf5c0ed54275be3001c027547e0a677ec507adf",
-    "remoteParityVerified": true,
-    "worktreeCleanAfterCommit": true,
+    "sourceCommitRemoteReadback": "fdf5c0ed54275be3001c027547ec507adf",
+    "sourceCommitRemoteParityVerified": true,
+    "finalBranchRemoteParityVerified": true,
+    "worktreeCleanAfterFinalVerification": true,
     "protectedMainHead": "3d72f11cda77b5f5aa5791c86b154744c1926fec",
     "protectedMainClean": true,
-    "recordedAt": "2026-08-24T14:25:56.2503053+07:00"
+    "recordedAt": "2026-08-24T14:27:05.3008238+07:00"
   },
   "currentChecks": {
     "frontendFocused": { "files": 4, "tests": 25, "passed": true },

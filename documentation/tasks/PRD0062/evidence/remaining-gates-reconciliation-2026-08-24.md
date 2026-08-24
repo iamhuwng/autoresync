@@ -11,7 +11,7 @@ current-head or deployed acceptance, and it does not close #127–#136.
 - Branch: `codex/prd0062-continuation-after-cleanup`.
 - Git head at inspection: `28efe1cea9547619e96e6722655be998c0524be9`.
 - The source inspection began at parent commit `28efe1cea9547619e96e6722655be998c0524be9` with the worktree dirty. Final commit and remote parity are recorded only after the current source, evidence, and independent review are committed.
-- Post-commit reconciliation: source commit `fdf5c0ed54275be3001c027547e0a677ec507adf`; the feature-branch remote readback matched it, the worktree was clean, and protected `main` remained clean at `3d72f11cda77b5f5aa5791c86b154744c1926fec`.
+- Post-commit reconciliation: source commit `fdf5c0ed54275be3001c027547e0a677ec507adf` had a matching remote readback; the final branch remote parity was then verified with a clean worktree, and protected `main` remained clean at `3d72f11cda77b5f5aa5791c86b154744c1926fec`.
 - Current #126 production proof is
   `126-production-browser-proof-2026-08-24.md` and `.json`.
 - Frontend focused proof in this worktree: 4 files / 25 tests passed.
