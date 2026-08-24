@@ -880,6 +880,10 @@ export const advanceBookHomeworkActivityBinding = (
   const updated: BookHomeworkManifest = deepFreeze({
     ...manifest,
     manifestVersionId: input.manifestVersionId,
+    book: deepFreeze({
+      ...manifest.book,
+      manifestVersionId: input.manifestVersionId,
+    }),
     createdByCommandId: input.createdByCommandId,
     createdAt: input.createdAt,
     bindingRevision: input.bindingRevision,

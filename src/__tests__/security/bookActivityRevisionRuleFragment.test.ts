@@ -35,7 +35,7 @@ describe('PRD0062 #68 durable Activity revision rule fragment', () => {
     for (const path of canonicalPaths) {
       expect(fragment.operations.some((candidate) => candidate.path === path)).toBe(false);
       expect(publicationFragment.operations.filter((candidate) =>
-        candidate.path === path)).toHaveLength(2);
+        candidate.path === path)).toHaveLength(3);
     }
   });
 

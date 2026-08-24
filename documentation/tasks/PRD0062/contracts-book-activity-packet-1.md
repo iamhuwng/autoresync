@@ -165,3 +165,13 @@ Packet 1 must implement or explicitly defer only these rows from `storage-design
 ## Exit Gate
 
 - Packet 1 closed after exact test commands, focused/adjacent/regression results, emulator/rules negative proof, findings rows `F-P1-001` through `F-P1-011`, traceability updates, independent review re-check, and Packet 1 handoff agreed.
+
+## Append-only current authority reconciliation — 2026-08-24
+
+This Packet 1 contract is historical provenance, not current implementation
+authority. Its old `activityPublish.service.ts` and Packet 1 path references
+are superseded by the accepted split authoring/canonical Activity architecture.
+The current source owners and current rule/test proof are recorded in the
+latest traceability and remaining-gates overlays. The superseded service slice
+was unreferenced by production code and is not a current dependency; no Packet
+1 historical row is being rewritten as if its old paths were current.

@@ -28,6 +28,7 @@ const delivery: BookRuntimeDeliveryProjection = {
     bookId: 'book-1',
     bookMode: 'pdf',
     bookRevision: 7,
+    manifestVersionId: 'manifest-v1',
     publicationId: 'publication-7',
     publicationRevision: 3,
     publicationStatus: 'published',
@@ -183,8 +184,15 @@ describe('Book Homework manifest builder', () => {
       { kind: 'chapter' as const, bookId: 'book-1', nodeKey: 'chapter-1' },
       { kind: 'test' as const, bookId: 'book-1', nodeKey: 'test-1' },
     ]) {
+      const targetDelivery: BookRuntimeDeliveryProjection = {
+        ...extendedDelivery,
+        book: {
+          ...extendedDelivery.book,
+          manifestVersionId: `manifest-${target.kind}`,
+        },
+      };
       const manifest = createBookHomeworkManifest({
-        resolution: { delivery: extendedDelivery },
+        resolution: { delivery: targetDelivery },
         target,
         manifestVersionId: `manifest-${target.kind}`,
         ownerId: 'teacher-1', createdByCommandId: `command-${target.kind}`,
@@ -295,6 +303,7 @@ describe('Book Homework manifest schema and compatibility', () => {
       nextBinding: { ...current, activityVersion: 2, activityVersionId: 'activity-a-v2' },
     });
     expect(updated.manifestVersionId).toBe('manifest-v2');
+    expect(updated.book.manifestVersionId).toBe('manifest-v2');
     expect(updated.bindings.find((binding) => binding.placementId === 'placement-a')).toMatchObject({ activityVersion: 2, activityVersionId: 'activity-a-v2' });
     expect(updated.bindings.find((binding) => binding.placementId === 'placement-b')).toBe(previousOther);
     expect(manifest.bindings.find((binding) => binding.placementId === 'placement-a')).toMatchObject({ activityVersion: 1, activityVersionId: 'activity-a-v1' });

@@ -701,3 +701,26 @@ authorized deployed drill; #135 requires separately authorized remote
 measurement; and #136 requires an approved controlled pilot and explicit
 release decision. Mutation gates remain denied, the existing assignment was not
 replayed, and no broad rollout is authorized.
+
+## 2026-08-24 #127 direct conformance correction
+
+The earlier current-candidate note that described #127 as semantic-tooling
+blocked is superseded by a direct native Windows ARM64 run at committed HEAD
+`28efe1cea9547619e96e6722655be998c0524be9`. The semantic authority checker
+passed 32/32 capability rows, 32/32 accepted registrations, 33 fixture entries,
+and 32 activity rows. Direct release coverage passed 32 rows and 32 fixture
+checks. This closes #127's source/definition conformance boundary only; the
+#128–#136 consumer, deployed, accessibility, measurement, pilot, and release
+gates remain open.
+
+## 2026-08-24 current source correction and gate boundary
+
+The current dirty branch was rerun directly after correcting two source/test
+drift findings: canonical Activity ordinary writes now fail closed to the
+immutable create branch in the generated composer, and Homework activity
+binding updates keep the top-level and nested manifest version pins aligned.
+The #128/#129/#130 source batches pass 97/97, 95/95, and 89/89 tests; the
+assembled rules matrix passes 89/89; and local recovery passes its root and R2
+worker suites. These are local source and emulator results only. No production
+rules deployment, assignment mutation, deployed drill, remote measurement,
+pilot, or release decision is implied or claimed.

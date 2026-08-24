@@ -247,6 +247,45 @@ const remediateFragment44AllowedKeyValidation = (expression: string, operationIn
   return expression.slice(inverseGate.length);
 };
 
+const enforceCanonicalActivityCreateOnlyWrite = (expression: string, operationIndex: number): string => {
+  const topLevelOrPositions: number[] = [];
+  let depth = 0;
+  for (let index = 0; index < expression.length - 1; index += 1) {
+    if (expression[index] === '(') depth += 1;
+    else if (expression[index] === ')') depth -= 1;
+    if (expression[index] === '|' && expression[index + 1] === '|' && depth === 1) {
+      topLevelOrPositions.push(index);
+    }
+  }
+  if (expression[0] !== '(' || expression.at(-1) !== ')' || topLevelOrPositions.length !== 1) {
+    fail('malformed-fragment', 'The canonical Activity write rule is not the expected create/update disjunction.', {
+      fragmentId: '16A', operationIndex,
+    });
+  }
+  const separator = topLevelOrPositions[0];
+  const createBranch = expression.slice(1, separator).trim();
+  const existingBranch = expression.slice(separator + 2, -1).trim();
+  if (!createBranch.includes('!data.exists()')
+    || !createBranch.includes("newData.child('activityId').val()")
+    || !createBranch.includes("newData.child('activityVersionId').val()")
+    || !existingBranch.includes("data.child('activityId').val()")
+    || !existingBranch.includes('book_activity_publication_writer_service')
+    || !existingBranch.includes('book_activity_revision_service')
+    || !existingBranch.includes('book_activity_runtime_reader_service')) {
+    fail('malformed-fragment', 'The canonical Activity write rule remediation precondition failed.', {
+      fragmentId: '16A', operationIndex,
+    });
+  }
+  const repaired = `(${createBranch})`;
+  if (!repaired.includes('!data.exists()') || repaired.includes('data.child(')
+    || repaired.includes('book_activity_runtime_reader_service')) {
+    fail('malformed-fragment', 'The canonical Activity write rule is not create-only after remediation.', {
+      fragmentId: '16A', operationIndex,
+    });
+  }
+  return repaired;
+};
+
 const FINAL_PRODUCER_OPERATION_EXPRESSION_REMEDIATIONS: Readonly<Record<string, (expression: string) => string>> = Object.freeze({
   '20A:1': (expression: string): string => {
     const expectedPrefix = "(auth == null || auth.token.pbcf.s != true) && (((!data.child('modeSuccessorLineage').exists()";
@@ -259,10 +298,11 @@ const FINAL_PRODUCER_OPERATION_EXPRESSION_REMEDIATIONS: Readonly<Record<string, 
     }
     return 'false';
   },
+  '16A:29': (expression: string): string => enforceCanonicalActivityCreateOnlyWrite(expression, 29),
+  '16A:31': (expression: string): string => enforceCanonicalActivityCreateOnlyWrite(expression, 31),
   '44:0': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 0),
   '44:1': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 1),
   '44:2': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 2),
-  '44:3': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 3),
   '44:4': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 4),
   '44:5': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 5),
   '44:6': (expression: string): string => remediateFragment44AllowedKeyValidation(expression, 6),

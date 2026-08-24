@@ -210,7 +210,7 @@ its JSON companion.
 | Owner | Current disposition | Boundary |
 |---|---|---|
 | #126 / 50B | `CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS` | Bounded read-only Worker/Hosting/Teacher/Student/PDF proof passed; mutation gates remain denied and no durable state was changed. |
-| #127 / 51A | `SOURCE_CONFORMANT_DEFINITION_WITH_CURRENT_SEMANTIC_TOOLING_BLOCKER` | Matrix schema passes; the current semantic command is blocked by the existing dependency-overlay collision. Older semantic evidence remains tied to its exact source identity. |
+| #127 / 51A | `CURRENT_SOURCE_CONFORMANT_SEMANTIC_AND_COVERAGE_PASS_CONSUMER_GATES_OPEN` | Direct native ARM64 semantic conformance passed 32/32 capability rows and direct release coverage passed 32 rows/32 fixtures. The repository harness collision is not used as the only result; consumer acceptance remains downstream. |
 | #128 / 51B1 | `LOCAL_NON_ACTIVATION_PROOF_WITH_HELD_POSITIVE_CASE` | Existing local authoring/assignment evidence remains bounded; a full positive activated authoring run is not claimed. |
 | #129 / 51B2 | `LOCAL_ACCEPTANCE_NOT_DEPLOYED` | Existing deterministic update/replacement/results evidence is local only. |
 | #130 / 51C1 | `LOCAL_ACCEPTANCE_PLUS_BOUNDED_CURRENT_RUNTIME_PROOF_NOT_FULL_SUITE` | Existing local runtime matrix and the current Homework PDF browser path are separate; all-context final acceptance is not claimed. |
@@ -224,3 +224,24 @@ its JSON companion.
 No ticket after #126 is marked closed by this overlay. The current candidate is
 bounded to read-only delivery, preserves the existing assignment, and does not
 authorize mutation, broad rollout, or a pilot.
+
+## Append-only current #127 conformance overlay — 2026-08-24
+
+The native Windows ARM64 direct route independently executed the #127 semantic
+authority checker and the release activity-coverage validators at committed
+HEAD `28efe1cea9547619e96e6722655be998c0524be9`. Semantic conformance passed
+with 32 capability rows, 32 accepted registrations, 33 fixture entries, and 32
+activity rows. Release coverage passed with 32 rows and 32 native fixture
+checks. This closes the #127 definition/conformance gate only; #128–#134
+consumer and deployed gates remain separate.
+
+## Append-only current source correction overlay — 2026-08-24
+
+After the parent conformance inspection, the branch was corrected and rerun
+locally: the canonical Activity composer now removes the ordinary existing-data
+write branch while preserving the producer fragment, and Homework activity
+binding keeps both manifest version pins aligned. Current #128/#129/#130 source
+batches pass 97/97, 95/95, and 89/89; the assembled rules matrix passes 89/89;
+and local recovery passes its root and R2-worker suites. These results do not
+close the browser-positive, deployed, screen-reader, measurement, pilot, or
+release gates, and no production mutation was made.

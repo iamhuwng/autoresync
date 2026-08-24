@@ -147,3 +147,11 @@ Start PRD0062 Packet 2 only after explicit approval. Read Packet 1 handoff, cont
 ## Sensitive Data Handling
 
 No secrets, credentials, student submissions, source PDFs, or private production data were read or written. Rules tests used emulator fixture users only.
+
+## Append-only current authority reconciliation — 2026-08-24
+
+This handoff remains a historical Packet 1 record. The old
+`activityPublish.service.ts`/test and Packet 1 RTDB path references are not
+current source owners; the accepted split-root implementation and current
+proof are recorded in the latest traceability and remaining-gates overlays.
+Do not use the historical Packet 1 command list as current acceptance evidence.

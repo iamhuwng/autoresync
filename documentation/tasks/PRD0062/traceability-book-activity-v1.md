@@ -319,3 +319,20 @@ student flow reached Book Runtime and rendered pages 1 and 2 of the immutable
 full PDF in Reference-only mode. The earlier rollback/browser-runtime failure
 remains historical and is not erased. Downstream #127–#136 rows are unchanged
 until their own gates are proven.
+
+## Append-only current source-owner reconciliation — 2026-08-24
+
+The Packet 1 rows above retain historical provenance, but their references to
+`activityPublish.service.ts`, its test, and the old
+`book_activity/materials`/`drafts`/`candidates` roots are not current source
+owners. The active split-root implementation is owned by
+`src/services/book-activity/activityAuthoring.service.ts`,
+`activityAuthoring.repository.ts`, `activityRevisionPublish.service.ts`, the
+current Activity projection/runtime services, and the generated rule composer
+at `cloudflare/src/upload-worker/book-rules/generated-fragment-composer.ts`.
+Current rule proof is in `src/__tests__/security/bookActivityFirebaseRules.test.ts`,
+`bookActivityRevisionRuleFragment.test.ts`, and
+`bookAssemblyPublicationRuleFragment.test.ts`; the assembled matrix passed
+89/89. The deleted Packet 1 service slice is therefore historical/superseded,
+not an unverified missing production dependency. Current #128–#136 acceptance
+rows remain open or approval-gated as recorded in the latest reconciliation.

@@ -17,6 +17,7 @@ const delivery: BookRuntimeDeliveryProjection = {
     bookId: 'book-1',
     bookMode: 'pdf',
     bookRevision: 4,
+    manifestVersionId: 'manifest-v1',
     publicationId: 'publication-4',
     publicationRevision: 2,
     publicationStatus: 'published',

@@ -237,3 +237,16 @@ This closes the previously missing current-candidate browser proof for #126;
 the broad Component 08 matrix remains open until its own taskboxes, later
 ticket gates, independent review, and release decision are reconciled. The
 earlier `BLOCKED_ROLLED_BACK` records remain historical.
+
+## Append-only current-source reconciliation — 2026-08-24
+
+Direct current-source verification now records #127 semantic conformance at
+32/32 capability rows, 32/32 accepted registrations, 33 fixture entries, and
+32/32 activity rows. The #128, #129, and #130 source batches pass 97/97, 95/95,
+and 89/89 tests respectively; the assembled rules matrix passes 89/89; and
+the local recovery slices pass 1/1 root plus 15 files / 82 R2-worker tests.
+These results correct source/test drift and the canonical Activity write
+immutability boundary but do not check the still-open browser-positive,
+deployed-drill, native-screen-reader, remote-measurement, pilot, or release
+taskboxes. No taskbox is promoted to complete by this overlay, no production
+rules deployment was made, and the existing assignment remains unchanged.

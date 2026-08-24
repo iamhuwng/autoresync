@@ -37,6 +37,7 @@ const authoringMaterial = {
 
 const version = {
   activityId: 'activity-1',
+  activityVersionId: 'version-1',
   versionId: 'version-1',
   ownerId: 'teacher-1',
   materialKind: 'interactive-activity',
@@ -65,6 +66,7 @@ const version = {
 const projection = {
   projectionKind: 'student-safe',
   activityId: 'activity-1',
+  activityVersionId: 'version-1',
   versionId: 'version-1',
   ownerId: 'teacher-1',
   title: 'Activity',
@@ -88,7 +90,10 @@ const seed = async (): Promise<void> => {
     await db.ref('users/teacher-1/role').set('teacher');
     await db.ref('users/teacher-2/role').set('teacher');
     await db.ref('users/admin-1/role').set('super_admin');
-    await db.ref('book_activity/materials/activity-1').set(authoringMaterial);
+    await db.ref('book_activity_authoring/owners/teacher-1').set({
+      activity: authoringMaterial,
+      draft: version.content,
+    });
     await db.ref('book_activity/versions/activity-1/version-1').set(version);
     await db.ref('book_activity/student_safe_projections/activity-1/version-1').set(projection);
   });
@@ -102,18 +107,25 @@ const contexts = () => ({
 });
 
 describe('Book Activity Firebase rule contract', () => {
-  it('defines Packet 1 book_activity RTDB paths and deny-by-default boundaries', () => {
-    const rules = databaseRules.rules.book_activity;
+  it('defines the current split authoring/canonical Activity roots and deny-by-default boundaries', () => {
+    const rules = databaseRules.rules;
+    const activity = rules.book_activity;
+    const authoring = rules.book_activity_authoring;
+    const canonicalVersion = activity.versions.$activityId.$versionId;
+    const safeProjection = activity.student_safe_projections.$activityId.$versionId;
 
-    expect(rules).toBeDefined();
-    expect(databaseRules.rules['.write']).toContain("newData.child('book_activity').val() === data.child('book_activity').val()");
-    expect(rules.materials.$activityId['.read']).toContain("data.child('ownerId').val() === auth.uid");
-    expect(rules.drafts.$activityId.$draftId['.validate']).toContain("!newData.child('editableContent').child('activityId').exists()");
-    expect(rules.candidates.$candidateId['.validate']).toContain("!newData.child('replacementContent').child('hiddenInteractionId').exists()");
-    expect(rules.versions.$activityId.$versionId['.write']).toBe(false);
-    expect(rules.student_safe_projections.$activityId.$versionId['.write']).toBe(false);
-    expect(rules.student_safe_projections.$activityId.$versionId['.validate']).toContain("!newData.child('answerRule').exists()");
-    expect(rules.student_safe_projections.$activityId.$versionId['.validate']).toContain("!newData.child('hiddenInteractionId').exists()");
+    expect(activity).toBeDefined();
+    expect(activity['.read']).toBe('false');
+    expect(activity['.write']).toBe('false');
+    expect(authoring['.read']).toBe('false');
+    expect(authoring['.write']).toBe('false');
+    expect(authoring.owners.$ownerId['.read']).toContain('book_activity_authoring_service');
+    expect(authoring.owners.$ownerId['.write']).toContain('book_activity_authoring_ownerId');
+    expect(canonicalVersion['.read']).toContain('book_activity_runtime_reader_service');
+    expect(canonicalVersion['.write']).toContain('book_activity_publication_writer_service');
+    expect(safeProjection['.read']).toContain('book_activity_runtime_reader_service');
+    expect(safeProjection['.write']).toContain('book_activity_publication_writer_service');
+    expect(safeProjection.$other['.validate']).toContain("$other == 'content'");
   });
 });
 
@@ -136,75 +148,63 @@ describeEmulator('Book Activity Firebase rule emulator behavior', () => {
     }
   });
 
-  it('denies student and cross-owner access to Activity authoring records while allowing safe projections', async () => {
+  it('denies browser and cross-owner access while allowing exact service identities and super-admin reads', async () => {
     const {
       admin,
       otherTeacher,
       student,
       teacher,
     } = contexts();
+    const authoringService = testEnv.authenticatedContext('authoring-service', {
+      book_activity_authoring_service: true,
+      book_activity_authoring_ownerId: 'teacher-1',
+    });
+    const otherAuthoringService = testEnv.authenticatedContext('other-authoring-service', {
+      book_activity_authoring_service: true,
+      book_activity_authoring_ownerId: 'teacher-2',
+    });
+    const publicationWriter = testEnv.authenticatedContext('publication-writer', {
+      book_activity_publication_writer_service: true,
+      book_activity_publication_writer_ownerId: 'teacher-1',
+      book_activity_publication_writer_activityId: 'activity-1',
+      book_activity_publication_writer_activityVersionId: 'version-1',
+    });
+    const otherPublicationWriter = testEnv.authenticatedContext('other-publication-writer', {
+      book_activity_publication_writer_service: true,
+      book_activity_publication_writer_ownerId: 'teacher-2',
+      book_activity_publication_writer_activityId: 'activity-1',
+      book_activity_publication_writer_activityVersionId: 'version-1',
+    });
 
-    await assertSucceeds(teacher.database().ref('book_activity/materials/activity-1').once('value'));
-    await assertSucceeds(admin.database().ref('book_activity/versions/activity-1/version-1').once('value'));
-    await assertFails(student.database().ref('book_activity/materials/activity-1').once('value'));
+    await assertSucceeds(authoringService.database().ref('book_activity_authoring/owners/teacher-1').once('value'));
+    await assertFails(otherAuthoringService.database().ref('book_activity_authoring/owners/teacher-1').once('value'));
+    await assertFails(teacher.database().ref('book_activity_authoring/owners/teacher-1').once('value'));
+    await assertFails(student.database().ref('book_activity_authoring/owners/teacher-1').once('value'));
+    await assertSucceeds(publicationWriter.database().ref('book_activity/versions/activity-1/version-1').once('value'));
+    await assertSucceeds(publicationWriter.database().ref('book_activity/student_safe_projections/activity-1/version-1').once('value'));
     await assertFails(student.database().ref('book_activity/versions/activity-1/version-1').once('value'));
-    await assertFails(otherTeacher.database().ref('book_activity/materials/activity-1').once('value'));
-    await assertFails(otherTeacher.database().ref('book_activity/materials/activity-1').set({
-      ...authoringMaterial,
-      ownerId: 'teacher-2',
-      title: 'Spoofed takeover',
-    }));
-    await assertFails(otherTeacher.database().ref('book_activity/drafts/activity-1/draft-spoof').set({
-      activityId: 'activity-1',
-      draftId: 'draft-spoof',
-      ownerId: 'teacher-2',
-      editableContent: {
-        schemaVersion: 1,
-        title: 'Spoofed draft',
-        presentationMode: 'structured',
-        contextRequirement: 'none',
-      },
-      normalizedContent: version.content,
-      draftRevision: 1,
-      validationState: 'valid',
-      createdAt: '2026-07-09T00:02:00.000Z',
-      updatedAt: '2026-07-09T00:02:00.000Z',
-    }));
-    await assertFails(otherTeacher.database().ref('book_activity/versions/activity-1/version-spoof').set({
-      ...version,
-      versionId: 'version-spoof',
-      ownerId: 'teacher-2',
-    }));
-    await assertFails(otherTeacher.database().ref('book_activity/student_safe_projections/activity-1/version-spoof').set({
-      ...projection,
-      versionId: 'version-spoof',
-      ownerId: 'teacher-2',
-    }));
-
-    await assertSucceeds(student.database().ref('book_activity/student_safe_projections/activity-1/version-1').once('value'));
-    await assertSucceeds(teacher.database().ref('book_activity/student_safe_projections/activity-1/version-1').once('value'));
+    await assertFails(student.database().ref('book_activity/student_safe_projections/activity-1/version-1').once('value'));
+    await assertSucceeds(admin.database().ref('book_activity/versions/activity-1/version-1').once('value'));
     await assertFails(otherTeacher.database().ref('book_activity/student_safe_projections/activity-1/version-1').once('value'));
-    await assertFails(teacher.database().ref('book_activity/versions/activity-1/version-1').update({
+    await assertFails(teacher.database().ref('book_activity/versions/activity-1/version-1').set(version));
+    await assertFails(teacher.database().ref('book_activity/student_safe_projections/activity-1/version-1').set(projection));
+    await assertFails(otherPublicationWriter.database().ref('book_activity/versions/activity-1/version-1').set(version));
+    await assertFails(otherPublicationWriter.database().ref('book_activity/student_safe_projections/activity-1/version-1').set(projection));
+    await assertFails(publicationWriter.database().ref('book_activity/versions/activity-1/version-1').set(version));
+    await assertFails(publicationWriter.database().ref('book_activity/student_safe_projections/activity-1/version-1').set(projection));
+    await assertFails(publicationWriter.database().ref('book_activity/versions/activity-1').update({
+      'version-1': version,
+    }));
+    await assertFails(publicationWriter.database().ref('book_activity/student_safe_projections/activity-1').update({
+      'version-1': projection,
+    }));
+    await assertFails(publicationWriter.database().ref('book_activity/versions/activity-1/version-1').update({
       publishedAt: '2026-07-09T00:02:00.000Z',
     }));
-    await assertFails(teacher.database().ref('book_activity/versions/activity-1/version-direct').set({
-      ...version,
-      versionId: 'version-direct',
+    await assertFails(publicationWriter.database().ref('book_activity/student_safe_projections/activity-1/version-1').update({
+      publishedAt: '2026-07-09T00:02:00.000Z',
     }));
-    await assertFails(teacher.database().ref('book_activity/student_safe_projections/activity-1/version-direct').set({
-      ...projection,
-      versionId: 'version-direct',
-    }));
-    await assertFails(admin.database().ref().update({
-      'book_activity/versions/activity-1/version-admin-direct': {
-        ...version,
-        versionId: 'version-admin-direct',
-      },
-    }));
-    await assertFails(teacher.database().ref('book_activity/student_safe_projections/activity-1/version-unsafe').set({
-      ...projection,
-      versionId: 'version-unsafe',
-      answerRule: { type: 'single-choice' },
-    }));
+    await assertFails(publicationWriter.database().ref('book_activity/versions/activity-1/version-1').remove());
+    await assertFails(publicationWriter.database().ref('book_activity/student_safe_projections/activity-1/version-1').remove());
   });
 });

@@ -315,6 +315,8 @@ export interface BookHomeworkManifest {
         readonly bookId: string;
         readonly bookMode: 'pdf';
         readonly bookRevision: number;
+        /** Immutable Book-owned manifest identity for the published placement graph. */
+        readonly manifestVersionId: string;
         readonly publicationId: string;
         readonly publicationRevision: number;
         readonly publicationStatus: 'published';

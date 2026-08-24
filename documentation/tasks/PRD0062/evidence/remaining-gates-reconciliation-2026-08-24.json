@@ -5,26 +5,98 @@
   "disposition": "PARTIAL_CURRENT_CANDIDATE_PROOF_DOWNSTREAM_GATES_OPEN",
   "source": {
     "branch": "codex/prd0062-continuation-after-cleanup",
-    "gitHeadAtInspection": "bec7f897c7a17c9b04eade111a0044de7305034d",
+    "gitHeadAtInspection": "28efe1cea9547619e96e6722655be998c0524be9",
     "worktreeDirty": true,
-    "finalCommitNotEstablished": true
+    "finalCommitNotEstablished": true,
+    "inspectionState": "PRE_COMMIT_CURRENT_SOURCE_RECONCILIATION"
   },
   "currentChecks": {
     "frontendFocused": { "files": 4, "tests": 25, "passed": true },
-    "cloudflareFocused": { "files": 3, "tests": 42, "passed": true },
-    "productionBuild": { "modulesTransformed": 9504, "rootEntryKb": 245, "bundleBudgetPassed": true },
+    "cloudflareFocused": { "files": 3, "tests": 17, "passedTests": 16, "passed": true, "skipped": 1, "command": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts --maxWorkers=1 --passWithNoTests=false --reporter=dot src/__tests__/security/bookActivityFirebaseRules.test.ts src/__tests__/security/bookActivityRevisionRuleFragment.test.ts src/__tests__/security/bookAssemblyPublicationRuleFragment.test.ts" },
+    "bookActivityEmulatorFocused": { "files": 1, "tests": 2, "passedTests": 2, "failedTests": 0, "passed": true, "command": "firebase emulators:exec --only database \"node node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot --passWithNoTests=false --maxWorkers=1 src/__tests__/security/bookActivityFirebaseRules.test.ts\"" },
+    "productionBuild": { "modulesTransformed": 9504, "rootEntryKb": 245, "bundleBudgetPassed": true, "command": "node node_modules/vite/bin/vite.js build; node scripts/check-bundle-budget.mjs" },
     "acceptanceSchema": { "cases": 9, "fixtureEntries": 33, "passed": true },
     "acceptanceSemantic": {
-      "passed": false,
+      "passed": true,
       "productAssertionsStarted": false,
-      "classification": "TOOLING_BLOCKED",
-      "failure": "HARNESS_FAILURE LIVE_DEPENDENCY_OVERLAY_COLLISION"
+      "classification": "DIRECT_NATIVE_ARM64_EXECUTION",
+      "command": "node node_modules/vite-node/vite-node.mjs scripts/lib/prd0062-acceptance-conformance.ts documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json",
+      "counts": { "capabilityRows": 32, "acceptedRegistrations": 32, "fixtureEntries": 33, "activityRows": 32 }
     },
     "activityCoverage": {
-      "passed": false,
+      "passed": true,
       "productAssertionsStarted": false,
-      "classification": "TOOLING_BLOCKED",
-      "failure": "HARNESS_FAILURE LIVE_DEPENDENCY_OVERLAY_COLLISION"
+      "classification": "DIRECT_NATIVE_ARM64_EXECUTION",
+      "command": "node --input-type=module -e import loadAndValidateCoverageMatrix; node node_modules/vite-node/vite-node.mjs scripts/lib/prd0062-activity-coverage/validate-matrix-fixtures.ts documentation/architecture/data/prd0062-activity-coverage.matrix.json",
+      "rows": 32,
+      "fixtureCount": 32,
+      "release": true
+    },
+    "ticket128SourceBatch": {
+      "files": 18,
+      "tests": 97,
+      "passed": true,
+      "browserPositiveActivation": false,
+      "commandClass": "DIRECT_NATIVE_VITEST_SOURCE_BATCH"
+    },
+    "ticket129SourceBatch": {
+      "files": 18,
+      "tests": 95,
+      "passed": true,
+      "deployedBrowserUpdateReplacementResults": false,
+      "commandClass": "DIRECT_NATIVE_VITEST_SOURCE_BATCH"
+    },
+    "ticket130SourceBatch": {
+      "files": 19,
+      "tests": 89,
+      "passed": true,
+      "fullDeployedRuntimeMatrix": false,
+      "commandClass": "DIRECT_NATIVE_VITEST_SOURCE_BATCH"
+    },
+    "homeworkManifestPinRegression": {
+      "files": 3,
+      "tests": 25,
+      "passed": true,
+      "invariant": "manifest.manifestVersionId equals book.manifestVersionId"
+    },
+    "assembledRulesMatrix": {
+      "resultFiles": 8,
+      "suites": 23,
+      "tests": 89,
+      "passedTests": 89,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "passed": true,
+      "command": "node scripts/prd0062-118-assembled-rules-matrix.mjs"
+    },
+    "securityCurrentSource": {
+      "files": 27,
+      "tests": 252,
+      "passedTests": 217,
+      "skippedTests": 35,
+      "failedTests": 0,
+      "passed": true,
+      "classification": "LOCAL_SECURITY_AND_EMULATOR_PROOF_NOT_DEPLOYED"
+    },
+    "legacyRecoverySource": {
+      "rootFiles": 1,
+      "rootTests": 1,
+      "rootPassed": true,
+      "r2WorkerFiles": 15,
+      "r2WorkerTests": 82,
+      "r2WorkerPassed": true,
+      "classification": "LOCAL_RECOVERY_PROOF_NOT_DEPLOYED"
+    },
+    "cloudflareWorkerConfigAttempt": {
+      "passed": false,
+      "classification": "TOOLING_STARTUP_FAILURE_MISSING_WIN32_ARM64_WORKERD_BINARY",
+      "productAssertionsStarted": false,
+      "command": "node node_modules/vitest/vitest.mjs run --config cloudflare/vitest.config.mjs --maxWorkers=1 --passWithNoTests=false --reporter=dot cloudflare/test/generated-book-rules-composer.test.ts",
+      "workdir": "C:\\Users\\The Lord\\repos\\luyentap-prd0062",
+      "node": "arm64 C:\\Program Files\\nodejs\\node.exe v22.17.1",
+      "configDependency": "cloudflare/node_modules/workerd",
+      "exitCode": 1,
+      "error": "Unsupported platform: win32 arm64 LE"
     },
     "rollbackReadback": {
       "version": "511a9ca5-3245-4765-b032-46690e8cc20f",
@@ -36,11 +108,12 @@
     "repositoryTypecheck": {
       "passed": false,
       "classification": "PRE_EXISTING_UNRELATED_DIAGNOSTICS",
-      "changedPdfOrWorkerFilesReported": false
+      "changedPdfOrWorkerFilesReported": false,
+      "changedPathsLintPassed": true
     }
   },
   "tickets": {
-    "127": "SOURCE_CONFORMANT_DEFINITION_ACCEPTED_LOCAL_EXECUTION_SEPARATE",
+    "127": "CURRENT_SOURCE_CONFORMANT_SEMANTIC_AND_COVERAGE_PASS_CONSUMER_GATES_OPEN",
     "128": "LOCAL_NON_ACTIVATION_PROOF_WITH_HELD_POSITIVE_CASE",
     "129": "LOCAL_ACCEPTANCE_NOT_DEPLOYED",
     "130": "LOCAL_ACCEPTANCE_PLUS_BOUNDED_CURRENT_RUNTIME_PROOF_NOT_FULL_SUITE",
@@ -76,6 +149,14 @@
       "productAuthorityCorrectionApplied": true,
       "staleExcerptOnlyArchitectureOverlay": "documentation/architecture/book-activity-runtime-and-assembly.md",
       "harnessFindingsDeferredOutOfProductScope": true
+    },
+    "finalReview": {
+      "fixedPoint": "28efe1cea9547619e96e6722655be998c0524be9",
+      "target": "current_worktree_diff_before_commit",
+      "standards": "PASS",
+      "spec": "PASS",
+      "findings": 0,
+      "reviewedAt": "2026-08-24T14:15:00+07:00"
     }
   },
   "markdownCompanion": "remaining-gates-reconciliation-2026-08-24.md"

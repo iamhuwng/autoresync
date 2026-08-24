@@ -365,3 +365,25 @@ denied, and no durable Firebase, R2, projector, or Listening mutation occurred.
 The amendment's requirements remain unchanged; #127–#136 still require their
 own acceptance, manual accessibility, deployed-drill, measurement, pilot, and
 release-decision evidence.
+
+## Append-only current #127 conformance overlay — 2026-08-24
+
+The current #127 semantic-tooling boundary is superseded by direct native
+Windows ARM64 execution at committed HEAD
+`28efe1cea9547619e96e6722655be998c0524be9`. Semantic conformance passed with
+32 capability rows, 32 accepted registrations, 33 fixture entries, and 32
+activity rows; direct release coverage passed 32 rows and 32 fixture checks.
+Only the #127 definition/conformance gate is closed by this evidence. The
+amendment's #128–#136 acceptance, accessibility, deployed-drill, measurement,
+pilot, and release-decision requirements remain unchanged.
+
+## Append-only current source correction boundary — 2026-08-24
+
+The current branch contains additional uncommitted source corrections after
+the parent conformance inspection: canonical Activity ordinary writes are
+composed as immutable create-only rules, and the Homework activity-binding
+update now keeps the top-level and nested manifest version pins equal. Direct
+current-source reruns still pass #127 semantic conformance and release
+coverage. These corrections are not deployed; the amendment continues to
+require separate consumer, accessibility, deployed-drill, measurement, pilot,
+and release-decision evidence for #128–#136.

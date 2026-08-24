@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import fragment from '../../../cloudflare/src/upload-worker/book-rules/fragments/16A.json';
 import revisionFragment from '../../../cloudflare/src/upload-worker/book-rules/fragments/19.json';
+import { composeGeneratedBookRules } from '../../../cloudflare/src/upload-worker/book-rules/generated-fragment-composer';
 
 const canonicalPaths = [
   'book_activity/versions/$activityId/$versionId',
@@ -13,6 +14,15 @@ const operation = (path: string, rule: '.read' | '.write') => {
   expect(found, `${path} ${rule}`).toBeDefined();
   return found!;
 };
+
+const ownedOperationLocations = (): string[] => [...new Set(
+  fragment.operations
+    .filter(({ merge }) => (
+      !merge.startsWith('replace-fork')
+      && !merge.startsWith('conjoin-existing-authorization-canonical-fork')
+    ))
+    .map((candidate) => `${candidate.path}/${candidate.rule}`),
+)];
 
 describe('Book Assembly publication 16A rule fragment', () => {
   it('declares the strategy-neutral publication primitive owner and locations', () => {
@@ -55,9 +65,7 @@ describe('Book Assembly publication 16A rule fragment', () => {
     ]);
     expect(new Set(fragment.owner.generatedRuleLocations).size)
       .toBe(fragment.owner.generatedRuleLocations.length);
-    expect(fragment.owner.generatedRuleLocations).toEqual(
-      fragment.operations.map((candidate) => `${candidate.path}/${candidate.rule}`),
-    );
+    expect(fragment.owner.generatedRuleLocations).toEqual(ownedOperationLocations());
   });
 
   it('denies ancestor writes so exact create-only child rules cannot be bypassed', () => {
@@ -170,7 +178,7 @@ describe('Book Assembly publication 16A rule fragment', () => {
     ]);
     expect(publicationLocations.filter((location) => revisionLocations.includes(location))).toEqual([]);
     for (const path of canonicalPaths) {
-      expect(fragment.operations.filter((candidate) => candidate.path === path)).toHaveLength(2);
+      expect(fragment.operations.filter((candidate) => candidate.path === path)).toHaveLength(3);
       expect(revisionFragment.operations.some((candidate) => candidate.path === path)).toBe(false);
     }
   });
@@ -182,7 +190,7 @@ describe('Book Assembly publication 16A rule fragment', () => {
     const projectionWrite = operation(canonicalPaths[1], '.write');
 
     for (const read of [versionRead, projectionRead]) {
-      expect(read.expression).toContain('auth.token.book_assembly_publication_service == true');
+      expect(read.expression).toContain('auth.token.book_activity_publication_writer_service == true');
       expect(read.expression).toContain('auth.token.book_activity_revision_service == true');
       expect(read.expression).toContain('auth.token.book_activity_runtime_reader_service == true');
       expect(read.expression).toContain('auth.token.book_activity_runtime_reader_ownerId');
@@ -199,12 +207,22 @@ describe('Book Assembly publication 16A rule fragment', () => {
     }
 
     for (const write of [versionWrite, projectionWrite]) {
-      expect(write.expression).toContain('auth.token.book_assembly_publication_service == true');
+      expect(write.expression).toContain('auth.token.book_activity_publication_writer_service == true');
       expect(write.expression).toContain('auth.token.book_activity_revision_service == true');
       expect(write.expression).toContain('!data.exists()');
-      expect(write.expression).not.toContain('book_activity_runtime_reader_service');
       expect(write.expression).not.toContain('auth.uid');
       expect(write.expression).not.toContain('book_activity_capabilities');
+    }
+
+    const composed = composeGeneratedBookRules([{
+      sourcePath: 'cloudflare/src/upload-worker/book-rules/fragments/16A.json',
+      fragment,
+    }]);
+    for (const path of canonicalPaths) {
+      expect(composed.byLocation[`${path}/.write`].expression)
+        .not.toContain('book_activity_runtime_reader_service');
+      expect(composed.byLocation[`${path}/.write`].expression)
+        .not.toContain('data.child');
     }
 
     for (const field of [
@@ -219,7 +237,13 @@ describe('Book Assembly publication 16A rule fragment', () => {
     ]) {
       expect(versionWrite.expression).toContain(field);
     }
-    for (const field of ['bookId', 'manifestVersionId', 'publicationId', 'createdByCommandId', "newData.child('versionId')"]) {
+    for (const field of [
+      "newData.child('bookId')",
+      "newData.child('manifestVersionId')",
+      "newData.child('publicationId')",
+      "newData.child('createdByCommandId')",
+      "newData.child('versionId')",
+    ]) {
       expect(versionWrite.expression).not.toContain(field);
     }
   });
