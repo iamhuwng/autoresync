@@ -261,7 +261,8 @@ describe('materialBooks.service', () => {
       }),
     ]));
     expect(materialsBook).not.toHaveProperty('bookRevision');
-    expect(pdfBook).toMatchObject({ bookRevision: 0, sourceSetRevision: 0 });
+    expect(pdfBook).not.toHaveProperty('bookRevision');
+    expect(pdfBook).not.toHaveProperty('sourceSetRevision');
     expect(pdfBook).not.toHaveProperty('sourceSet');
   });
 

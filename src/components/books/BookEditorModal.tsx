@@ -239,6 +239,7 @@ const BookEditorModal = ({
         aria-labelledby={titleId}
         tabIndex={-1}
         className="book-editor-modal__frame"
+        data-book-mode={resolvedBook?.bookMode ?? 'loading'}
         onKeyDown={handleKeyDown}
       >
         <header className="book-editor-modal__header">

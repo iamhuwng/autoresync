@@ -215,6 +215,11 @@ const CreateBookModal = ({
               <p className="create-book-modal__error" role="status">PDF source creation is not available yet.</p>
             )}
             {errors.bookMode && <p className="create-book-modal__error">{errors.bookMode}</p>}
+            {bookMode === 'pdf' && (
+              <p className="create-book-modal__hint" role="status">
+                Complete the required Book details below, then choose Save Book to open PDF Assembly.
+              </p>
+            )}
           </fieldset>
 
           {bookMode && (

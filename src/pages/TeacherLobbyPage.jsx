@@ -3589,6 +3589,7 @@ const TeacherLobbyPage = () => {
           opened={createBookModalOpen}
           title="Create Book"
           testTypes={testTypeConfigs}
+          pdfModeEnabled={isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.create)}
           onClose={handleCloseCreateBookModal}
           onModeSelect={(bookMode) => trackAction('teacher_materials_book_mode_selected', {
             bookMode,

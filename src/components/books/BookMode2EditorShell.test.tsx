@@ -74,6 +74,32 @@ describe('BookMode2EditorShell', () => {
       .toBeInTheDocument();
   });
 
+  it('exposes the authorized upload step when the local presentation gate is enabled', async () => {
+    const uploadWorkflow: SourceUploadBrowserWorkflow = {
+      load: vi.fn(async () => null),
+      start: vi.fn(),
+      retryBytes: vi.fn(),
+      retryCompletion: vi.fn(),
+      requestCancellation: vi.fn(),
+      retryCleanup: vi.fn(),
+    };
+    render(
+      <BookMode2EditorShell
+        access="owner"
+        book={book}
+        presentation="modal"
+        uploadWorkflow={uploadWorkflow}
+        uploadPresentationEnabled
+        assemblyRepository={null}
+      />,
+    );
+
+    expect(screen.getByRole('navigation', { name: 'PDF Book workflow' })).toBeInTheDocument();
+    expect(screen.queryByText('Upload authorization is disabled in this view.')).not.toBeInTheDocument();
+    expect(screen.getByText('Choose a PDF to enable upload authorization.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue to upload' })).toBeDisabled();
+  });
+
   it('keeps Assembly mutation controls hidden while safe reads remain in rollback state', () => {
     render(
       <BookMode2EditorShell
@@ -95,7 +121,7 @@ describe('BookMode2EditorShell', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Inspect source PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Assembly is read-only' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Assembly is currently read-only' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Verified Source Versions' })).not.toBeInTheDocument();
     expect(screen.getByText(/will never fall back to the materials editor/iu)).toBeInTheDocument();

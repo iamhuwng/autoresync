@@ -983,11 +983,11 @@ const BookAssemblyWorkspace = ({
   };
 
   return (
-    <main className="book-assembly-workspace" data-presentation={presentation} aria-labelledby="book-assembly-title">
+    <section className="book-assembly-workspace" data-presentation={presentation} aria-labelledby="book-assembly-title">
       <header className="book-assembly-workspace__header">
         <div>
           <p className="book-assembly-workspace__eyebrow">Mode 2 Assembly</p>
-          <h1 id="book-assembly-title">{bookTitle}</h1>
+          <h2 id="book-assembly-title">{bookTitle}</h2>
           <p>Configure verified Source Versions and ordered Book hierarchy.</p>
         </div>
         <button type="button" onClick={() => void save()} disabled={status === 'saving' || !repository}>
@@ -1301,7 +1301,7 @@ const BookAssemblyWorkspace = ({
           />
         )}
       </section>
-    </main>
+    </section>
   );
 };
 

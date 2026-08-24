@@ -137,6 +137,13 @@
   font-weight: 700;
 }
 
+.create-book-modal__hint {
+  margin: 0;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .create-book-modal__button {
   min-height: 38px;
   border: 1px solid rgba(203, 213, 225, 0.9);

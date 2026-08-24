@@ -656,9 +656,6 @@ export const createBookDraft = async (
     updatedAt: now,
     createdBy: context.actorId,
     updatedBy: context.actorId,
-    ...(input.bookMode === 'pdf'
-      ? { bookRevision: 0, sourceSetRevision: 0 }
-      : {}),
   };
 
   assertValid(validateMaterialBook({ metadata: book, nodes, context }));

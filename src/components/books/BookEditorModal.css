@@ -8,6 +8,7 @@
   padding: 1.5rem;
   background: rgba(15, 23, 42, 0.52);
   backdrop-filter: blur(8px);
+  overscroll-behavior: contain;
 }
 
 .book-editor-modal__frame {
@@ -28,6 +29,29 @@
 .book-editor-modal__frame:focus {
   outline: 3px solid rgba(139, 92, 246, 0.24);
   outline-offset: 3px;
+}
+
+.book-editor-modal__frame[data-book-mode='pdf'] {
+  width: min(1180px, calc(100vw - 32px));
+  height: min(920px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  border-radius: 16px;
+}
+
+.book-editor-modal__frame[data-book-mode='pdf'] .book-editor-modal__body {
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.book-editor-modal__frame[data-book-mode='pdf'] .book-assembly-workspace__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.85rem;
+  border: 1px solid #d4dce3;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
 }
 
 .book-editor-modal__header {

@@ -136,6 +136,27 @@ describe('CreateBookModal', () => {
     expect(screen.getByText('PDF source creation is not available yet.')).toBeInTheDocument();
   });
 
+  it('reveals the PDF Book details and Assembly handoff after PDF source selection', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CreateBookModal
+        opened={true}
+        testTypes={DEFAULT_MATERIAL_TEST_TYPES}
+        pdfModeEnabled={true}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByLabelText('PDF source'));
+
+    expect(screen.getByLabelText('PDF source')).toBeChecked();
+    expect(screen.getByLabelText('Title')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Book' })).toBeInTheDocument();
+    expect(screen.getByText('Complete the required Book details below, then choose Save Book to open PDF Assembly.')).toBeInTheDocument();
+  });
+
   it('rejects PDF submission when PDF mode becomes disabled after selection', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();

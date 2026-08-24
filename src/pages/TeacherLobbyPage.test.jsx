@@ -58,6 +58,19 @@ vi.mock('../config/readingV2FeatureFlags', async () => {
   };
 });
 
+vi.mock('../config/bookActivityRolloutGates', async () => {
+  const actual = await vi.importActual('../config/bookActivityRolloutGates');
+
+  return {
+    ...actual,
+    BOOK_ACTIVITY_ROLLOUT_GATE_MODES_BY_SURFACE: {
+      ...actual.BOOK_ACTIVITY_ROLLOUT_GATE_MODES_BY_SURFACE,
+      create: 'enabled',
+    },
+    isBookActivityRolloutGateEnabled: (gate) => gate === actual.BOOK_ACTIVITY_ROLLOUT_GATES.create,
+  };
+});
+
 vi.mock('firebase/database', () => ({
   ref: (_database, path = '') => path,
   get: vi.fn(async (path) => ({ val: () => mocks.dbReads[path] ?? null })),
@@ -1822,6 +1835,69 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
+  it('creates a PDF Book and opens the PDF Assembly editor', async () => {
+    const user = userEvent.setup();
+    const createdBook = {
+      id: 'book-pdf',
+      bookId: 'book-pdf',
+      bookMode: 'pdf',
+      ownerId: 'teacher-1',
+      title: 'PDF Assembly Book',
+      authors: [],
+      visibility: 'private',
+      status: 'draft-empty',
+      testTypeIds: ['ielts'],
+      testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+      tags: [],
+      updatedAt: '2026-06-01T00:00:00.000Z',
+      isOwner: true,
+      bookRevision: 0,
+      sourceSetRevision: 0,
+    };
+    mocks.listTeacherBooks
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([createdBook]);
+    mocks.createBookDraft.mockResolvedValue({
+      ...createdBook,
+      createdAt: '2026-06-01T00:00:00.000Z',
+      createdBy: 'teacher-1',
+      updatedBy: 'teacher-1',
+    });
+    mocks.readBook.mockResolvedValue({
+      ...createdBook,
+      createdAt: '2026-06-01T00:00:00.000Z',
+      createdBy: 'teacher-1',
+      updatedBy: 'teacher-1',
+    });
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
+    await user.click(await screen.findByRole('button', { name: 'Create New Book' }));
+    await user.click(screen.getByLabelText('PDF source'));
+    expect(screen.getByText('Complete the required Book details below, then choose Save Book to open PDF Assembly.')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Title'), 'PDF Assembly Book');
+    await user.click(screen.getByLabelText('IELTS'));
+    await user.click(screen.getByRole('button', { name: 'Save Book' }));
+
+    await waitFor(() => {
+      expect(mocks.createBookDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookMode: 'pdf',
+          ownerId: 'teacher-1',
+          title: 'PDF Assembly Book',
+          testTypeIds: ['ielts'],
+        }),
+        expect.anything(),
+        expect.objectContaining({ actorId: 'teacher-1', actorRole: 'teacher' }),
+      );
+    });
+
+    expect(await screen.findByRole('dialog', { name: 'PDF Assembly Book' })).toBeInTheDocument();
+    expect(await screen.findByText('PDF Assembly')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Assembly is currently read-only' })).toBeInTheDocument();
+  });
+
   it('keeps Book private/public scope inside the Book tab', async () => {
     const user = userEvent.setup();
     mocks.listTeacherBooks.mockResolvedValue([]);
@@ -1991,7 +2067,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'PDF Assembly Book' });
     expect(within(dialog).getByText('PDF Assembly')).toBeInTheDocument();
-    expect(within(dialog).getByRole('heading', { name: 'Assembly is read-only' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: 'Assembly is currently read-only' })).toBeInTheDocument();
     expect(within(dialog).queryByRole('tab')).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
     expect(mocks.listBookNodes).not.toHaveBeenCalled();

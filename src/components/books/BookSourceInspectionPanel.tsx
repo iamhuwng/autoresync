@@ -19,6 +19,7 @@ export type BookSourceInspectionAction =
 
 interface BookSourceInspectionPanelProps {
   readonly canRequestUploadAuthorization: boolean;
+  readonly uploadUnavailableMessage?: string;
   readonly onAction?: (
     action: BookSourceInspectionAction,
     metadata?: Record<string, unknown>,
@@ -39,6 +40,7 @@ const inspectionErrorMessage = (error: unknown): string => {
 
 const BookSourceInspectionPanel = ({
   canRequestUploadAuthorization,
+  uploadUnavailableMessage,
   onAction,
   onClaimChange,
   onRequestUploadAuthorization,
@@ -165,7 +167,7 @@ const BookSourceInspectionPanel = ({
 
       {phase === 'inspecting' && (
         <div className="book-source-inspection__status" role="status" aria-live="polite">
-          <span>Inspecting PDF locally...</span>
+          <span>Inspecting PDF locally…</span>
           <button type="button" onClick={cancel}>Cancel inspection</button>
         </div>
       )}
@@ -191,14 +193,26 @@ const BookSourceInspectionPanel = ({
       )}
 
       {!canRequestUploadAuthorization && (
-        <p className="book-source-inspection__inline" role="status">
-          Upload authorization is disabled in this view.
+        <p
+          id="book-source-inspection-availability"
+          className="book-source-inspection__inline"
+          role="status"
+          aria-live="polite"
+        >
+          {uploadUnavailableMessage ?? 'Upload authorization is disabled in this view.'}
+        </p>
+      )}
+
+      {canRequestUploadAuthorization && !selection && phase === 'idle' && (
+        <p className="book-source-inspection__inline" role="status" aria-live="polite">
+          Choose a PDF to enable upload authorization.
         </p>
       )}
 
       <button
         type="button"
         disabled={!canContinue}
+        aria-describedby={!canRequestUploadAuthorization ? 'book-source-inspection-availability' : undefined}
         onClick={() => {
           if (selection && canContinue) onRequestUploadAuthorization(selection);
         }}
