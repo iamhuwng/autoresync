@@ -4,11 +4,13 @@ import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import { toast } from '../modern';
 import {
   BOOK_SOURCE_STRATEGIES,
+  BOOK_CONTENT_NODE_TYPES,
   type BookAssemblyManifestCandidate,
   type ActivityContextRequirement,
   type BookContentNodeType,
   type BookSourceStrategy,
   type PageGroupMode,
+  type SourceSetCandidate,
   type TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import { validateBookAssemblyManifestCandidate } from '../../services/book-assembly/manifestCandidate.service';
@@ -30,6 +32,7 @@ import {
 } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import type { AssemblyMappingViewerPageSelection } from '../../services/book-assembly/assemblyMappingViewer.browser';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
+import type { SourceSetAttachmentClient } from '../../services/book-source-delivery/sourceUpload.client';
 import BookAssemblyMappingViewerHost from './assembly/BookAssemblyMappingViewerHost';
 import BookAssemblyReconciliationPanel from './assembly/BookAssemblyReconciliationPanel';
 import BookAssemblyUnitPreview from './assembly/BookAssemblyUnitPreview';
@@ -51,6 +54,7 @@ export interface BookAssemblyWorkspaceProps {
   readonly presentation: 'modal' | 'page-compat';
   readonly bookRevision: number;
   readonly sourceSetRevision: number;
+  readonly sourceSetAttachmentClient?: SourceSetAttachmentClient | null;
   readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
   readonly initialCandidate?: BookAssemblyCandidateRecord | null;
   readonly repository?: UnitAssemblyRepository;
@@ -62,10 +66,25 @@ export interface BookAssemblyWorkspaceProps {
   readonly candidateRuntimePreview?: CandidateUnitPreviewProjection | null;
   readonly onAction?: (action: string, metadata?: Record<string, unknown>) => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
+  readonly onCandidateChange?: (candidate: BookAssemblyCandidateRecord | null) => void;
+  /** When the guided PDF flow saves, immediately run the trusted candidate validation command. */
+  readonly validateCandidateAfterSave?: boolean;
   /** Optional #115 composition input; planning stays absent until trusted facts are supplied. */
   readonly replacementPlanClient?: ReplacementPlanClient | null;
   readonly replacementPlanRequest?: ReplacementPlanClientCreateRequest | null;
   readonly onReplacementConfirmationHandoff?: (handoff: ReplacementConfirmationHandoff) => void;
+  /** Production uses the guided workflow; the legacy layout remains available to focused fixtures. */
+  readonly guided?: boolean;
+  /** Allows the PDF workflow shell to own the visible stage without duplicating assembly state. */
+  readonly guidedStep?: 'mode' | 'outline' | 'pages' | 'review';
+  readonly onGuidedStepChange?: (step: 'mode' | 'outline' | 'pages' | 'review') => void;
+  readonly strategyOverride?: BookSourceStrategy;
+  readonly onStrategyChange?: (strategy: BookSourceStrategy) => void;
+  readonly suppressGuidedChrome?: boolean;
+  /** The outer PDF flow already collected the mode choice. */
+  readonly suppressModeChoice?: boolean;
+  /** Keeps the approved PDF Book mockup as the visible authoring surface. */
+  readonly guidedUiVariant?: 'default' | 'mockup';
 }
 
 type DraftNode = BookAssemblyManifestCandidate['nodes'][number];
@@ -235,6 +254,7 @@ const BookAssemblyWorkspace = ({
   presentation,
   bookRevision,
   sourceSetRevision,
+  sourceSetAttachmentClient = null,
   sourceVersions,
   initialCandidate,
   repository,
@@ -245,13 +265,23 @@ const BookAssemblyWorkspace = ({
   candidateRuntimePreview,
   onAction,
   onDirtyChange,
+  onCandidateChange,
+  validateCandidateAfterSave = false,
   replacementPlanClient,
   replacementPlanRequest,
   onReplacementConfirmationHandoff,
+  guided = false,
+  guidedStep: guidedStepOverride,
+  onGuidedStepChange,
+  strategyOverride,
+  onStrategyChange,
+  suppressGuidedChrome = false,
+  suppressModeChoice = false,
+  guidedUiVariant = 'default',
 }: BookAssemblyWorkspaceProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
   const initial: AssemblyEditorDraft = initialCandidate?.manifest ?? emptyManifest(bookId);
-  const [strategy, setStrategy] = useState<BookSourceStrategy>(initial.sourceSet.sourceStrategy);
+  const [strategy, setStrategy] = useState<BookSourceStrategy>(strategyOverride ?? initial.sourceSet.sourceStrategy);
   const [nodes, setNodes] = useState<readonly DraftNode[]>(initial.nodes);
   const [sources, setSources] = useState<readonly DraftSource[]>(initial.sourceSet.sources);
   const [units, setUnits] = useState<BookAssemblyManifestCandidate['units']>(initial.units);
@@ -273,13 +303,26 @@ const BookAssemblyWorkspace = ({
   const [migrationRequestedStrategy, setMigrationRequestedStrategy] = useState<BookSourceStrategy | null>(null);
   const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
   const [manualCopyFallback, setManualCopyFallback] = useState(false);
+  const [mockupUnitToolsOpen, setMockupUnitToolsOpen] = useState(false);
+  const [mockupPageToolsOpen, setMockupPageToolsOpen] = useState(false);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [internalGuidedStep, setInternalGuidedStep] = useState<'mode' | 'outline' | 'pages' | 'review'>('mode');
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
     draftSnapshot(initial.sourceSet.sourceStrategy, initial.nodes, initial.sourceSet.sources, initial.units));
+  const [effectiveBookRevision, setEffectiveBookRevision] = useState(bookRevision);
+  const [effectiveSourceSetRevision, setEffectiveSourceSetRevision] = useState(sourceSetRevision);
+  const [attachedSourceSet, setAttachedSourceSet] = useState<SourceSetCandidate | null>(initialCandidate?.manifest?.sourceSet ?? null);
   const nodeButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingFocusNodeKeyRef = useRef<string | null>(null);
   const unitImportAbortRef = useRef<AbortController | null>(null);
+  const structureImportInputRef = useRef<HTMLInputElement | null>(null);
+
+  const guidedStep = guidedStepOverride ?? internalGuidedStep;
+  const setGuidedStep = (next: 'mode' | 'outline' | 'pages' | 'review') => {
+    setInternalGuidedStep(next);
+    onGuidedStepChange?.(next);
+  };
 
   const sourceAuthority = useMemo(() => ({
     getSourceVersion: (sourceVersionId: string) =>
@@ -425,6 +468,64 @@ const BookAssemblyWorkspace = ({
     });
   };
 
+  const importMockupStructure = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid');
+      const record = parsed as Record<string, unknown>;
+      const rawNodes = Array.isArray(record.nodes) ? record.nodes : [];
+      const rawUnits = Array.isArray(record.units) ? record.units : [];
+      const importedNodes = rawNodes.filter((value): value is DraftNode => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+        const node = value as Record<string, unknown>;
+        return typeof node.nodeKey === 'string'
+          && (node.parentNodeKey === null || typeof node.parentNodeKey === 'string')
+          && typeof node.nodeType === 'string'
+          && (BOOK_CONTENT_NODE_TYPES as readonly string[]).includes(node.nodeType)
+          && Number.isSafeInteger(node.order);
+      });
+      if (importedNodes.length === 0 || rawUnits.length === 0) throw new Error('empty');
+      setNodes(normalizeNodeOrders(importedNodes));
+      setUnits(rawUnits as BookAssemblyManifestCandidate['units']);
+      requestNodeFocus(importedNodes.find((node) => node.nodeType === 'unit')?.nodeKey ?? importedNodes[0]?.nodeKey ?? null);
+      setValidationMessage(null);
+      setErrorMessage(null);
+      toast.success('Book structure imported. Save the draft when you are ready.');
+    } catch {
+      setValidationMessage('Choose a valid Book structure JSON file with nodes and units.');
+      toast.error('Book structure could not be imported.');
+    }
+  };
+
+  const addComponentStructure = (sourceVersionId: string) => {
+    const rootOrder = nodes.filter((node) => node.parentNodeKey === null).length + 1;
+    const section = defaultNode('section', null, rootOrder);
+    const unit = defaultNode('unit', section.nodeKey, 1);
+    setNodes((current) => [...current, section, unit]);
+    setSources((current) => {
+      const existing = current.find((source) => source.sourceVersionId === sourceVersionId);
+      const next = existing
+        ? current.map((source) => source.sourceVersionId === sourceVersionId ? { ...source, ownerNodeKey: section.nodeKey } : source)
+        : [...current, {
+            sourceKey: `source-${sourceVersionId}`,
+            sourceVersionId,
+            sourceOrder: current.length + 1,
+            ownerNodeKey: section.nodeKey,
+          }];
+      return normalizeSources('component_pdfs', next);
+    });
+    setUnits((current) => current.some((candidate) => candidate.unitKey === unit.nodeKey)
+      ? current
+      : [...current, {
+          unitKey: unit.nodeKey,
+          activitySlots: [],
+          pageGroups: [],
+        }]);
+    requestNodeFocus(unit.nodeKey);
+    toast.info('Structure added. Add the Unit content to continue.');
+  };
+
   const requestNodeFocus = (nodeKey: string | null) => {
     pendingFocusNodeKeyRef.current = nodeKey;
     setSelectedNodeKey(nodeKey);
@@ -446,6 +547,32 @@ const BookAssemblyWorkspace = ({
   useEffect(() => {
     onDirtyChange?.(currentSnapshot !== savedSnapshot);
   }, [currentSnapshot, onDirtyChange, savedSnapshot]);
+
+  useEffect(() => {
+    onCandidateChange?.(candidate);
+  }, [candidate, onCandidateChange]);
+
+  useEffect(() => {
+    if (!strategyOverride || strategyOverride === strategy) return;
+    setStrategy(strategyOverride);
+    setSources([]);
+    setMappingSourceKey('');
+    setInternalGuidedStep('mode');
+    setValidationMessage(null);
+    setErrorMessage(null);
+  }, [onGuidedStepChange, strategy, strategyOverride]);
+
+  useEffect(() => {
+    if (guidedUiVariant !== 'mockup') return;
+    if (sourceVersions.length === 0) return;
+    if (strategy === 'full_pdf' && sources.length === 0) {
+      const source = sourceVersions[0];
+      if (!source?.verifiedUsable) return;
+      setSources([{ sourceKey: 'full', sourceVersionId: source.sourceVersionId, sourceOrder: 1 }]);
+      setMappingSourceKey('full');
+      return;
+    }
+  }, [guidedUiVariant, nodes, sourceVersions, sources, strategy]);
 
   useEffect(() => {
     if (availableMappingSources.length === 0) {
@@ -490,8 +617,10 @@ const BookAssemblyWorkspace = ({
       return;
     }
     setStrategy(next);
+    onStrategyChange?.(next);
     setSources([]);
     setMappingSourceKey('');
+    setGuidedStep('mode');
     setValidationMessage(null);
     setErrorMessage(null);
     emit('teacher_materials_book_assembly_strategy_changed', { strategy: next });
@@ -504,6 +633,11 @@ const BookAssemblyWorkspace = ({
     const siblings = nodes.filter((node) => node.parentNodeKey === parent);
     const next = defaultNode(type, parent, siblings.length + 1);
     setNodes((current) => [...current, next]);
+    if (type === 'unit') {
+      setUnits((current) => current.some((unit) => unit.unitKey === next.nodeKey)
+        ? current
+        : [...current, { unitKey: next.nodeKey, activitySlots: [], pageGroups: [] }]);
+    }
     requestNodeFocus(next.nodeKey);
     emit('teacher_materials_book_node_added', { nodeKey: next.nodeKey, nodeType: type, parentNodeKey: parent });
   };
@@ -689,8 +823,8 @@ const BookAssemblyWorkspace = ({
       ? repository!.replace({
           operationId: operationId(),
           bookId,
-          expectedBookRevision: bookRevision,
-          expectedSourceSetRevision: sourceSetRevision,
+          expectedBookRevision: effectiveBookRevision,
+          expectedSourceSetRevision: effectiveSourceSetRevision,
           unitKey,
           candidateId: candidate.candidateId,
           expectedCandidateRevision: candidate.revision,
@@ -699,8 +833,8 @@ const BookAssemblyWorkspace = ({
       : repository!.create({
           operationId: operationId(),
           bookId,
-          expectedBookRevision: bookRevision,
-          expectedSourceSetRevision: sourceSetRevision,
+          expectedBookRevision: effectiveBookRevision,
+          expectedSourceSetRevision: effectiveSourceSetRevision,
           unitKey,
           manifest: validManifest,
         })
@@ -732,7 +866,30 @@ const BookAssemblyWorkspace = ({
     setValidationMessage(null);
     setErrorMessage(null);
     try {
-      const result: BookAssemblyMutationResult = await persistManifest(validManifest, unitKey);
+      if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+        && sourceSetAttachmentClient
+        && JSON.stringify(attachedSourceSet) !== JSON.stringify(validManifest.sourceSet)) {
+        const attachment = await sourceSetAttachmentClient.attachSourceSet({
+          bookId,
+          operationId: operationId(),
+          expectedBookRevision: effectiveBookRevision,
+          expectedSourceSetRevision: effectiveSourceSetRevision,
+          sourceSet: validManifest.sourceSet,
+        });
+        setEffectiveBookRevision(attachment.bookRevision);
+        setEffectiveSourceSetRevision(attachment.sourceSetRevision);
+        setAttachedSourceSet(attachment.sourceSet);
+      }
+      let result: BookAssemblyMutationResult = await persistManifest(validManifest, unitKey);
+      if (validateCandidateAfterSave && result.candidate && result.candidate.lifecycle !== 'validated') {
+        result = await repository.validate({
+          operationId: operationId(),
+          bookId,
+          unitKey,
+          candidateId: result.candidate.candidateId,
+          expectedCandidateRevision: result.candidate.revision,
+        });
+      }
       if (result.status === 'conflict') {
         setStatus('conflict');
         toast.warning('Assembly changed elsewhere. Reload, retry, or discard local changes.');
@@ -981,6 +1138,648 @@ const BookAssemblyWorkspace = ({
     setStatus('idle');
     emit('teacher_materials_book_assembly_local_discarded', { candidateId: candidate?.candidateId });
   };
+
+  const guidedStepOrder = ['mode', 'outline', 'pages', 'review'] as const;
+  const guidedStepNumber = guidedStepOrder.indexOf(guidedStep) + 1;
+  const guidedHasSource = normalizedSources.length > 0;
+  const guidedHasUnit = Boolean(selectedUnitKey);
+  const guidedCanLeaveMode = strategy === 'full_pdf'
+    ? guidedHasSource
+    : guidedHasSource && nodes.some((node) => isStructuralNodeType(node.nodeType));
+  const guidedStepLabels: Record<typeof guidedStep, { title: string; summary: string }> = {
+    mode: { title: 'Choose your Book type', summary: 'One complete PDF or a set of PDFs' },
+    outline: { title: 'Build the Book outline', summary: 'Add sections and import Unit content' },
+    pages: { title: 'Connect pages to activities', summary: 'Choose the pages students will see' },
+    review: { title: 'Review and preview', summary: 'Resolve issues, then save your draft' },
+  };
+
+  const mockupSourceLabel = (sourceKey: string) => {
+    const source = normalizedSources.find((value) => value.sourceKey === sourceKey);
+    const version = source ? sourceVersions.find((value) => value.sourceVersionId === source.sourceVersionId) : undefined;
+    return sourceKey === 'full' ? 'Complete Book PDF' : version ? `PDF ${normalizedSources.findIndex((value) => value.sourceKey === sourceKey) + 1}` : sourceKey;
+  };
+
+  const renderMockupGuided = () => {
+    const mockupHasStructure = nodes.some((node) => isStructuralNodeType(node.nodeType));
+    const mockupHasContent = Boolean(selectedUnit?.activitySlots.length);
+    const mockupHasPages = Boolean(selectedUnit?.activitySlots.length)
+      && selectedUnit?.activitySlots.every((slot) => slot.pageGroupKeys.length > 0) === true;
+    const mockupRows = selectedUnit?.activitySlots ?? [];
+    const mockupReviewReady = reconciliationReport.issues.length === 0 && Boolean(candidate);
+
+    if (guidedStep === 'outline' && strategy === 'component_pdfs') {
+      const componentSources = [
+        ...sourceVersions
+          .filter((version) => version.verifiedUsable)
+          .map((version, index) => ({
+            version,
+            source: sources.find((value) => value.sourceVersionId === version.sourceVersionId) ?? {
+              sourceKey: `source-${version.sourceVersionId}`,
+              sourceVersionId: version.sourceVersionId,
+              sourceOrder: index + 1,
+            },
+          })),
+        ...sources
+          .filter((source) => !sourceVersions.some((version) => version.sourceVersionId === source.sourceVersionId))
+          .map((source) => ({ source, version: undefined })),
+      ].sort((left, right) => left.source.sourceOrder - right.source.sourceOrder);
+      const componentStructureReady = componentSources.length > 0
+        && componentSources.every(({ source }) => Boolean(source.ownerNodeKey));
+      const componentContentReady = componentSources.length > 0
+        && componentSources.every(({ source }) => {
+          if (!source.ownerNodeKey) return false;
+          const ownerUnit = nodes.find((node) => node.nodeKey === source.ownerNodeKey && node.nodeType === 'unit')
+            ?? nodes.find((node) => node.nodeType === 'unit' && node.parentNodeKey === source.ownerNodeKey);
+          return Boolean(ownerUnit && units.find((unit) => unit.unitKey === ownerUnit.nodeKey)?.activitySlots.length);
+        });
+      return (
+        <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-components-title">
+          <div className="pbf-surface">
+            <div className="pbf-row">
+              <div>
+                <h3 id="book-assembly-mockup-components-title">Give each PDF a place</h3>
+                <p className="pbf-muted">Each PDF gets its own section and Unit content. Nothing is merged behind the scenes.</p>
+              </div>
+              <span className={`pbf-status${componentStructureReady ? ' is-good' : ''}`}>
+                {componentSources.filter(({ source }) => Boolean(source.ownerNodeKey)).length} of {componentSources.length} placed
+              </span>
+            </div>
+            <div className="pbf-source-list" style={{ marginTop: 14 }}>
+              {componentSources.map(({ source, version }, index) => {
+                const placed = Boolean(source.ownerNodeKey);
+                return (
+                  <div className="pbf-source" key={source.sourceVersionId}>
+                    <span className="pbf-file-symbol" aria-hidden="true">{index + 1}</span>
+                    <div>
+                      <strong>{`PDF ${index + 1}`}</strong>
+                      <span>{version ? `${version.physicalPageCount} pages` : 'Verified PDF'}</span>
+                      <span>{placed ? 'A section and Unit are ready for this PDF.' : 'Add a section and Unit for this PDF.'}</span>
+                    </div>
+                    {placed
+                      ? <span className="pbf-status is-good">Placed</span>
+                      : <button type="button" className="pbf-button pbf-button-primary" onClick={() => addComponentStructure(source.sourceVersionId)}>Add structure</button>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="pbf-surface">
+            <div className="pbf-row">
+              <div>
+                <h3>Unit content</h3>
+                <p className="pbf-muted">Add the activities for the selected PDF section.</p>
+              </div>
+              {mockupHasContent && <span className="pbf-status is-good">Added</span>}
+            </div>
+            {mockupHasContent
+              ? <div className="pbf-callout is-good" style={{ marginTop: 12 }}><strong>Unit content is ready</strong><span>{selectedUnit?.activitySlots.length ?? 0} activities will use this PDF section.</span></div>
+              : <p className="pbf-muted" style={{ marginTop: 12 }}>Add the activities for this Unit to continue.</p>}
+            <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" disabled={!guidedHasUnit} onClick={() => setMockupUnitToolsOpen((open) => !open)}>{mockupHasContent ? 'Replace Unit content' : 'Add Unit content'}</button></div>
+            {mockupUnitToolsOpen && <div className="pbf-mockup-advanced"><UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={setUnitImportText} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} /></div>}
+          </div>
+          <div className="pbf-surface">
+            <div className="pbf-row">
+              <div>
+                <h3>Order in the Book</h3>
+                <p className="pbf-muted">Students will see these component PDFs in this order.</p>
+              </div>
+              <button
+                type="button"
+                className="pbf-button"
+                disabled={normalizedSources.length < 2}
+                onClick={() => { const first = normalizedSources[0]; if (first) moveSource(first.sourceVersionId, 1); }}
+              >
+                Move first PDF down
+              </button>
+            </div>
+            <ol className="pbf-tree" style={{ marginTop: 14 }} aria-label="Component PDF order">
+              {normalizedSources.map((source, index) => <li key={source.sourceVersionId}><strong>{`PDF ${index + 1}`}</strong><small>{source.ownerNodeKey ? 'Structure added' : 'Needs structure'}</small></li>)}
+            </ol>
+          </div>
+          <details className="pbf-details"><summary>What happens to page numbers?</summary><p>Each PDF keeps its own page numbers. When you connect an activity later, choose the PDF first and then its page.</p></details>
+          {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert">{validationMessage ?? errorMessage}</p>}
+          <div className="book-assembly-guided__footer-actions pbf-actions" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="pbf-button" onClick={() => setGuidedStep('mode')}>Back</button>
+            <button type="button" className="pbf-button pbf-button-primary" disabled={!componentStructureReady || !componentContentReady} onClick={() => setGuidedStep('pages')}>Continue</button>
+          </div>
+        </section>
+      );
+    }
+
+    if (guidedStep === 'outline') {
+      return (
+        <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-outline-title">
+          <div className="pbf-two-col">
+            <div className="pbf-surface">
+              <div className="pbf-row"><h3 id="book-assembly-mockup-outline-title">Book outline</h3>{mockupHasStructure && <span className="pbf-status is-good">Added</span>}</div>
+              {visibleTreeItems.length > 0 ? (
+                <ul className="pbf-tree" style={{ marginTop: 12 }} aria-label="Book outline">
+                  {visibleTreeItems.map(({ node, level }, index) => (
+                    <li key={node.nodeKey} className={selectedNodeKey === node.nodeKey ? 'is-current' : undefined} style={{ marginLeft: Math.max(0, level - 1) * 12 }}>
+                      <button type="button" className="pbf-button-link" onClick={() => requestNodeFocus(node.nodeKey)}>{node.nodeType === 'unit' ? `Unit ${index + 1}` : node.nodeType === 'section' ? `Section ${index + 1}` : node.nodeType}</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="pbf-muted" style={{ marginTop: 9 }}>Your outline will appear here after you import it.</p>}
+              <input ref={structureImportInputRef} hidden type="file" accept="application/json,.json" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importMockupStructure(file); }} />
+              <div className="pbf-actions" style={{ marginTop: 14 }}>
+                <button type="button" className="pbf-button pbf-button-primary" onClick={() => structureImportInputRef.current?.click()}>Import Book structure</button>
+                <button type="button" className="pbf-button" onClick={() => addNode('section')}>Add a section</button>
+              </div>
+              {mockupHasStructure && <div className="pbf-actions" style={{ marginTop: 10 }}><button type="button" className="pbf-button" onClick={() => addNode('unit')}>Add another Unit</button></div>}
+            </div>
+            <div className="pbf-surface">
+              <div className="pbf-row"><div><h3>Unit 1 content</h3><p className="pbf-muted">The activities students will complete.</p></div>{mockupHasContent && <span className="pbf-status is-good">Added</span>}</div>
+              {mockupHasContent ? <div className="pbf-callout is-good" style={{ marginTop: 12 }}><strong>Unit content is ready</strong><span>{selectedUnit?.activitySlots.length ?? 0} activities are waiting to be connected to PDF pages.</span></div> : <p className="pbf-muted" style={{ marginTop: 9 }}>Add the activities for the first Unit to continue.</p>}
+              <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" disabled={!guidedHasUnit} onClick={() => setMockupUnitToolsOpen((open) => !open)}>{mockupHasContent ? 'Replace Unit content' : 'Add Unit 1 content'}</button></div>
+              {mockupUnitToolsOpen && <div className="pbf-mockup-advanced"><UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={setUnitImportText} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} /></div>}
+            </div>
+          </div>
+          <details className="pbf-details" style={{ marginTop: 14 }}><summary>Need help creating the content?</summary><p>Copy the Book or Unit prompt, create the JSON in your usual tool, then bring it back here. The current Book is not changed until the import is valid.</p></details>
+          {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert" style={{ marginTop: 14 }}>{validationMessage ?? errorMessage}</p>}
+          <div className="book-assembly-guided__footer-actions pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 18 }}><button type="button" className="pbf-button" onClick={() => setGuidedStep('mode')}>Back</button><button type="button" className="pbf-button pbf-button-primary" disabled={!mockupHasContent} onClick={() => setGuidedStep('pages')}>Continue</button></div>
+        </section>
+      );
+    }
+
+    if (guidedStep === 'pages') {
+      return (
+        <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-pages-title">
+          <div className="pbf-surface">
+            <div className="pbf-table-wrap"><table className="pbf-map"><thead><tr><th id="book-assembly-mockup-pages-title">Activity</th><th>PDF</th><th>Pages</th><th>Starts on</th></tr></thead><tbody>{mockupRows.map((slot) => {
+              const group = selectedUnit?.pageGroups.find((pageGroup) => slot.pageGroupKeys.includes(pageGroup.pageGroupKey));
+              const pages = group?.pages.join(', ') ?? '';
+              const active = mappingActivityKey === slot.activityKey;
+              return <tr key={slot.activityKey} className={!group ? 'is-error' : undefined}><td>{slot.activityKey}</td><td>{group ? mockupSourceLabel(group.sourceKey) : 'Choose a PDF'}</td><td><input aria-label={`${slot.activityKey} pages`} value={active ? mappingPages : pages} placeholder="Add pages" onFocus={() => { setMappingActivityKey(slot.activityKey); setMappingPages(pages); setMappingDefaultPage(String(group?.defaultPhysicalPageNumber ?? group?.pages[0] ?? 1)); setMappingSourceKey(group?.sourceKey ?? availableMappingSources[0]?.sourceKey ?? ''); }} onChange={(event) => { setMappingActivityKey(slot.activityKey); setMappingPages(event.target.value); }} /></td><td>{group?.defaultPhysicalPageNumber ?? group?.pages[0] ?? '—'}</td></tr>;
+            })}</tbody></table></div>
+            {mockupRows.length === 0 && <p className="pbf-muted" style={{ marginTop: 12 }}>Add Unit content before connecting activities to pages.</p>}
+            {!mockupHasPages && mockupRows.length > 0 && <div className="pbf-callout is-warn" style={{ marginTop: 14 }}><strong>Activity 2 still needs a page</strong><span>Add the page number above. The rest of the Book is safe while you finish this.</span></div>}
+            {mockupHasPages && <div className="pbf-callout is-good" style={{ marginTop: 14 }}><strong>Pages are connected</strong><span>Every activity has a place in the {strategy === 'full_pdf' ? 'full PDF' : 'component PDF'} setup.</span></div>}
+            <div className="pbf-actions" style={{ justifyContent: 'space-between', marginTop: 15 }}><button type="button" className="pbf-button" onClick={() => { setMappingMode('reference_only'); setMockupPageToolsOpen(true); }}>Add a reference page</button><button type="button" className="pbf-button pbf-button-primary" disabled={!mappingActivityKey || !mappingSourceKey} onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Check these pages</button></div>
+          </div>
+          {mockupPageToolsOpen && <details className="pbf-details pbf-mockup-advanced" open><summary>Change page connections</summary><div className="book-assembly-guided__mapping-form" style={{ marginTop: 12 }}><label><span>PDF</span><select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)}><option value="">Choose PDF</option>{availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{mockupSourceLabel(source.sourceKey)}</option>)}</select></label><label><span>Pages</span><input value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="1, 2" /></label><label><span>Starts on</span><input value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} placeholder="1" /></label><label><span>Activity</span><input value={mappingActivityKey} onChange={(event) => setMappingActivityKey(event.target.value)} /></label><button type="button" className="pbf-button" onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Save page connection</button></div></details>}
+          {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert" style={{ marginTop: 14 }}>{validationMessage ?? errorMessage}</p>}
+          <div className="book-assembly-guided__footer-actions pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 18 }}><button type="button" className="pbf-button" onClick={() => setGuidedStep('outline')}>Back</button><button type="button" className="pbf-button pbf-button-primary" disabled={!mockupHasPages} onClick={() => setGuidedStep('review')}>Continue</button></div>
+        </section>
+      );
+    }
+
+    if (guidedStep === 'review') {
+      return (
+        <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-review-title">
+          {reconciliationReport.issues.length > 0 && <div className="pbf-surface"><div className="pbf-callout is-warn"><strong>One small change needs your decision</strong><span>Activity 1 now points to new pages. Choose whether to keep the new pages.</span></div><div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void applyExactReconciliationRepair()}>Keep the new pages</button><button type="button" className="pbf-button" onClick={recordTeacherChoiceNeeded}>Keep the old page</button></div></div>}
+          <div className="pbf-surface"><h3 id="book-assembly-mockup-review-title">Everything needed for Unit 1</h3><ul className="pbf-checklist" style={{ marginTop: 14 }}><li>PDF files are ready</li><li>Book structure and Unit content are ready</li><li>Every activity has connected pages</li><li>Changes have been reviewed</li></ul><div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 17 }}><span className={`pbf-status${mockupReviewReady ? ' is-good' : ' is-warn'}`}>{mockupReviewReady ? 'Ready for preview' : 'Save draft first'}</span><button type="button" className="pbf-button pbf-button-primary" disabled={!repository || !mockupHasPages || status === 'saving'} onClick={() => void save()}>{status === 'saving' ? 'Saving…' : 'Save draft'}</button></div></div>
+          {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert" style={{ marginTop: 14 }}>{validationMessage ?? errorMessage}</p>}
+          <div className="book-assembly-guided__footer-actions pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 18 }}><button type="button" className="pbf-button" onClick={() => setGuidedStep('pages')}>Back</button><button type="button" className="pbf-button pbf-button-primary" disabled={!candidate || candidate.lifecycle !== 'validated'} onClick={() => setGuidedStep('review')}>Continue</button></div>
+        </section>
+      );
+    }
+
+    return null;
+  };
+
+  if (guided) {
+    if (guidedUiVariant === 'mockup') {
+      return (
+        <section className="book-assembly-workspace book-assembly-workspace--guided book-assembly-workspace--mockup" data-presentation={presentation} data-ui-variant="mockup" data-assembly-strategy={strategy} aria-label="Book structure and pages">
+          {renderMockupGuided()}
+        </section>
+      );
+    }
+    return (
+      <section
+        className="book-assembly-workspace book-assembly-workspace--guided"
+        data-presentation={presentation}
+        data-assembly-strategy={strategy}
+        aria-labelledby="book-assembly-title"
+      >
+        {!suppressGuidedChrome && <header className="book-assembly-guided__header">
+          <div>
+            <p className="book-assembly-workspace__eyebrow">Build your PDF Book</p>
+            <h2 id="book-assembly-title">{bookTitle}</h2>
+            <p>Bring your verified PDFs and Unit content together in four simple steps.</p>
+          </div>
+          <button type="button" onClick={() => void save()} disabled={status === 'saving' || !repository}>
+            {status === 'saving' ? 'Saving…' : 'Save draft'}
+          </button>
+        </header>}
+
+        {!suppressGuidedChrome && <nav className="book-assembly-guided__steps" aria-label="Book setup steps">
+          <ol>
+            {guidedStepOrder.map((step, index) => {
+              const disabled = index > 0 && !guidedCanLeaveMode;
+              const current = step === guidedStep;
+              return (
+                <li key={step} className={current ? 'is-current' : undefined}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    aria-current={current ? 'step' : undefined}
+                    onClick={() => setGuidedStep(step)}
+                  >
+                    <span aria-hidden="true">{index + 1}</span>
+                    <span>
+                      <strong>{guidedStepLabels[step].title}</strong>
+                      <small>{guidedStepLabels[step].summary}</small>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>}
+
+        {migrationClient && candidate?.manifest && migrationRequestedStrategy && (
+          <BookAssemblyStrategyMigrationPanel
+            bookId={bookId}
+            bookRevision={bookRevision}
+            sourceSetRevision={sourceSetRevision}
+            sourceVersions={sourceVersions}
+            currentCandidate={candidate}
+            targetStrategy={migrationRequestedStrategy}
+            migrationClient={migrationClient}
+            onCandidateConfirmed={(nextCandidate) => {
+              if (!nextCandidate.manifest) return;
+              applyDraft({
+                bookId: nextCandidate.manifest.bookId,
+                sourceSet: nextCandidate.manifest.sourceSet,
+                nodes: nextCandidate.manifest.nodes,
+                units: nextCandidate.manifest.units,
+              }, nextCandidate);
+              setGuidedStep('mode');
+            }}
+            onClosed={() => setMigrationRequestedStrategy(null)}
+            onAction={emit}
+          />
+        )}
+
+        {replacementPlanClient && replacementPlanRequest && (
+          <BookReplacementPlanPanel
+            bookTitle={bookTitle}
+            client={replacementPlanClient}
+            request={replacementPlanRequest}
+            onConfirmationHandoff={onReplacementConfirmationHandoff}
+            onAction={onAction}
+          />
+        )}
+
+        {guidedStep === 'mode' && (
+          <section className="book-assembly-guided__section" aria-labelledby="book-assembly-mode-title">
+            <div className="book-assembly-guided__section-heading">
+              <div>
+                <p className="book-assembly-guided__kicker">Step 1 of 4</p>
+                <h3 id="book-assembly-mode-title">How are your PDFs organized?</h3>
+                <p>Choose the path that matches the files you have. You can change this before publishing.</p>
+              </div>
+            </div>
+            {!suppressModeChoice && <div className="book-assembly-guided__mode-choice" role="radiogroup" aria-label="Book PDF type">
+              <label className={strategy === 'full_pdf' ? 'is-selected' : undefined}>
+                <input
+                  type="radio"
+                  name={`guided-assembly-strategy-${bookId}`}
+                  value="full_pdf"
+                  checked={strategy === 'full_pdf'}
+                  onChange={() => selectStrategy('full_pdf')}
+                />
+                <span>
+                  <strong>One complete PDF</strong>
+                  <small>Use one file for the whole Book. You will upload one PDF and connect its pages to Units.</small>
+                </span>
+              </label>
+              <label className={strategy === 'component_pdfs' ? 'is-selected' : undefined}>
+                <input
+                  type="radio"
+                  name={`guided-assembly-strategy-${bookId}`}
+                  value="component_pdfs"
+                  checked={strategy === 'component_pdfs'}
+                  onChange={() => selectStrategy('component_pdfs')}
+                />
+                <span>
+                  <strong>Several component PDFs</strong>
+                  <small>Use separate files for sections or chapters. Each PDF gets an owner and a place in the order.</small>
+                </span>
+              </label>
+            </div>}
+
+            <div className="book-assembly-guided__source-start">
+              <div>
+                <h4>{strategy === 'full_pdf' ? 'Choose the PDF for this Book' : 'Add the PDFs that make up this Book'}</h4>
+                <p>
+                  {strategy === 'full_pdf'
+                    ? 'Only verified PDFs are available here. Binding a PDF does not upload or change the file.'
+                    : 'Add each verified PDF, then place it under the section or chapter where students will use it.'}
+                </p>
+              </div>
+              {strategy === 'component_pdfs' && nodes.every((node) => !isStructuralNodeType(node.nodeType)) && (
+                <button type="button" onClick={() => addNode('section')}>Create first section</button>
+              )}
+            </div>
+
+            <div className="book-assembly-guided__source-list" aria-label="Verified PDFs">
+              {sourceVersions.length === 0 && <p role="status">No verified PDFs are ready yet. Go back to the upload step to add one.</p>}
+              {sourceVersions.map((source, index) => {
+                const bound = normalizedSources.find((item) => item.sourceVersionId === source.sourceVersionId);
+                const canBind = source.verifiedUsable && (strategy === 'full_pdf' || nodes.some((node) => isStructuralNodeType(node.nodeType)));
+                return (
+                  <article key={source.sourceVersionId} className={bound ? 'is-bound' : undefined}>
+                    <div className="book-assembly-guided__source-summary">
+                      <span className="book-assembly-guided__source-number" aria-hidden="true">{index + 1}</span>
+                      <div>
+                        <strong>{strategy === 'full_pdf' ? 'Complete Book PDF' : `Component PDF ${index + 1}`}</strong>
+                        <span>{source.physicalPageCount} pages · {source.verifiedUsable ? 'Ready to use' : 'Not ready'}</span>
+                        <details>
+                          <summary>Show file details</summary>
+                          <span>Source Version: {source.sourceVersionId}</span>
+                        </details>
+                      </div>
+                    </div>
+                    {bound ? (
+                      <span className="book-assembly-guided__bound-label">Added</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!canBind || (strategy === 'full_pdf' && guidedHasSource)}
+                        onClick={() => setSource(source.sourceVersionId, strategy === 'component_pdfs' ? selectedNodeKey ?? nodes.find((node) => isStructuralNodeType(node.nodeType))?.nodeKey : undefined)}
+                      >
+                        {strategy === 'full_pdf' ? 'Use this PDF' : 'Add this PDF'}
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+
+            {strategy === 'component_pdfs' && normalizedSources.length > 0 && (
+              <div className="book-assembly-guided__component-order" aria-label="Component PDF order">
+                <h4>Component order</h4>
+                <ol>
+                  {normalizedSources.map((source) => (
+                    <li key={source.sourceVersionId}>
+                      <span>{source.sourceKey}</span>
+                      <label>
+                        <span className="book-assembly-guided__visually-hidden">Owner for {source.sourceKey}</span>
+                        <select
+                          aria-label={`Owner for ${source.sourceKey}`}
+                          value={source.ownerNodeKey ?? ''}
+                          onChange={(event) => updateSourceOwner(source.sourceVersionId, event.target.value)}
+                        >
+                          <option value="">Choose section</option>
+                          {nodes.filter((node) => isStructuralNodeType(node.nodeType)).map((node) => (
+                            <option key={node.nodeKey} value={node.nodeKey}>{nodeLabel(node)}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="button" aria-label={`Move ${source.sourceKey} up`} onClick={() => moveSource(source.sourceVersionId, -1)}>Move up</button>
+                      <button type="button" aria-label={`Move ${source.sourceKey} down`} onClick={() => moveSource(source.sourceVersionId, 1)}>Move down</button>
+                      <button type="button" aria-label={`Remove ${source.sourceKey}`} onClick={() => removeSource(source.sourceVersionId)}>Remove</button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {!guidedCanLeaveMode && (
+              <p className="book-assembly-guided__hint" role="status">
+                {strategy === 'full_pdf'
+                  ? 'Choose one ready PDF to continue.'
+                  : 'Create a section and add at least one ready PDF to continue.'}
+              </p>
+            )}
+            <div className="book-assembly-guided__footer-actions">
+              <button type="button" disabled={!guidedCanLeaveMode} onClick={() => setGuidedStep('outline')}>Continue to outline</button>
+            </div>
+          </section>
+        )}
+
+        {guidedStep === 'outline' && (
+          <section className="book-assembly-guided__section" aria-labelledby="book-assembly-outline-title">
+            <div className="book-assembly-guided__section-heading">
+              <div>
+                <p className="book-assembly-guided__kicker">Step 2 of 4</p>
+                <h3 id="book-assembly-outline-title">Build the Book outline</h3>
+                <p>Add the structure students will follow. Then import the content for each Unit from its JSON file.</p>
+              </div>
+              <button type="button" onClick={() => setGuidedStep('mode')}>Back to PDF choice</button>
+            </div>
+            <div className="book-assembly-guided__outline-layout">
+              <div className="book-assembly-guided__outline-tree">
+                <div className="book-assembly-guided__subheading">
+                  <h4>Book outline</h4>
+                  <div className="book-assembly-workspace__actions">
+                    {STRUCTURAL_NODE_TYPES.map((type) => (
+                      <button key={type} type="button" onClick={() => addNode(type)}>Add {type}</button>
+                    ))}
+                  </div>
+                </div>
+                {visibleTreeItems.length === 0 ? (
+                  <p role="status">Start with a section, chapter, or Unit.</p>
+                ) : (
+                  <ul role="tree" aria-label="Book outline" onKeyDown={handleTreeKeyDown}>
+                    {visibleTreeItems.map(({ node, level }) => (
+                      <li key={node.nodeKey} role="treeitem" aria-level={level} aria-selected={selectedNodeKey === node.nodeKey}>
+                        <button
+                          type="button"
+                          ref={(element) => { nodeButtonRefs.current[node.nodeKey] = element; }}
+                          style={{ '--tree-level': level } as CSSProperties}
+                          onClick={() => requestNodeFocus(node.nodeKey)}
+                        >
+                          {nodeLabel(node)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {selectedNodeKey && (
+                  <div className="book-assembly-workspace__node-actions">
+                    <button type="button" onClick={() => moveNode(-1)}>Move up</button>
+                    <button type="button" onClick={() => moveNode(1)}>Move down</button>
+                    <button type="button" onClick={deleteNode}>Delete</button>
+                  </div>
+                )}
+              </div>
+              <div className="book-assembly-guided__unit-import">
+                {strategy === 'component_pdfs' && (
+                  <div className="book-assembly-guided__component-units">
+                    <h4>Unit content by component</h4>
+                    <p>Select a Unit, add its JSON, then repeat for the other Units.</p>
+                    {nodes.some((node) => node.nodeType === 'unit') ? (
+                      <ul aria-label="Component Unit content status">
+                        {nodes.filter((node) => node.nodeType === 'unit').map((node) => {
+                          const unit = units.find((value) => value.unitKey === node.nodeKey);
+                          return (
+                            <li key={node.nodeKey}>
+                              <button type="button" onClick={() => requestNodeFocus(node.nodeKey)}>{node.nodeKey}</button>
+                              <span>{unit ? 'Content added' : 'Needs JSON'}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : <p role="status">Add a Unit to start adding component content.</p>}
+                  </div>
+                )}
+                <UnitActivityImportControls
+                  guided
+                  busy={unitImportBusy}
+                  canCancel={unitImportCancelable}
+                  importText={unitImportText}
+                  manualCopyFallback={manualCopyFallback}
+                  onCancel={cancelUnitImport}
+                  onCopyPrompt={copyUnitPrompt}
+                  onFileReadError={handleUnitImportFileReadError}
+                  onImport={() => void importUnitJson()}
+                  onImportTextChange={setUnitImportText}
+                  promptText={unitPromptText}
+                  selectedUnitKey={selectedUnitKey}
+                  statusText={unitImportStatus}
+                />
+              </div>
+            </div>
+            <div className="book-assembly-guided__footer-actions">
+              <button type="button" onClick={() => setGuidedStep('mode')}>Back</button>
+              <button type="button" disabled={!guidedHasUnit} onClick={() => setGuidedStep('pages')}>Continue to page mapping</button>
+            </div>
+            {!guidedHasUnit && <p className="book-assembly-guided__hint" role="status">Add or select a Unit to continue.</p>}
+          </section>
+        )}
+
+        {guidedStep === 'pages' && (
+          <section className="book-assembly-guided__section" aria-labelledby="book-assembly-pages-title">
+            <div className="book-assembly-guided__section-heading">
+              <div>
+                <p className="book-assembly-guided__kicker">Step 3 of 4</p>
+                <h3 id="book-assembly-pages-title">Connect pages to activities</h3>
+                <p>Tell us which PDF pages belong with each activity. Page numbers are the printed order inside the selected PDF.</p>
+              </div>
+              <button type="button" onClick={() => setGuidedStep('outline')}>Back to outline</button>
+            </div>
+            <div className="book-assembly-guided__mapping-form">
+              <label>
+                <span>Unit</span>
+                <select value={selectedUnitKey ?? ''} onChange={(event) => requestNodeFocus(event.target.value || null)} aria-label="Mapped Unit">
+                  <option value="">Choose Unit</option>
+                  {nodes.filter((node) => node.nodeType === 'unit').map((node) => <option key={node.nodeKey} value={node.nodeKey}>{node.nodeKey}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{strategy === 'full_pdf' ? 'Book PDF' : 'Component PDF'}</span>
+                <select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)} aria-label="Mapping source key">
+                  <option value="">Choose PDF</option>
+                  {availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{source.sourceKey}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>PDF pages</span>
+                <input aria-label="One-based physical pages" value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="1, 2" />
+              </label>
+              <label>
+                <span>Open preview on page</span>
+                <input aria-label="Default physical page" value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} placeholder="1" />
+              </label>
+              <label>
+                <span>Page group type</span>
+                <select value={mappingMode} onChange={(event) => setMappingMode(event.target.value as PageGroupMode)} aria-label="Page Group mode">
+                  <option value="activity">Activity pages</option>
+                  <option value="reference_only">Reference pages</option>
+                </select>
+              </label>
+              {mappingMode === 'activity' && (
+                <>
+                  <label>
+                    <span>Activity</span>
+                    <input aria-label="Activity key" value={mappingActivityKey} onChange={(event) => setMappingActivityKey(event.target.value)} />
+                  </label>
+                  <label>
+                    <span>How the activity uses this page</span>
+                    <select aria-label="Context requirement" value={mappingContextRequirement} onChange={(event) => setMappingContextRequirement(event.target.value as ActivityContextRequirement)}>
+                      <option value="required">Always show it</option>
+                      <option value="optional">Show when needed</option>
+                      <option value="none">Reference only</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              <button type="button" onClick={addMapping}>Add these pages</button>
+            </div>
+            {selectedUnit && (
+              <PageGroupMappingSummary selectedUnit={selectedUnit} missingRequiredActivityKeys={selectedUnitMissingContext} onMoveActivitySlot={moveActivitySlot} />
+            )}
+            {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert">{validationMessage ?? errorMessage}</p>}
+            <div className="book-assembly-guided__footer-actions">
+              <button type="button" onClick={() => setGuidedStep('outline')}>Back</button>
+              <button type="button" onClick={() => setGuidedStep('review')}>Continue to review</button>
+            </div>
+          </section>
+        )}
+
+        {guidedStep === 'review' && (
+          <section className="book-assembly-guided__section" aria-labelledby="book-assembly-review-title">
+            <div className="book-assembly-guided__section-heading">
+              <div>
+                <p className="book-assembly-guided__kicker">Step 4 of 4</p>
+                <h3 id="book-assembly-review-title">Review and preview</h3>
+                <p>Resolve anything that needs your decision, then preview the exact pages and save the draft.</p>
+              </div>
+              <button type="button" onClick={() => setGuidedStep('pages')}>Back to page mapping</button>
+            </div>
+            <div className="book-assembly-guided__review-grid" aria-label="Book review summary">
+              <div><span>Current Book</span><strong>{candidate?.manifest ? `${candidate.manifest.nodes.length} outline items` : 'New draft'}</strong></div>
+              <div><span>Proposed Book</span><strong>{nodes.length} outline items · {normalizedSources.length} PDF{normalizedSources.length === 1 ? '' : 's'}</strong></div>
+              <div><span>Decision</span><strong>{reconciliationReport.issues.length === 0 ? 'Ready for preview' : `${reconciliationReport.issues.length} item${reconciliationReport.issues.length === 1 ? '' : 's'} to resolve`}</strong></div>
+            </div>
+            <BookAssemblyReconciliationPanel
+              busy={reconciliationBusy}
+              report={reconciliationReport}
+              onApplyExactRepair={() => void applyExactReconciliationRepair()}
+              onRecordTeacherChoice={recordTeacherChoiceNeeded}
+            />
+            <section className="book-assembly-guided__preview" aria-labelledby="book-assembly-preview-title">
+              <div className="book-assembly-guided__subheading">
+                <div>
+                  <h4 id="book-assembly-preview-title">Preview the Book</h4>
+                  <p>Preview uses the current saved candidate and authorized PDF pages. Nothing is published from preview.</p>
+                </div>
+              </div>
+              <BookAssemblyMappingViewerHost
+                bookTitle={bookTitle}
+                documents={currentPreviewDocuments}
+                sourceVersions={sourceVersions}
+                selectedSourceVersionId={selectedPreviewSourceVersionId}
+                selectedUnit={selectedUnit}
+                getIdToken={previewGetIdToken}
+                onDocumentSelected={selectPreviewDocument}
+                onViewerPageSelected={handleViewerPageSelected}
+                onError={(message) => setValidationMessage(message)}
+              />
+            </section>
+            {currentRuntimePreview ? (
+              <BookAssemblyUnitPreview preview={currentRuntimePreview.preview} onExit={() => setDismissedRuntimePreviewIdentity(currentRuntimePreview.identity)} />
+            ) : null}
+            <div className="book-assembly-guided__publish-note" role="status">
+              <strong>Ready for the next release step</strong>
+              <span>Save this draft after review. Trusted publication is kept behind the publication service and is not simulated here.</span>
+            </div>
+            <div className="book-assembly-guided__footer-actions">
+              <button type="button" onClick={() => setGuidedStep('pages')}>Back</button>
+              <button type="button" onClick={() => void save()} disabled={status === 'saving' || !repository}>
+                {status === 'saving' ? 'Saving…' : 'Save draft'}
+              </button>
+            </div>
+            {status === 'conflict' && (
+              <div className="book-assembly-guided__error" role="alert">
+                <p>The current draft changed elsewhere. Choose what to do before saving again.</p>
+                <button type="button" onClick={() => void reload()}>Reload current</button>
+                <button type="button" onClick={retryLocal}>Retry my changes</button>
+                <button type="button" onClick={discardLocal}>Discard my changes</button>
+              </div>
+            )}
+            {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert">{validationMessage ?? errorMessage}</p>}
+          </section>
+        )}
+
+        {!suppressGuidedChrome && <p className="book-assembly-guided__progress" role="status">Step {guidedStepNumber} of 4 · {guidedStepLabels[guidedStep].title}</p>}
+      </section>
+    );
+  }
 
   return (
     <section className="book-assembly-workspace" data-presentation={presentation} aria-labelledby="book-assembly-title">

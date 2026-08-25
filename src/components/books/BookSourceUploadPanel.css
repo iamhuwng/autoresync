@@ -7,6 +7,10 @@
   padding: 24px;
 }
 
+.book-source-upload--guided {
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.08);
+}
+
 .book-source-upload__heading,
 .book-source-upload__progress > div {
   display: flex;
@@ -27,6 +31,15 @@
 .book-source-upload h2,
 .book-source-upload p {
   margin: 0;
+}
+
+.book-source-upload__guided-step {
+  border-left: 4px solid #4f46e5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 600;
 }
 
 .book-source-upload__immutable,
@@ -51,6 +64,25 @@
 .book-source-upload__error {
   background: #fff0f0;
   color: #9e1c1c;
+}
+
+.book-source-upload__rights-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #f5f7ff;
+  color: #312e81;
+  font-weight: 600;
+}
+
+.book-source-upload__rights-confirmation input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 0;
 }
 
 .book-source-upload__state {

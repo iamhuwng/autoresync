@@ -19,6 +19,7 @@ import type {
   BookSourceUploadAccountState,
   BookSourceUploadOperation,
 } from '../../../../src/types/bookSource.types.ts';
+import type { SourceSetCandidate } from '../../../../src/types/bookAssembly.types.ts';
 import { createBookRolloutTrustedSeamGate } from '../../book-rollout-seams.ts';
 import { createBookRolloutWorkerGate } from '../../book-rollout-gate.ts';
 import {
@@ -31,6 +32,7 @@ import type { BookRouteHandlerInput } from '../book-route-handlers.ts';
 import { evaluateTicket49PreviewUploadGate } from './ticket49-preview-gate.ts';
 import {
   attachVerifiedFullPdfSource,
+  attachVerifiedSourceSet,
   createFirebaseMaterialBookSourceAttachmentRepository,
 } from './material-book-source-attachment-repository.ts';
 
@@ -241,17 +243,19 @@ const defaultRuntimeFactory = async (
     repository,
     provider: createBackblazeB2SourceProviderFromEnv(env),
     clock: { now: () => new Date() },
-    onVerified: (operation, context) => attachVerifiedFullPdfSource(
-      materialBookSourceAttachment,
-      materialBookSourceAttachmentRepository,
-      {
-        ownerId: context.ownerId,
-        bookId: operation.bookId,
-        operationId: operation.reservationId,
-        sourceKey: operation.sourceKey,
-        sourceVersionId: operation.sourceVersionId,
-      },
-    ).then(() => undefined),
+    onVerified: (operation, context) => operation.sourceKey.startsWith('component-')
+      ? Promise.resolve()
+      : attachVerifiedFullPdfSource(
+          materialBookSourceAttachment,
+          materialBookSourceAttachmentRepository,
+          {
+            ownerId: context.ownerId,
+            bookId: operation.bookId,
+            operationId: operation.reservationId,
+            sourceKey: operation.sourceKey,
+            sourceVersionId: operation.sourceVersionId,
+          },
+        ).then(() => undefined),
   };
   const productionControl = createSourceUploadControl({
     ...commonDependencies,
@@ -284,6 +288,36 @@ const defaultRuntimeFactory = async (
   const service: BookSourceUploadControlService = {
     begin,
     complete: productionControl.complete,
+    attachSourceSet: async ({
+      actorId,
+      bookId,
+      operationId,
+      expectedBookRevision,
+      expectedSourceSetRevision,
+      sourceSet,
+    }) => {
+      if (!(await authorizeOwner({ actorId, bookId }))) {
+        throw new SourceUploadControlError('authority_denied');
+      }
+      const result = await attachVerifiedSourceSet(materialBookSourceAttachment, {
+        ownerId: actorId,
+        bookId,
+        operationId,
+        expectedBookRevision,
+        expectedSourceSetRevision,
+        sourceSet,
+      });
+      if ((result.status !== 'attached' && result.status !== 'replaced' && result.status !== 'replayed')
+        || !result.sourceSet || result.bookRevision === undefined || result.sourceSetRevision === undefined) {
+        throw new SourceUploadControlError('account_state_unavailable');
+      }
+      return {
+        status: result.status,
+        bookRevision: result.bookRevision,
+        sourceSetRevision: result.sourceSetRevision,
+        sourceSet: result.sourceSet as SourceSetCandidate,
+      };
+    },
     status: async ({ actorId, bookId, reservationId }) => {
       if (!(await authorizeOwner({ actorId, bookId }))) {
         throw new SourceUploadControlError('authority_denied');
@@ -378,6 +412,7 @@ export const createBookSourceUploadWorkerHandlers = (
   return Object.freeze({
     begin: handler,
     complete: handler,
+    attach: handler,
     status: handler,
     cancel: handler,
   });

@@ -127,11 +127,18 @@ const readSourceVersionProjections = async (
       || raw.sourceVersionId !== source.sourceVersionId) {
       return [source.sourceVersionId, raw as SourceProjection] as const;
     }
-    // The domain port intentionally accepts only provider-free fields.
+    // The domain port intentionally accepts only provider-free fields. Keep
+    // malformed values in the scope so the pure service rejects them rather
+    // than allowing a persistence adapter to coerce untrusted data.
+    if (!Number.isSafeInteger(raw.physicalPageCount)
+      || (raw.physicalPageCount as number) <= 0
+      || typeof raw.verifiedUsable !== 'boolean') {
+      return [source.sourceVersionId, raw as unknown as SourceProjection] as const;
+    }
     return [source.sourceVersionId, {
       sourceVersionId: raw.sourceVersionId,
       bookId: raw.bookId,
-      physicalPageCount: raw.physicalPageCount,
+      physicalPageCount: raw.physicalPageCount as number,
       verifiedUsable: raw.verifiedUsable,
     }] as const;
   }));
@@ -175,7 +182,7 @@ export const createFirebaseMaterialBookSourceAttachmentRepository = (
 
   const readBook = async (bookId: string): Promise<MaterialBookSourceAttachmentBook | null> => {
     const value = await rtdb.readValue(bookPath(bookId));
-    return isRecord(value) ? value as MaterialBookSourceAttachmentBook : null;
+    return isRecord(value) ? value as unknown as MaterialBookSourceAttachmentBook : null;
   };
 
   return {
@@ -238,6 +245,34 @@ export interface AttachVerifiedFullPdfSourceInput {
   readonly sourceVersionId: string;
 }
 
+export interface AttachVerifiedSourceSetInput {
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly operationId: string;
+  readonly expectedBookRevision: number;
+  readonly expectedSourceSetRevision: number;
+  readonly sourceSet: SourceSetCandidate;
+}
+
+export const attachVerifiedSourceSet = async (
+  attachmentService: ReturnType<typeof createMaterialBookSourceAttachmentService>,
+  input: AttachVerifiedSourceSetInput,
+): Promise<MaterialBookSourceAttachmentResult> => {
+  const attachment: AttachMaterialBookSourceInput = {
+    ownerId: input.ownerId,
+    bookId: input.bookId,
+    operationId: assertId(input.operationId, 'invalid_material_book_source_attachment_operation_id'),
+    expectedBookRevision: input.expectedBookRevision,
+    expectedSourceSetRevision: input.expectedSourceSetRevision,
+    sourceSet: input.sourceSet,
+  };
+  const result = await attachmentService.attach(attachment);
+  if (result.status === 'conflict' || result.status === 'forbidden' || result.status === 'invalid') {
+    throw new Error(`material_book_source_attachment_${(result.reason ?? result.status).replaceAll('-', '_')}`);
+  }
+  return result;
+};
+
 /**
  * Production-normal composition for a verified full-PDF Source Version. The
  * expected revisions are loaded from the current canonical Book, while the
@@ -269,17 +304,12 @@ export const attachVerifiedFullPdfSource = async (
       sourceOrder: 1,
     }],
   };
-  const attachment: AttachMaterialBookSourceInput = {
+  return attachVerifiedSourceSet(attachmentService, {
     ownerId: input.ownerId,
     bookId: input.bookId,
-    operationId: assertId(input.operationId, 'invalid_material_book_source_attachment_operation_id'),
+    operationId: input.operationId,
     expectedBookRevision,
     expectedSourceSetRevision,
     sourceSet,
-  };
-  const result = await attachmentService.attach(attachment);
-  if (result.status === 'conflict' || result.status === 'forbidden' || result.status === 'invalid') {
-    throw new Error(`material_book_source_attachment_${result.reason ?? result.status}`);
-  }
-  return result;
+  });
 };

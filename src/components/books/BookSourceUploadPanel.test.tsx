@@ -134,6 +134,82 @@ describe('BookSourceUploadPanel', () => {
     );
   });
 
+  it('requires fresh rights confirmation before a guided upload sends PDF bytes', async () => {
+    const client = workflow();
+    render(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        guided
+        immutablePublished={false}
+        selection={selection}
+        workflow={client}
+      />,
+    );
+
+    await waitFor(() => expect(client.load).toHaveBeenCalled());
+    const confirmation = screen.getByRole('checkbox', {
+      name: 'I confirm that I have the rights and permission to upload this PDF for this Book.',
+    });
+    const uploadButton = screen.getByRole('button', { name: 'Upload PDF' });
+
+    expect(confirmation).not.toBeChecked();
+    expect(uploadButton).toBeDisabled();
+    expect(client.start).not.toHaveBeenCalled();
+
+    fireEvent.click(confirmation);
+    expect(uploadButton).toBeEnabled();
+    fireEvent.click(uploadButton);
+
+    await screen.findByText('One verified ready Source Version is recorded for this operation.');
+    expect(client.start).toHaveBeenCalledWith(expect.objectContaining({
+      bookId: 'book-1',
+      claim,
+      file: selection.file,
+    }));
+  });
+
+  it('resets guided rights confirmation when the selected source changes', async () => {
+    const client = workflow();
+    const view = render(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        guided
+        immutablePublished={false}
+        selection={selection}
+        workflow={client}
+      />,
+    );
+
+    await waitFor(() => expect(client.load).toHaveBeenCalled());
+    const confirmation = screen.getByRole('checkbox', {
+      name: 'I confirm that I have the rights and permission to upload this PDF for this Book.',
+    });
+    fireEvent.click(confirmation);
+    expect(screen.getByRole('button', { name: 'Upload PDF' })).toBeEnabled();
+
+    const nextSelection = {
+      file: new File(['%PDF-1.5'], 'replacement.pdf', { type: 'application/pdf' }),
+      claim: { ...claim, displayFilename: 'replacement.pdf', sha256Hex: 'b'.repeat(64) },
+    };
+    view.rerender(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        guided
+        immutablePublished={false}
+        selection={nextSelection}
+        workflow={client}
+      />,
+    );
+
+    expect(screen.getByRole('checkbox', {
+      name: 'I confirm that I have the rights and permission to upload this PDF for this Book.',
+    })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Upload PDF' })).toBeDisabled();
+  });
+
   it('shows exact streamed bytes separately from B2 confirmation', async () => {
     const client = workflow();
     vi.mocked(client.start).mockImplementationOnce((input) => {

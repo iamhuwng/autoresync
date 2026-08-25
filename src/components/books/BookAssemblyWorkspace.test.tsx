@@ -65,7 +65,7 @@ const candidate = (revision = 1): BookAssemblyCandidateRecord => ({
       { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', order: 1 },
       { nodeKey: 'unit-1', parentNodeKey: 'section-1', nodeType: 'unit', order: 1 },
     ],
-    units: [],
+    units: [{ unitKey: 'unit-1', activitySlots: [], pageGroups: [] }],
   },
   validation: { valid: true, errors: [] },
   updatedAt: '2026-07-26T00:00:00.000Z',
@@ -82,7 +82,7 @@ const invalidSourceCandidate = (): BookAssemblyCandidateRecord => ({
     nodes: [
       { nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 },
     ],
-    units: [],
+    units: [{ unitKey: 'unit-a', activitySlots: [], pageGroups: [] }, { unitKey: 'unit-b', activitySlots: [], pageGroups: [] }],
   },
 });
 
@@ -219,6 +219,19 @@ const renderWorkspace = (overrides: Partial<React.ComponentProps<typeof BookAsse
 beforeEach(() => vi.clearAllMocks());
 
 describe('BookAssemblyWorkspace', () => {
+  it('switches the guided interface between Full PDF and Component PDFs', async () => {
+    const user = userEvent.setup();
+    renderWorkspace({ guided: true });
+
+    const componentRadio = screen.getByRole('radio', { name: /Several component PDFs/u });
+    expect(screen.getByRole('heading', { name: 'Choose the PDF for this Book' })).toBeInTheDocument();
+    await user.click(componentRadio);
+
+    expect(componentRadio).toBeChecked();
+    expect(screen.getByRole('heading', { name: 'Add the PDFs that make up this Book' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Choose the PDF for this Book' })).not.toBeInTheDocument();
+  });
+
   it('builds full-PDF hierarchy with native tree semantics and saves through 13A CAS', async () => {
     const user = userEvent.setup();
     const repo = repository();
@@ -475,7 +488,7 @@ describe('BookAssemblyWorkspace', () => {
     await user.click(screen.getByRole('button', { name: 'Remove full' }));
     expect(screen.getByRole('list', { name: 'Page Groups' })).toHaveTextContent('pages-full-2-activity');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('full_pdf requires exactly one source');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Full PDF Source Set must contain exactly one source');
     expect(repo.create).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('radio', { name: 'Component PDFs' }));

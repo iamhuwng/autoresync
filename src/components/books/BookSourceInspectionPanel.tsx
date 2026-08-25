@@ -19,6 +19,9 @@ export type BookSourceInspectionAction =
 
 interface BookSourceInspectionPanelProps {
   readonly canRequestUploadAuthorization: boolean;
+  readonly guided?: boolean;
+  readonly uiVariant?: 'default' | 'mockup';
+  readonly instanceKey?: string;
   readonly uploadUnavailableMessage?: string;
   readonly onAction?: (
     action: BookSourceInspectionAction,
@@ -43,6 +46,9 @@ const inspectionErrorMessage = (error: unknown): string => {
 
 const BookSourceInspectionPanel = ({
   canRequestUploadAuthorization,
+  guided = false,
+  uiVariant = 'default',
+  instanceKey = 'book-source-inspection',
   uploadUnavailableMessage,
   onAction,
   onClaimChange,
@@ -166,25 +172,94 @@ const BookSourceInspectionPanel = ({
     : null;
   const canContinue = canRequestUploadAuthorization && selection !== null && phase === 'complete';
 
+  if (guided && uiVariant === 'mockup') {
+    return (
+      <section
+        className="book-source-inspection book-source-inspection--guided book-source-inspection--mockup"
+        data-presentation="guided"
+        data-ui-variant="mockup"
+        aria-labelledby={`${instanceKey}-title`}
+      >
+        <input
+          id={`${instanceKey}-file`}
+          className="book-source-inspection__mockup-input"
+          type="file"
+          accept="application/pdf,.pdf"
+          aria-label="Choose your PDF"
+          onChange={(event) => {
+            const nextFile = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (nextFile) inspect(nextFile, false);
+          }}
+        />
+        {!selection && phase !== 'inspecting' && (
+          <div className="pbf-upload-zone">
+            <div>
+              <div className="pbf-upload-icon" aria-hidden="true">PDF</div>
+              <strong id={`${instanceKey}-title`}>Choose your PDF</strong>
+              <p>We will check the file in your browser before anything is uploaded.</p>
+              <label className="pbf-button pbf-button-primary" htmlFor={`${instanceKey}-file`}>Choose PDF</label>
+            </div>
+          </div>
+        )}
+        {phase === 'inspecting' && (
+          <div className="pbf-callout" role="status" aria-live="polite">
+            <strong>Checking your PDF</strong>
+            <span>We’re checking the file on this device. Nothing is uploaded yet.</span>
+            <button type="button" className="pbf-button" onClick={cancel} style={{ marginTop: 12 }}>Cancel</button>
+          </div>
+        )}
+        {error && <div className="pbf-callout is-danger" role="alert"><strong>We couldn’t check this PDF</strong><span>{error}</span><button type="button" className="pbf-button" onClick={() => file && inspect(file, true)} style={{ marginTop: 12 }}>Try again</button></div>}
+        {selection && phase === 'complete' && (
+          <>
+            <div className="pbf-file-summary">
+              <div className="pbf-file-left"><span className="pbf-file-symbol">PDF</span><div><strong>{selection.claim.displayFilename}</strong><span>{selection.claim.physicalPageCount} pages · {selection.claim.exactByteSize.toLocaleString()} bytes · Checked on this device</span></div></div>
+              <span className="pbf-status is-good">Looks good</span>
+            </div>
+            {canRequestUploadAuthorization ? (
+              <div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 16 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => onRequestUploadAuthorization(selection)}>Upload PDF</button></div>
+            ) : (
+              <div className="pbf-callout is-warn" role="status"><strong>Upload is unavailable</strong><span>{uploadUnavailableMessage ?? 'Upload authorization is disabled in this view.'}</span></div>
+            )}
+            <details className="pbf-details" style={{ marginTop: 15 }}><summary>See file details</summary><dl><dt>Pages</dt><dd>{selection.claim.physicalPageCount}</dd><dt>Size</dt><dd>{selection.claim.exactByteSize.toLocaleString()} bytes</dd><dt>File check</dt><dd>Complete on this device</dd><dt>Privacy</dt><dd>Private until you publish a Unit</dd></dl></details>
+          </>
+        )}
+      </section>
+    );
+  }
+
   return (
-    <section className="book-source-inspection" aria-labelledby="book-source-inspection-title">
-      <div className="book-source-inspection__heading">
-        <div>
-          <p className="book-source-inspection__eyebrow">Private source preflight</p>
-          <h2 id="book-source-inspection-title">Inspect source PDF</h2>
-        </div>
-        <span>Local browser check</span>
+    <section
+      className={guided
+        ? 'book-source-inspection book-source-inspection--guided'
+        : 'book-source-inspection'}
+      data-presentation={guided ? 'guided' : undefined}
+      aria-labelledby={`${instanceKey}-title`}
+    >
+        <div className="book-source-inspection__heading">
+          <div>
+          <p className="book-source-inspection__eyebrow">{guided ? 'Step 1 · Choose your PDF' : 'Private source preflight'}</p>
+          <h2 id={`${instanceKey}-title`}>{guided ? 'Choose your PDF' : 'Inspect source PDF'}</h2>
+          </div>
+        <span>{guided ? 'Checked on this device' : 'Local browser check'}</span>
       </div>
 
-      <p>
-        Choose the exact PDF you intend to use. Its filename, size, checksum, and
-        page count are checked locally before any upload authorization is requested.
-      </p>
+      {guided && (
+        <p className="book-source-inspection__guided-step" role="status">
+          Step 1 of 2: verify the exact PDF before any upload authorization is requested.
+        </p>
+      )}
 
-      <label className="book-source-inspection__file-label" htmlFor="book-source-inspection-file">
-        Source PDF
+      <p className="book-source-inspection__description">{guided
+        ? 'We’ll check the file on this device first. Nothing is uploaded until you choose to continue.'
+        : 'Choose the exact PDF you intend to use. Its filename, size, checksum, and page count are checked locally before any upload authorization is requested.'}</p>
+
+      <label className="book-source-inspection__file-label" htmlFor={`${instanceKey}-file`}>
+        {guided && <span className="book-source-inspection__file-icon" aria-hidden="true">PDF</span>}
+        <strong>{guided ? 'Choose your PDF' : 'Source PDF'}</strong>
+        {guided && <span className="book-source-inspection__file-help">Nothing is uploaded until you confirm the source.</span>}
         <input
-          id="book-source-inspection-file"
+          id={`${instanceKey}-file`}
           type="file"
           accept="application/pdf,.pdf"
           onChange={(event) => {

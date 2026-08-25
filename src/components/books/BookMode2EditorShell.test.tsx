@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { materialCatalogIds, type MaterialBookMetadata } from '../../types/materialCatalog.types';
 import BookMode2EditorShell from './BookMode2EditorShell';
@@ -29,12 +30,15 @@ afterEach(() => cleanup());
 
 describe('BookMode2EditorShell', () => {
   it.each(['owner', 'administrator'] as const)(
-    'exposes source inspection to authorized %s without upload authorization',
-    (access) => {
+    'starts the mode-first flow for authorized %s',
+    async (access) => {
+      const user = userEvent.setup();
       render(<BookMode2EditorShell access={access} book={book} presentation="page-compat" />);
 
-      expect(screen.getByRole('heading', { name: 'Inspect source PDF' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Continue to upload' })).toBeDisabled();
+      expect(screen.getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /One complete PDF/iu }));
+      expect(screen.getByRole('heading', { name: 'Start with one PDF' })).toBeInTheDocument();
+      expect(screen.getByText('Choose your PDF')).toBeInTheDocument();
     },
   );
 
@@ -47,8 +51,8 @@ describe('BookMode2EditorShell', () => {
       />,
     );
 
-    expect(screen.queryByRole('heading', { name: 'Inspect source PDF' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Continue to upload' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Choose the PDF for this Book' })).not.toBeInTheDocument();
   });
 
   it('keeps upload default-deny while preserving restored operation UI', async () => {
@@ -60,6 +64,7 @@ describe('BookMode2EditorShell', () => {
       requestCancellation: vi.fn(),
       retryCleanup: vi.fn(),
     };
+    const user = userEvent.setup();
     render(
       <BookMode2EditorShell
         access="owner"
@@ -69,8 +74,9 @@ describe('BookMode2EditorShell', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Continue to upload' })).toBeDisabled();
-    expect(await screen.findByText(/New upload authorization is disabled/iu))
+    await user.click(screen.getByRole('button', { name: /One complete PDF/iu }));
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+    expect(await screen.findByText(/We will check the file in your browser/iu))
       .toBeInTheDocument();
   });
 
@@ -83,6 +89,7 @@ describe('BookMode2EditorShell', () => {
       requestCancellation: vi.fn(),
       retryCleanup: vi.fn(),
     };
+    const user = userEvent.setup();
     render(
       <BookMode2EditorShell
         access="owner"
@@ -94,36 +101,29 @@ describe('BookMode2EditorShell', () => {
       />,
     );
 
-    expect(screen.getByRole('navigation', { name: 'PDF Book workflow' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /One complete PDF/iu }));
+    expect(screen.getByRole('navigation', { name: 'PDF Book progress' })).toBeInTheDocument();
     expect(screen.queryByText('Upload authorization is disabled in this view.')).not.toBeInTheDocument();
-    expect(screen.getByText('Choose a PDF to enable upload authorization.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Continue to upload' })).toBeDisabled();
+    expect(screen.getByText('We will check the file in your browser before anything is uploaded.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
   });
 
-  it('keeps Assembly mutation controls hidden while safe reads remain in rollback state', () => {
+  it('keeps full and component preparation interfaces separate', async () => {
+    const user = userEvent.setup();
     render(
       <BookMode2EditorShell
         access="owner"
         book={book}
         presentation="page-compat"
         uploadWorkflow={null}
-        uploadPresentationEnabled={false}
-        assemblyRepository={null}
-        assemblySourceVersions={[
-          {
-            bookId: 'pdf-book',
-            physicalPageCount: 12,
-            sourceVersionId: 'source-ready',
-            verifiedUsable: true,
-          },
-        ]}
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Inspect source PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Assembly is currently read-only' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Verified Source Versions' })).not.toBeInTheDocument();
-    expect(screen.getByText(/will never fall back to the materials editor/iu)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Several component PDFs/iu }));
+    expect(screen.getByRole('heading', { name: 'Bring in your PDF sections' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add a PDF' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add a PDF' }));
+    expect(screen.getByRole('heading', { name: 'PDF 1' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Book PDF' })).not.toBeInTheDocument();
   });
 });

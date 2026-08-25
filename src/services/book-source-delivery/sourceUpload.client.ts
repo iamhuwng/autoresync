@@ -1,4 +1,5 @@
 import type { BookSourceUploadKind } from '../../types/bookSource.types';
+import type { SourceSetCandidate } from '../../types/bookAssembly.types';
 import { sessionStore } from '../../core/platform/storage';
 import type { SourceUploadInspectionClaim } from './sourceUpload.protocol';
 
@@ -34,6 +35,21 @@ export interface CompleteSourceUploadResult {
   readonly status: 'verified_completed' | 'replayed';
   readonly reservationId: string;
   readonly sourceVersionId: string;
+}
+
+export interface AttachSourceSetCommand {
+  readonly bookId: string;
+  readonly operationId: string;
+  readonly expectedBookRevision: number;
+  readonly expectedSourceSetRevision: number;
+  readonly sourceSet: SourceSetCandidate;
+}
+
+export interface AttachSourceSetResult {
+  readonly status: 'attached' | 'replaced' | 'replayed';
+  readonly bookRevision: number;
+  readonly sourceSetRevision: number;
+  readonly sourceSet: SourceSetCandidate;
 }
 
 export interface CancelSourceUploadCommand {
@@ -110,6 +126,10 @@ export interface SourceUploadClientOptions {
   readonly reconciliationBaseUrl?: string;
   readonly getIdToken: () => Promise<string>;
   readonly fetchImpl?: typeof fetch;
+}
+
+export interface SourceSetAttachmentClient {
+  attachSourceSet(command: AttachSourceSetCommand): Promise<AttachSourceSetResult>;
 }
 
 const trimBaseUrl = (value: string): string => value.trim().replace(/\/+$/u, '');
@@ -192,6 +212,9 @@ const request = async (
 
 const safeId = (value: unknown): value is string =>
   nonEmpty(value) && /^[A-Za-z0-9._:-]{1,512}$/u.test(value);
+
+const safeRevision = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && (value as number) >= 0;
 
 const lifecycleStatus = (
   value: Record<string, unknown>,
@@ -311,13 +334,15 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
   } as SourceUploadSafeOperationState);
 };
 
-const stateKey = (bookId: string): string =>
-  `prd0062:book-source-upload:v1:${encodeURIComponent(bookId)}`;
+const stateKey = (bookId: string, scopeKey = 'main'): string =>
+  `prd0062:book-source-upload:v1:${encodeURIComponent(bookId)}:${encodeURIComponent(scopeKey)}`;
 
 /** Session-scoped metadata only. Never stores bytes, ID tokens, signed URLs, or headers. */
-export const createSourceUploadSessionStatePort = (): SourceUploadStatePort => ({
+export const createSourceUploadSessionStatePort = (options: {
+  readonly scopeKey?: string;
+} = {}): SourceUploadStatePort => ({
   async load(bookId) {
-    const key = stateKey(bookId);
+    const key = stateKey(bookId, options.scopeKey);
     const value = await sessionStore.get(key);
     const state = safeState(value, bookId);
     if (value !== null && !state) await sessionStore.remove(key);
@@ -326,10 +351,10 @@ export const createSourceUploadSessionStatePort = (): SourceUploadStatePort => (
   async save(state) {
     const validated = safeState(state, state.bookId);
     if (!validated) throw new SourceUploadClientError('invalid_state', 0);
-    await sessionStore.set(stateKey(state.bookId), validated);
+    await sessionStore.set(stateKey(state.bookId, options.scopeKey), validated);
   },
   async clear(bookId) {
-    await sessionStore.remove(stateKey(bookId));
+    await sessionStore.remove(stateKey(bookId, options.scopeKey));
   },
 });
 
@@ -436,6 +461,32 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
       status: body.status,
       reservationId: command.reservationId,
       sourceVersionId: body.sourceVersionId,
+    };
+  },
+
+  async attachSourceSet(command: AttachSourceSetCommand): Promise<AttachSourceSetResult> {
+    const body = await request(
+      options,
+      `${BOOK_SOURCE_UPLOAD_ROUTE}/${encodeURIComponent(command.bookId)}/source-set/attach`,
+      {
+        operationId: command.operationId,
+        expectedBookRevision: command.expectedBookRevision,
+        expectedSourceSetRevision: command.expectedSourceSetRevision,
+        sourceSet: command.sourceSet,
+      },
+      command.operationId,
+    );
+    if (!['attached', 'replaced', 'replayed'].includes(String(body.status))
+      || !safeRevision(body.bookRevision)
+      || !safeRevision(body.sourceSetRevision)
+      || !record(body.sourceSet)) {
+      throw new SourceUploadClientError('invalid_response', 502);
+    }
+    return {
+      status: body.status as AttachSourceSetResult['status'],
+      bookRevision: body.bookRevision as number,
+      sourceSetRevision: body.sourceSetRevision as number,
+      sourceSet: body.sourceSet as SourceSetCandidate,
     };
   },
 

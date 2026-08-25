@@ -1,5 +1,10 @@
 import { createFirebaseVerifier } from '../upload-worker/firebase-verification.js';
 import type { SourceUploadInspectionClaim } from '../../../src/services/book-source-delivery/sourceUpload.protocol';
+import type {
+  ComponentPdfSourceCandidate,
+  FullPdfSourceCandidate,
+  SourceSetCandidate,
+} from '../../../src/types/bookAssembly.types';
 
 const MAX_CONTROL_BODY_BYTES = 16 * 1024;
 const SAFE_ID = /^[A-Za-z0-9._~-]{1,160}$/u;
@@ -25,6 +30,19 @@ interface ControlHostVerifier {
 }
 
 export interface BookSourceUploadControlService {
+  attachSourceSet?(input: {
+    readonly actorId: string;
+    readonly bookId: string;
+    readonly operationId: string;
+    readonly expectedBookRevision: number;
+    readonly expectedSourceSetRevision: number;
+    readonly sourceSet: SourceSetCandidate;
+  }): Promise<{
+    readonly status: 'attached' | 'replaced' | 'replayed';
+    readonly bookRevision: number;
+    readonly sourceSetRevision: number;
+    readonly sourceSet: SourceSetCandidate;
+  }>;
   begin(input: {
     readonly actorId: string;
     readonly bookId: string;
@@ -163,6 +181,57 @@ const parseInspection = (value: unknown) => {
   };
 };
 
+const parseSourceSet = (value: unknown): SourceSetCandidate => {
+  if (!isRecord(value) || !exactKeys(value, ['sourceStrategy', 'sources'])
+    || (value.sourceStrategy !== 'full_pdf' && value.sourceStrategy !== 'component_pdfs')
+    || !Array.isArray(value.sources) || value.sources.length < 1 || value.sources.length > 128
+    || (value.sourceStrategy === 'component_pdfs' && value.sources.length < 2)) {
+    throw new ControlRequestError('invalid_source_set', 400);
+  }
+  const seenKeys = new Set<string>();
+  const seenVersions = new Set<string>();
+  const seenOrders = new Set<number>();
+  const parseCommon = (entry: Record<string, unknown>): Omit<FullPdfSourceCandidate, 'ownerNodeKey'> => {
+    const sourceKey = safeId(entry.sourceKey, 'source_key');
+    const sourceVersionId = safeId(entry.sourceVersionId, 'source_version_id');
+    if (!Number.isSafeInteger(entry.sourceOrder) || (entry.sourceOrder as number) < 1
+      || seenKeys.has(sourceKey) || seenVersions.has(sourceVersionId)
+      || seenOrders.has(entry.sourceOrder as number)) {
+      throw new ControlRequestError('invalid_source_set', 400);
+    }
+    seenKeys.add(sourceKey);
+    seenVersions.add(sourceVersionId);
+    seenOrders.add(entry.sourceOrder as number);
+    return { sourceKey, sourceVersionId, sourceOrder: entry.sourceOrder as number };
+  };
+
+  if (value.sourceStrategy === 'full_pdf') {
+    const [entry] = value.sources;
+    if (!isRecord(entry) || !exactKeys(entry, ['sourceKey', 'sourceOrder', 'sourceVersionId'])) {
+      throw new ControlRequestError('invalid_source_set', 400);
+    }
+    const source = parseCommon(entry);
+    return {
+      sourceStrategy: 'full_pdf',
+      sources: [source],
+    };
+  }
+
+  const sources = value.sources.map((entry): ComponentPdfSourceCandidate => {
+    if (!isRecord(entry)) throw new ControlRequestError('invalid_source_set', 400);
+    if (!exactKeys(entry, ['ownerNodeKey', 'sourceKey', 'sourceOrder', 'sourceVersionId'])) {
+      throw new ControlRequestError('invalid_source_set', 400);
+    }
+    return {
+      ...parseCommon(entry),
+      ownerNodeKey: safeId(entry.ownerNodeKey, 'owner_node_key'),
+    };
+  });
+  const [first, ...rest] = sources;
+  if (!first) throw new ControlRequestError('invalid_source_set', 400);
+  return { sourceStrategy: 'component_pdfs', sources: [first, ...rest] };
+};
+
 const parseBody = async (request: Request): Promise<Record<string, unknown>> => {
   if (request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
     throw new ControlRequestError('unsupported_media_type', 415);
@@ -186,6 +255,7 @@ const parseBody = async (request: Request): Promise<Record<string, unknown>> => 
 
 type Route =
   | { readonly action: 'begin'; readonly bookId: string }
+  | { readonly action: 'attach'; readonly bookId: string }
   | {
       readonly action: 'complete' | 'cancel' | 'retry' | 'reconcile' | 'status';
       readonly bookId: string;
@@ -204,6 +274,17 @@ const routeFor = (request: Request): Route | undefined => {
     && segments[5] === 'begin'
   ) {
     return { action: 'begin', bookId: safeId(segments[3], 'book_id') };
+  }
+  if (
+    request.method === 'POST'
+    && segments.length === 6
+    && segments[0] === 'v1'
+    && segments[1] === 'book-source'
+    && segments[2] === 'books'
+    && segments[4] === 'source-set'
+    && segments[5] === 'attach'
+  ) {
+    return { action: 'attach', bookId: safeId(segments[3], 'book_id') };
   }
   if (
     request.method === 'POST'
@@ -274,6 +355,11 @@ const publicFailure = (error: unknown): { readonly code: string; readonly status
       }
       if (code === 'authority_denied') return { code, status: 403 };
       if (code === 'invalid_input' || code === 'invalid_claim') return { code, status: 400 };
+      if (code.startsWith('material_book_source_attachment_')) {
+        if (code.includes('authority_denied') || code.includes('wrong_owner')) return { code, status: 403 };
+        if (code.includes('invalid')) return { code, status: 400 };
+        return { code, status: 409 };
+      }
       if (code === 'rollout_denied' || code === 'invalid_deployment' || code === 'account_state_unavailable') {
         return { code, status: 503 };
       }
@@ -330,6 +416,27 @@ export const createBookSourceControlHost = (options: BookSourceControlHostOption
       }
 
       const body = await parseBody(request);
+      if (route.action === 'attach') {
+        if (!options.service.attachSourceSet
+          || !exactKeys(body, ['operationId', 'expectedBookRevision', 'expectedSourceSetRevision', 'sourceSet'])) {
+          throw new ControlRequestError('invalid_source_set_attach_request', options.service.attachSourceSet ? 400 : 503);
+        }
+        if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)
+          || request.headers.get('idempotency-key') !== body.operationId
+          || !Number.isSafeInteger(body.expectedBookRevision) || (body.expectedBookRevision as number) < 0
+          || !Number.isSafeInteger(body.expectedSourceSetRevision) || (body.expectedSourceSetRevision as number) < 0) {
+          throw new ControlRequestError('invalid_source_set_attach_request', 400);
+        }
+        const result = await options.service.attachSourceSet({
+          actorId: authorization.uid,
+          bookId: route.bookId,
+          operationId: body.operationId,
+          expectedBookRevision: body.expectedBookRevision as number,
+          expectedSourceSetRevision: body.expectedSourceSetRevision as number,
+          sourceSet: parseSourceSet(body.sourceSet),
+        });
+        return json(request, env, result);
+      }
       if (route.action === 'begin') {
         if (!exactKeys(body, ['operationId', 'sourceKey', 'kind', 'inspection'])) {
           throw new ControlRequestError('invalid_begin_request', 400);

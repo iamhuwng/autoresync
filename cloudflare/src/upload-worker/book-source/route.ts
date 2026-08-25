@@ -1,12 +1,17 @@
 import type { BookRouteMethod } from '../book-routes/types.ts';
 
 export interface BookSourceRouteDescriptor {
-  readonly handler: 'begin' | 'complete' | 'status' | 'cancel';
+  readonly handler: 'begin' | 'complete' | 'status' | 'cancel' | 'attach';
   readonly method: BookRouteMethod;
   readonly path: string;
 }
 
 export const bookSourceRouteDescriptors: readonly BookSourceRouteDescriptor[] = Object.freeze([
+  {
+    handler: 'attach',
+    method: 'POST',
+    path: '/v1/book-source/books/:bookId/source-set/attach',
+  },
   {
     handler: 'begin',
     method: 'POST',

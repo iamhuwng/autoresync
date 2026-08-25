@@ -1,132 +1,172 @@
 .book-mode2-editor-shell {
-  display: grid;
-  gap: 24px;
-  width: min(1120px, 100%);
-  margin: 0 auto;
-  padding: 32px;
-  color: var(--color-text-primary, #172033);
-}
-
-.book-mode2-editor-shell[data-presentation='modal'] {
+  --pdf-page: #f6f7fb;
+  --pdf-shell: #fff;
+  --pdf-quiet: #f0f2f8;
+  --pdf-quiet-strong: #e7eaf3;
+  --pdf-ink: #20243a;
+  --pdf-muted: #687189;
+  --pdf-line: #dce0eb;
+  --pdf-primary: #5146d9;
+  --pdf-primary-soft: #eeecff;
+  --pdf-good: #16734d;
+  --pdf-good-soft: #e8f6ef;
+  --pdf-warn: #98640e;
+  --pdf-warn-soft: #fff5df;
+  display: block;
   width: 100%;
-  padding: 24px;
-}
-
-.book-mode2-editor-shell__intro,
-.book-mode2-editor-shell__status {
-  border: 1px solid var(--color-border, #d9e0eb);
-  border-radius: 16px;
-  background: var(--color-surface, #fff);
-  padding: 24px;
-}
-
-.book-mode2-editor-shell__workflow {
-  border: 1px solid var(--color-border, #d9e0eb);
-  border-radius: 16px;
-  background: var(--color-surface-subtle, #f4f7fb);
-  padding: 16px 20px;
-}
-
-.book-mode2-editor-shell__workflow ol {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  max-width: none;
   margin: 0;
   padding: 0;
-  list-style: none;
+  color: var(--pdf-ink);
+  background: transparent;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
 }
-
-.book-mode2-editor-shell__workflow li {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  min-width: 0;
-  color: var(--color-text-secondary, #5d687b);
-}
-
-.book-mode2-editor-shell__workflow li > span {
-  display: inline-grid;
-  flex: 0 0 28px;
-  place-items: center;
-  min-height: 28px;
-  border-radius: 50%;
-  background: #e2e8f0;
-  color: #475569;
-  font-weight: 800;
-}
-
-.book-mode2-editor-shell__workflow li.is-current > span {
-  background: #4f46e5;
-  color: #fff;
-}
-
-.book-mode2-editor-shell__workflow li > div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.book-mode2-editor-shell__workflow strong {
-  color: var(--color-text-primary, #172033);
-  font-size: 0.9rem;
-}
-
-.book-mode2-editor-shell__workflow small {
-  overflow-wrap: anywhere;
-  font-size: 0.78rem;
-}
-
-.book-mode2-editor-shell__eyebrow {
-  margin: 0 0 8px;
-  color: var(--color-text-secondary, #5d687b);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
+.book-mode2-editor-shell[data-presentation='modal'] { max-width: none; }
 .book-mode2-editor-shell h1,
 .book-mode2-editor-shell h2,
-.book-mode2-editor-shell p {
-  margin-top: 0;
-}
-
-.book-mode2-editor-shell__status dl {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin: 24px 0 0;
-}
-
-.book-mode2-editor-shell__status dl div {
-  border-radius: 12px;
-  background: var(--color-surface-subtle, #f4f7fb);
-  padding: 12px;
-}
-
-.book-mode2-editor-shell__status dt {
-  color: var(--color-text-secondary, #5d687b);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.book-mode2-editor-shell__status dd {
-  margin: 4px 0 0;
-  font-weight: 600;
-}
-
-@media (max-width: 720px) {
-  .book-mode2-editor-shell,
-  .book-mode2-editor-shell[data-presentation='modal'] {
-    padding: 16px;
-  }
-
-  .book-mode2-editor-shell__status dl {
-    grid-template-columns: 1fr;
-  }
-
-  .book-mode2-editor-shell__workflow ol {
-    grid-template-columns: 1fr;
-  }
+.book-mode2-editor-shell h3,
+.book-mode2-editor-shell h4,
+.book-mode2-editor-shell p { margin: 0; }
+.book-mode2-editor-shell button,
+.book-mode2-editor-shell input,
+.book-mode2-editor-shell select { font: inherit; }
+.book-mode2-editor-shell button { cursor: pointer; }
+.book-mode2-editor-shell button:disabled { cursor: not-allowed; opacity: .55; }
+.book-mode2-editor-shell__top,
+.book-mode2-editor-shell__row,
+.book-mode2-editor-shell__toolbar,
+.book-mode2-editor-shell__frame-head,
+.book-mode2-editor-shell__screen-head,
+.book-mode2-editor-shell__footer,
+.book-mode2-editor-shell__actions { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.book-mode2-editor-shell__top { align-items: end; }
+.book-mode2-editor-shell__eyebrow { color: var(--pdf-muted); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.book-mode2-editor-shell__top h1 { margin-top: 3px; font-size: 1.15rem; font-weight: 700; }
+.book-mode2-editor-shell__subtitle,
+.book-mode2-editor-shell__frame-head p,
+.book-mode2-editor-shell__screen-head p,
+.book-mode2-editor-shell__access p { margin-top: 3px !important; color: var(--pdf-muted); font-size: .76rem; }
+.book-mode2-editor-shell__strategy-tabs,
+.book-mode2-editor-shell__pills { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.book-mode2-editor-shell__strategy-tabs { align-self: end; }
+.book-mode2-editor-shell__strategy-tabs button { border: 1px solid #dce0eb; border-radius: 6px; padding: 8px 11px; background: var(--pdf-shell); color: var(--pdf-muted); font-size: .76rem; }
+.book-mode2-editor-shell__strategy-tabs button[aria-pressed='true'] { border-color: var(--pdf-primary); background: var(--pdf-primary); color: #fff; }
+.book-mode2-editor-shell__toolbar { align-items: center; border: 1px solid #dce0eb; border-radius: 7px; padding: 8px 10px; background: var(--pdf-shell); color: var(--pdf-muted); font-size: .75rem; }
+.book-mode2-editor-shell__toolbar strong { color: var(--pdf-ink); }
+.book-mode2-editor-shell__button { border: 1px solid #dce0eb; border-radius: 6px; padding: 7px 10px; background: var(--pdf-shell); color: var(--pdf-ink); font-size: .74rem; }
+.book-mode2-editor-shell__button--quiet { background: var(--pdf-quiet); color: var(--pdf-muted); }
+.book-mode2-editor-shell__button--primary { border-color: var(--pdf-primary); background: var(--pdf-primary); color: #fff; }
+.book-mode2-editor-shell__pill { display: inline-flex; align-items: center; min-height: 22px; border: 1px solid #dce0eb; border-radius: 999px; padding: 3px 7px; background: var(--pdf-quiet); color: var(--pdf-muted); font-size: .67rem; white-space: nowrap; }
+.book-mode2-editor-shell__pill--good { border-color: #b6dfca; background: var(--pdf-good-soft); color: var(--pdf-good); }
+.book-mode2-editor-shell__pill--warn { border-color: #ecd69d; background: var(--pdf-warn-soft); color: var(--pdf-warn); }
+.book-mode2-editor-shell__access,
+.book-mode2-editor-shell__section { display: grid; gap: 8px; border: 1px solid #dce0eb; border-radius: 8px; padding: 11px; background: var(--pdf-shell); }
+.book-mode2-editor-shell__access .book-mode2-editor-shell__row:last-child { align-items: center; color: var(--pdf-muted); font-size: .7rem; }
+.book-mode2-editor-shell__access .book-mode2-editor-shell__row:first-child { align-items: center; }
+.book-mode2-editor-shell__progress { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.book-mode2-editor-shell__progress button { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 6px; align-items: center; border: 1px solid transparent; border-radius: 6px; padding: 6px; background: transparent; color: var(--pdf-muted); text-align: left; }
+.book-mode2-editor-shell__progress button[aria-current='step'] { border-color: var(--pdf-line); background: var(--pdf-primary-soft); color: var(--pdf-ink); }
+.book-mode2-editor-shell__progress button[data-complete='true'] { color: var(--pdf-good); }
+.book-mode2-editor-shell__progress button > span { display: grid; grid-row: span 2; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--pdf-quiet-strong); font-size: .7rem; font-weight: 700; }
+.book-mode2-editor-shell__progress button[aria-current='step'] > span { background: var(--pdf-primary); color: #fff; }
+.book-mode2-editor-shell__progress strong { overflow: hidden; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+.book-mode2-editor-shell__progress small { overflow: hidden; font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
+.book-mode2-editor-shell__coverage { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.book-mode2-editor-shell__coverage > div { display: grid; gap: 2px; min-width: 0; border: 1px solid #dce0eb; border-radius: 6px; padding: 6px 7px; background: var(--pdf-shell); }
+.book-mode2-editor-shell__coverage strong { overflow: hidden; color: var(--pdf-muted); font-size: .63rem; text-overflow: ellipsis; white-space: nowrap; }
+.book-mode2-editor-shell__coverage span { color: var(--pdf-good); font-size: .62rem; }
+.book-mode2-editor-shell__coverage .is-active { border-color: var(--pdf-primary); background: var(--pdf-primary-soft); }
+.book-mode2-editor-shell__coverage .is-active strong { color: var(--pdf-ink); }
+.book-mode2-editor-shell__frame { overflow: hidden; border: 1px solid #dce0eb; border-radius: 8px; background: var(--pdf-shell); }
+.book-mode2-editor-shell__frame-head { padding: 13px 15px; border-bottom: 1px solid #dce0eb; background: var(--pdf-primary-soft); }
+.book-mode2-editor-shell__frame-head h2 { margin-top: 3px; font-size: .95rem; font-weight: 600; }
+.book-mode2-editor-shell__frame-head > .book-mode2-editor-shell__pill { margin-top: 1px; }
+.book-mode2-editor-shell__body { display: grid; grid-template-columns: 160px minmax(0, 1fr); min-height: 470px; background: var(--pdf-page); }
+.book-mode2-editor-shell__side { display: grid; align-content: start; gap: 3px; padding: 11px 8px; border-right: 1px solid #dce0eb; background: var(--pdf-quiet); }
+.book-mode2-editor-shell__side button { border: 0; border-left: 2px solid transparent; border-radius: 5px; padding: 8px; background: transparent; color: var(--pdf-muted); text-align: left; font-size: .74rem; }
+.book-mode2-editor-shell__side button[aria-current='step'] { border-left-color: var(--pdf-primary); background: var(--pdf-primary-soft); color: var(--pdf-ink); }
+.book-mode2-editor-shell__side button[data-complete='true'] { color: var(--pdf-good); }
+.book-mode2-editor-shell__main { min-width: 0; padding: 15px; }
+.book-mode2-editor-shell__screen-head { margin-bottom: 11px; }
+.book-mode2-editor-shell__screen-head h3 { font-size: .9rem; font-weight: 600; }
+.book-mode2-editor-shell__screen-head > .book-mode2-editor-shell__pill { align-self: start; }
+.book-mode2-editor-shell__screen { display: grid; gap: 10px; min-width: 0; }
+.book-mode2-editor-shell__screen[hidden] { display: none; }
+.book-mode2-editor-shell__screen[data-active='false'] { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.book-mode2-editor-shell__upload-gate-status[data-active='false'] { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.book-mode2-editor-shell__footer { align-items: center; padding: 10px 14px; border-top: 1px solid #dce0eb; background: var(--pdf-shell); color: var(--pdf-muted); font-size: .7rem; }
+.book-mode2-editor-shell__footer > div { display: flex; gap: 6px; }
+.book-mode2-editor-shell__status { display: grid; gap: 10px; border: 1px solid #dce0eb; border-radius: 8px; padding: 12px; background: var(--pdf-shell); }
+.book-mode2-editor-shell__status h3 { font-size: .9rem; }
+.book-mode2-editor-shell__status p { color: var(--pdf-muted); font-size: .75rem; line-height: 1.45; }
+.book-mode2-editor-shell__status dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 0; }
+.book-mode2-editor-shell__status dl div { display: grid; gap: 3px; border: 1px solid #dce0eb; border-radius: 6px; padding: 8px; background: var(--pdf-quiet); }
+.book-mode2-editor-shell__status dt { color: var(--pdf-muted); font-size: .65rem; }
+.book-mode2-editor-shell__status dd { margin: 0; font-size: .73rem; font-weight: 600; }
+.book-mode2-editor-shell__alert { border-left: 3px solid var(--pdf-warn); padding: 8px 10px; background: var(--pdf-warn-soft); color: var(--pdf-warn); font-size: .74rem; }
+.book-mode2-editor-shell__icon { width: 30px; height: 30px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--pdf-muted); font-size: 1.15rem; }
+.book-mode2-editor-shell__migration { position: relative; z-index: 2; display: grid; gap: 10px; border: 1px solid var(--pdf-primary); border-radius: 8px; padding: 12px; background: var(--pdf-shell); box-shadow: 0 8px 22px rgb(32 36 58 / 12%); }
+.book-mode2-editor-shell__migration h2 { font-size: .86rem; font-weight: 600; }
+.book-mode2-editor-shell__migration p { color: var(--pdf-muted); font-size: .74rem; }
+.book-mode2-editor-shell__migration-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.book-mode2-editor-shell__migration select { min-width: 0; border: 1px solid #dce0eb; border-radius: 5px; padding: 5px; background: var(--pdf-page); color: var(--pdf-ink); font-size: .72rem; }
+.book-mode2-editor-shell__screen .book-source-inspection--guided,
+.book-mode2-editor-shell__screen .book-source-upload--guided { display: grid; gap: 10px; border: 1px solid #dce0eb; border-radius: 8px; padding: 11px; background: var(--pdf-shell); box-shadow: none; }
+.book-mode2-editor-shell__screen .book-source-inspection--guided .book-source-inspection__heading,
+.book-mode2-editor-shell__screen .book-source-inspection--guided .book-source-inspection__guided-step,
+.book-mode2-editor-shell__screen .book-source-upload--guided .book-source-upload__heading,
+.book-mode2-editor-shell__screen .book-source-upload--guided .book-source-upload__guided-step { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
+.book-mode2-editor-shell__screen .book-source-inspection--guided .book-source-inspection__description,
+.book-mode2-editor-shell__screen .book-source-upload--guided > p:not([class]) { color: var(--pdf-muted); font-size: .74rem; }
+.book-mode2-editor-shell__screen .book-source-inspection__file-label { display: grid; place-items: center; gap: 5px; min-height: 125px; border: 1px dashed #8e86e8; border-radius: 8px; padding: 12px; background: var(--pdf-primary-soft); text-align: center; }
+.book-mode2-editor-shell__screen .book-source-inspection__file-icon { display: grid; place-items: center; width: 35px; height: 43px; border: 1px solid #aaa4ee; border-radius: 5px; background: var(--pdf-shell); color: var(--pdf-primary); font-size: .62rem; font-weight: 700; }
+.book-mode2-editor-shell__screen .book-source-inspection__file-help { color: var(--pdf-muted); font-size: .7rem; font-weight: 400; }
+.book-mode2-editor-shell__screen .book-source-inspection__file-label input[type='file'] { width: auto; min-height: 0; padding: 0; border: 0; background: transparent; font-size: .7rem; }
+.book-mode2-editor-shell__screen .book-source-inspection__file-label input[type='file']::file-selector-button { border: 1px solid var(--pdf-primary); border-radius: 6px; padding: 7px 10px; background: var(--pdf-primary); color: #fff; cursor: pointer; font-size: .74rem; }
+.book-mode2-editor-shell__component-sources { display: grid; gap: 10px; border: 1px solid #dce0eb; border-radius: 8px; padding: 11px; background: var(--pdf-shell); }
+.book-mode2-editor-shell__component-sources h4 { font-size: .82rem; font-weight: 600; }
+.book-mode2-editor-shell__component-sources p { color: var(--pdf-muted); font-size: .72rem; line-height: 1.4; }
+.book-mode2-editor-shell__component-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.book-mode2-editor-shell__component-card { display: grid; align-content: start; gap: 8px; min-width: 0; border: 1px solid #dce0eb; border-radius: 7px; padding: 9px; background: var(--pdf-page); }
+.book-mode2-editor-shell__component-card .book-source-inspection--guided { border: 0; padding: 0; background: transparent; }
+.book-mode2-editor-shell__component-card .book-source-upload--guided { border: 0; padding: 0; background: transparent; }
+.book-mode2-editor-shell__screen .book-source-inspection__inline,
+.book-mode2-editor-shell__screen .book-source-upload__inline,
+.book-mode2-editor-shell__screen .book-source-upload__immutable,
+.book-mode2-editor-shell__screen .book-source-upload__success,
+.book-mode2-editor-shell__screen .book-source-upload__error { margin: 0; border-left: 3px solid var(--pdf-warn); border-radius: 0; padding: 8px 10px; background: var(--pdf-warn-soft); color: var(--pdf-warn); font-size: .73rem; }
+.book-mode2-editor-shell__screen .book-source-inspection__claim,
+.book-mode2-editor-shell__screen .book-source-upload__state { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.book-mode2-editor-shell__screen .book-source-inspection__claim div,
+.book-mode2-editor-shell__screen .book-source-upload__state div { border: 1px solid #dce0eb; border-radius: 6px; padding: 8px; background: var(--pdf-quiet); }
+.book-mode2-editor-shell__screen .book-source-inspection__claim dt,
+.book-mode2-editor-shell__screen .book-source-upload__state dt { color: var(--pdf-muted); font-size: .64rem; }
+.book-mode2-editor-shell__screen .book-source-inspection__claim dd,
+.book-mode2-editor-shell__screen .book-source-upload__state dd { margin-top: 3px; font-size: .7rem; }
+.book-mode2-editor-shell__screen .book-source-upload--guided { border-top: 0; }
+.book-mode2-editor-shell__screen .book-source-upload__rights-confirmation { border: 0; border-radius: 0; padding: 0; background: transparent; color: var(--pdf-muted); font-size: .73rem; font-weight: 400; }
+.book-mode2-editor-shell__screen .book-source-upload__actions { gap: 6px; }
+.book-mode2-editor-shell__screen .book-source-upload__actions button,
+.book-mode2-editor-shell__screen .book-source-inspection > button { min-height: 0; border: 1px solid #dce0eb; border-radius: 6px; padding: 7px 10px; background: var(--pdf-shell); color: var(--pdf-ink); font-size: .74rem; }
+.book-mode2-editor-shell__screen .book-source-upload__actions button:first-child { border-color: var(--pdf-primary); background: var(--pdf-primary); color: #fff; }
+.book-mode2-editor-shell__screen .book-source-inspection > button { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
+.book-mode2-editor-shell__assembly-screen .book-assembly-workspace--guided { gap: 10px; padding: 0; }
+.book-mode2-editor-shell__assembly-screen .book-assembly-guided__section { gap: 10px; border-radius: 8px; padding: 11px; }
+@media (max-width: 760px) {
+  .book-mode2-editor-shell__top,
+  .book-mode2-editor-shell__toolbar,
+  .book-mode2-editor-shell__row,
+  .book-mode2-editor-shell__screen-head,
+  .book-mode2-editor-shell__footer { align-items: flex-start; flex-direction: column; }
+  .book-mode2-editor-shell__strategy-tabs { align-self: stretch; }
+  .book-mode2-editor-shell__strategy-tabs button { flex: 1 1 0; }
+  .book-mode2-editor-shell__progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .book-mode2-editor-shell__coverage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .book-mode2-editor-shell__body { grid-template-columns: 1fr; }
+  .book-mode2-editor-shell__side { grid-template-columns: repeat(2, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid #dce0eb; }
+  .book-mode2-editor-shell__status dl,
+  .book-mode2-editor-shell__migration-grid,
+  .book-mode2-editor-shell__component-list { grid-template-columns: 1fr; }
+  .book-mode2-editor-shell__footer > div { width: 100%; justify-content: flex-end; }
 }

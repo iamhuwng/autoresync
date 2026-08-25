@@ -31,6 +31,10 @@ export type BookSourceUploadAction =
 interface BookSourceUploadPanelProps {
   readonly allowFreshUpload: boolean;
   readonly bookId: string;
+  readonly guided?: boolean;
+  readonly uiVariant?: 'default' | 'mockup';
+  readonly instanceKey?: string;
+  readonly sourceKey?: string;
   readonly immutablePublished: boolean;
   readonly onAction?: (
     action: BookSourceUploadAction,
@@ -38,6 +42,7 @@ interface BookSourceUploadPanelProps {
   ) => void;
   readonly selection: SourceUploadSelection | null;
   readonly workflow: SourceUploadBrowserWorkflow;
+  readonly onStateChange?: (state: SourceUploadSafeOperationState | null) => void;
 }
 
 const emptyProgress: SourceUploadByteProgress = {
@@ -66,23 +71,36 @@ const errorMessage = (error: unknown): string => {
 const BookSourceUploadPanel = ({
   allowFreshUpload,
   bookId,
+  guided = false,
+  uiVariant = 'default',
+  instanceKey = 'book-source-upload',
+  sourceKey = 'main',
   immutablePublished,
   onAction,
   selection,
   workflow,
+  onStateChange,
 }: BookSourceUploadPanelProps) => {
   const [saved, setSaved] = useState<SourceUploadSafeOperationState | null>(null);
   const [activePhase, setActivePhase] = useState<ActivePhase>('idle');
   const [progress, setProgress] = useState<SourceUploadByteProgress>(emptyProgress);
   const [error, setError] = useState('');
+  const [confirmedRightsKey, setConfirmedRightsKey] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const activeRunRef = useRef(0);
   const onActionRef = useRef(onAction);
+  const onStateChangeRef = useRef(onStateChange);
   onActionRef.current = onAction;
+  onStateChangeRef.current = onStateChange;
+
+  const publishState = (state: SourceUploadSafeOperationState | null) => {
+    onStateChangeRef.current?.(state);
+  };
 
   const restore = useCallback(async () => {
     const state = await workflow.load(bookId);
     setSaved(state);
+    publishState(state);
     if (state) {
       onAction?.('book_source_upload_restored', { phase: state.phase });
     }
@@ -93,6 +111,7 @@ const BookSourceUploadPanel = ({
     void workflow.load(bookId).then((state) => {
       if (!active) return;
       setSaved(state);
+      onStateChangeRef.current?.(state);
       if (state) onActionRef.current?.('book_source_upload_restored', { phase: state.phase });
     });
     return () => {
@@ -107,6 +126,7 @@ const BookSourceUploadPanel = ({
       throw new Error('Source upload completed without verified state.');
     }
     setSaved(state);
+    publishState(state);
     setActivePhase('idle');
     setError('');
     onAction?.('book_source_upload_verified', {
@@ -129,7 +149,7 @@ const BookSourceUploadPanel = ({
   };
 
   const runBytes = async (retry: boolean) => {
-    if (!selection) return;
+    if (!selection || (guided && !rightsConfirmed)) return;
     const activeRun = activeRunRef.current + 1;
     activeRunRef.current = activeRun;
     const controller = new AbortController();
@@ -152,7 +172,7 @@ const BookSourceUploadPanel = ({
     try {
       const result = await (retry ? workflow.retryBytes : workflow.start)({
         bookId,
-        sourceKey: 'main',
+        sourceKey,
         kind: immutablePublished ? 'replacement' : 'initial',
         ...selection,
         signal: controller.signal,
@@ -244,11 +264,25 @@ const BookSourceUploadPanel = ({
   const busy = activePhase === 'uploading'
     || activePhase === 'verifying'
     || activePhase === 'reconciling';
-  const canStart = allowFreshUpload && selection !== null && saved === null && !busy;
+  const rightsConfirmationKey = selection
+    ? `${selection.file.name}:${selection.file.size}:${selection.claim.sha256Hex}`
+    : null;
+  const rightsConfirmed = !guided
+    || (rightsConfirmationKey !== null && confirmedRightsKey === rightsConfirmationKey);
+  const byteUploadNeedsRightsConfirmation = guided
+    && allowFreshUpload
+    && selection !== null
+    && (saved === null || saved.phase === 'begin_pending' || saved.phase === 'reserved');
+  const canStart = allowFreshUpload
+    && selection !== null
+    && saved === null
+    && !busy
+    && rightsConfirmed;
   const canRetryBytes = allowFreshUpload
     && selection !== null
     && (saved?.phase === 'begin_pending' || saved?.phase === 'reserved')
-    && !busy;
+    && !busy
+    && rightsConfirmed;
   const canRetryCompletion = saved?.phase === 'completion_pending' && !busy;
   const canRequestCleanup = saved !== null
     && saved.phase !== 'begin_pending'
@@ -256,23 +290,59 @@ const BookSourceUploadPanel = ({
     && saved.phase !== 'cancel_requested'
     && !busy;
 
+  if (guided && uiVariant === 'mockup') {
+    return (
+      <section
+        className="book-source-upload book-source-upload--guided book-source-upload--mockup"
+        data-presentation="guided"
+        data-ui-variant="mockup"
+        aria-labelledby={`${instanceKey}-title`}
+      >
+        <div className="pbf-file-summary">
+          <div className="pbf-file-left"><span className="pbf-file-symbol">PDF</span><div><strong id={`${instanceKey}-title`}>{selection?.claim.displayFilename ?? 'Selected PDF'}</strong><span>{selection?.claim.physicalPageCount ?? 0} pages · Private until you publish a Unit</span></div></div>
+          <span className={`pbf-status${saved?.phase === 'verified' ? ' is-good' : ''}`}>{saved?.phase === 'verified' ? 'Uploaded' : 'Ready to upload'}</span>
+        </div>
+        {busy && <div className="pbf-callout" role="status"><strong>{activePhase === 'verifying' ? 'Checking your upload' : 'Uploading your PDF'}</strong><span>Your file is being sent to the private source store.</span><progress aria-label="Source PDF upload progress" max={100} value={progress.percent} style={{ width: '100%', marginTop: 12 }} /></div>}
+        {saved?.phase === 'verified' && <div className="pbf-callout is-good" role="status"><strong>Your PDF is ready</strong><span>It is verified and ready to use in this Book.</span></div>}
+        {byteUploadNeedsRightsConfirmation && <label className="pbf-check"><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setConfirmedRightsKey(event.currentTarget.checked ? rightsConfirmationKey : null)} /> <span>I have permission to use this PDF with my students.</span></label>}
+        {error && <div className="pbf-callout is-danger" role="alert"><strong>Upload needs attention</strong><span>{error}</span></div>}
+        <div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 16 }}>
+          {saved === null && <button type="button" className="pbf-button pbf-button-primary" disabled={!canStart} onClick={() => void runBytes(false)}>Upload PDF</button>}
+          {(saved?.phase === 'begin_pending' || saved?.phase === 'reserved') && <button type="button" className="pbf-button pbf-button-primary" disabled={!canRetryBytes} onClick={() => void runBytes(true)}>Retry upload</button>}
+          {saved?.phase === 'completion_pending' && <button type="button" className="pbf-button pbf-button-primary" disabled={!canRetryCompletion} onClick={() => void retryCompletion()}>Check upload</button>}
+          {activePhase === 'uploading' && <button type="button" className="pbf-button" onClick={() => void cancel()}>Cancel</button>}
+          {canRequestCleanup && <button type="button" className="pbf-button" onClick={() => void cancel()}>Request cleanup</button>}
+          {saved?.phase === 'cancel_requested' && <button type="button" className="pbf-button" disabled={busy} onClick={() => void retryCleanup()}>Retry cleanup</button>}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section
-      className="book-source-upload"
-      aria-labelledby="book-source-upload-title"
+      className={guided
+        ? 'book-source-upload book-source-upload--guided'
+        : 'book-source-upload'}
+      data-presentation={guided ? 'guided' : undefined}
+      aria-labelledby={`${instanceKey}-title`}
     >
       <div className="book-source-upload__heading">
         <div>
-          <p className="book-source-upload__eyebrow">Private source upload</p>
-          <h2 id="book-source-upload-title">Upload source PDF</h2>
+          <p className="book-source-upload__eyebrow">{guided ? 'Step 2 · Save it privately' : 'Private source upload'}</p>
+          <h2 id={`${instanceKey}-title`}>{guided ? 'Upload this PDF' : 'Upload source PDF'}</h2>
         </div>
-        <span>Browser → private B2</span>
+        <span>{guided ? 'Private and replaceable' : 'Browser → private B2'}</span>
       </div>
 
-      <p>
-        PDF bytes go directly to one short-lived object destination. Worker
-        calls carry metadata only.
-      </p>
+      <p>{guided
+        ? 'Your PDF will be stored privately for this Book. Published files are never overwritten; replacing one creates a new version.'
+        : 'PDF bytes go directly to one short-lived object destination. Worker calls carry metadata only.'}</p>
+
+      {guided && (
+        <p className="book-source-upload__guided-step" role="status">
+          Step 2 of 2: confirm your upload rights before sending PDF bytes.
+        </p>
+      )}
 
       {immutablePublished && (
         <p className="book-source-upload__immutable" role="status">
@@ -343,6 +413,19 @@ const BookSourceUploadPanel = ({
         <p className="book-source-upload__success" role="status">
           One verified ready Source Version is recorded for this operation.
         </p>
+      )}
+
+      {byteUploadNeedsRightsConfirmation && (
+        <label className="book-source-upload__rights-confirmation">
+          <input
+            type="checkbox"
+            checked={rightsConfirmed}
+            onChange={(event) => {
+              setConfirmedRightsKey(event.currentTarget.checked ? rightsConfirmationKey : null);
+            }}
+          />
+          <span>I confirm that I have the rights and permission to upload this PDF for this Book.</span>
+        </label>
       )}
 
       {error && <p className="book-source-upload__error" role="alert">{error}</p>}

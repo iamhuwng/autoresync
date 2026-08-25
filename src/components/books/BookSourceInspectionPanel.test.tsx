@@ -78,6 +78,16 @@ describe('BookSourceInspectionPanel', () => {
     expect(harness.onRequestUploadAuthorization).toHaveBeenCalledWith({ file: selected, claim });
   });
 
+  it('exposes the optional guided presentation without changing the inspection handlers', () => {
+    renderPanel({ guided: true });
+
+    const panel = screen.getByRole('heading', { name: 'Choose your PDF' }).closest('section');
+    expect(panel).toHaveAttribute('data-presentation', 'guided');
+    expect(screen.getByText(
+      'Step 1 of 2: verify the exact PDF before any upload authorization is requested.',
+    )).toBeInTheDocument();
+  });
+
   it('keeps continuation disabled when authorization is unavailable', async () => {
     inspectSourcePdf.mockResolvedValue(claim);
     const selected = file();
