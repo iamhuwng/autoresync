@@ -63,10 +63,8 @@ const BookSourceInspectionPanel = ({
   const inspectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const fileRef = useRef<File | null>(null);
-  const onClaimChangeRef = useRef(onClaimChange);
   const onActionRef = useRef(onAction);
   fileRef.current = file;
-  onClaimChangeRef.current = onClaimChange;
   onActionRef.current = onAction;
 
   const clearInspectionTimeout = () => {
@@ -146,13 +144,17 @@ const BookSourceInspectionPanel = ({
     });
   };
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    runRef.current += 1;
-    controllerRef.current?.abort();
-    clearInspectionTimeout();
-    if (fileRef.current) invalidateSourcePdfInspectionClaim(fileRef.current);
-    onClaimChangeRef.current(null);
+  useEffect(() => {
+    // React StrictMode replays effects in development. Re-arm the mounted
+    // sentinel for the live effect instance after the replay cleanup.
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      runRef.current += 1;
+      controllerRef.current?.abort();
+      clearInspectionTimeout();
+      if (fileRef.current) invalidateSourcePdfInspectionClaim(fileRef.current);
+    };
   }, []);
 
   const cancel = () => {

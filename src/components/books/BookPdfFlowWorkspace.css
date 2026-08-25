@@ -65,11 +65,9 @@
 .pbf-hero h2 { font-size: 1.35rem; font-weight: 500; letter-spacing: -.02em; }
 .pbf-hero p { margin-top: 7px; color: var(--pbf-muted); font-size: .9rem; }
 .pbf-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.pbf-legacy-chooser { display: none; }
 .book-pdf-flow:not([data-mode]) .pbf-hero:not(.pbf-mode-hero) { display: none; }
 .pbf-legacy-footer { display: none; }
 .pbf-hidden { display: none !important; }
-.pbf-publish-legacy { display: none; }
 .pbf-choice { display: grid; gap: 8px; min-height: 185px; border: 1px solid #dfe2e9; border-radius: 11px; padding: 18px; background: var(--pbf-surface); color: var(--pbf-text); text-align: left; }
 .pbf-choice:hover { border-color: var(--pbf-primary); box-shadow: 0 0 0 3px rgb(81 70 217 / 16%); }
 .pbf-choice h3 { font-size: .98rem; font-weight: 500; }

@@ -50,6 +50,7 @@ interface BookMode2EditorShellProps {
   readonly assemblyPreviewDocuments?: readonly BookTeacherAssemblyDocumentProjection[];
   readonly assemblyPreviewGetIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
   readonly assemblyCandidateRuntimePreview?: CandidateUnitPreviewProjection | null;
+  readonly assemblyPreviewClient?: BookAssemblyPreviewClient | null;
   readonly onDirtyChange?: (dirty: boolean) => void;
 }
 
@@ -135,6 +136,7 @@ const BookMode2EditorShell = ({
   assemblyPreviewDocuments,
   assemblyPreviewGetIdToken,
   assemblyCandidateRuntimePreview,
+  assemblyPreviewClient,
   onDirtyChange,
 }: BookMode2EditorShellProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
@@ -171,8 +173,8 @@ const BookMode2EditorShell = ({
     [activityAuthoring, book.bookId],
   );
   const resolvedAssemblyPreviewClient = useMemo(
-    () => configuredAssemblyPreviewClient(),
-    [],
+    () => assemblyPreviewClient === undefined ? configuredAssemblyPreviewClient() : assemblyPreviewClient,
+    [assemblyPreviewClient],
   );
   const uploadUnavailableMessage = !uploadEnabled
     ? 'Upload authorization is disabled by the current presentation gate.'

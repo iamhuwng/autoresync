@@ -289,7 +289,9 @@ const BookAssemblyWorkspace = ({
   const [mappingSourceKey, setMappingSourceKey] = useState(initial.sourceSet.sources[0]?.sourceKey ?? '');
   const [mappingPages, setMappingPages] = useState('1');
   const [mappingDefaultPage, setMappingDefaultPage] = useState('1');
-  const [mappingActivityKey, setMappingActivityKey] = useState('activity-1');
+  const [mappingActivityKey, setMappingActivityKey] = useState(
+    guidedUiVariant === 'mockup' ? '' : 'activity-1',
+  );
   const [mappingContextRequirement, setMappingContextRequirement] = useState<ActivityContextRequirement>('required');
   const [mappingMode, setMappingMode] = useState<PageGroupMode>('activity');
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(initialCandidate ?? null);
@@ -765,6 +767,12 @@ const BookAssemblyWorkspace = ({
       setValidationMessage('Activity key is required for Activity Page Groups.');
       return;
     }
+    if (guidedUiVariant === 'mockup'
+      && mappingMode === 'activity'
+      && !selectedUnit?.activitySlots.some((slot) => slot.activityKey === normalizedActivityKey)) {
+      setValidationMessage('Choose an activity from this Unit before connecting pages.');
+      return;
+    }
     const pageGroupKey = `pages-${sourceKey}-${parsedPages.pages.join('-')}-${mappingMode === 'reference_only' ? 'reference' : 'activity'}`;
     setUnits((current) => {
       const currentUnit = current.find((unit) => unit.unitKey === selectedUnitKey);
@@ -1162,9 +1170,13 @@ const BookAssemblyWorkspace = ({
   const renderMockupGuided = () => {
     const mockupHasStructure = nodes.some((node) => isStructuralNodeType(node.nodeType));
     const mockupHasContent = Boolean(selectedUnit?.activitySlots.length);
-    const mockupHasPages = Boolean(selectedUnit?.activitySlots.length)
-      && selectedUnit?.activitySlots.every((slot) => slot.pageGroupKeys.length > 0) === true;
     const mockupRows = selectedUnit?.activitySlots ?? [];
+    const mockupGroupFor = (slot: typeof mockupRows[number]) => selectedUnit?.pageGroups.find((pageGroup) =>
+      slot.pageGroupKeys.includes(pageGroup.pageGroupKey) && pageGroup.pages.length > 0);
+    const mockupMissingActivities = mockupRows
+      .filter((slot) => !mockupGroupFor(slot))
+      .map((slot) => slot.activityKey);
+    const mockupHasPages = mockupRows.length > 0 && mockupMissingActivities.length === 0;
     const mockupReviewReady = reconciliationReport.issues.length === 0 && Boolean(candidate);
 
     if (guidedStep === 'outline' && strategy === 'component_pdfs') {
@@ -1274,11 +1286,19 @@ const BookAssemblyWorkspace = ({
               <div className="pbf-row"><h3 id="book-assembly-mockup-outline-title">Book outline</h3>{mockupHasStructure && <span className="pbf-status is-good">Added</span>}</div>
               {visibleTreeItems.length > 0 ? (
                 <ul className="pbf-tree" style={{ marginTop: 12 }} aria-label="Book outline">
-                  {visibleTreeItems.map(({ node, level }, index) => (
+                  {visibleTreeItems.map(({ node, level }, index) => {
+                    const unitNumber = visibleTreeItems
+                      .slice(0, index + 1)
+                      .filter(({ node: previousNode }) => previousNode.nodeType === 'unit').length;
+                    const sectionNumber = visibleTreeItems
+                      .slice(0, index + 1)
+                      .filter(({ node: previousNode }) => previousNode.nodeType === 'section').length;
+                    return (
                     <li key={node.nodeKey} className={selectedNodeKey === node.nodeKey ? 'is-current' : undefined} style={{ marginLeft: Math.max(0, level - 1) * 12 }}>
-                      <button type="button" className="pbf-button-link" onClick={() => requestNodeFocus(node.nodeKey)}>{node.nodeType === 'unit' ? `Unit ${index + 1}` : node.nodeType === 'section' ? `Section ${index + 1}` : node.nodeType}</button>
+                      <button type="button" className="pbf-button-link" onClick={() => requestNodeFocus(node.nodeKey)}>{node.nodeType === 'unit' ? `Unit ${unitNumber}` : node.nodeType === 'section' ? `Section ${sectionNumber}` : node.nodeType}</button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               ) : <p className="pbf-muted" style={{ marginTop: 9 }}>Your outline will appear here after you import it.</p>}
               <input ref={structureImportInputRef} hidden type="file" accept="application/json,.json" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importMockupStructure(file); }} />
@@ -1307,15 +1327,15 @@ const BookAssemblyWorkspace = ({
         <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-pages-title">
           <div className="pbf-surface">
             <div className="pbf-table-wrap"><table className="pbf-map"><thead><tr><th id="book-assembly-mockup-pages-title">Activity</th><th>PDF</th><th>Pages</th><th>Starts on</th></tr></thead><tbody>{mockupRows.map((slot) => {
-              const group = selectedUnit?.pageGroups.find((pageGroup) => slot.pageGroupKeys.includes(pageGroup.pageGroupKey));
+              const group = mockupGroupFor(slot);
               const pages = group?.pages.join(', ') ?? '';
               const active = mappingActivityKey === slot.activityKey;
               return <tr key={slot.activityKey} className={!group ? 'is-error' : undefined}><td>{slot.activityKey}</td><td>{group ? mockupSourceLabel(group.sourceKey) : 'Choose a PDF'}</td><td><input aria-label={`${slot.activityKey} pages`} value={active ? mappingPages : pages} placeholder="Add pages" onFocus={() => { setMappingActivityKey(slot.activityKey); setMappingPages(pages); setMappingDefaultPage(String(group?.defaultPhysicalPageNumber ?? group?.pages[0] ?? 1)); setMappingSourceKey(group?.sourceKey ?? availableMappingSources[0]?.sourceKey ?? ''); }} onChange={(event) => { setMappingActivityKey(slot.activityKey); setMappingPages(event.target.value); }} /></td><td>{group?.defaultPhysicalPageNumber ?? group?.pages[0] ?? '—'}</td></tr>;
             })}</tbody></table></div>
             {mockupRows.length === 0 && <p className="pbf-muted" style={{ marginTop: 12 }}>Add Unit content before connecting activities to pages.</p>}
-            {!mockupHasPages && mockupRows.length > 0 && <div className="pbf-callout is-warn" style={{ marginTop: 14 }}><strong>Activity 2 still needs a page</strong><span>Add the page number above. The rest of the Book is safe while you finish this.</span></div>}
+            {!mockupHasPages && mockupRows.length > 0 && <div className="pbf-callout is-warn" style={{ marginTop: 14 }}><strong>{mockupMissingActivities.length === 1 ? `${mockupMissingActivities[0]} still needs a page` : `${mockupMissingActivities.join(', ')} still need pages`}</strong><span>Add the page number above. The rest of the Book is safe while you finish this.</span></div>}
             {mockupHasPages && <div className="pbf-callout is-good" style={{ marginTop: 14 }}><strong>Pages are connected</strong><span>Every activity has a place in the {strategy === 'full_pdf' ? 'full PDF' : 'component PDF'} setup.</span></div>}
-            <div className="pbf-actions" style={{ justifyContent: 'space-between', marginTop: 15 }}><button type="button" className="pbf-button" onClick={() => { setMappingMode('reference_only'); setMockupPageToolsOpen(true); }}>Add a reference page</button><button type="button" className="pbf-button pbf-button-primary" disabled={!mappingActivityKey || !mappingSourceKey} onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Check these pages</button></div>
+            <div className="pbf-actions" style={{ justifyContent: 'space-between', marginTop: 15 }}><button type="button" className="pbf-button" onClick={() => { setMappingMode('reference_only'); setMockupPageToolsOpen(true); }}>Add a reference page</button><button type="button" className="pbf-button pbf-button-primary" disabled={!mappingSourceKey || (mappingMode === 'activity' && !mappingActivityKey)} onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Check these pages</button></div>
           </div>
           {mockupPageToolsOpen && <details className="pbf-details pbf-mockup-advanced" open><summary>Change page connections</summary><div className="book-assembly-guided__mapping-form" style={{ marginTop: 12 }}><label><span>PDF</span><select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)}><option value="">Choose PDF</option>{availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{mockupSourceLabel(source.sourceKey)}</option>)}</select></label><label><span>Pages</span><input value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="1, 2" /></label><label><span>Starts on</span><input value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} placeholder="1" /></label><label><span>Activity</span><input value={mappingActivityKey} onChange={(event) => setMappingActivityKey(event.target.value)} /></label><button type="button" className="pbf-button" onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Save page connection</button></div></details>}
           {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert" style={{ marginTop: 14 }}>{validationMessage ?? errorMessage}</p>}

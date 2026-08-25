@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ComponentProps } from 'react';
+import { StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import BookSourceInspectionPanel from './BookSourceInspectionPanel';
 
@@ -76,6 +77,27 @@ describe('BookSourceInspectionPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue to upload' }));
     expect(harness.onRequestUploadAuthorization).toHaveBeenCalledWith({ file: selected, claim });
+  });
+
+  it('completes inspection when rendered under React StrictMode', async () => {
+    inspectSourcePdf.mockResolvedValue(claim);
+    const selected = file();
+    const onClaimChange = vi.fn();
+    render(
+      <StrictMode>
+        <BookSourceInspectionPanel
+          canRequestUploadAuthorization
+          onAction={vi.fn()}
+          onClaimChange={onClaimChange}
+          onRequestUploadAuthorization={vi.fn()}
+        />
+      </StrictMode>,
+    );
+
+    fireEvent.change(screen.getByLabelText('Source PDF'), { target: { files: [selected] } });
+
+    await screen.findByText('source.pdf');
+    expect(onClaimChange).toHaveBeenCalledWith({ file: selected, claim });
   });
 
   it('exposes the optional guided presentation without changing the inspection handlers', () => {
@@ -157,6 +179,6 @@ describe('BookSourceInspectionPanel', () => {
 
     cleanup();
     expect(invalidateSourcePdfInspectionClaim).toHaveBeenCalledWith(selected);
-    expect(harness.onClaimChange).toHaveBeenLastCalledWith(null);
+    expect(harness.onClaimChange).toHaveBeenLastCalledWith({ file: selected, claim });
   });
 });

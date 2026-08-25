@@ -138,6 +138,23 @@ describe('sourcePdfInspection.browser', () => {
     expect(isSourcePdfInspectionClaimForFile(successful, selected)).toBe(false);
   });
 
+  it('does not block a successful claim on a PDF.js cleanup that stays pending', async () => {
+    const selected = file();
+    const destroy = vi.fn(() => new Promise<void>(() => undefined));
+
+    const claim = await inspectSourcePdf(selected, {
+      __testDependencies: dependencies({
+        loadPdfDocument: async () => ({
+          promise: Promise.resolve({ numPages: 1 }),
+          destroy,
+        }),
+      }),
+    });
+
+    expect(claim.physicalPageCount).toBe(1);
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['not_pdf', new File(['plain text'], 'source.pdf'), new TextEncoder().encode('plain text').buffer],
     ['invalid_filename', new File([bytes], 'source.txt')],

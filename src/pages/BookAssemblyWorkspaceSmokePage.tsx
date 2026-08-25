@@ -22,6 +22,7 @@ import type {
   BookAssemblyMigrationClient,
   MigrateAssemblySourceStrategyInput,
 } from '../services/book-assembly/assemblyClient.browser';
+import type { BookAssemblyPreviewClient } from '../services/book-assembly/assemblyPublication.client';
 import { planSourceStrategyMigration } from '../services/book-assembly/sourceStrategyMigration.service';
 import type { ActivityAuthoringService } from '../services/book-activity/activityAuthoring.service';
 import {
@@ -547,6 +548,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const ticket63Fixture = fixture === 'ticket63-preview';
   const ticket65Fixture = fixture === 'ticket65-full-pdf';
   const ticket66Fixture = fixture === 'ticket66-component-pdf';
+  const pdfUploadFixture = fixture === 'pdf-upload';
   const ticket70Fixture = fixture === 'ticket70-full' || fixture === 'ticket70-component';
   const ticket50Fixture = fixture === 'ticket50-reconciliation';
   const ticket50CleanupReleased = searchParams.get('cleanup') === 'released';
@@ -646,6 +648,59 @@ export default function BookAssemblyWorkspaceSmokePage() {
     }
     setSearchParams(nextParams, { replace: true });
   }, [fixture, publicationSummary, setSearchParams]);
+
+  const smokeAssemblyPreviewClient = useMemo<BookAssemblyPreviewClient | null>(() => {
+    if (!ticket65Fixture && !ticket66Fixture) return null;
+    const activitiesByKey = ticket65Fixture
+      ? { 'activity-ticket65': ticket65Activity }
+      : {
+          'activity-ticket66-a': ticket66Activity('a'),
+          'activity-ticket66-b': ticket66Activity('b'),
+        };
+    const registryVersion = ticket65Fixture ? 'ticket65-local-fixture-v1' : 'ticket66-local-fixture-v1';
+    const preview = () => {
+      if (!candidate) throw new Error('The fixture candidate is unavailable.');
+      return createCandidateUnitPreview({
+        candidate,
+        sourceVersions,
+        sourceIsPreviewReady: () => true,
+        activitiesByKey,
+        registryVersion,
+      });
+    };
+    const flowPrefix = ticket65Fixture ? 'ticket65' : 'ticket66';
+    const receipt = (mode: 'full' | 'component', candidateId: string) => ({
+      operationId: `${flowPrefix}-flow-${mode}-operation`,
+      manifestVersionId: `${flowPrefix}-flow-${mode}-manifest`,
+      publicationId: `${flowPrefix}-flow-${mode}-publication`,
+      publicationRevision: 1,
+      result: { mode, candidateId, fixture: true },
+    });
+    return {
+      preview: async () => ({ preview: preview() }),
+      approve: async () => ({
+        approval: createPreviewApproval({
+          approvalId: `${ticket65Fixture ? 'ticket65' : 'ticket66'}-flow-preview-approval`,
+          approvalRevision: 1,
+          actorId: OWNER_ID,
+          approvedAt: '2026-07-27T00:00:00.000Z',
+          expiresAt: '2026-08-27T00:00:00.000Z',
+          preview: preview(),
+          canonicalActivitiesByKey: activitiesByKey,
+        }),
+      }),
+      publishFull: async (input) => {
+        const result = receipt('full', input.candidateId);
+        setPublicationMessage('Mock full-PDF publication completed.');
+        return result;
+      },
+      publishComponent: async (input) => {
+        const result = receipt('component', input.candidateId);
+        setPublicationMessage('Mock component-PDF publication completed.');
+        return result;
+      },
+    };
+  }, [candidate, ticket65Fixture, ticket66Fixture]);
 
   const persistTicket70State = useCallback((
     nextCandidate: BookAssemblyCandidateRecord,
@@ -756,6 +811,42 @@ export default function BookAssemblyWorkspaceSmokePage() {
     };
   }, [fixture, setSearchParams, ticket50CleanupReleased, ticket50Fixture]);
 
+  const pdfUploadWorkflow = useMemo<SourceUploadBrowserWorkflow | null>(() => {
+    if (!pdfUploadFixture) return null;
+    const verified = async (input: Parameters<SourceUploadBrowserWorkflow['start']>[0]) => ({
+      state: {
+        schemaVersion: 1 as const,
+        bookId: input.bookId,
+        operationId: 'pdf-upload-fixture-operation',
+        reservationId: 'pdf-upload-fixture-reservation',
+        sourceVersionId: `source-uploaded-${input.sourceKey}`,
+        sourceKey: input.sourceKey,
+        kind: input.kind,
+        displayFilename: input.claim.displayFilename,
+        exactByteSize: input.claim.exactByteSize,
+        sha256Hex: input.claim.sha256Hex,
+        providerFileId: 'pdf-upload-fixture-file',
+        providerFileVersionId: 'pdf-upload-fixture-version',
+        phase: 'verified' as const,
+      },
+      completion: {
+        status: 'verified_completed' as const,
+        reservationId: 'pdf-upload-fixture-reservation',
+        sourceVersionId: `source-uploaded-${input.sourceKey}`,
+      },
+    });
+    return {
+      load: async () => null,
+      start: verified,
+      retryBytes: verified,
+      retryCompletion: async () => {
+        throw new Error('pdf_upload_fixture_completion_retry_not_needed');
+      },
+      requestCancellation: async () => true,
+      retryCleanup: async () => 'released' as const,
+    };
+  }, [pdfUploadFixture]);
+
   const persistPublicationScope = useCallback((
     scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
     canonicalRecords: readonly CanonicalPublishedActivityVersionRecord[] = [],
@@ -770,6 +861,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
   }, [candidate, fixture, setSearchParams]);
 
   const repository = useMemo<UnitAssemblyRepository>(() => {
+    let workingCandidate = candidate;
     const mutationResult = (
       status: BookAssemblyMutationResult['status'],
       nextCandidate?: BookAssemblyCandidateRecord,
@@ -792,25 +884,34 @@ export default function BookAssemblyWorkspaceSmokePage() {
     return {
       create: async (input) => {
         const next = createCandidate(input.manifest, 1);
+        workingCandidate = next;
         persistCandidate(next);
         return mutationResult('created', next);
       },
       replace: async (input) => {
         if (forceConflictRef.current) {
-          const remote = createCandidate(candidate?.manifest ?? initialManifest, (candidate?.revision ?? 1) + 1);
+          const remote = createCandidate(workingCandidate?.manifest ?? initialManifest, (workingCandidate?.revision ?? 1) + 1);
+          workingCandidate = remote;
           persistCandidate(remote);
           forceConflictRef.current = false;
           return mutationResult('conflict');
         }
-        const next = createCandidate(input.manifest, (candidate?.revision ?? input.expectedCandidateRevision) + 1);
+        const next = createCandidate(input.manifest, (workingCandidate?.revision ?? input.expectedCandidateRevision) + 1);
+        workingCandidate = next;
         persistCandidate(next);
         return mutationResult('replaced', next);
       },
-      validate: async () => mutationResult('validated', candidate ?? createCandidate(initialManifest, 1)),
-      discard: async () => mutationResult('discarded', candidate ?? createCandidate(initialManifest, 1)),
+      validate: async () => {
+        const base = workingCandidate ?? createCandidate(initialManifest, 1);
+        const next = { ...base, lifecycle: 'validated' as const, revision: base.revision + 1, validation: { valid: true, errors: [] } };
+        workingCandidate = next;
+        persistCandidate(next);
+        return mutationResult('validated', next);
+      },
+      discard: async () => mutationResult('discarded', workingCandidate ?? createCandidate(initialManifest, 1)),
       load: async () => ({
         conflict: null,
-        candidate: candidate ?? createCandidate(initialManifest, 1),
+        candidate: workingCandidate ?? createCandidate(initialManifest, 1),
         status: 'loaded',
       }),
     };
@@ -1280,6 +1381,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
         assemblyBookRevision={7}
         assemblyInitialCandidate={candidate}
         assemblyCandidateRuntimePreview={candidateRuntimePreview}
+        assemblyPreviewClient={smokeAssemblyPreviewClient}
         assemblyPreviewDocuments={previewDocuments}
         assemblyRepository={repository}
         assemblyMigrationClient={ticket70MigrationClient}
@@ -1288,8 +1390,8 @@ export default function BookAssemblyWorkspaceSmokePage() {
         book={{ ...smokeBook, title: fixtureTitle }}
         onDirtyChange={setDirty}
         presentation="page-compat"
-        uploadPresentationEnabled={false}
-        uploadWorkflow={ticket50UploadWorkflow}
+        uploadPresentationEnabled={pdfUploadFixture || false}
+        uploadWorkflow={pdfUploadFixture ? pdfUploadWorkflow : ticket50UploadWorkflow}
       />
     </main>
   );

@@ -187,7 +187,9 @@ export const inspectSourcePdf = async (
   } finally {
     if (task?.destroy) {
       try {
-        await task.destroy();
+        // PDF.js can leave fake-worker cleanup pending in some browsers. Cleanup
+        // must never prevent a verified local inspection claim from resolving.
+        void Promise.resolve(task.destroy()).catch(() => undefined);
       } catch {
         // PDF.js cleanup is best-effort and must not mask the inspection result.
       }
