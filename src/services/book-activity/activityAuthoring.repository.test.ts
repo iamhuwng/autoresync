@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createActivityAuthoringRepository } from './activityAuthoring.repository';
+import { ActivityAuthoringAmbiguousTransportError } from './activityStorage.service';
 
 const stageResponse = {
   status: 'staged',
@@ -86,5 +87,22 @@ describe('Activity authoring repository response boundary', () => {
       expectedRevision: 2,
       candidateId: 'candidate-1',
     })).resolves.toEqual(savedResponse);
+  });
+
+  it('requests an exact-operation replay for a valid binding-pending receipt', async () => {
+    const repository = createActivityAuthoringRepository({
+      mutate: vi.fn(async () => ({
+        ...savedResponse,
+        status: 'binding-incomplete',
+        retryable: true,
+        binding: { ...savedResponse.binding, phase: 'binding-pending' },
+      })),
+      read: vi.fn(),
+    });
+    await expect(repository.saveDraft({
+      operationId: '123e4567-e89b-42d3-a456-426614174004',
+      expectedRevision: 2,
+      candidateId: 'candidate-1',
+    })).rejects.toBeInstanceOf(ActivityAuthoringAmbiguousTransportError);
   });
 });

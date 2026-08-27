@@ -108,4 +108,26 @@ describe('Activity authoring client facade', () => {
     expect(repository.stage).toHaveBeenCalledTimes(2);
     expect(repository.stage.mock.calls[0][0].operationId).toBe(repository.stage.mock.calls[1][0].operationId);
   });
+
+  it('replays a binding-pending save with the same operation and replacement intent', async () => {
+    const saved = {
+      status: 'saved' as const,
+      activityId: 'activity-1', revision: 2, candidateId: 'candidate-1', candidateRevision: 3,
+      lifecycle: 'saved' as const, validation: { valid: true, errors: [] }, diff: null, evidenceRefs: [],
+    };
+    const repository = {
+      stage: vi.fn(), validate: vi.fn(),
+      saveDraft: vi.fn()
+        .mockRejectedValueOnce(new ActivityAuthoringAmbiguousTransportError())
+        .mockResolvedValueOnce(saved),
+      discard: vi.fn(), loadCandidate: vi.fn(),
+    };
+    const service = createActivityAuthoringService(repository);
+    await expect(service.saveDraft({
+      candidateId: 'candidate-1', expectedRevision: 3,
+      replaceExistingUnitActivityBinding: true,
+    })).resolves.toEqual(saved);
+    expect(repository.saveDraft).toHaveBeenCalledTimes(2);
+    expect(repository.saveDraft.mock.calls[0][0]).toEqual(repository.saveDraft.mock.calls[1][0]);
+  });
 });

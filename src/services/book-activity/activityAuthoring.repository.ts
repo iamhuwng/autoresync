@@ -1,4 +1,7 @@
-import type { ActivityAuthoringTransport } from './activityStorage.service';
+import {
+  ActivityAuthoringAmbiguousTransportError,
+  type ActivityAuthoringTransport,
+} from './activityStorage.service';
 import type {
   ActivityDiff,
   ActivityValidationError,
@@ -325,6 +328,19 @@ const decodeValidate = (value: unknown): ActivityValidateResult => {
   };
 };
 const decodeSaveDraft = (value: unknown): ActivitySaveDraftResult => {
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)
+    && (value as Record<string, unknown>).status === 'binding-incomplete') {
+    const incomplete = exact(value, [
+      'status', 'activityId', 'revision', 'candidateId', 'candidateRevision',
+      'lifecycle', 'validation', 'diff', 'evidenceRefs', 'retryable', 'binding',
+    ], ['replayed', 'sourceEvidenceRefs', 'answerEvidenceRefs']);
+    if (incomplete.retryable !== true || binding(incomplete.binding).phase !== 'binding-pending') {
+      throw new Error('Activity authoring returned a malformed response.');
+    }
+    // The Activity commit is durable; replay this exact operation so the Worker
+    // can finish its server-owned Assembly binding receipt without another save.
+    throw new ActivityAuthoringAmbiguousTransportError();
+  }
   const result = exact(value, [
     'status', 'activityId', 'revision', 'candidateId', 'candidateRevision',
     'lifecycle', 'validation', 'diff', 'evidenceRefs',
