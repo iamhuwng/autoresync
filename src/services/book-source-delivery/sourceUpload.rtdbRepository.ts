@@ -160,6 +160,13 @@ export interface ClearSourceProviderReconciliationContinuationInput {
   readonly expectedContinuationToken: string;
 }
 
+export interface InvalidateSourceProviderReconciliationInput {
+  readonly accountId: string;
+  readonly expectedRevision: number;
+  /** Expected sealed cursor, or undefined when no cursor is stored. */
+  readonly expectedContinuationToken?: string;
+}
+
 export interface RecordCommittedVersionReconciliationFailureInput {
   readonly accountId: string;
   readonly expectedRevision: number;
@@ -326,6 +333,41 @@ export class SourceUploadRtdbRepository {
           );
         }
         return withProviderReconciliationContinuation(state, undefined);
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
+  async invalidateProviderReconciliation(
+    input: InvalidateSourceProviderReconciliationInput,
+  ): Promise<BookSourceUploadAccountState> {
+    assertRtdbKey(input.accountId, 'accountId');
+    assertExpectedRevision(input.expectedRevision);
+    assertOptionalProviderReconciliationToken(input.expectedContinuationToken);
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) {
+          throw new SourceUploadConflictError('upload account state does not exist.');
+        }
+        const state = normalizePersistedState(current);
+        assertState(state);
+        if (state.capacity.providerReconciliationContinuation?.token
+          !== input.expectedContinuationToken) {
+          throw new SourceUploadConflictError(
+            'provider reconciliation invalidation compare-and-set conflict.',
+          );
+        }
+        const snapshot = state.capacity.providerReconciliation;
+        return nextState(
+          state,
+          state.operations,
+          state.capacity.trackedAccountBytes,
+          snapshot === undefined
+            ? undefined
+            : { ...snapshot, status: 'drift' },
+        );
       },
     });
     return requireCommitted(result.committed, result.value);

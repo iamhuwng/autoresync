@@ -16,6 +16,10 @@ export interface ActivityCandidateInput {
   /** Book identity is a transport claim; the Worker re-resolves ownership. */
   bookId?: string;
   targetActivityId?: string;
+  /** Optional trusted-route hint used to derive Book page validation context. */
+  unitActivityBinding?: { readonly unitKey: string; readonly activityKey: string };
+  /** Browser-only context for early UX validation; never sent as authority. */
+  clientValidationContext?: Pick<ActivityValidationContext, 'mappedBookPageRefs'>;
   content: unknown;
   evidenceRefs?: readonly string[];
   sourceEvidenceRefs?: readonly string[];
@@ -72,11 +76,19 @@ export const validateActivityCandidate = (
   const evidenceRefs = validateEvidenceRefs(input.evidenceRefs);
   const sourceEvidenceRefs = validateEvidenceRefs(input.sourceEvidenceRefs);
   const answerEvidenceRefs = validateEvidenceRefs(input.answerEvidenceRefs);
-  const validation = validateEditableActivity(input.content, validationContext);
+  const validation = validateEditableActivity(
+    input.content,
+    input.clientValidationContext ?? validationContext,
+  );
   if (!validation.valid) {
     throw new ActivityCandidateError('Activity candidate failed schema validation.');
   }
-  const normalized = normalizeActivity(validation.value, undefined, previous, validationContext);
+  const normalized = normalizeActivity(
+    validation.value,
+    undefined,
+    previous,
+    input.clientValidationContext ?? validationContext,
+  );
   return {
     ...(input.targetActivityId === undefined ? {} : { targetActivityId: input.targetActivityId }),
     content: validation.value,

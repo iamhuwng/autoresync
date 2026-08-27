@@ -659,7 +659,7 @@ describe('BookAssemblyWorkspace', () => {
     expect(mocks.success).toHaveBeenCalledWith('Unit prompt copied.');
   });
 
-  it('imports Unit JSON through 12C staging before saving one Assembly candidate revision', async () => {
+  it('persists the Assembly contract before staging Unit JSON through 12C', async () => {
     const user = userEvent.setup();
     const repo = repository();
     const authoring = activityAuthoring();
@@ -687,7 +687,8 @@ describe('BookAssemblyWorkspace', () => {
     await waitFor(() => expect(authoring.stage).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(1));
     expect(authoring.stage).toHaveBeenCalledWith(expect.objectContaining({
-      targetActivityId: 'activity-reading-1',
+      targetActivityId: 'ba_626f6f6b2d31_61637469766974792d72656164696e672d31',
+      clientValidationContext: { mappedBookPageRefs: ['source:full:page:2'] },
       sourceEvidenceRefs: ['source:full:page:2'],
       answerEvidenceRefs: ['pageGroup:pages-full-2-activity'],
     }));
@@ -698,6 +699,7 @@ describe('BookAssemblyWorkspace', () => {
       candidateId: 'candidate-1',
       expectedCandidateRevision: 1,
     }));
+    expect(repo.replace.mock.invocationCallOrder[0]).toBeLessThan(authoring.stage.mock.invocationCallOrder[0]);
     expect(mocks.success).toHaveBeenCalledWith('Unit Activity JSON imported.');
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'teacher_materials_book_assembly_unit_import_staged',
@@ -705,7 +707,7 @@ describe('BookAssemblyWorkspace', () => {
     );
   });
 
-  it('rolls back 12C staged Activity candidates when 13A save conflicts', async () => {
+  it('stops before 12C Activity staging when the prerequisite 13A Assembly save conflicts', async () => {
     const user = userEvent.setup();
     const repo = repository('conflict');
     const authoring = activityAuthoring();
@@ -730,12 +732,11 @@ describe('BookAssemblyWorkspace', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
 
-    await waitFor(() => expect(authoring.discard).toHaveBeenCalledWith({
-      candidateId: 'candidate-activity-reading-1',
-      expectedRevision: 3,
-    }));
+    await waitFor(() => expect(repo.replace).toHaveBeenCalled());
+    expect(authoring.stage).not.toHaveBeenCalled();
+    expect(authoring.discard).not.toHaveBeenCalled();
     expect(repo.replace).toHaveBeenCalled();
-    expect(await screen.findByText('Assembly changed elsewhere. Imported Activities were rolled back; reload or retry.')).toBeVisible();
+    expect(await screen.findByText('Assembly changed elsewhere. Reload or retry before importing Activities.')).toBeVisible();
   });
 
   it('rejects malformed import atomically before 12C or 13A writes', async () => {

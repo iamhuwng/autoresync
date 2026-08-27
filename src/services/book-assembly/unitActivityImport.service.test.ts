@@ -3,6 +3,7 @@ import type { ActivityAuthoringService } from '../book-activity/activityAuthorin
 import type { EditableActivity } from '../../types/bookActivity.types';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
 import {
+  bookScopedActivityTargetId,
   discardStagedUnitActivities,
   parseUnitActivityImportBundle,
   stageUnitActivityImportBundle,
@@ -104,6 +105,20 @@ const authoring = (): ActivityAuthoringService => ({
 });
 
 describe('unit Activity JSON import', () => {
+  it('derives collision-free Activity targets from the Book and logical slot identities', () => {
+    expect(bookScopedActivityTargetId('book-1', 'activity-a'))
+      .toBe('ba_626f6f6b2d31_61637469766974792d61');
+    expect(bookScopedActivityTargetId('book-2', 'activity-a'))
+      .not.toBe(bookScopedActivityTargetId('book-1', 'activity-a'));
+    expect(bookScopedActivityTargetId('book-1', 'activity:a'))
+      .not.toBe(bookScopedActivityTargetId('book-1', 'activity_3aa'));
+  });
+
+  it('fails closed when a Book-scoped Activity target cannot fit the authoring ID contract', () => {
+    expect(() => bookScopedActivityTargetId('b'.repeat(128), 'a'.repeat(128)))
+      .toThrowError(expect.objectContaining({ code: 'activity-target-too-long' }));
+  });
+
   it('parses one bounded exact-slot bundle for the selected Unit', () => {
     const parsed = parseUnitActivityImportBundle(bundle(), manifest, 'unit-1');
 
@@ -220,6 +235,7 @@ describe('unit Activity JSON import', () => {
     expect(service.discard).toHaveBeenCalledWith({
       candidateId: 'candidate-activity-a',
       expectedRevision: 9,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
     });
   });
 

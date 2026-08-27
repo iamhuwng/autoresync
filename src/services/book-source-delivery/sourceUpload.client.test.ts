@@ -220,18 +220,18 @@ describe('sourceUpload.client', () => {
       phase: 'completion_pending',
       providerFileVersionId: '4_version',
     });
-    expect(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1'))
+    expect(JSON.stringify(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1:main')))
       .not.toMatch(/token|signature|requiredHeaders|uploadUrl/iu);
 
     sessionStorage.setItem(
-      'prd0062:book-source-upload:v1:book-1',
+      'prd0062:book-source-upload:v1:book-1:main',
       JSON.stringify({
         ...(await port.load('book-1')),
         uploadUrl: 'https://upload.example/private?signature=secret',
       }),
     );
     await expect(port.load('book-1')).resolves.toBeNull();
-    expect(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1')).toBeNull();
+    expect(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1:main')).toBeNull();
   });
 
   it('persists a begin-pending replay identity without remote or provider authority', async () => {
@@ -259,7 +259,7 @@ describe('sourceUpload.client', () => {
       sha256Hex: 'a'.repeat(64),
       phase: 'begin_pending',
     });
-    expect(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1'))
+    expect(JSON.stringify(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1:main')))
       .not.toMatch(/reservationId|sourceVersionId|provider|token|signature|headers|uploadUrl/iu);
   });
 
@@ -318,6 +318,50 @@ describe('sourceUpload.client', () => {
       'https://reconciliation.example/v1/book-source/books/book-1/upload/reservation-1/reconcile',
       expect.objectContaining({ method: 'POST', body: '{}' }),
     ]);
+  });
+
+  it('loads a bounded trusted source projection for session-independent resume', async () => {
+    const fetchImpl = vi.fn(async () => Response.json({
+      sources: [{
+        sourceKey: 'full',
+        sourceVersionId: 'source-version-1',
+        bookId: 'book-1',
+        physicalPageCount: 14,
+        verifiedUsable: true,
+      }],
+    }));
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+
+    await expect(client.listSourceVersions('book-1')).resolves.toEqual([{
+      sourceKey: 'full',
+      sourceVersionId: 'source-version-1',
+      bookId: 'book-1',
+      physicalPageCount: 14,
+      verifiedUsable: true,
+    }]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://control.example/v1/book-source/books/book-1/sources',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImpl.mock.calls[0]?.[1]).not.toHaveProperty('body');
+  });
+
+  it('fails closed on malformed trusted source projection data', async () => {
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'token',
+      fetchImpl: vi.fn(async () => Response.json({
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-version-1', bookId: 'book-1', physicalPageCount: 0, verifiedUsable: true }],
+      })) as typeof fetch,
+    });
+    await expect(client.listSourceVersions('book-1')).rejects.toMatchObject({
+      code: 'invalid_response',
+      status: 502,
+    });
   });
 
   it('fails closed when the reconciliation Worker is not configured', async () => {

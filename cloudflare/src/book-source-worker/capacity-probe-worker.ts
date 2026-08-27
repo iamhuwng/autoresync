@@ -3,6 +3,7 @@ import {
   SourceUploadRtdbRepository,
   validateBookSourceUploadAccountState,
 } from '../../../src/services/book-source-delivery/sourceUpload.rtdbRepository';
+import { SourceProviderError } from '../../../src/services/book-source-delivery/sourceProvider.port';
 import type { ProviderReconciliationSnapshot } from './capacity-ledger';
 import type { ProviderReconciliationCursor } from './provider-reconciliation';
 import type { CapacityProbeEnvironment } from './capacity-probe-env';
@@ -33,6 +34,7 @@ const LOCAL_BASELINE_CREDENTIAL_HEADERS = new Set([
   'x-api-key',
   'x-auth-token',
 ]);
+export const CAPACITY_PROBE_FAILURE_HEADER = 'x-book-source-capacity-failure';
 
 interface ExpectedTotals {
   readonly totalBytes: number;
@@ -58,10 +60,26 @@ export const getCanonicalCapacityExpectedTotals = (state: unknown): ExpectedTota
   });
 };
 
-const noStore = (status: number, value: Record<string, unknown>): Response => new Response(JSON.stringify(value), {
-  status, headers: { 'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8' },
+const noStore = (
+  status: number,
+  value: Record<string, unknown>,
+  extraHeaders: Readonly<Record<string, string>> = {},
+): Response => new Response(JSON.stringify(value), {
+  status,
+  headers: {
+    'cache-control': 'no-store',
+    'content-type': 'application/json; charset=utf-8',
+    ...extraHeaders,
+  },
 });
-const unavailable = (status: number): Response => noStore(status, { code: 'unavailable' });
+const unavailable = (
+  status: number,
+  failureCode?: 'unauthorized',
+): Response => noStore(
+  status,
+  { code: 'unavailable' },
+  failureCode === undefined ? {} : { [CAPACITY_PROBE_FAILURE_HEADER]: failureCode },
+);
 const isSafeCount = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const record = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -428,7 +446,12 @@ export const createCapacityProbeWorker = (
     } catch (error) {
       if (options.onError) options.onError(error);
       else reportFailure(error);
-      return unavailable(503);
+      return unavailable(
+        503,
+        error instanceof SourceProviderError && error.code === 'unauthorized'
+          ? 'unauthorized'
+          : undefined,
+      );
     }
   },
   };

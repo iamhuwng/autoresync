@@ -1,7 +1,7 @@
 import type { BookRouteMethod } from '../book-routes/types.ts';
 
 export interface BookSourceRouteDescriptor {
-  readonly handler: 'begin' | 'complete' | 'status' | 'cancel' | 'attach';
+  readonly handler: 'begin' | 'complete' | 'status' | 'cancel' | 'attach' | 'sources';
   readonly method: BookRouteMethod;
   readonly path: string;
 }
@@ -26,6 +26,11 @@ export const bookSourceRouteDescriptors: readonly BookSourceRouteDescriptor[] = 
     handler: 'status',
     method: 'GET',
     path: '/v1/book-source/books/:bookId/upload/:reservationId/status',
+  },
+  {
+    handler: 'sources',
+    method: 'GET',
+    path: '/v1/book-source/books/:bookId/sources',
   },
   {
     handler: 'cancel',

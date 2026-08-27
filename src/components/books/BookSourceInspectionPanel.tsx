@@ -63,6 +63,7 @@ const BookSourceInspectionPanel = ({
   const inspectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const fileRef = useRef<File | null>(null);
+  const claimHandedOffRef = useRef(false);
   const onActionRef = useRef(onAction);
   fileRef.current = file;
   onActionRef.current = onAction;
@@ -74,6 +75,7 @@ const BookSourceInspectionPanel = ({
   };
 
   const clearClaim = () => {
+    claimHandedOffRef.current = false;
     const currentFile = file;
     if (currentFile) invalidateSourcePdfInspectionClaim(currentFile);
     setClaim(null);
@@ -81,6 +83,7 @@ const BookSourceInspectionPanel = ({
   };
 
   const inspect = (nextFile: File, retry: boolean) => {
+    claimHandedOffRef.current = false;
     runRef.current += 1;
     const run = runRef.current;
     controllerRef.current?.abort();
@@ -153,7 +156,9 @@ const BookSourceInspectionPanel = ({
       runRef.current += 1;
       controllerRef.current?.abort();
       clearInspectionTimeout();
-      if (fileRef.current) invalidateSourcePdfInspectionClaim(fileRef.current);
+      if (fileRef.current && !claimHandedOffRef.current) {
+        invalidateSourcePdfInspectionClaim(fileRef.current);
+      }
     };
   }, []);
 
@@ -219,7 +224,10 @@ const BookSourceInspectionPanel = ({
               <span className="pbf-status is-good">Looks good</span>
             </div>
             {canRequestUploadAuthorization ? (
-              <div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 16 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => onRequestUploadAuthorization(selection)}>Upload PDF</button></div>
+              <div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 16 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => {
+                claimHandedOffRef.current = true;
+                onRequestUploadAuthorization(selection);
+              }}>Upload PDF</button></div>
             ) : (
               <div className="pbf-callout is-warn" role="status"><strong>Upload is unavailable</strong><span>{uploadUnavailableMessage ?? 'Upload authorization is disabled in this view.'}</span></div>
             )}
@@ -321,7 +329,10 @@ const BookSourceInspectionPanel = ({
         disabled={!canContinue}
         aria-describedby={!canRequestUploadAuthorization ? 'book-source-inspection-availability' : undefined}
         onClick={() => {
-          if (selection && canContinue) onRequestUploadAuthorization(selection);
+          if (selection && canContinue) {
+            claimHandedOffRef.current = true;
+            onRequestUploadAuthorization(selection);
+          }
         }}
       >
         Continue to upload

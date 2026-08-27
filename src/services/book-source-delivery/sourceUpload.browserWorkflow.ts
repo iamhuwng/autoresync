@@ -161,6 +161,12 @@ const verifiedState = (
   ...state,
   sourceVersionId: completion.sourceVersionId,
   phase: 'verified',
+  ...(completion.bookRevision !== undefined && completion.sourceSetRevision !== undefined
+    ? {
+        bookRevision: completion.bookRevision,
+        sourceSetRevision: completion.sourceSetRevision,
+      }
+    : {}),
 });
 
 const definitelyUnreserved = (error: unknown): boolean =>
@@ -183,7 +189,11 @@ const samePersistedState = (
   && left.reservationId === right.reservationId
   && left.sourceVersionId === right.sourceVersionId
   && left.providerFileId === right.providerFileId
-  && left.providerFileVersionId === right.providerFileVersionId;
+  && left.providerFileVersionId === right.providerFileVersionId
+  && (left.phase === 'verified' ? left.bookRevision : undefined)
+    === (right.phase === 'verified' ? right.bookRevision : undefined)
+  && (left.phase === 'verified' ? left.sourceSetRevision : undefined)
+    === (right.phase === 'verified' ? right.sourceSetRevision : undefined);
 
 const matchesRemoteBinding = (
   local: SourceUploadBoundOperationState,

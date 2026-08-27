@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBookSourceReconciliationWorker } from '../src/book-source-worker/reconciliation-worker';
+import { CAPACITY_PROBE_FAILURE_HEADER } from '../src/book-source-worker/capacity-probe-worker';
 
 const pilotIssuedAt = new Date(Date.now() - 60 * 60_000).toISOString();
 const pilotExpiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
@@ -336,6 +337,69 @@ describe('Book Source reconciliation Worker', () => {
     );
     expect(reconcile).toHaveBeenCalledTimes(2);
     error.mockRestore();
+  });
+
+  it('invalidates the trusted snapshot on provider authorization failure with revision and cursor CAS', async () => {
+    const invalidate = vi.fn(async () => undefined);
+    const state = {
+      revision: 12,
+      capacity: {
+        trackedAccountBytes: 23,
+        temporaryBytes: 0,
+        providerReconciliation: {
+          status: 'healthy' as const,
+          totalBytes: 23,
+          objectCount: 2,
+          completedAt: '2026-07-29T00:01:00.000Z',
+        },
+        providerReconciliationContinuation: {
+          token: 'sealed_cursor',
+          updatedAt: '2026-07-29T00:01:30.000Z',
+        },
+      },
+      operations: {},
+    };
+    const runtimeFactory = vi.fn(async () => ({
+      readAccountState: async () => state,
+      reconciler: { reconcile: vi.fn() },
+      repository: {
+        recordProviderReconciliationContinuation: vi.fn(),
+        clearProviderReconciliationContinuation: vi.fn(),
+        invalidateProviderReconciliation: invalidate,
+      },
+    }) as never);
+    const capacityFetch = vi.fn(async () => new Response(
+      JSON.stringify({ code: 'unavailable' }),
+      {
+        status: 503,
+        headers: {
+          'content-type': 'application/json',
+          [CAPACITY_PROBE_FAILURE_HEADER]: 'unauthorized',
+        },
+      },
+    ));
+    const worker = createBookSourceReconciliationWorker(
+      vi.fn<typeof globalThis.fetch>(),
+      () => new Date('2026-07-29T00:02:00.000Z'),
+      { fetch: capacityFetch },
+      runtimeFactory,
+    );
+
+    await worker.scheduled({} as ScheduledController, {
+      BOOK_SOURCE_RECONCILIATION_STATE: 'enabled',
+      BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE: 'enabled',
+      BOOK_SOURCE_RECONCILIATION_ACTION_STATE: 'disabled',
+      BOOK_SOURCE_CAPACITY_PROBE_STATE: 'enabled',
+      BOOK_SOURCE_CAPACITY_PROBE_TOKEN: 'probe-secret',
+      BOOK_SOURCE_UPLOAD_ACCOUNT_ID: 'account-1',
+    } as never, {} as ExecutionContext);
+
+    expect(invalidate).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      expectedRevision: 12,
+      expectedContinuationToken: 'sealed_cursor',
+    });
+    expect(capacityFetch).toHaveBeenCalledTimes(1);
   });
 
   it('runs cleanup before capacity and does not let cleanup erase new progress', async () => {

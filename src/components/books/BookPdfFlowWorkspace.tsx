@@ -30,6 +30,10 @@ interface SourceSlot {
   readonly uploadState: SourceUploadSafeOperationState | null;
 }
 
+type LocalSourceVersionProjection = TrustedBookSourceVersionProjection & {
+  readonly sourceKey: string;
+};
+
 export interface BookPdfFlowWorkspaceProps {
   readonly access: 'owner' | 'administrator' | 'public-readonly';
   readonly bookId: string;
@@ -43,6 +47,7 @@ export interface BookPdfFlowWorkspaceProps {
   readonly assemblyMigrationClient?: BookAssemblyMigrationClient | null;
   readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly assemblySourceVersions: readonly TrustedBookSourceVersionProjection[];
+  readonly assemblyInitialSourceSet?: SourceSetCandidate | null;
   readonly assemblyInitialCandidate?: BookAssemblyCandidateRecord | null;
   readonly assemblyBookRevision: number;
   readonly assemblySourceSetRevision: number;
@@ -75,11 +80,12 @@ const slotFor = (mode: PdfFlowMode, index: number): SourceSlot => ({
 
 const sourceProjection = (
   slot: SourceSlot,
-): TrustedBookSourceVersionProjection | null => {
+): LocalSourceVersionProjection | null => {
   const state = slot.uploadState;
   const claim = slot.selection?.claim;
   if (!state || state.phase !== 'verified' || !state.sourceVersionId || !claim) return null;
   return {
+    sourceKey: slot.sourceKey,
     sourceVersionId: state.sourceVersionId,
     bookId: state.bookId,
     physicalPageCount: claim.physicalPageCount,
@@ -100,6 +106,7 @@ const BookPdfFlowWorkspace = ({
   assemblyMigrationClient,
   activityAuthoring,
   assemblySourceVersions,
+  assemblyInitialSourceSet,
   assemblyInitialCandidate,
   assemblyBookRevision,
   assemblySourceSetRevision,
@@ -113,7 +120,8 @@ const BookPdfFlowWorkspace = ({
   onUploadAction,
   onTrackAction,
 }: BookPdfFlowWorkspaceProps) => {
-  const initialStrategy = assemblyInitialCandidate?.manifest?.sourceSet.sourceStrategy;
+  const persistedSourceSet = assemblyInitialCandidate?.manifest?.sourceSet ?? assemblyInitialSourceSet ?? null;
+  const initialStrategy = persistedSourceSet?.sourceStrategy;
   const [mode, setMode] = useState<PdfFlowMode | null>(
     initialStrategy === 'component_pdfs' ? 'component' : initialStrategy === 'full_pdf' ? 'full' : null,
   );
@@ -135,13 +143,15 @@ const BookPdfFlowWorkspace = ({
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [migrationBusy, setMigrationBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: '' | 'good' | 'warn' | 'error' }>({ text: '', kind: '' });
+  const [effectiveAssemblyBookRevision, setEffectiveAssemblyBookRevision] = useState(assemblyBookRevision);
+  const [effectiveAssemblySourceSetRevision, setEffectiveAssemblySourceSetRevision] = useState(assemblySourceSetRevision);
 
   const canEdit = access !== 'public-readonly';
   const selectedMode = mode ?? 'full';
   const visibleSlots = selectedMode === 'full' ? slots.slice(0, 1) : slots;
   const verifiedSlots = visibleSlots.filter((slot) => slot.uploadState?.phase === 'verified');
-  const candidateSourceIds = new Set(assemblyInitialCandidate?.manifest?.sourceSet.sources.map((source) => source.sourceVersionId) ?? []);
-  const persistedStrategyMatches = assemblyInitialCandidate?.manifest?.sourceSet.sourceStrategy
+  const candidateSourceIds = new Set(persistedSourceSet?.sources.map((source) => source.sourceVersionId) ?? []);
+  const persistedStrategyMatches = persistedSourceSet?.sourceStrategy
     === (selectedMode === 'full' ? 'full_pdf' : 'component_pdfs');
   const persistedSourceReady = persistedStrategyMatches
     && (selectedMode === 'full' ? candidateSourceIds.size === 1 : candidateSourceIds.size >= 2)
@@ -149,6 +159,19 @@ const BookPdfFlowWorkspace = ({
   const sourceReady = selectedMode === 'full'
     ? verifiedSlots.length === 1 || persistedSourceReady
     : (verifiedSlots.length >= 2 && verifiedSlots.length === visibleSlots.length) || persistedSourceReady;
+
+  useEffect(() => {
+    setEffectiveAssemblyBookRevision((current) => Math.max(current, assemblyBookRevision));
+    setEffectiveAssemblySourceSetRevision((current) => Math.max(current, assemblySourceSetRevision));
+  }, [assemblyBookRevision, assemblySourceSetRevision]);
+
+  const updateAuthorityRevisions = (revisions: {
+    readonly bookRevision: number;
+    readonly sourceSetRevision: number;
+  }) => {
+    setEffectiveAssemblyBookRevision((current) => Math.max(current, revisions.bookRevision));
+    setEffectiveAssemblySourceSetRevision((current) => Math.max(current, revisions.sourceSetRevision));
+  };
   const candidateManifest = candidate?.manifest;
   const structureReady = Boolean(candidateManifest
     && candidateManifest.nodes.some((node) => node.nodeType !== 'unit')
@@ -168,19 +191,19 @@ const BookPdfFlowWorkspace = ({
             ? 5
             : 4;
   const localSources = useMemo(
-    () => visibleSlots.map(sourceProjection).filter((source): source is TrustedBookSourceVersionProjection => source !== null),
+    () => visibleSlots.map(sourceProjection).filter((source): source is LocalSourceVersionProjection => source !== null),
     [visibleSlots],
   );
   const sourceVersions = useMemo(() => {
     const byId = new Map(assemblySourceVersions.map((source) => [source.sourceVersionId, source]));
     localSources.forEach((source) => byId.set(source.sourceVersionId, source));
-    const persistedIdsForMode = assemblyInitialCandidate?.manifest?.sourceSet.sourceStrategy
+    const persistedIdsForMode = persistedSourceSet?.sourceStrategy
       === (selectedMode === 'full' ? 'full_pdf' : 'component_pdfs')
       ? candidateSourceIds
       : new Set<string>();
     const relevantIds = new Set([...persistedIdsForMode, ...localSources.map((source) => source.sourceVersionId)]);
     return [...byId.values()].filter((source) => relevantIds.has(source.sourceVersionId));
-  }, [assemblyInitialCandidate, assemblySourceVersions, candidateSourceIds, localSources, selectedMode]);
+  }, [assemblySourceVersions, candidateSourceIds, localSources, persistedSourceSet, selectedMode]);
 
   useEffect(() => {
     onDirtyChange?.(slots.some((slot) => slot.selection !== null || slot.uploadState !== null) || candidate !== null);
@@ -269,10 +292,10 @@ const BookPdfFlowWorkspace = ({
         bookId,
         unitKey: candidate.unitKey,
         candidateId: candidate.candidateId,
-        expectedBookRevision: assemblyBookRevision,
-        expectedSourceSetRevision: assemblySourceSetRevision,
+        expectedBookRevision: effectiveAssemblyBookRevision,
+        expectedSourceSetRevision: effectiveAssemblySourceSetRevision,
         expectedCandidateRevision: candidate.revision,
-        targetSourceSetRevision: assemblySourceSetRevision + 1,
+        targetSourceSetRevision: effectiveAssemblySourceSetRevision + 1,
         targetSourceSet,
         remaps,
       });
@@ -328,6 +351,14 @@ const BookPdfFlowWorkspace = ({
   const onUploadState = (slot: SourceSlot, state: SourceUploadSafeOperationState | null) => {
     updateSlot(slot.id, { uploadState: state });
     if (state?.phase === 'verified') {
+      if (slot.sourceKey === 'full'
+        && state.bookRevision !== undefined
+        && state.sourceSetRevision !== undefined) {
+        updateAuthorityRevisions({
+          bookRevision: state.bookRevision,
+          sourceSetRevision: state.sourceSetRevision,
+        });
+      }
       setActiveUploadId(null);
       onDirtyChange?.(true);
       track('teacher_materials_book_pdf_source_upload_verified', {
@@ -430,7 +461,7 @@ const BookPdfFlowWorkspace = ({
     const workflow = workflowFor(slot.sourceKey);
     const slotIndex = visibleSlots.findIndex((candidateSlot) => candidateSlot.id === slot.id);
     const persistedSource = persistedStrategyMatches
-      ? assemblyInitialCandidate?.manifest?.sourceSet.sources[slotIndex]
+      ? persistedSourceSet?.sources[slotIndex]
       : undefined;
     const persistedVersion = persistedSource
       ? assemblySourceVersions.find((source) => source.sourceVersionId === persistedSource.sourceVersionId)
@@ -520,9 +551,10 @@ const BookPdfFlowWorkspace = ({
           activityAuthoring={activityAuthoring}
           bookId={bookId}
           bookTitle={title}
-          bookRevision={assemblyBookRevision}
+          bookRevision={effectiveAssemblyBookRevision}
           candidateRuntimePreview={previewProjection ?? assemblyCandidateRuntimePreview}
           initialCandidate={candidate}
+          initialSourceSet={persistedSourceSet}
           migrationClient={assemblyMigrationClient}
           onAction={onTrackAction}
           onCandidateChange={setCandidate}
@@ -532,8 +564,9 @@ const BookPdfFlowWorkspace = ({
           previewDocuments={assemblyPreviewDocuments}
           previewGetIdToken={assemblyPreviewGetIdToken}
           repository={assemblyRepository ?? undefined}
-          sourceSetRevision={assemblySourceSetRevision}
+          sourceSetRevision={effectiveAssemblySourceSetRevision}
           sourceSetAttachmentClient={sourceSetAttachmentClient}
+          onAuthorityRevisionsChange={updateAuthorityRevisions}
           sourceVersions={sourceVersions}
           strategyOverride={selectedMode === 'full' ? 'full_pdf' : 'component_pdfs'}
           guided

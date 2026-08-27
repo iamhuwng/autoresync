@@ -1,0 +1,37 @@
+{
+  "nodes": [
+    { "nodeKey": "section-real-book", "parentNodeKey": null, "nodeType": "section", "order": 1 },
+    { "nodeKey": "unit-real-1", "parentNodeKey": "section-real-book", "nodeType": "unit", "order": 1 },
+    { "nodeKey": "unit-real-2", "parentNodeKey": "section-real-book", "nodeType": "unit", "order": 2 },
+    { "nodeKey": "unit-real-3", "parentNodeKey": "section-real-book", "nodeType": "unit", "order": 3 }
+  ],
+  "units": [
+    {
+      "unitKey": "unit-real-1",
+      "activitySlots": [
+        { "activityKey": "activity-prd0062-full-unit-1", "order": 1, "contextRequirement": "required", "pageGroupKeys": ["page-group-real-unit-1"] }
+      ],
+      "pageGroups": [
+        { "pageGroupKey": "page-group-real-unit-1", "sourceKey": "full", "pages": [1, 2, 3, 4], "activityKeys": ["activity-prd0062-full-unit-1"], "mode": "activity", "defaultPhysicalPageNumber": 1 }
+      ]
+    },
+    {
+      "unitKey": "unit-real-2",
+      "activitySlots": [
+        { "activityKey": "activity-prd0062-full-unit-2", "order": 1, "contextRequirement": "required", "pageGroupKeys": ["page-group-real-unit-2"] }
+      ],
+      "pageGroups": [
+        { "pageGroupKey": "page-group-real-unit-2", "sourceKey": "full", "pages": [5, 6, 7, 8], "activityKeys": ["activity-prd0062-full-unit-2"], "mode": "activity", "defaultPhysicalPageNumber": 5 }
+      ]
+    },
+    {
+      "unitKey": "unit-real-3",
+      "activitySlots": [
+        { "activityKey": "activity-prd0062-full-unit-3", "order": 1, "contextRequirement": "required", "pageGroupKeys": ["page-group-real-unit-3"] }
+      ],
+      "pageGroups": [
+        { "pageGroupKey": "page-group-real-unit-3", "sourceKey": "full", "pages": [9, 10, 11, 12, 13, 14], "activityKeys": ["activity-prd0062-full-unit-3"], "mode": "activity", "defaultPhysicalPageNumber": 9 }
+      ]
+    }
+  ]
+}

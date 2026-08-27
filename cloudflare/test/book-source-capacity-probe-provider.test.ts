@@ -11,9 +11,13 @@ const allowed = (overrides: Record<string, unknown> = {}) => ({
   capabilities: ['listFiles'], buckets: [{ id: env.BOOK_SOURCE_B2_PRIVATE_BUCKET_ID, name: env.BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME }], namePrefix: null,
   ...overrides,
 });
-const authorization = (authority = allowed()) => Response.json({ authorizationToken: 'b2-token', apiInfo: { storageApi: {
+const authorization = (authority = allowed(), overrides: Record<string, unknown> = {}) => Response.json({
+  applicationKeyExpirationTimestamp: null,
+  ...overrides,
+  authorizationToken: 'b2-token',
+  apiInfo: { storageApi: {
   apiUrl: 'https://api004.backblazeb2.com', s3ApiUrl: env.BOOK_SOURCE_B2_ENDPOINT, allowed: authority,
-} } });
+} }, });
 const providerFor = (fetcher: typeof fetch) => new CapacityProbeProvider({
   endpoint: env.BOOK_SOURCE_B2_ENDPOINT, region: env.BOOK_SOURCE_B2_REGION, storageLocationId: env.BOOK_SOURCE_B2_STORAGE_LOCATION_ID,
   privateBucketId: env.BOOK_SOURCE_B2_PRIVATE_BUCKET_ID, privateBucketName: env.BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME,
@@ -63,6 +67,17 @@ describe('Book Source capacity probe B2 provider', () => {
       storageLocationId: 'wrong', privateBucketId: env.BOOK_SOURCE_B2_PRIVATE_BUCKET_ID,
     })).rejects.toMatchObject({ code: 'unauthorized' });
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('rejects an expiring capacity key before listing provider objects', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => authorization(undefined, {
+      applicationKeyExpirationTimestamp: Date.parse('2026-08-27T00:00:00.000Z'),
+    }));
+    await expect(providerFor(fetcher).readAccountTotalsPage({
+      storageLocationId: env.BOOK_SOURCE_B2_STORAGE_LOCATION_ID,
+      privateBucketId: env.BOOK_SOURCE_B2_PRIVATE_BUCKET_ID,
+    })).rejects.toMatchObject({ code: 'unauthorized' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed when listFiles cannot account for unfinished or unknown provider actions', async () => {

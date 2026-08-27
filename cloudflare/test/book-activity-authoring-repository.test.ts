@@ -22,7 +22,9 @@ const content = {
 
 const omitActivityDefaults = (value: Record<string, unknown>): Record<string, unknown> => {
   const { taskProfile: _taskProfile, stimulus: _stimulus, assetRefs: _assetRefs, ...rest } = value;
-  return rest;
+  const contextRequirement = rest.contextRequirement as Record<string, unknown>;
+  const { acceptedKinds: _acceptedKinds, ...contextWithoutErasedKinds } = contextRequirement;
+  return { ...rest, contextRequirement: contextWithoutErasedKinds };
 };
 
 describe('Book Activity authoring Firebase repository', () => {
@@ -55,7 +57,7 @@ describe('Book Activity authoring Firebase repository', () => {
     };
     const { evidenceRefs: _evidenceRefs, sourceEvidenceRefs: _sourceEvidenceRefs,
       answerEvidenceRefs: _answerEvidenceRefs, validation: fullValidation, content: fullContent,
-      ...candidateWithoutErasedArrays
+      diff: _diff, ...candidateWithoutErasedArrays
     } = fullCandidate;
     const { errors: _errors, ...validationWithoutErasedErrors } = fullValidation;
     const wireRoot = {

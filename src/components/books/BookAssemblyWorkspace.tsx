@@ -18,7 +18,7 @@ import { analyzeBookAssemblyReconciliation } from '../../services/book-assembly/
 import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
 import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
 import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
-import { discardStagedUnitActivities, stageUnitActivityImportBundle, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
+import { bookScopedActivityTargetId, discardStagedUnitActivities, parseUnitActivityImportBundle, stageUnitActivityImportBundle, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
 import { buildUnitActivityImportPrompt } from '../../services/book-assembly/unitPrompt.service';
 import type {
   BookAssemblyCandidateRecord,
@@ -55,7 +55,13 @@ export interface BookAssemblyWorkspaceProps {
   readonly bookRevision: number;
   readonly sourceSetRevision: number;
   readonly sourceSetAttachmentClient?: SourceSetAttachmentClient | null;
-  readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
+  readonly onAuthorityRevisionsChange?: (revisions: {
+    readonly bookRevision: number;
+    readonly sourceSetRevision: number;
+  }) => void;
+  readonly sourceVersions: readonly AssemblySourceVersionProjection[];
+  /** Persisted material Book source set, used only to resume a verified source. */
+  readonly initialSourceSet?: SourceSetCandidate | null;
   readonly initialCandidate?: BookAssemblyCandidateRecord | null;
   readonly repository?: UnitAssemblyRepository;
   readonly migrationClient?: BookAssemblyMigrationClient | null;
@@ -94,6 +100,10 @@ type DraftSource = {
   readonly sourceOrder: number;
   readonly ownerNodeKey?: string;
 };
+type AssemblySourceVersionProjection = TrustedBookSourceVersionProjection & {
+  /** UI-only logical source identity supplied by the PDF workflow. */
+  readonly sourceKey?: string;
+};
 type AssemblyEditorDraft = {
   readonly bookId: string;
   readonly sourceSet: {
@@ -117,8 +127,10 @@ const operationId = (): string => {
   return `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
 };
 
-const nodeId = (type: BookContentNodeType): string =>
-  `${type}-${operationId().replaceAll('-', '').slice(0, 12)}`;
+const generatedId = (prefix: string): string =>
+  `${prefix}-${operationId().replaceAll('-', '').slice(0, 12)}`;
+
+const nodeId = (type: BookContentNodeType): string => generatedId(type);
 
 const emptyManifest = (bookId: string): AssemblyEditorDraft => ({
   bookId,
@@ -255,7 +267,9 @@ const BookAssemblyWorkspace = ({
   bookRevision,
   sourceSetRevision,
   sourceSetAttachmentClient = null,
+  onAuthorityRevisionsChange,
   sourceVersions,
+  initialSourceSet,
   initialCandidate,
   repository,
   migrationClient,
@@ -280,7 +294,10 @@ const BookAssemblyWorkspace = ({
   guidedUiVariant = 'default',
 }: BookAssemblyWorkspaceProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
-  const initial: AssemblyEditorDraft = initialCandidate?.manifest ?? emptyManifest(bookId);
+  const initial: AssemblyEditorDraft = initialCandidate?.manifest
+    ?? (initialSourceSet
+      ? { ...emptyManifest(bookId), sourceSet: initialSourceSet }
+      : emptyManifest(bookId));
   const [strategy, setStrategy] = useState<BookSourceStrategy>(strategyOverride ?? initial.sourceSet.sourceStrategy);
   const [nodes, setNodes] = useState<readonly DraftNode[]>(initial.nodes);
   const [sources, setSources] = useState<readonly DraftSource[]>(initial.sourceSet.sources);
@@ -301,6 +318,7 @@ const BookAssemblyWorkspace = ({
   const [unitImportText, setUnitImportText] = useState('');
   const [unitImportBusy, setUnitImportBusy] = useState(false);
   const [unitImportCancelable, setUnitImportCancelable] = useState(false);
+  const [importedActivityKeysByUnit, setImportedActivityKeysByUnit] = useState<Readonly<Record<string, readonly string[]>>>({});
   const [reconciliationBusy, setReconciliationBusy] = useState(false);
   const [migrationRequestedStrategy, setMigrationRequestedStrategy] = useState<BookSourceStrategy | null>(null);
   const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
@@ -314,11 +332,18 @@ const BookAssemblyWorkspace = ({
     draftSnapshot(initial.sourceSet.sourceStrategy, initial.nodes, initial.sourceSet.sources, initial.units));
   const [effectiveBookRevision, setEffectiveBookRevision] = useState(bookRevision);
   const [effectiveSourceSetRevision, setEffectiveSourceSetRevision] = useState(sourceSetRevision);
-  const [attachedSourceSet, setAttachedSourceSet] = useState<SourceSetCandidate | null>(initialCandidate?.manifest?.sourceSet ?? null);
+  const [attachedSourceSet, setAttachedSourceSet] = useState<SourceSetCandidate | null>(
+    initialCandidate?.manifest?.sourceSet ?? initialSourceSet ?? null,
+  );
   const nodeButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingFocusNodeKeyRef = useRef<string | null>(null);
   const unitImportAbortRef = useRef<AbortController | null>(null);
   const structureImportInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setEffectiveBookRevision((current) => Math.max(current, bookRevision));
+    setEffectiveSourceSetRevision((current) => Math.max(current, sourceSetRevision));
+  }, [bookRevision, sourceSetRevision]);
 
   const guidedStep = guidedStepOverride ?? internalGuidedStep;
   const setGuidedStep = (next: 'mode' | 'outline' | 'pages' | 'review') => {
@@ -408,6 +433,16 @@ const BookAssemblyWorkspace = ({
     selectedUnitKey,
     sourceSetRevision,
   ]);
+  const hasExactActivityContent = (unit: BookAssemblyManifestCandidate['units'][number]): boolean => {
+    if (unit.activitySlots.length === 0) return false;
+    const expected = new Set(unit.activitySlots.map((slot) => slot.activityKey));
+    const imported = importedActivityKeysByUnit[unit.unitKey] ?? [];
+    const previewed = currentRuntimePreview?.preview.unitKey === unit.unitKey
+      ? currentRuntimePreview.preview.activities.map((activity) => activity.activityKey)
+      : [];
+    const actual = new Set([...imported, ...previewed]);
+    return actual.size === expected.size && [...expected].every((activityKey) => actual.has(activityKey));
+  };
   const manifest = useMemo<AssemblyEditorDraft>(() => ({
     bookId,
     sourceSet: {
@@ -504,13 +539,18 @@ const BookAssemblyWorkspace = ({
     const rootOrder = nodes.filter((node) => node.parentNodeKey === null).length + 1;
     const section = defaultNode('section', null, rootOrder);
     const unit = defaultNode('unit', section.nodeKey, 1);
+    const activityKey = generatedId('activity');
+    const pageGroupKey = generatedId('pages');
+    const existingSource = sources.find((source) => source.sourceVersionId === sourceVersionId);
+    const sourceVersion = sourceVersions.find((value) => value.sourceVersionId === sourceVersionId);
+    const sourceKey = existingSource?.sourceKey ?? sourceVersion?.sourceKey ?? `source-${sourceVersionId}`;
     setNodes((current) => [...current, section, unit]);
     setSources((current) => {
       const existing = current.find((source) => source.sourceVersionId === sourceVersionId);
       const next = existing
         ? current.map((source) => source.sourceVersionId === sourceVersionId ? { ...source, ownerNodeKey: section.nodeKey } : source)
         : [...current, {
-            sourceKey: `source-${sourceVersionId}`,
+            sourceKey,
             sourceVersionId,
             sourceOrder: current.length + 1,
             ownerNodeKey: section.nodeKey,
@@ -521,8 +561,20 @@ const BookAssemblyWorkspace = ({
       ? current
       : [...current, {
           unitKey: unit.nodeKey,
-          activitySlots: [],
-          pageGroups: [],
+          activitySlots: [{
+            activityKey,
+            order: 1,
+            contextRequirement: 'required',
+            pageGroupKeys: [pageGroupKey],
+          }],
+          pageGroups: [{
+            pageGroupKey,
+            sourceKey,
+            pages: [1],
+            activityKeys: [activityKey],
+            mode: 'activity',
+            defaultPhysicalPageNumber: 1,
+          }],
         }]);
     requestNodeFocus(unit.nodeKey);
     toast.info('Structure added. Add the Unit content to continue.');
@@ -826,13 +878,17 @@ const BookAssemblyWorkspace = ({
   const persistManifest = async (
     validManifest: BookAssemblyManifestCandidate,
     unitKey: string,
+    authority: { readonly bookRevision: number; readonly sourceSetRevision: number } = {
+      bookRevision: effectiveBookRevision,
+      sourceSetRevision: effectiveSourceSetRevision,
+    },
   ): Promise<BookAssemblyMutationResult> => (
-    candidate
+    candidate?.unitKey === unitKey
       ? repository!.replace({
           operationId: operationId(),
           bookId,
-          expectedBookRevision: effectiveBookRevision,
-          expectedSourceSetRevision: effectiveSourceSetRevision,
+          expectedBookRevision: authority.bookRevision,
+          expectedSourceSetRevision: authority.sourceSetRevision,
           unitKey,
           candidateId: candidate.candidateId,
           expectedCandidateRevision: candidate.revision,
@@ -841,12 +897,52 @@ const BookAssemblyWorkspace = ({
       : repository!.create({
           operationId: operationId(),
           bookId,
-          expectedBookRevision: effectiveBookRevision,
-          expectedSourceSetRevision: effectiveSourceSetRevision,
+          expectedBookRevision: authority.bookRevision,
+          expectedSourceSetRevision: authority.sourceSetRevision,
           unitKey,
           manifest: validManifest,
         })
   );
+
+  const persistAndValidateManifest = async (
+    validManifest: BookAssemblyManifestCandidate,
+    unitKey: string,
+  ): Promise<BookAssemblyMutationResult> => {
+    let authority = {
+      bookRevision: effectiveBookRevision,
+      sourceSetRevision: effectiveSourceSetRevision,
+    };
+    if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+      && sourceSetAttachmentClient
+      && JSON.stringify(attachedSourceSet) !== JSON.stringify(validManifest.sourceSet)) {
+      const attachment = await sourceSetAttachmentClient.attachSourceSet({
+        bookId,
+        operationId: operationId(),
+        expectedBookRevision: authority.bookRevision,
+        expectedSourceSetRevision: authority.sourceSetRevision,
+        sourceSet: validManifest.sourceSet,
+      });
+      authority = {
+        bookRevision: attachment.bookRevision,
+        sourceSetRevision: attachment.sourceSetRevision,
+      };
+      setEffectiveBookRevision(attachment.bookRevision);
+      setEffectiveSourceSetRevision(attachment.sourceSetRevision);
+      setAttachedSourceSet(attachment.sourceSet);
+      onAuthorityRevisionsChange?.(authority);
+    }
+    let result = await persistManifest(validManifest, unitKey, authority);
+    if (validateCandidateAfterSave && result.candidate && result.candidate.lifecycle !== 'validated') {
+      result = await repository!.validate({
+        operationId: operationId(),
+        bookId,
+        unitKey,
+        candidateId: result.candidate.candidateId,
+        expectedCandidateRevision: result.candidate.revision,
+      });
+    }
+    return result;
+  };
 
   const save = async () => {
     if (access !== 'owner' && access !== 'administrator') return;
@@ -874,30 +970,7 @@ const BookAssemblyWorkspace = ({
     setValidationMessage(null);
     setErrorMessage(null);
     try {
-      if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
-        && sourceSetAttachmentClient
-        && JSON.stringify(attachedSourceSet) !== JSON.stringify(validManifest.sourceSet)) {
-        const attachment = await sourceSetAttachmentClient.attachSourceSet({
-          bookId,
-          operationId: operationId(),
-          expectedBookRevision: effectiveBookRevision,
-          expectedSourceSetRevision: effectiveSourceSetRevision,
-          sourceSet: validManifest.sourceSet,
-        });
-        setEffectiveBookRevision(attachment.bookRevision);
-        setEffectiveSourceSetRevision(attachment.sourceSetRevision);
-        setAttachedSourceSet(attachment.sourceSet);
-      }
-      let result: BookAssemblyMutationResult = await persistManifest(validManifest, unitKey);
-      if (validateCandidateAfterSave && result.candidate && result.candidate.lifecycle !== 'validated') {
-        result = await repository.validate({
-          operationId: operationId(),
-          bookId,
-          unitKey,
-          candidateId: result.candidate.candidateId,
-          expectedCandidateRevision: result.candidate.revision,
-        });
-      }
+      const result = await persistAndValidateManifest(validManifest, unitKey);
       if (result.status === 'conflict') {
         setStatus('conflict');
         toast.warning('Assembly changed elsewhere. Reload, retry, or discard local changes.');
@@ -1045,6 +1118,32 @@ const BookAssemblyWorkspace = ({
     emit('teacher_materials_book_assembly_unit_import_started', { unitKey });
     try {
       const validManifest = manifest as unknown as BookAssemblyManifestCandidate;
+      // Validate the bundle shape before mutating the Assembly contract. The
+      // Worker performs the authoritative schema/context validation afterward.
+      parseUnitActivityImportBundle(unitImportText, validManifest, unitKey);
+      setUnitImportCancelable(false);
+      const assemblyResult = await persistAndValidateManifest(validManifest, unitKey);
+      if (assemblyResult.status === 'conflict') {
+        setStatus('conflict');
+        setUnitImportStatus('Assembly changed elsewhere. Reload or retry before importing Activities.');
+        toast.warning('Assembly changed elsewhere. Reload before importing Activities.');
+        return;
+      }
+      if (!assemblyResult.candidate) {
+        const message = mutationErrorMessage(assemblyResult);
+        setStatus('error');
+        setErrorMessage(message);
+        setUnitImportStatus(message);
+        toast.error(message);
+        return;
+      }
+      // Keep the persisted Assembly contract as the trusted page-map authority
+      // for the subsequent Activity authoring mutations.
+      setCandidate(assemblyResult.candidate);
+      setSavedSnapshot(draftSnapshot(validManifest.sourceSet.sourceStrategy, validManifest.nodes, validManifest.sourceSet.sources, validManifest.units));
+      onDirtyChange?.(false);
+      setUnitImportStatus('Validating Unit JSON...');
+      setUnitImportCancelable(true);
       const importResult = await stageUnitActivityImportBundle({
         text: unitImportText,
         manifest: validManifest,
@@ -1053,38 +1152,22 @@ const BookAssemblyWorkspace = ({
         resolveActivityTargetId: (slot) => {
           const unit = validManifest.units.find((entry) => entry.unitKey === unitKey);
           return unit?.activitySlots.some((entry) => entry.activityKey === slot.activityKey)
-            ? slot.activityKey
+            ? bookScopedActivityTargetId(validManifest.bookId, slot.activityKey)
             : null;
         },
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
-      setUnitImportStatus('Saving Assembly candidate revision...');
       setUnitImportCancelable(false);
       if (controller.signal.aborted) {
         await discardStagedUnitActivities(activityAuthoring, importResult.staged);
         setUnitImportStatus('Import canceled. Existing draft was kept.');
         return;
       }
-      const result = await persistManifest(validManifest, unitKey);
-      if (result.status === 'conflict') {
-        await discardStagedUnitActivities(activityAuthoring, importResult.staged);
-        setStatus('conflict');
-        setUnitImportStatus('Assembly changed elsewhere. Imported Activities were rolled back; reload or retry.');
-        toast.warning('Assembly changed elsewhere. Imported Activities were rolled back.');
-        return;
-      }
-      if (!result.candidate) {
-        const message = mutationErrorMessage(result);
-        await discardStagedUnitActivities(activityAuthoring, importResult.staged);
-        setStatus('error');
-        setErrorMessage(message);
-        setUnitImportStatus(message);
-        toast.error(message);
-        return;
-      }
-      setCandidate(result.candidate);
-      setSavedSnapshot(draftSnapshot(validManifest.sourceSet.sourceStrategy, validManifest.nodes, validManifest.sourceSet.sources, validManifest.units));
+      setImportedActivityKeysByUnit((current) => ({
+        ...current,
+        [unitKey]: importResult.bundle.slots.map((slot) => slot.activityKey),
+      }));
       setUnitImportText('');
       setUnitImportStatus(`Imported ${importResult.staged.length} Activity slot${importResult.staged.length === 1 ? '' : 's'}.`);
       onDirtyChange?.(false);
@@ -1092,8 +1175,8 @@ const BookAssemblyWorkspace = ({
       toast.success('Unit Activity JSON imported.');
       emit('teacher_materials_book_assembly_unit_import_staged', {
         unitKey,
-        candidateId: result.candidate.candidateId,
-        revision: result.candidate.revision,
+        candidateId: assemblyResult.candidate.candidateId,
+        revision: assemblyResult.candidate.revision,
         slotCount: importResult.staged.length,
       });
     } catch (error) {
@@ -1142,7 +1225,12 @@ const BookAssemblyWorkspace = ({
   };
 
   const discardLocal = () => {
-    applyDraft(candidate?.manifest ?? emptyManifest(bookId), candidate?.manifest ? candidate : null);
+    applyDraft(
+      candidate?.manifest ?? (initialSourceSet
+        ? { ...emptyManifest(bookId), sourceSet: initialSourceSet }
+        : emptyManifest(bookId)),
+      candidate?.manifest ? candidate : null,
+    );
     setStatus('idle');
     emit('teacher_materials_book_assembly_local_discarded', { candidateId: candidate?.candidateId });
   };
@@ -1169,7 +1257,7 @@ const BookAssemblyWorkspace = ({
 
   const renderMockupGuided = () => {
     const mockupHasStructure = nodes.some((node) => isStructuralNodeType(node.nodeType));
-    const mockupHasContent = Boolean(selectedUnit?.activitySlots.length);
+    const mockupHasContent = Boolean(selectedUnit && hasExactActivityContent(selectedUnit));
     const mockupRows = selectedUnit?.activitySlots ?? [];
     const mockupGroupFor = (slot: typeof mockupRows[number]) => selectedUnit?.pageGroups.find((pageGroup) =>
       slot.pageGroupKeys.includes(pageGroup.pageGroupKey) && pageGroup.pages.length > 0);
@@ -1186,7 +1274,7 @@ const BookAssemblyWorkspace = ({
           .map((version, index) => ({
             version,
             source: sources.find((value) => value.sourceVersionId === version.sourceVersionId) ?? {
-              sourceKey: `source-${version.sourceVersionId}`,
+              sourceKey: version.sourceKey ?? `source-${version.sourceVersionId}`,
               sourceVersionId: version.sourceVersionId,
               sourceOrder: index + 1,
             },
@@ -1202,7 +1290,8 @@ const BookAssemblyWorkspace = ({
           if (!source.ownerNodeKey) return false;
           const ownerUnit = nodes.find((node) => node.nodeKey === source.ownerNodeKey && node.nodeType === 'unit')
             ?? nodes.find((node) => node.nodeType === 'unit' && node.parentNodeKey === source.ownerNodeKey);
-          return Boolean(ownerUnit && units.find((unit) => unit.unitKey === ownerUnit.nodeKey)?.activitySlots.length);
+          return Boolean(ownerUnit && units.find((unit) => unit.unitKey === ownerUnit.nodeKey)
+            && hasExactActivityContent(units.find((unit) => unit.unitKey === ownerUnit.nodeKey)!));
         });
       return (
         <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-components-title">

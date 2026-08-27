@@ -258,6 +258,10 @@ export class CapacityProbeProvider implements Pick<SourceProviderPort, 'readAcco
     const apiUrl = string(storageApi?.apiUrl ?? parsed?.apiUrl);
     const s3ApiUrl = string(storageApi?.s3ApiUrl ?? parsed?.s3ApiUrl);
     const token = string(parsed?.authorizationToken);
+    // Capacity reconciliation must use a durable key. An expiring key would
+    // recreate the stale-ledger outage even when the rest of the deployment is
+    // healthy, so reject it before any list operation.
+    if (parsed?.applicationKeyExpirationTimestamp !== null) fail('unauthorized');
     const capabilities = allowed?.capabilities;
     const buckets = allowed?.buckets;
     if (!apiUrl || !s3ApiUrl || !token || !Array.isArray(capabilities) || capabilities.length !== 1 || capabilities[0] !== 'listFiles'

@@ -130,6 +130,30 @@ describe('book source control host', () => {
     });
   });
 
+  it('serves only the owner-scoped trusted source projection for resume', async () => {
+    const sources = [{
+      sourceKey: 'full',
+      sourceVersionId: 'source-version-1',
+      bookId: 'book-1',
+      physicalPageCount: 14,
+      verifiedUsable: true,
+    }];
+    const service = {
+      begin: vi.fn(),
+      complete: vi.fn(),
+      sources: vi.fn(async () => ({ sources })),
+    };
+    const host = createBookSourceControlHost({ service, verifier, pilotScope });
+    const response = await host.fetch(new Request(
+      'https://control.example/v1/book-source/books/book-1/sources',
+      { headers: { authorization: 'Bearer token', origin: 'http://localhost:5173' } },
+    ), env);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ sources });
+    expect(service.sources).toHaveBeenCalledWith({ actorId: 'teacher-1', bookId: 'book-1' });
+  });
+
   it('rejects unauthenticated, oversized, non-json, extra-key, and idempotency mismatches', async () => {
     const service = { begin: vi.fn(), complete: vi.fn() };
     const deniedHost = createBookSourceControlHost({

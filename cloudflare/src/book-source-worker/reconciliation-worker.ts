@@ -21,7 +21,10 @@ import {
   createBackblazeB2ExactVersionCleanupAdapterFromEnv,
   type BackblazeB2ExactVersionCleanupEnv,
 } from './backblaze-b2-exact-version-cleanup-adapter';
-import { createCapacityProbeWorker } from './capacity-probe-worker';
+import {
+  CAPACITY_PROBE_FAILURE_HEADER,
+  createCapacityProbeWorker,
+} from './capacity-probe-worker';
 
 const MAX_ACCOUNT_STATE_BYTES = 32 * 1024 * 1024;
 const MAX_SCHEDULED_CAPACITY_WORK_UNITS = 4;
@@ -131,7 +134,9 @@ interface ReconciliationRuntime {
   readonly reconciler: ReturnType<typeof createSourceUploadReconciler>;
   readonly repository: Pick<
     SourceUploadRtdbRepository,
-    'recordProviderReconciliationContinuation' | 'clearProviderReconciliationContinuation'
+    | 'recordProviderReconciliationContinuation'
+    | 'clearProviderReconciliationContinuation'
+    | 'invalidateProviderReconciliation'
   >;
 }
 
@@ -139,7 +144,9 @@ interface CapacityRuntime {
   readonly readAccountState: () => Promise<BookSourceUploadAccountState | null>;
   readonly repository: Pick<
     SourceUploadRtdbRepository,
-    'recordProviderReconciliationContinuation' | 'clearProviderReconciliationContinuation'
+    | 'recordProviderReconciliationContinuation'
+    | 'clearProviderReconciliationContinuation'
+    | 'invalidateProviderReconciliation'
   >;
 }
 
@@ -411,6 +418,20 @@ export const createBookSourceReconciliationWorker = (
               }),
               env,
             );
+            if (response.status === 503
+              && response.headers.get(CAPACITY_PROBE_FAILURE_HEADER) === 'unauthorized') {
+              await runtime.repository.invalidateProviderReconciliation({
+                accountId: required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID),
+                expectedRevision: state.revision,
+                ...(continuation === undefined ? {} : {
+                  expectedContinuationToken: continuation.token,
+                }),
+              });
+              console.warn('book_source_capacity_reconciliation_invalidated', {
+                code: 'provider_unauthorized',
+              });
+              break;
+            }
             if (response.status === 400 && continuation !== undefined) {
               await runtime.repository.clearProviderReconciliationContinuation({
                 accountId: required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID),

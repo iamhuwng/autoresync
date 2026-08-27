@@ -40,8 +40,17 @@ const plainRecord = (value: unknown): Record<string, unknown> | undefined => (
 const hydrateActivity = (value: unknown): unknown => {
   const record = plainRecord(value);
   if (!record) return value;
+  const contextRequirement = plainRecord(record.contextRequirement);
   return {
     ...record,
+    ...(contextRequirement
+      ? {
+        contextRequirement: {
+          ...contextRequirement,
+          ...(contextRequirement.acceptedKinds === undefined ? { acceptedKinds: [] } : {}),
+        },
+      }
+      : {}),
     ...(record.taskProfile === undefined ? { taskProfile: null } : {}),
     ...(record.stimulus === undefined ? { stimulus: null } : {}),
     ...(record.assetRefs === undefined ? { assetRefs: [] } : {}),
@@ -54,6 +63,7 @@ const hydrateCandidate = (value: unknown): unknown => {
   const isValid = validation?.valid === true;
   return {
     ...record,
+    ...(record.diff === undefined ? { diff: null } : {}),
     ...(isValid && record.evidenceRefs === undefined ? { evidenceRefs: [] } : {}),
     ...(isValid && record.sourceEvidenceRefs === undefined ? { sourceEvidenceRefs: [] } : {}),
     ...(isValid && record.answerEvidenceRefs === undefined ? { answerEvidenceRefs: [] } : {}),

@@ -69,6 +69,25 @@ export interface ActivitySaveDraftResult extends MutationResultBase {
   evidenceRefs: string[];
   sourceEvidenceRefs?: string[];
   answerEvidenceRefs?: string[];
+  /** Server-owned Unit-slot binding receipt returned after a Book save. */
+  binding?: ActivityAuthoringBindingReceipt;
+}
+
+export type ActivityAuthoringBindingPhase = 'binding-pending' | 'complete' | 'binding-conflict';
+
+export interface ActivityAuthoringBindingReceipt {
+  schemaVersion: 1;
+  ownerId: string;
+  bookId: string;
+  unitKey: string;
+  activityKey: string;
+  activityId: string;
+  candidateId: string;
+  candidateRevision: number;
+  candidateLifecycle: 'saved';
+  phase: ActivityAuthoringBindingPhase;
+  activityVersionId?: string;
+  activityVersion?: number;
 }
 
 export interface ActivityDiscardResult extends MutationResultBase {
@@ -230,6 +249,33 @@ const evidenceRefs = (value: unknown): string[] => {
 const optionalEvidenceRefs = (value: unknown): string[] => (
   value === undefined ? [] : evidenceRefs(value)
 );
+const binding = (value: unknown): ActivityAuthoringBindingReceipt => {
+  const result = exact(value, [
+    'schemaVersion', 'ownerId', 'bookId', 'unitKey', 'activityKey',
+    'activityId', 'candidateId', 'candidateRevision', 'candidateLifecycle', 'phase',
+  ], ['activityVersionId', 'activityVersion']);
+  if (result.schemaVersion !== 1
+    || result.candidateLifecycle !== 'saved'
+    || (result.phase !== 'binding-pending'
+      && result.phase !== 'complete'
+      && result.phase !== 'binding-conflict')) {
+    throw new Error('Activity authoring returned a malformed response.');
+  }
+  return {
+    schemaVersion: 1,
+    ownerId: id(result.ownerId),
+    bookId: id(result.bookId),
+    unitKey: id(result.unitKey),
+    activityKey: id(result.activityKey),
+    activityId: id(result.activityId),
+    candidateId: id(result.candidateId),
+    candidateRevision: revision(result.candidateRevision),
+    candidateLifecycle: 'saved',
+    phase: result.phase,
+    ...(result.activityVersionId === undefined ? {} : { activityVersionId: id(result.activityVersionId) }),
+    ...(result.activityVersion === undefined ? {} : { activityVersion: revision(result.activityVersion) }),
+  };
+};
 const replayed = (value: unknown): { replayed?: true } => {
   if (value === undefined) return {};
   if (value !== true) throw new Error('Activity authoring returned a malformed response.');
@@ -280,7 +326,7 @@ const decodeSaveDraft = (value: unknown): ActivitySaveDraftResult => {
   const result = exact(value, [
     'status', 'activityId', 'revision', 'candidateId', 'candidateRevision',
     'lifecycle', 'validation', 'diff', 'evidenceRefs',
-  ], ['replayed', 'sourceEvidenceRefs', 'answerEvidenceRefs']);
+  ], ['replayed', 'sourceEvidenceRefs', 'answerEvidenceRefs', 'binding']);
   if (result.status !== 'saved') throw new Error('Activity authoring returned a malformed response.');
   return {
     status: 'saved',
@@ -292,6 +338,7 @@ const decodeSaveDraft = (value: unknown): ActivitySaveDraftResult => {
     evidenceRefs: evidenceRefs(result.evidenceRefs),
     ...(result.sourceEvidenceRefs === undefined ? {} : { sourceEvidenceRefs: optionalEvidenceRefs(result.sourceEvidenceRefs) }),
     ...(result.answerEvidenceRefs === undefined ? {} : { answerEvidenceRefs: optionalEvidenceRefs(result.answerEvidenceRefs) }),
+    ...(result.binding === undefined ? {} : { binding: binding(result.binding) }),
   };
 };
 const decodeDiscard = (value: unknown): ActivityDiscardResult => {

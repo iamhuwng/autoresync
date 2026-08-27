@@ -167,7 +167,7 @@ export interface SourceUploadControlDependencies {
   readonly onVerified?: (
     operation: SourceUploadVerifiedOperation,
     context: { readonly ownerId: string },
-  ) => void | Promise<void>;
+  ) => void | SourceUploadVerifiedAuthority | Promise<void | SourceUploadVerifiedAuthority>;
 }
 
 export interface BeginSourceUploadInput {
@@ -205,6 +205,14 @@ export interface SourceUploadVerifiedOperation {
   readonly kind: BookSourceUploadKind;
   readonly status: 'verified_completed';
   readonly completedAt: string;
+  /** Returned only when trusted completion also advanced the canonical Book authority. */
+  readonly bookRevision?: number;
+  readonly sourceSetRevision?: number;
+}
+
+export interface SourceUploadVerifiedAuthority {
+  readonly bookRevision: number;
+  readonly sourceSetRevision: number;
 }
 
 export interface SourceUploadControl {
@@ -225,7 +233,7 @@ type ResolvedDependencies = {
   readonly onVerified?: (
     operation: SourceUploadVerifiedOperation,
     context: { readonly ownerId: string },
-  ) => void | Promise<void>;
+  ) => void | SourceUploadVerifiedAuthority | Promise<void | SourceUploadVerifiedAuthority>;
 };
 
 const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
@@ -754,8 +762,19 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUp
   if (operation.status === 'cleanup_pending') throw new SourceUploadControlError('cleanup_pending');
   const finishVerified = async (verified: BookSourceUploadOperation): Promise<SourceUploadVerifiedOperation> => {
     const result = verifiedProjection(verified);
-    await resolved.onVerified?.(result, { ownerId: input.actorId });
-    return result;
+    const authority = await resolved.onVerified?.(result, { ownerId: input.actorId });
+    if (authority === undefined) return result;
+    if (!Number.isSafeInteger(authority.bookRevision)
+      || authority.bookRevision < 0
+      || !Number.isSafeInteger(authority.sourceSetRevision)
+      || authority.sourceSetRevision < 0) {
+      throw new SourceUploadControlError('account_state_unavailable');
+    }
+    return {
+      ...result,
+      bookRevision: authority.bookRevision,
+      sourceSetRevision: authority.sourceSetRevision,
+    };
   };
   let expected: BookSourceVersionStorageIdentity;
   try {

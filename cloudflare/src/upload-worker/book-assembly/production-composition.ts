@@ -91,6 +91,46 @@ const lineage = async (env: Env, ownerId: string, bookId: string, unitKey: strin
   return result;
 };
 
+const assemblyActivityContracts = async (env: Env, ownerId: string, bookId: string, unitKey: string) => {
+  const scope = await new FirebaseRestBookAssemblyRepository({ env: env as never, ownerId }).readScope(bookId, unitKey);
+  const current = scope.current;
+  const assemblyCandidate = current ? scope.candidates?.[current.candidateId] : undefined;
+  if (!current || !assemblyCandidate || assemblyCandidate.ownerId !== ownerId
+    || assemblyCandidate.bookId !== bookId || assemblyCandidate.unitKey !== unitKey
+    || assemblyCandidate.revision !== current.candidateRevision
+    || assemblyCandidate.lifecycle !== 'validated') return null;
+  const unit = assemblyCandidate.manifest?.units.find((entry) => entry.unitKey === unitKey);
+  return unit?.activitySlots.map((slot) => ({
+    activityKey: slot.activityKey,
+    contextRequirement: slot.contextRequirement,
+  })) ?? null;
+};
+
+const assemblyActivityPageRefs = async (
+  env: Env,
+  ownerId: string,
+  bookId: string,
+  unitKey: string,
+  activityKey: string,
+) => {
+  const scope = await new FirebaseRestBookAssemblyRepository({ env: env as never, ownerId }).readScope(bookId, unitKey);
+  const current = scope.current;
+  const assemblyCandidate = current ? scope.candidates?.[current.candidateId] : undefined;
+  if (!current || !assemblyCandidate || assemblyCandidate.ownerId !== ownerId
+    || assemblyCandidate.bookId !== bookId || assemblyCandidate.unitKey !== unitKey
+    || assemblyCandidate.revision !== current.candidateRevision
+    || assemblyCandidate.lifecycle !== 'validated') return null;
+  const unit = assemblyCandidate.manifest?.units.find((entry) => entry.unitKey === unitKey);
+  const slot = unit?.activitySlots.find((entry) => entry.activityKey === activityKey);
+  if (!unit || !slot) return null;
+  const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
+  const refs = slot.pageGroupKeys.flatMap((pageGroupKey) => {
+    const group = groups.get(pageGroupKey);
+    return group ? group.pages.map((page) => `source:${group.sourceKey}:page:${page}`) : [];
+  });
+  return refs.length > 0 ? refs : null;
+};
+
 /** Concrete preview/publication ports used when `createUploadWorker()` receives no test injection. */
 export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandlersOptions,
   'activityAuthoringHandlers' | 'assemblyHandlers' | 'assemblyPreview' | 'assemblyPublication'> => ({
@@ -114,17 +154,12 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
       return claimedBookId;
     },
     bindingRepositoryFactory: (env) => bindings(env as Env),
-    readAssemblyActivityKeys: async ({ env, ownerId, bookId: scopedBookId, unitKey }) => {
-      const scope = await new FirebaseRestBookAssemblyRepository({ env: env as never, ownerId }).readScope(scopedBookId, unitKey);
-      const current = scope.current;
-      const assemblyCandidate = current ? scope.candidates?.[current.candidateId] : undefined;
-      if (!current || !assemblyCandidate || assemblyCandidate.ownerId !== ownerId
-        || assemblyCandidate.bookId !== scopedBookId || assemblyCandidate.unitKey !== unitKey
-        || assemblyCandidate.revision !== current.candidateRevision
-        || assemblyCandidate.lifecycle !== 'validated') return null;
-      const unit = assemblyCandidate.manifest?.units.find((entry) => entry.unitKey === unitKey);
-      return unit ? unit.activitySlots.map((slot) => slot.activityKey) : null;
-    },
+    readAssemblyActivityKeys: async ({ env, ownerId, bookId: scopedBookId, unitKey }) =>
+      (await assemblyActivityContracts(env as Env, ownerId, scopedBookId, unitKey))?.map((slot) => slot.activityKey) ?? null,
+    readAssemblyActivityContracts: async ({ env, ownerId, bookId: scopedBookId, unitKey }) =>
+      assemblyActivityContracts(env as Env, ownerId, scopedBookId, unitKey),
+    readAssemblyActivityPageRefs: async ({ env, ownerId, bookId: scopedBookId, unitKey, activityKey }) =>
+      assemblyActivityPageRefs(env as Env, ownerId, scopedBookId, unitKey, activityKey),
   }),
   assemblyPreview: {
     portFactory: (rawEnv, uid, scope) => ({

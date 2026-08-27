@@ -26,6 +26,7 @@ export interface ActivityAuthoringService {
   validate(input: {
     candidateId: string;
     expectedRevision: number;
+    unitActivityBinding?: { readonly unitKey: string; readonly activityKey: string };
     evidenceRefs?: string[];
     sourceEvidenceRefs?: string[];
     answerEvidenceRefs?: string[];
@@ -42,6 +43,7 @@ export interface ActivityAuthoringService {
   discard(input: {
     candidateId: string;
     expectedRevision: number;
+    unitActivityBinding?: { readonly unitKey: string; readonly activityKey: string };
   }): Promise<ActivityDiscardResult>;
   loadCandidate(candidateId: string): Promise<ActivityLoadCandidateResult>;
 }
@@ -77,6 +79,7 @@ export const createActivityAuthoringService = (
           : {}),
         expectedRevision: input.expectedRevision,
         ...(input.targetActivityId === undefined ? {} : { targetActivityId: input.targetActivityId }),
+        ...(input.unitActivityBinding === undefined ? {} : { unitActivityBinding: input.unitActivityBinding }),
         content: candidate.content,
         evidenceRefs: candidate.evidenceRefs,
         sourceEvidenceRefs: candidate.sourceEvidenceRefs,

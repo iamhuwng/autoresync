@@ -1,4 +1,4 @@
-import type { ActivityDiff, NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
+import type { ActivityDiff, ActivityValidationContext, NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
 import { normalizeActivity } from '../../../../src/services/book-activity/activityCanonical.service.ts';
 import { diffActivities } from '../../../../src/services/book-activity/activityDiff.service.ts';
 import { validateEditableActivity } from '../../../../src/services/book-activity/activitySchema.service.ts';
@@ -31,9 +31,20 @@ import type {
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CANDIDATE_RECORD_BYTES = 256 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,160}$/u;
+const hexUtf8 = (value: string): string => Array.from(
+  new TextEncoder().encode(value),
+  (byte) => byte.toString(16).padStart(2, '0'),
+).join('');
+const bookScopedActivityTargetId = (bookId: string, activityKey: string): string =>
+  `ba_${hexUtf8(bookId)}_${hexUtf8(activityKey)}`;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 type Mutation = 'stage' | 'validate' | 'save-draft' | 'discard';
 type Lifecycle = 'staged' | 'validated' | 'rejected' | 'saved' | 'discarded';
+type ActivityContextMode = 'required' | 'optional' | 'none';
+interface AssemblyActivityContract {
+  readonly activityKey: string;
+  readonly contextRequirement: ActivityContextMode;
+}
 const MAX_CANDIDATES_PER_OWNER = 128;
 const MAX_ACTIVITIES_PER_OWNER = 128;
 const MAX_OPERATIONS_PER_OWNER = 256;
@@ -50,6 +61,15 @@ interface ActivityRecord {
   lifecycle: 'draft';
   editableDraft: unknown;
   draft: NormalizedActivity;
+  updatedAt: number;
+}
+interface PersistedActivityEnvelope {
+  activityId: string;
+  ownerId: string;
+  revision: number;
+  lifecycle: 'draft';
+  editableDraft: unknown;
+  draft: unknown;
   updatedAt: number;
 }
 interface CandidateRecord {
@@ -137,6 +157,31 @@ const unitActivityBinding = (body: Record<string, unknown>): { unitKey: string; 
     unitKey: validId(value.unitKey, 'unit_key'),
     activityKey: validId(value.activityKey, 'activity_key'),
   };
+};
+
+const activityContext = (content: unknown): { mode: ActivityContextMode; acceptedKinds: string[] } | undefined => {
+  const record = plainRecord(content);
+  const context = plainRecord(record?.contextRequirement);
+  const mode = context?.mode;
+  const acceptedKinds = context?.acceptedKinds;
+  if (!['required', 'optional', 'none'].includes(String(mode))
+    || !Array.isArray(acceptedKinds)
+    || acceptedKinds.some((kind) => typeof kind !== 'string')) return undefined;
+  return { mode: mode as ActivityContextMode, acceptedKinds: [...acceptedKinds] as string[] };
+};
+
+const activityMatchesAssemblyContract = (
+  content: unknown,
+  contract: AssemblyActivityContract,
+): boolean => {
+  const record = plainRecord(content);
+  const context = activityContext(content);
+  if (!record || !context || context.mode !== contract.contextRequirement) return false;
+  if (contract.contextRequirement === 'none') return context.acceptedKinds.length === 0;
+  if (contract.contextRequirement === 'required') {
+    return record.presentationMode === 'source-assisted' && context.acceptedKinds.includes('book-pages');
+  }
+  return true;
 };
 
 type BindingReceiptPhase = 'binding-pending' | 'complete' | 'binding-conflict';
@@ -280,16 +325,49 @@ const persistedCandidateBookId = (
   return asCandidate(root.candidates?.[candidateId], candidateId)?.bookId;
 };
 
-const asActivity = (value: unknown, expectedActivityId?: string): ActivityRecord | undefined => {
+/**
+ * Root integrity is deliberately context-free. Source-assisted Activities need
+ * trusted Assembly page refs to be semantically validated, and that context is
+ * only available for the mutation subject. Revalidating every persisted record
+ * here made one legacy/context-dependent record a denial of service for the
+ * entire owner subtree.
+ */
+const asPersistedActivityEnvelope = (value: unknown, expectedActivityId?: string): PersistedActivityEnvelope | undefined => {
   const record = plainRecord(value);
   if (!record || !validIdValue(record.activityId) || !validIdValue(record.ownerId) ||
     (expectedActivityId !== undefined && record.activityId !== expectedActivityId) ||
-    !validRevisionValue(record.revision) || record.lifecycle !== 'draft' || !validTimestamp(record.updatedAt)) return undefined;
-  const validation = validateEditableActivity(record.editableDraft);
+    !validRevisionValue(record.revision) || record.lifecycle !== 'draft' || !validTimestamp(record.updatedAt) ||
+    !plainRecord(record.editableDraft) || !plainRecord(record.draft)) return undefined;
+  try {
+    return {
+      activityId: record.activityId,
+      ownerId: record.ownerId,
+      revision: record.revision,
+      lifecycle: 'draft',
+      editableDraft: clone(record.editableDraft),
+      draft: clone(record.draft),
+      updatedAt: record.updatedAt,
+    };
+  } catch {
+    return undefined;
+  }
+};
+const asActivity = (
+  value: unknown,
+  expectedActivityId?: string,
+  validationContext: ActivityValidationContext = {},
+): ActivityRecord | undefined => {
+  const record = asPersistedActivityEnvelope(value, expectedActivityId);
+  if (!record) return undefined;
+  const validation = validateEditableActivity(record.editableDraft, validationContext);
   if (!validation.valid) return undefined;
   try {
-    const persistedDraft = record.draft as NormalizedActivity;
-    const draft = normalizeActivity(validation.value, undefined, persistedDraft);
+    const draft = normalizeActivity(
+      validation.value,
+      undefined,
+      record.draft as NormalizedActivity,
+      validationContext,
+    );
     if (stable(draft) !== stable(record.draft)) return undefined;
     return {
       activityId: record.activityId,
@@ -351,9 +429,9 @@ const assertPersistedRoot = (
   expectedOwnerId: string,
 ): void => {
   for (const [activityId, value] of Object.entries(root.activities ?? {})) {
-    const activity = asActivity(value, activityId);
+    const activity = asPersistedActivityEnvelope(value, activityId);
     if (!activity || activity.ownerId !== expectedOwnerId) {
-      throw new AuthoringError('invalid_persisted_activity', 500);
+      throw new AuthoringError('invalid_persisted_activity', 500, { activityId });
     }
   }
   for (const [candidateId, value] of Object.entries(root.candidates ?? {})) {
@@ -368,6 +446,19 @@ const assertPersistedRoot = (
       throw new AuthoringError('invalid_persisted_operation', 500);
     }
   }
+};
+
+const activityForMutation = (
+  root: BookActivityAuthoringRoot,
+  activityId: string,
+  validationContext: ActivityValidationContext,
+): ActivityRecord | undefined => {
+  const hasPersistedRecord = root.activities !== undefined && Object.hasOwn(root.activities, activityId);
+  const activity = asActivity(root.activities?.[activityId], activityId, validationContext);
+  if (hasPersistedRecord && !activity) {
+    throw new AuthoringError('invalid_persisted_activity', 500, { activityId });
+  }
+  return activity;
 };
 
 const exact = (body: unknown, keys: readonly string[]): Record<string, unknown> => {
@@ -418,14 +509,18 @@ const operationResult = (
   return { result, write: true };
 };
 
-const validateContent = (content: unknown, previous?: NormalizedActivity): {
+const validateContent = (
+  content: unknown,
+  previous?: NormalizedActivity,
+  validationContext: ActivityValidationContext = {},
+): {
   validation: { valid: boolean; errors: unknown[] };
   normalized?: NormalizedActivity;
   diff: ActivityDiff | null;
 } => {
-  const validation = validateEditableActivity(content);
+  const validation = validateEditableActivity(content, validationContext);
   if (!validation.valid) return { validation: { valid: false, errors: validation.errors }, diff: null };
-  const normalized = normalizeActivity(validation.value, undefined, previous);
+  const normalized = normalizeActivity(validation.value, undefined, previous, validationContext);
   return { validation: { valid: true, errors: [] }, normalized, diff: diffActivities(previous ?? null, normalized) };
 };
 
@@ -462,6 +557,21 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
     readonly ownerId: string;
     readonly bookId: string;
     readonly unitKey: string;
+  }) => Promise<readonly string[] | null>;
+  /** Verifies the requested logical slot and its trusted context contract. */
+  readAssemblyActivityContracts?: (input: {
+    readonly env: BookActivityAuthoringRepositoryEnv;
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly unitKey: string;
+  }) => Promise<readonly AssemblyActivityContract[] | null>;
+  /** Returns trusted mapped page references for a current Assembly Activity slot. */
+  readAssemblyActivityPageRefs?: (input: {
+    readonly env: BookActivityAuthoringRepositoryEnv;
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly unitKey: string;
+    readonly activityKey: string;
   }) => Promise<readonly string[] | null>;
 } = {}) => {
   const now = options.now ?? nowDefault;
@@ -521,6 +631,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
     fingerprint: string,
     bookId: string,
     requested: { unitKey: string; activityKey: string },
+    validationContext: ActivityValidationContext,
   ): Promise<Record<string, unknown> | null> => repository.transaction(ownerId, (root) => {
     assertPersistedRoot(root, ownerId);
     const previous = asOperation(root.operations?.[operationId]);
@@ -532,7 +643,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       return { outcome: null, write: false };
     }
     const candidate = asCandidate(root.candidates?.[result.candidateId], result.candidateId);
-    const activity = asActivity(root.activities?.[result.activityId], result.activityId);
+    const activity = asActivity(root.activities?.[result.activityId], result.activityId, validationContext);
     if (!candidate || !activity || candidate.ownerId !== ownerId || activity.ownerId !== ownerId
       || candidate.bookId !== bookId || candidate.lifecycle !== 'saved'
       || candidate.revision !== result.candidateRevision
@@ -593,7 +704,10 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
           'sourceEvidenceRefs', 'answerEvidenceRefs', 'unitActivityBinding',
         ])
         : undefined;
-      const requestedBinding = saveRequest ? unitActivityBinding(saveRequest) : undefined;
+      const requestedBinding = (mutation === 'stage' || mutation === 'validate' || mutation === 'save-draft' || mutation === 'discard')
+        ? unitActivityBinding(bodyRecord ?? {})
+        : undefined;
+      const bindingRequest = mutation === 'save-draft' ? requestedBinding : undefined;
       const saveOperationId = saveRequest ? operation(saveRequest) : undefined;
       const saveExpectedRevision = saveRequest ? validRevision(saveRequest.expectedRevision) : undefined;
       const candidateId = mutation === 'stage'
@@ -618,25 +732,64 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         bookId: trustedBookId,
         requireBook: true,
       });
+      let activityValidationContext: ActivityValidationContext = {};
+      if (mutation === 'stage' && requestedBinding) {
+        const expectedTargetActivityId = bookScopedActivityTargetId(trustedBookId!, requestedBinding.activityKey);
+        if (expectedTargetActivityId.length > 160 || bodyRecord?.targetActivityId !== expectedTargetActivityId) {
+          throw new AuthoringError('unit_activity_target_identity_mismatch', 409);
+        }
+      }
+      if (requestedBinding && options.readAssemblyActivityContracts && options.readAssemblyActivityPageRefs) {
+        const contracts = await options.readAssemblyActivityContracts({
+          env: input.env, ownerId: input.uid, bookId: trustedBookId!, unitKey: requestedBinding.unitKey,
+        });
+        const contract = contracts?.find((entry) => entry.activityKey === requestedBinding.activityKey);
+        const content = mutation === 'stage'
+          ? bodyRecord?.content
+          : asCandidate(initialRoot?.candidates?.[candidateId ?? ''], candidateId)?.content;
+        if (!contract || !activityMatchesAssemblyContract(content, contract)) {
+          throw new AuthoringError('unit_activity_binding_context_mismatch', 409);
+        }
+        const mappedBookPageRefs = await options.readAssemblyActivityPageRefs({
+          env: input.env, ownerId: input.uid, bookId: trustedBookId!,
+          unitKey: requestedBinding.unitKey, activityKey: requestedBinding.activityKey,
+        });
+        if (!mappedBookPageRefs || mappedBookPageRefs.length === 0) {
+          throw new AuthoringError('unit_activity_binding_context_unavailable', 503);
+        }
+        activityValidationContext = { mappedBookPageRefs: [...mappedBookPageRefs] };
+      }
       let bindingRepository: UnitActivityBindingRepository | undefined;
       let saveBindingFingerprint: string | undefined;
-      if (requestedBinding) {
+      let bindingContent: unknown;
+      if (bindingRequest) {
         if (!trustedBookId || !options.bindingRepositoryFactory || !options.readAssemblyActivityKeys) {
           throw new AuthoringError('unit_activity_binding_unavailable', 503);
         }
         const activityKeys = await options.readAssemblyActivityKeys({
-          env: input.env, ownerId: input.uid, bookId: trustedBookId, unitKey: requestedBinding.unitKey,
+          env: input.env, ownerId: input.uid, bookId: trustedBookId, unitKey: bindingRequest.unitKey,
         });
-        if (!activityKeys || !activityKeys.includes(requestedBinding.activityKey)) {
+        if (!activityKeys || !activityKeys.includes(bindingRequest.activityKey)) {
           throw new AuthoringError('unit_activity_binding_scope_invalid', 409);
         }
-        bindingRepository = options.bindingRepositoryFactory(input.env, input.uid, trustedBookId, requestedBinding.unitKey);
+        bindingRepository = options.bindingRepositoryFactory(input.env, input.uid, trustedBookId, bindingRequest.unitKey);
         const candidate = asCandidate(initialRoot?.candidates?.[candidateId ?? ''], candidateId);
+        bindingContent = candidate?.content;
+        if (options.readAssemblyActivityContracts && candidate
+          && candidate.revision === saveExpectedRevision && candidate.lifecycle === 'validated') {
+          const contracts = await options.readAssemblyActivityContracts({
+            env: input.env, ownerId: input.uid, bookId: trustedBookId, unitKey: bindingRequest.unitKey,
+          });
+          const contract = contracts?.find((entry) => entry.activityKey === bindingRequest.activityKey);
+          if (!contract || !activityMatchesAssemblyContract(candidate.content, contract)) {
+            throw new AuthoringError('unit_activity_binding_context_mismatch', 409);
+          }
+        }
         if (candidate && candidate.ownerId === input.uid && candidate.revision === saveExpectedRevision
           && candidate.lifecycle === 'validated') {
           const existing = await bindingRepository.read({
-            ownerId: input.uid, bookId: trustedBookId, unitKey: requestedBinding.unitKey,
-            activityKey: requestedBinding.activityKey,
+            ownerId: input.uid, bookId: trustedBookId, unitKey: bindingRequest.unitKey,
+            activityKey: bindingRequest.activityKey,
           });
           if (existing && (existing.activityId !== candidate.targetActivityId || existing.candidateId !== candidate.candidateId
             || existing.activityVersionId !== undefined || existing.candidateRevision > candidate.revision + 1)) {
@@ -646,15 +799,15 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         const refs = evidenceRefGroups(saveRequest!);
         saveBindingFingerprint = stable({
           action: 'save-draft', candidateId, expectedRevision: saveExpectedRevision,
-          evidenceRefs: refs ?? null, unitActivityBinding: requestedBinding,
+          evidenceRefs: refs ?? null, unitActivityBinding: bindingRequest,
         });
       }
       let output = await repository.transaction(input.uid, (root) => {
         assertPersistedRoot(root, input.uid);
-        if (mutation === 'stage') return stage(root, input.uid, body, now(), createRecordId, trustedBookId!);
-        if (mutation === 'validate') return validate(root, input.uid, body, now());
-        if (mutation === 'save-draft') return saveDraft(root, input.uid, body, now(), trustedBookId!);
-        return discard(root, input.uid, body, now());
+        if (mutation === 'stage') return stage(root, input.uid, body, now(), createRecordId, trustedBookId!, activityValidationContext);
+        if (mutation === 'validate') return validate(root, input.uid, body, now(), activityValidationContext);
+        if (mutation === 'save-draft') return saveDraft(root, input.uid, body, now(), trustedBookId!, activityValidationContext);
+        return discard(root, input.uid, body, now(), activityValidationContext);
       }, {
         beforeWrite: async (next) => {
           // Recheck deployment enforcement and authenticated ownership on every
@@ -696,7 +849,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
           });
         },
       });
-      if (requestedBinding) {
+      if (bindingRequest) {
         let saved = plainRecord(output);
         let receipt = bindingReceipt(saved?.binding);
         if (saved?.status === 'saved' && saved.replayed === true && !receipt
@@ -707,14 +860,15 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
             saveOperationId,
             saveBindingFingerprint,
             trustedBookId,
-            requestedBinding,
+            bindingRequest,
+            activityValidationContext,
           ) ?? output;
           saved = plainRecord(output);
           receipt = bindingReceipt(saved?.binding);
         }
         if (!saved || !receipt || !trustedBookId || !bindingRepository || !saveBindingFingerprint
           || receipt.ownerId !== input.uid || receipt.bookId !== trustedBookId
-          || receipt.unitKey !== requestedBinding.unitKey || receipt.activityKey !== requestedBinding.activityKey) {
+          || receipt.unitKey !== bindingRequest.unitKey || receipt.activityKey !== bindingRequest.activityKey) {
           throw new AuthoringError('unit_activity_binding_receipt_invalid', 500);
         }
         if (receipt.phase === 'complete' || receipt.phase === 'binding-conflict') {
@@ -722,13 +876,25 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         }
         try {
           const activityKeys = await options.readAssemblyActivityKeys!({
-            env: input.env, ownerId: input.uid, bookId: trustedBookId, unitKey: requestedBinding.unitKey,
+            env: input.env, ownerId: input.uid, bookId: trustedBookId, unitKey: bindingRequest.unitKey,
           });
-          if (!activityKeys || !activityKeys.includes(requestedBinding.activityKey)) {
+          if (!activityKeys || !activityKeys.includes(bindingRequest.activityKey)) {
             const partial = await advanceBindingReceipt(
               repository, input.uid, saveOperationId!, saveBindingFingerprint, receipt, 'binding-conflict',
             );
             return { body: partial ?? incompleteBindingResponse(saved, receipt), init: { status: partial ? 409 : 202 } };
+          }
+          if (options.readAssemblyActivityContracts) {
+            const contracts = await options.readAssemblyActivityContracts({
+              env: input.env, ownerId: input.uid, bookId: trustedBookId, unitKey: bindingRequest.unitKey,
+            });
+            const contract = contracts?.find((entry) => entry.activityKey === bindingRequest.activityKey);
+            if (!contract || !activityMatchesAssemblyContract(bindingContent, contract)) {
+              const partial = await advanceBindingReceipt(
+                repository, input.uid, saveOperationId!, saveBindingFingerprint, receipt, 'binding-conflict',
+              );
+              return { body: partial ?? incompleteBindingResponse(saved, receipt), init: { status: partial ? 409 : 202 } };
+            }
           }
           const status = await bindingRepository.bindCandidate(bindingWrite(receipt));
           if (status === 'conflict' || status === 'stale') {
@@ -764,8 +930,11 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
           init: { status: error.status },
         };
       }
-      if (error instanceof AuthoringError) return { body: { code: error.code, ...(error.detail ?? {}) }, init: { status: error.status } };
-      console.error('Book Activity authoring mutation failed', error instanceof Error ? error.message : String(error));
+      if (error instanceof AuthoringError) {
+        console.error('book_activity_authoring_rejected', { code: error.code, status: error.status });
+        return { body: { code: error.code, ...(error.detail ?? {}) }, init: { status: error.status } };
+      }
+      console.error('book_activity_authoring_failed', error instanceof Error ? error.message : 'unknown_error');
       return { body: { code: 'book_activity_authoring_failed' }, init: { status: 500 } };
     }
   };
@@ -798,27 +967,28 @@ const stage = (
   at: number,
   createRecordId: () => string,
   bookId: string,
+  validationContext: ActivityValidationContext = {},
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'targetActivityId', 'content', 'evidenceRefs',
-    'sourceEvidenceRefs', 'answerEvidenceRefs', 'bookId',
+    'sourceEvidenceRefs', 'answerEvidenceRefs', 'bookId', 'unitActivityBinding',
   ]);
   const operationId = operation(input); const expectedRevision = validRevision(input.expectedRevision);
   const requestedTargetActivityId = input.targetActivityId === undefined ? undefined : validId(input.targetActivityId, 'activity_id');
   const refs = evidenceRefGroups(input);
   prune(root, at);
-  const fingerprint = stable({ action: 'stage', bookId, expectedRevision, targetActivityId: requestedTargetActivityId ?? null, content: input.content, evidenceRefs: refs });
+  const fingerprint = stable({ action: 'stage', bookId, expectedRevision, targetActivityId: requestedTargetActivityId ?? null, content: input.content, evidenceRefs: refs, unitActivityBinding: input.unitActivityBinding ?? null });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     if (Object.keys(root.candidates ?? {}).length >= MAX_CANDIDATES_PER_OWNER) return { status: 'capacity-exceeded' };
     const targetActivityId = requestedTargetActivityId ?? recordId('activity', createRecordId);
-    const existing = asActivity(root.activities?.[targetActivityId], targetActivityId);
+    const existing = activityForMutation(root, targetActivityId, validationContext);
     if (existing && existing.ownerId !== ownerId) return { status: 'not-found' };
     if (!existing && Object.keys(root.activities ?? {}).length >= MAX_ACTIVITIES_PER_OWNER) {
       return { status: 'capacity-exceeded' };
     }
     const currentRevision = existing?.revision ?? 0;
     if (currentRevision !== expectedRevision) return { status: 'conflict', currentRevision };
-    const checked = validateContent(input.content, existing?.draft);
+    const checked = validateContent(input.content, existing?.draft, validationContext);
     const candidateId = recordId('candidate', createRecordId);
     if (root.candidates?.[candidateId]) return { status: 'id-collision' };
     const candidate: CandidateRecord = {
@@ -838,26 +1008,29 @@ const stage = (
   return { outcome: claimed.result, next: root, write: claimed.write };
 };
 
-const validate = (root: BookActivityAuthoringRoot, ownerId: string, body: unknown, at: number) => {
+const validate = (
+  root: BookActivityAuthoringRoot,
+  ownerId: string,
+  body: unknown,
+  at: number,
+  validationContext: ActivityValidationContext = {},
+) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
-    'sourceEvidenceRefs', 'answerEvidenceRefs',
+    'sourceEvidenceRefs', 'answerEvidenceRefs', 'unitActivityBinding',
   ]);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
-  const expectedRevision = validRevision(input.expectedRevision); const refs = evidenceRefGroups(input);
+  const expectedRevision = validRevision(input.expectedRevision); const refs = evidenceRefGroups(input); const binding = unitActivityBinding(input);
   prune(root, at);
-  const fingerprint = stable({ action: 'validate', candidateId, expectedRevision, evidenceRefs: refs ?? null });
+  const fingerprint = stable({ action: 'validate', candidateId, expectedRevision, evidenceRefs: refs ?? null, unitActivityBinding: binding ?? null });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     const candidate = asCandidate(root.candidates?.[candidateId], candidateId);
     if (!candidate || candidate.ownerId !== ownerId) return { status: 'not-found' };
     if (candidate.lifecycle === 'discarded') return { status: 'discarded', candidateId, revision: candidate.revision, lifecycle: candidate.lifecycle };
     if (candidate.revision !== expectedRevision) return { status: 'conflict', currentRevision: candidate.revision };
-    const activity = asActivity(
-      root.activities?.[candidate.targetActivityId],
-      candidate.targetActivityId,
-    );
+    const activity = activityForMutation(root, candidate.targetActivityId, validationContext);
     if (activity && activity.ownerId !== ownerId) return { status: 'not-found' };
-    const checked = validateContent(candidate.content, activity?.draft);
+    const checked = validateContent(candidate.content, activity?.draft, validationContext);
     const next: CandidateRecord = { ...candidate, revision: candidate.revision + 1,
       lifecycle: checked.validation.valid ? 'validated' : 'rejected', validation: checked.validation,
       diff: checked.diff, evidenceRefs: input.evidenceRefs === undefined ? candidate.evidenceRefs : refs.legacy,
@@ -878,6 +1051,7 @@ const saveDraft = (
   body: unknown,
   at: number,
   trustedBookId: string,
+  validationContext: ActivityValidationContext = {},
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
@@ -893,14 +1067,11 @@ const saveDraft = (
     if (!candidate || candidate.ownerId !== ownerId) return { status: 'not-found' };
     if (candidate.lifecycle === 'discarded') return { status: 'discarded', candidateId, revision: candidate.revision, lifecycle: candidate.lifecycle };
     if (candidate.revision !== expectedRevision) return { status: 'conflict', currentRevision: candidate.revision };
-    const existing = asActivity(
-      root.activities?.[candidate.targetActivityId],
-      candidate.targetActivityId,
-    );
+    const existing = activityForMutation(root, candidate.targetActivityId, validationContext);
     if (existing && existing.ownerId !== ownerId) return { status: 'not-found' };
     const currentRevision = existing?.revision ?? 0;
     if (currentRevision !== candidate.targetRevision) return { status: 'conflict', currentRevision };
-    const checked = validateContent(candidate.content, existing?.draft);
+    const checked = validateContent(candidate.content, existing?.draft, validationContext);
     if (!checked.validation.valid || !checked.normalized) {
       const rejected: CandidateRecord = { ...candidate, revision: candidate.revision + 1, lifecycle: 'rejected',
         validation: checked.validation, diff: checked.diff,
@@ -949,8 +1120,14 @@ const saveDraft = (
   return { outcome: claimed.result, next: root, write: claimed.write };
 };
 
-const discard = (root: BookActivityAuthoringRoot, ownerId: string, body: unknown, at: number) => {
-  const input = exact(body, ['operationId', 'expectedRevision', 'candidateId']);
+const discard = (
+  root: BookActivityAuthoringRoot,
+  ownerId: string,
+  body: unknown,
+  at: number,
+  validationContext: ActivityValidationContext = {},
+) => {
+  const input = exact(body, ['operationId', 'expectedRevision', 'candidateId', 'unitActivityBinding']);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision);
   prune(root, at);
@@ -960,9 +1137,9 @@ const discard = (root: BookActivityAuthoringRoot, ownerId: string, body: unknown
     if (!candidate || candidate.ownerId !== ownerId) return { status: 'not-found' };
     if (candidate.revision !== expectedRevision) return { status: 'conflict', currentRevision: candidate.revision };
     if (candidate.lifecycle === 'discarded') return { status: 'discarded', candidateId, revision: candidate.revision, lifecycle: candidate.lifecycle };
-    const activity = asActivity(root.activities?.[candidate.targetActivityId], candidate.targetActivityId);
+    const activity = activityForMutation(root, candidate.targetActivityId, validationContext);
     if (activity && activity.ownerId !== ownerId) return { status: 'not-found' };
-    const checked = validateContent(candidate.content, activity?.draft);
+    const checked = validateContent(candidate.content, activity?.draft, validationContext);
     if (!checked.validation.valid) throw new AuthoringError('invalid_persisted_candidate', 500);
     const tombstone: CandidateRecord = {
       ...candidate, revision: candidate.revision + 1, lifecycle: 'discarded', content: null,

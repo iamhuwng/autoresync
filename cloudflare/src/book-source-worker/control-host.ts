@@ -30,6 +30,18 @@ interface ControlHostVerifier {
 }
 
 export interface BookSourceUploadControlService {
+  sources?(input: {
+    readonly actorId: string;
+    readonly bookId: string;
+  }): Promise<{
+    readonly sources: readonly {
+      readonly sourceKey: string;
+      readonly sourceVersionId: string;
+      readonly bookId: string;
+      readonly physicalPageCount: number;
+      readonly verifiedUsable: boolean;
+    }[];
+  }>;
   attachSourceSet?(input: {
     readonly actorId: string;
     readonly bookId: string;
@@ -57,6 +69,8 @@ export interface BookSourceUploadControlService {
     readonly requiredHeaders: Readonly<Record<string, string>>;
     readonly reservationId: string;
     readonly sourceVersionId: string;
+    readonly bookRevision?: number;
+    readonly sourceSetRevision?: number;
   }>;
   complete(input: {
     readonly actorId: string;
@@ -256,6 +270,7 @@ const parseBody = async (request: Request): Promise<Record<string, unknown>> => 
 type Route =
   | { readonly action: 'begin'; readonly bookId: string }
   | { readonly action: 'attach'; readonly bookId: string }
+  | { readonly action: 'sources'; readonly bookId: string }
   | {
       readonly action: 'complete' | 'cancel' | 'retry' | 'reconcile' | 'status';
       readonly bookId: string;
@@ -299,6 +314,19 @@ const routeFor = (request: Request): Route | undefined => {
       action: segments[6] as 'complete' | 'cancel' | 'retry' | 'reconcile',
       bookId: safeId(segments[3], 'book_id'),
       reservationId: safeId(segments[5], 'reservation_id'),
+    };
+  }
+  if (
+    request.method === 'GET'
+    && segments.length === 5
+    && segments[0] === 'v1'
+    && segments[1] === 'book-source'
+    && segments[2] === 'books'
+    && segments[4] === 'sources'
+  ) {
+    return {
+      action: 'sources',
+      bookId: safeId(segments[3], 'book_id'),
     };
   }
   if (
@@ -396,7 +424,7 @@ export const createBookSourceControlHost = (options: BookSourceControlHostOption
         return json(request, env, { code: 'unauthorized' }, 401);
       }
 
-      if (route.action !== 'status') {
+      if (route.action !== 'status' && route.action !== 'sources') {
         if (!options.pilotScope) throw new ControlRequestError('book_pilot_scope_unavailable', 503);
         await options.pilotScope({
           actorId: authorization.uid,
@@ -412,6 +440,14 @@ export const createBookSourceControlHost = (options: BookSourceControlHostOption
           actorId: authorization.uid,
           bookId: route.bookId,
           reservationId: route.reservationId,
+        }));
+      }
+
+      if (route.action === 'sources') {
+        if (!options.service.sources) throw new ControlRequestError('source_projection_unavailable', 503);
+        return json(request, env, await options.service.sources({
+          actorId: authorization.uid,
+          bookId: route.bookId,
         }));
       }
 
@@ -516,9 +552,21 @@ export const createBookSourceControlHost = (options: BookSourceControlHostOption
         status: result.status,
         reservationId: result.reservationId,
         sourceVersionId: result.sourceVersionId,
+        ...(result.bookRevision !== undefined && result.sourceSetRevision !== undefined
+          ? {
+              bookRevision: result.bookRevision,
+              sourceSetRevision: result.sourceSetRevision,
+            }
+          : {}),
       });
     } catch (error) {
       const failure = publicFailure(error);
+      console.info('book_source_control_failure_detail', {
+        code: failure.code,
+        status: failure.status,
+        name: error instanceof Error ? error.name : typeof error,
+        message: error instanceof Error ? error.message : undefined,
+      });
       return json(request, env, { code: failure.code }, failure.status);
     }
   },

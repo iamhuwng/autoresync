@@ -4,6 +4,7 @@ import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../typ
 import { UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
 
 const MAX_IMPORT_BYTES = 512 * 1024;
+const MAX_ACTIVITY_TARGET_ID_LENGTH = 160;
 const FORBIDDEN_KEYS = /^(activityId|candidateId|ownerId|ownerNodeKey|interactionId|itemId|sourceVersionId|providerObjectKey|providerUrl|objectKey|bucket|credential|credentials|token|privateKey|teacherNotes|react|tsx)$/iu;
 const FORBIDDEN_TEXT = /(https?:\/\/|b2:\/\/|backblaze|providerObjectKey|private_key|BEGIN PRIVATE KEY|tsx|<script|function\s+[A-Za-z0-9_]+\s*\()/iu;
 
@@ -25,8 +26,12 @@ export interface UnitActivityImportBundle {
 
 export interface UnitActivityImportResult {
   readonly bundle: UnitActivityImportBundle;
-  readonly staged: readonly ActivityStageResult[];
+  readonly staged: readonly StagedUnitActivity[];
 }
+
+type StagedUnitActivity = ActivityStageResult & {
+  readonly unitActivityBinding: { readonly unitKey: string; readonly activityKey: string };
+};
 
 export class UnitActivityImportError extends Error {
   constructor(readonly code: string, message: string) {
@@ -34,6 +39,27 @@ export class UnitActivityImportError extends Error {
     this.name = 'UnitActivityImportError';
   }
 }
+
+const hexUtf8 = (value: string): string => Array.from(
+  new TextEncoder().encode(value),
+  (byte) => byte.toString(16).padStart(2, '0'),
+).join('');
+
+/**
+ * Activity authoring storage is owner-scoped, while Assembly slot identities
+ * are Book-scoped. Encode both identities into the mutation target so the same
+ * logical slot key can be reused safely by another Book without weakening CAS.
+ */
+export const bookScopedActivityTargetId = (bookId: string, activityKey: string): string => {
+  const targetActivityId = `ba_${hexUtf8(bookId)}_${hexUtf8(activityKey)}`;
+  if (targetActivityId.length > MAX_ACTIVITY_TARGET_ID_LENGTH) {
+    throw new UnitActivityImportError(
+      'activity-target-too-long',
+      'The Book and Activity slot identifiers are too long for a safe authoring target.',
+    );
+  }
+  return targetActivityId;
+};
 
 const byteLength = (value: string): number => new TextEncoder().encode(value).byteLength;
 const record = (value: unknown, code = 'invalid-json'): Record<string, unknown> => {
@@ -89,6 +115,15 @@ const allowedEvidenceRefsForSlot = (unit: BookUnitCandidate, activityKey: string
     for (const page of group.pages) refs.add(`source:${group.sourceKey}:page:${page}`);
   }
   return refs;
+};
+const clientMappedBookPageRefsForSlot = (unit: BookUnitCandidate, activityKey: string): string[] => {
+  const slot = unit.activitySlots.find((entry) => entry.activityKey === activityKey);
+  if (!slot) return [];
+  const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
+  return slot.pageGroupKeys.flatMap((groupKey) => {
+    const group = groups.get(groupKey);
+    return group?.pages.map((page) => `source:${group.sourceKey}:page:${page}`) ?? [];
+  });
 };
 const assertSourceRefs = (refs: readonly string[], allowed: Set<string>, label: string): void => {
   for (const ref of refs) {
@@ -173,7 +208,7 @@ export const parseUnitActivityImportBundle = (
 
 export const discardStagedUnitActivities = async (
   activityAuthoring: ActivityAuthoringService,
-  staged: readonly ActivityStageResult[],
+  staged: readonly StagedUnitActivity[],
 ): Promise<void> => {
   const failures: string[] = [];
   for (const result of [...staged].reverse()) {
@@ -181,6 +216,7 @@ export const discardStagedUnitActivities = async (
       await activityAuthoring.discard({
         candidateId: result.candidateId,
         expectedRevision: result.revision,
+        unitActivityBinding: result.unitActivityBinding,
       });
     } catch (error) {
       failures.push(error instanceof Error ? error.message : String(error));
@@ -209,7 +245,9 @@ export const stageUnitActivityImportBundle = async ({
   readonly signal?: AbortSignal;
 }): Promise<UnitActivityImportResult> => {
   const bundle = parseUnitActivityImportBundle(text, manifest, unitKey);
-  const staged: ActivityStageResult[] = [];
+  const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
+  if (!unit) throw new UnitActivityImportError('missing-unit', 'Selected Unit has no Activity slot contract.');
+  const staged: StagedUnitActivity[] = [];
   try {
     for (const slot of bundle.slots) {
       if (signal?.aborted) {
@@ -223,6 +261,10 @@ export const stageUnitActivityImportBundle = async ({
         bookId: manifest.bookId,
         targetActivityId,
         expectedRevision: expectedActivityRevisions[slot.activityKey] ?? 0,
+        unitActivityBinding: { unitKey, activityKey: slot.activityKey },
+        clientValidationContext: {
+          mappedBookPageRefs: clientMappedBookPageRefsForSlot(unit, slot.activityKey),
+        },
         content: slot.content,
         evidenceRefs: [...(slot.evidenceRefs ?? [])],
         sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
@@ -231,6 +273,7 @@ export const stageUnitActivityImportBundle = async ({
       const validated = await activityAuthoring.validate({
         candidateId: result.candidateId,
         expectedRevision: result.revision,
+        unitActivityBinding: { unitKey, activityKey: slot.activityKey },
         evidenceRefs: [...(slot.evidenceRefs ?? [])],
         sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
         answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
@@ -251,7 +294,11 @@ export const stageUnitActivityImportBundle = async ({
       }
       // Rollback must address the persisted candidate state, not the initial
       // staging revision that validate/save have superseded.
-      staged.push({ ...result, revision: saved.candidateRevision });
+      staged.push({
+        ...result,
+        revision: saved.candidateRevision,
+        unitActivityBinding: { unitKey, activityKey: slot.activityKey },
+      });
       if (signal?.aborted) {
         throw new UnitActivityImportError('canceled', 'Import was canceled.');
       }

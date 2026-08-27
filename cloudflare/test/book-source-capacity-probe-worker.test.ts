@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  CAPACITY_PROBE_FAILURE_HEADER,
   createCapacityProbeWorker,
   getCanonicalCapacityExpectedTotals,
 } from '../src/book-source-worker/capacity-probe-worker';
@@ -31,7 +32,7 @@ const env = () => ({
   BOOK_SOURCE_B2_STORAGE_LOCATION_ID: 'book_b2_primary', BOOK_SOURCE_B2_PRIVATE_BUCKET_ID: 'private-bucket-id',
   BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME: 'private-book-pdfs', BOOK_SOURCE_B2_CAPACITY_APPLICATION_KEY_ID: 'capacity-key-id', BOOK_SOURCE_B2_CAPACITY_APPLICATION_KEY: 'capacity-key-secret',
 });
-const authorize = () => Response.json({ authorizationToken: 'b2-token', apiInfo: { storageApi: {
+const authorize = () => Response.json({ applicationKeyExpirationTimestamp: null, authorizationToken: 'b2-token', apiInfo: { storageApi: {
   apiUrl: 'https://api004.backblazeb2.com', s3ApiUrl: 'https://s3.us-west-004.backblazeb2.com',
   allowed: { capabilities: ['listFiles'], buckets: [{ id: 'private-bucket-id', name: 'private-book-pdfs' }], namePrefix: null },
 } } });
@@ -262,6 +263,26 @@ describe('Book Source capacity probe worker', () => {
       /capacity-key-secret|private-bucket|b2-token|diagnostic|backblaze/iu,
     );
     consoleError.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it('marks provider authorization failures for the trusted scheduler without exposing details', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response('provider secret', { status: 401 }));
+    vi.stubGlobal('fetch', fetcher);
+    const failureWorker = createCapacityProbeWorker({
+      onError: (error) => workerErrors.push(error),
+      readExpectedTotals: readZeroExpectedTotals,
+      writeReconciliationSnapshot,
+    });
+
+    const failure = await failureWorker.fetch(request({}), env());
+
+    expect(failure.status).toBe(503);
+    expect(failure.headers.get(CAPACITY_PROBE_FAILURE_HEADER)).toBe('unauthorized');
+    expect(await failure.json()).toEqual({ code: 'unavailable' });
+    expect(workerErrors).toEqual([
+      expect.objectContaining({ code: 'unauthorized', phase: 'authorize', status: 401 }),
+    ]);
     vi.unstubAllGlobals();
   });
 

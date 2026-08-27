@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBookSourceUploadWorkerHandlers } from '../src/upload-worker/book-source/worker.ts';
 import { createBookRouter } from '../src/upload-worker/book-router.ts';
+import { canonicalBookRouteManifest } from '../src/upload-worker/book-routes/manifest.ts';
 
 const operationId = '11111111-1111-4111-8111-111111111111';
+const beginDescriptor = canonicalBookRouteManifest.find((route) => route.id === 'book.source-upload.begin');
+if (!beginDescriptor) throw new Error('missing_book_source_begin_descriptor');
+const pilotIssuedAt = new Date(Date.now() - 60 * 60_000).toISOString();
+const pilotExpiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
 const inspection = {
   schemaVersion: 1,
   trust: 'browser-supplied-untrusted',
@@ -17,6 +22,20 @@ const inspection = {
 
 const env = {
   BOOK_SOURCE_UPLOAD_ROUTES_ENABLED: 'enabled',
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1',
+    environment: 'test',
+    revision: 'source-upload-test-1',
+    issuedAt: pilotIssuedAt,
+    expiresAt: pilotExpiresAt,
+    teacherId: 'teacher-1',
+    bookId: 'book-1',
+    assignmentId: 'assignment-1',
+    studentIds: ['student-1'],
+    maxStudents: 30,
+  }),
   BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY: 'book-source@test.iam.gserviceaccount.com',
   BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY: '{"client_email":"book-source@test.iam.gserviceaccount.com","private_key":"private"}',
   BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: 'http://localhost:5173',
@@ -67,7 +86,7 @@ describe('canonical #49 source upload composition', () => {
       env,
       uid: 'teacher-1',
       params: { bookId: 'book-1' },
-      descriptor: {} as never,
+      descriptor: beginDescriptor,
     });
 
     expect(response.status).toBe(200);
@@ -121,7 +140,7 @@ describe('canonical #49 source upload composition', () => {
         env: { ...env, BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: allowedOrigin },
         uid: 'teacher-1',
         params: { bookId: 'book-1' },
-        descriptor: {} as never,
+        descriptor: beginDescriptor,
       });
 
       expect(response.status).toBe(500);

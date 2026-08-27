@@ -1,5 +1,5 @@
 import { getAuth } from 'firebase/auth';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BOOK_ACTIVITY_ROLLOUT_GATES,
   isBookActivityRolloutGateEnabled,
@@ -15,6 +15,7 @@ import {
   createSourceUploadClient,
   createSourceUploadSessionStatePort,
   type SourceSetAttachmentClient,
+  type SourceUploadSourceVersionReader,
 } from '../../services/book-source-delivery/sourceUpload.client';
 import { createBookAssemblyClient, type BookAssemblyMigrationClient } from '../../services/book-assembly/assemblyClient.browser';
 import { createBookAssemblyPreviewClient, type BookAssemblyPreviewClient } from '../../services/book-assembly/assemblyPublication.client';
@@ -33,7 +34,7 @@ import { createActivityAuthoringTransport } from '../../services/book-activity/a
 import type { BookEditorAccess } from './useBookEditorModeResolution';
 import './BookMode2EditorShell.css';
 
-interface BookMode2EditorShellProps {
+export interface BookMode2EditorShellProps {
   readonly access: BookEditorAccess;
   readonly book: MaterialBookMetadata;
   readonly presentation: 'modal' | 'page-compat';
@@ -43,6 +44,7 @@ interface BookMode2EditorShellProps {
   readonly assemblyMigrationClient?: BookAssemblyMigrationClient | null;
   readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly assemblySourceVersions?: readonly TrustedBookSourceVersionProjection[];
+  readonly assemblySourceVersionReader?: SourceUploadSourceVersionReader | null;
   readonly assemblyInitialCandidate?: BookAssemblyCandidateRecord | null;
   readonly assemblyBookRevision?: number;
   readonly assemblySourceSetRevision?: number;
@@ -95,6 +97,16 @@ const configuredSourceSetAttachmentClient = (): SourceSetAttachmentClient | null
   });
 };
 
+const configuredSourceVersionReader = (): SourceUploadSourceVersionReader | null => {
+  const controlUrl = import.meta.env.VITE_BOOK_SOURCE_CONTROL_WORKER_URL?.trim();
+  if (!controlUrl) return null;
+  const client = createSourceUploadClient({
+    baseUrl: controlUrl,
+    getIdToken: getCurrentFirebaseIdToken,
+  });
+  return { listSourceVersions: client.listSourceVersions };
+};
+
 const configuredAssemblyMigrationClient = (): BookAssemblyMigrationClient | null => {
   const baseUrl = import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim();
   if (!baseUrl) return null;
@@ -129,9 +141,10 @@ const BookMode2EditorShell = ({
   assemblyMigrationClient,
   activityAuthoring,
   assemblySourceVersions = [],
+  assemblySourceVersionReader,
   assemblyInitialCandidate,
-  assemblyBookRevision = 0,
-  assemblySourceSetRevision = 0,
+  assemblyBookRevision = book.bookRevision ?? 0,
+  assemblySourceSetRevision = book.sourceSetRevision ?? 0,
   sourceSetAttachmentClient,
   assemblyPreviewDocuments,
   assemblyPreviewGetIdToken,
@@ -148,12 +161,18 @@ const BookMode2EditorShell = ({
     () => uploadWorkflow === undefined ? configuredUploadWorkflow() : uploadWorkflow,
     [uploadWorkflow],
   );
-  const resolvedUploadWorkflowForSource = useMemo(
-    () => (sourceKey: string) => uploadWorkflow === undefined
-      ? configuredUploadWorkflow(sourceKey)
-      : uploadWorkflow,
-    [uploadWorkflow],
-  );
+  const resolvedUploadWorkflowForSource = useMemo(() => {
+    if (uploadWorkflow !== undefined) {
+      return (_sourceKey: string) => uploadWorkflow;
+    }
+    const configuredBySource = new Map<string, SourceUploadBrowserWorkflow | null>();
+    return (sourceKey: string) => {
+      if (!configuredBySource.has(sourceKey)) {
+        configuredBySource.set(sourceKey, configuredUploadWorkflow(sourceKey));
+      }
+      return configuredBySource.get(sourceKey) ?? null;
+    };
+  }, [uploadWorkflow]);
   const resolvedAssemblyRepository = useMemo(
     () => assemblyRepository === undefined ? configuredAssemblyRepository() : assemblyRepository,
     [assemblyRepository],
@@ -164,6 +183,36 @@ const BookMode2EditorShell = ({
       : sourceSetAttachmentClient,
     [sourceSetAttachmentClient],
   );
+  const resolvedAssemblySourceVersionReader = useMemo(
+    () => assemblySourceVersionReader === undefined
+      ? configuredSourceVersionReader()
+      : assemblySourceVersionReader,
+    [assemblySourceVersionReader],
+  );
+  const [loadedAssemblySourceVersions, setLoadedAssemblySourceVersions] = useState<readonly TrustedBookSourceVersionProjection[]>([]);
+  useEffect(() => {
+    if (assemblySourceVersions.length > 0 || !resolvedAssemblySourceVersionReader || access === 'public-readonly') {
+      setLoadedAssemblySourceVersions([]);
+      return;
+    }
+    let active = true;
+    setLoadedAssemblySourceVersions([]);
+    void resolvedAssemblySourceVersionReader.listSourceVersions(book.bookId)
+      .then((sources) => {
+        if (active) setLoadedAssemblySourceVersions(sources);
+      })
+      .catch(() => {
+        // Source projections are trusted readiness input. A read failure must
+        // leave the flow locked rather than turn metadata into upload proof.
+        if (active) setLoadedAssemblySourceVersions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [access, assemblySourceVersions.length, book.bookId, resolvedAssemblySourceVersionReader]);
+  const resolvedAssemblySourceVersions = assemblySourceVersions.length > 0
+    ? assemblySourceVersions
+    : loadedAssemblySourceVersions;
   const resolvedAssemblyMigrationClient = useMemo(
     () => assemblyMigrationClient === undefined ? configuredAssemblyMigrationClient() : assemblyMigrationClient,
     [assemblyMigrationClient],
@@ -209,7 +258,8 @@ const BookMode2EditorShell = ({
         assemblyRepository={resolvedAssemblyRepository}
         assemblyMigrationClient={resolvedAssemblyMigrationClient}
         activityAuthoring={resolvedActivityAuthoring}
-        assemblySourceVersions={assemblySourceVersions}
+        assemblySourceVersions={resolvedAssemblySourceVersions}
+        assemblyInitialSourceSet={book.sourceSet ?? null}
         assemblyInitialCandidate={assemblyInitialCandidate}
         assemblyBookRevision={assemblyBookRevision}
         assemblySourceSetRevision={assemblySourceSetRevision}

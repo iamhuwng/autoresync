@@ -16,6 +16,30 @@ const stageResponse = {
   evidenceRefs: ['source:1'],
 };
 
+const savedResponse = {
+  status: 'saved',
+  activityId: 'activity-1',
+  revision: 1,
+  candidateId: 'candidate-1',
+  candidateRevision: 3,
+  lifecycle: 'saved',
+  validation: { valid: true, errors: [] },
+  diff: null,
+  evidenceRefs: [],
+  binding: {
+    schemaVersion: 1,
+    ownerId: 'owner-1',
+    bookId: 'book-1',
+    unitKey: 'unit-1',
+    activityKey: 'activity-1',
+    activityId: 'activity-1',
+    candidateId: 'candidate-1',
+    candidateRevision: 3,
+    candidateLifecycle: 'saved',
+    phase: 'complete',
+  },
+};
+
 describe('Activity authoring repository response boundary', () => {
   it('returns a decoded discriminated result and strips no required state', async () => {
     const transport = {
@@ -50,5 +74,17 @@ describe('Activity authoring repository response boundary', () => {
         content: {},
       })).rejects.toThrow('malformed response');
     }
+  });
+
+  it('decodes the server-owned Unit binding receipt on a saved Book Activity', async () => {
+    const repository = createActivityAuthoringRepository({
+      mutate: vi.fn(async () => savedResponse),
+      read: vi.fn(),
+    });
+    await expect(repository.saveDraft({
+      operationId: '123e4567-e89b-42d3-a456-426614174003',
+      expectedRevision: 2,
+      candidateId: 'candidate-1',
+    })).resolves.toEqual(savedResponse);
   });
 });

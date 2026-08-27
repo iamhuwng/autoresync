@@ -117,7 +117,7 @@ const directDescriptorFor = (
 const READ_HANDLER_NAMES = new Set([
   'loadCandidate', 'load', 'readDraft', 'status', 'resolve', 'current', 'catalog',
   'studentProjection', 'teacherStudentProjection', 'teacherProjection',
-  'homeworkStudentLaunch',
+  'homeworkStudentLaunch', 'sources',
 ]);
 
 const adapt = (
@@ -361,7 +361,7 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, homework, ['homeworkStudentLaunch'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, homework, ['homeworkTeacherStudentProjection'], 'futureSeam', () => ['assignmentId', 'studentId']);
   addFactoryHandlers(handlers, homework, ['homeworkTeacherProjection'], 'futureSeam', () => ['assignmentId']);
-  addFactoryHandlers(handlers, sourceUpload, ['begin', 'complete', 'status', 'cancel', 'attach'], 'bookSource');
+  addFactoryHandlers(handlers, sourceUpload, ['begin', 'complete', 'status', 'cancel', 'attach', 'sources'], 'bookSource');
   addFactoryHandlers(handlers, courseBook, ['place', 'prepare', 'revoke'], 'courseBookPlacement');
   addFactoryHandlers(handlers, courseBook, ['current'], 'courseBookPlacement', () => ['courseMaterialId']);
   addFactoryHandlers(handlers, courseBook, ['catalog'], 'courseBookPlacement', () => ['bookId']);

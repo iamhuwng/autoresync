@@ -3,6 +3,7 @@ import { useClipboard } from '../../../core/platform';
 
 export interface UnitActivityImportControlsProps {
   readonly disabled?: boolean;
+  readonly guided?: boolean;
   readonly promptText: string;
   readonly importText: string;
   readonly manualCopyFallback: boolean;
@@ -21,6 +22,7 @@ const readFileText = async (file: File): Promise<string> => file.text();
 
 const UnitActivityImportControls = ({
   disabled = false,
+  guided = false,
   promptText,
   importText,
   manualCopyFallback,
@@ -62,22 +64,22 @@ const UnitActivityImportControls = ({
     <section className="book-assembly-workspace__unit-import" aria-labelledby="book-assembly-unit-import-title">
       <div className="book-assembly-workspace__section-heading">
         <div>
-          <h2 id="book-assembly-unit-import-title">Unit Activity import</h2>
-          <p>Copy the Unit prompt, then stage returned JSON through trusted Activity authoring.</p>
+          <h2 id="book-assembly-unit-import-title">{guided ? 'Add Unit content' : 'Unit Activity import'}</h2>
+          <p>{guided
+            ? 'Choose a JSON file from your Unit authoring flow, or paste the returned content below.'
+            : 'Copy the Unit prompt, then stage returned JSON through trusted Activity authoring.'}</p>
         </div>
       </div>
       <div className="book-assembly-workspace__import-actions">
         <button type="button" disabled={disabled || !canUsePrompt} onClick={() => void copyPrompt()}>
-          Copy Unit prompt
+          {guided ? 'Copy instructions' : 'Copy Unit prompt'}
         </button>
         <button type="button" disabled={disabled || busy || !canUsePrompt} onClick={() => fileInputRef.current?.click()}>
-          Select JSON file
+          {guided ? 'Choose JSON file' : 'Select JSON file'}
         </button>
         {busy ? (
           <button type="button" disabled={!canCancel} onClick={onCancel}>Cancel import</button>
-        ) : (
-          <button type="button" disabled={!canImport} onClick={onImport}>Stage Unit JSON</button>
-        )}
+        ) : <button type="button" disabled={!canImport} onClick={onImport}>{guided ? 'Add Unit content' : 'Stage Unit JSON'}</button>}
       </div>
       <input
         ref={fileInputRef}
@@ -88,7 +90,7 @@ const UnitActivityImportControls = ({
         onChange={(event) => void useFile(event.currentTarget.files?.[0])}
       />
       <label className="book-assembly-workspace__import-editor">
-        Paste Unit Activity JSON
+        {guided ? 'Paste the returned Unit content' : 'Paste Unit Activity JSON'}
         <textarea
           value={importText}
           onChange={(event) => onImportTextChange(event.target.value)}

@@ -255,7 +255,10 @@ const defaultRuntimeFactory = async (
             sourceKey: operation.sourceKey,
             sourceVersionId: operation.sourceVersionId,
           },
-        ).then(() => undefined),
+        ).then((attachment) => ({
+          bookRevision: attachment.bookRevision,
+          sourceSetRevision: attachment.sourceSetRevision,
+        })),
   };
   const productionControl = createSourceUploadControl({
     ...commonDependencies,
@@ -328,6 +331,29 @@ const defaultRuntimeFactory = async (
         throw new SourceUploadControlError('reservation_not_found');
       }
       return safeStatus(operation);
+    },
+    sources: async ({ actorId, bookId }) => {
+      if (!(await authorizeOwner({ actorId, bookId }))) {
+        throw new SourceUploadControlError('authority_denied');
+      }
+      const state = await readAccountState();
+      const sources = Object.entries(state.assemblyBooks?.[bookId] ?? {})
+        .filter(([sourceKey, projection]) => SAFE_ID.test(sourceKey)
+          && projection.ownerId === actorId
+          && projection.bookId === bookId
+          && SAFE_ID.test(projection.sourceVersionId)
+          && Number.isSafeInteger(projection.physicalPageCount)
+          && projection.physicalPageCount > 0
+          && typeof projection.verifiedUsable === 'boolean')
+        .map(([sourceKey, projection]) => ({
+          sourceKey,
+          sourceVersionId: projection.sourceVersionId,
+          bookId: projection.bookId,
+          physicalPageCount: projection.physicalPageCount,
+          verifiedUsable: projection.verifiedUsable,
+        }))
+        .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey));
+      return { sources };
     },
     requestCleanup: async ({
       actorId,
@@ -414,6 +440,7 @@ export const createBookSourceUploadWorkerHandlers = (
     complete: handler,
     attach: handler,
     status: handler,
+    sources: handler,
     cancel: handler,
   });
 };

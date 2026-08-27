@@ -6,6 +6,7 @@ import {
 } from '../src/upload-worker/book-activity-authoring/repository.ts';
 import { createBookRolloutWorkerGate, type BookRolloutWorkerGate } from '../src/book-rollout-gate.ts';
 import type { UnitActivityBindingRepository } from '../../src/services/book-assembly/unitActivityBinding.repository.ts';
+import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service.ts';
 
 const activity = {
   schemaVersion: 1, title: 'Candidate', taskProfile: null, presentationMode: 'structured',
@@ -14,6 +15,20 @@ const activity = {
   answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 }, stimulus: null,
   assetRefs: [], interactions: [{ prompt: 'Pick', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
   scoring: { mode: 'auto-where-possible' },
+};
+const sourceAssistedActivity = {
+  ...activity,
+  presentationMode: 'source-assisted',
+  contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+  interactions: [{
+    ...activity.interactions[0],
+    sourceAssisted: {
+      questionLabel: 'Question 1',
+      accessiblePrompt: 'Choose the correct answer.',
+      responseShape: 'single-choice',
+      sourceExerciseLabel: 'Exercise 1',
+    },
+  }],
 };
 const operation = (suffix: string) => `123e4567-e89b-42d3-a456-426614174${suffix}`;
 const pilotEnv = {
@@ -67,6 +82,8 @@ const worker = (options: {
   state?: Record<string, BookActivityAuthoringRoot>;
   bindingRepositoryFactory?: () => UnitActivityBindingRepository;
   assemblyActivityKeys?: readonly string[] | null;
+  assemblyActivityContracts?: readonly { activityKey: string; contextRequirement: 'required' | 'optional' | 'none' }[] | null;
+  assemblyActivityPageRefs?: readonly string[] | null;
   resolveOwnedPdfBookId?: (input: { env: Record<string, unknown>; ownerId: string; claimedBookId: string }) => Promise<string | undefined>;
 } = {}) => {
   const state: Record<string, BookActivityAuthoringRoot> = options.state ?? {};
@@ -100,6 +117,12 @@ const worker = (options: {
     readAssemblyActivityKeys: options.assemblyActivityKeys === undefined
       ? undefined
       : async () => options.assemblyActivityKeys,
+    readAssemblyActivityContracts: options.assemblyActivityContracts === undefined
+      ? undefined
+      : async () => options.assemblyActivityContracts,
+    readAssemblyActivityPageRefs: options.assemblyActivityPageRefs === undefined
+      ? undefined
+      : async () => options.assemblyActivityPageRefs,
   });
   const scopedInput = <T extends { env: Record<string, unknown> }>(input: T): T => ({
     ...input,
@@ -381,6 +404,55 @@ describe('Book Activity authoring Worker boundary', () => {
     expect(staleScope.state['teacher-1'].activities ?? {}).toEqual({});
   });
 
+  it('rejects an Activity whose context contract disagrees with the trusted Unit slot', async () => {
+    const bindCandidate = vi.fn(async () => 'created' as const);
+    const current = worker({
+      assemblyActivityKeys: ['slot-1'],
+      assemblyActivityContracts: [{ activityKey: 'slot-1', contextRequirement: 'required' }],
+      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }),
+    });
+    const staged = await current.handlers.stage({
+      request: request({ operationId: operation('096'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1',
+    });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({ request: request({ operationId: operation('097'), candidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1' });
+
+    const rejected = await current.handlers.saveDraft({
+      request: request({ operationId: operation('098'), candidateId, expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1',
+    });
+
+    expect(rejected).toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_context_mismatch' } });
+    expect(bindCandidate).not.toHaveBeenCalled();
+    expect(current.state['teacher-1'].activities ?? {}).toEqual({});
+    expect(current.state['teacher-1'].candidates?.[candidateId]).toMatchObject({ lifecycle: 'validated', revision: 2 });
+  });
+
+  it('rejects a Unit import target that is not derived from its trusted Book and slot identities', async () => {
+    const current = worker({
+      assemblyActivityContracts: [{ activityKey: 'slot-1', contextRequirement: 'required' }],
+      assemblyActivityPageRefs: ['source:full:page:1'],
+    });
+
+    const rejected = await current.handlers.stage({
+      request: request({
+        operationId: operation('09a'),
+        expectedRevision: 0,
+        targetActivityId: 'activity-shared-across-books',
+        content: sourceAssistedActivity,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' },
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+
+    expect(rejected).toMatchObject({
+      init: { status: 409 },
+      body: { code: 'unit_activity_target_identity_mismatch' },
+    });
+    expect(current.state).toEqual({});
+  });
+
   it('returns a durable partial conflict if a binding race is first knowable after the Activity commit', async () => {
     const bindCandidate = vi.fn(async () => 'conflict' as const);
     const current = worker({
@@ -509,6 +581,74 @@ describe('Book Activity authoring Worker boundary', () => {
     expect(rejected).toMatchObject({
       body: { code: 'invalid_persisted_candidate' },
       init: { status: 500 },
+    });
+    expect(current.state['teacher-1']).toEqual(before);
+  });
+
+  it('allows a new stage when an unrelated source-assisted Activity needs Assembly context', async () => {
+    const mappedBookPageRefs = ['source:full:page:1'];
+    const state: Record<string, BookActivityAuthoringRoot> = {
+      'teacher-1': {
+        activities: {
+          'activity-stale-source': {
+            activityId: 'activity-stale-source',
+            ownerId: 'teacher-1',
+            revision: 3,
+            lifecycle: 'draft',
+            editableDraft: sourceAssistedActivity,
+            draft: normalizeActivity(sourceAssistedActivity, undefined, undefined, { mappedBookPageRefs }),
+            updatedAt: 1_700_000_000_000,
+          },
+        },
+      },
+    };
+    const current = worker({ state });
+    const before = structuredClone(state['teacher-1'].activities?.['activity-stale-source']);
+
+    const response = await current.handlers.stage({
+      request: request({ operationId: operation('04b'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+
+    expect(response).toMatchObject({ init: { status: 200 }, body: { status: 'staged' } });
+    expect(current.state['teacher-1'].activities?.['activity-stale-source']).toEqual(before);
+    expect(Object.keys(current.state['teacher-1'].candidates ?? {})).toHaveLength(1);
+  });
+
+  it('fails closed when the targeted persisted Activity is malformed instead of treating it as absent', async () => {
+    const state: Record<string, BookActivityAuthoringRoot> = {
+      'teacher-1': {
+        activities: {
+          'activity-target': {
+            activityId: 'activity-target',
+            ownerId: 'teacher-1',
+            revision: 4,
+            lifecycle: 'draft',
+            editableDraft: { ...activity, title: 7 },
+            draft: {},
+            updatedAt: 1_700_000_000_000,
+          },
+        },
+      },
+    };
+    const current = worker({ state });
+    const before = structuredClone(state['teacher-1']);
+
+    const response = await current.handlers.stage({
+      request: request({
+        operationId: operation('04c'),
+        expectedRevision: 0,
+        targetActivityId: 'activity-target',
+        content: activity,
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+
+    expect(response).toMatchObject({
+      init: { status: 500 },
+      body: { code: 'invalid_persisted_activity', activityId: 'activity-target' },
     });
     expect(current.state['teacher-1']).toEqual(before);
   });

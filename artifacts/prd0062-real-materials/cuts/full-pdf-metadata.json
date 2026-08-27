@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "bookId": "book-mt8qk3rj",
+  "sourceSetRevision": 1,
+  "source": {
+    "sourceKey": "full",
+    "sourceVersionId": "source-version-65c30ede0a80f8c1",
+    "filename": "full-pdf-units-1-3.pdf",
+    "contentType": "application/pdf",
+    "physicalPageCount": 14,
+    "exactByteSize": 1091424,
+    "sha256Hex": "a46160046d73f2c2946abb9f537de46a01c8230228a88b67afa5de195117267c",
+    "verifiedUsable": true
+  },
+  "units": [
+    {
+      "unitKey": "unit-real-1",
+      "activityKey": "activity-prd0062-full-unit-1",
+      "pages": [1, 2, 3, 4]
+    },
+    {
+      "unitKey": "unit-real-2",
+      "activityKey": "activity-prd0062-full-unit-2",
+      "pages": [5, 6, 7, 8]
+    },
+    {
+      "unitKey": "unit-real-3",
+      "activityKey": "activity-prd0062-full-unit-3",
+      "pages": [9, 10, 11, 12, 13, 14]
+    }
+  ]
+}

@@ -108,6 +108,43 @@ describe('SourceUploadRtdbRepository', () => {
     expect(cleared.capacity.providerReconciliationContinuation).toBeUndefined();
   });
 
+  it('invalidates a provider snapshot with CAS, clears the cursor, and preserves tracked state', async () => {
+    const memory = createMemoryTransaction({ trackedAccountBytes: 23, temporaryBytes: 0 });
+    const repository = createRepository(memory.transaction);
+    await repository.recordProviderReconciliationContinuation({
+      accountId: 'account-1',
+      expectedRevision: 0,
+      continuation: { token: 'sealed_cursor', updatedAt: '2026-07-23T00:01:00.000Z' },
+    });
+
+    const invalidated = await repository.invalidateProviderReconciliation({
+      accountId: 'account-1',
+      expectedRevision: 0,
+      expectedContinuationToken: 'sealed_cursor',
+    });
+
+    expect(invalidated).toMatchObject({
+      revision: 1,
+      capacity: {
+        trackedAccountBytes: 23,
+        temporaryBytes: 0,
+        providerReconciliation: {
+          status: 'drift',
+          totalBytes: 0,
+          objectCount: 0,
+          completedAt: '2026-07-23T00:01:00.000Z',
+        },
+      },
+      operations: {},
+    });
+    expect(invalidated.capacity.providerReconciliationContinuation).toBeUndefined();
+    await expect(repository.invalidateProviderReconciliation({
+      accountId: 'account-1',
+      expectedRevision: 0,
+      expectedContinuationToken: 'sealed_cursor',
+    })).rejects.toThrow('compare-and-set conflict');
+  });
+
   it('scopes initial source keys to their Book instead of the whole storage account', async () => {
     const memory = createMemoryTransaction();
     const repository = createRepository(memory.transaction);

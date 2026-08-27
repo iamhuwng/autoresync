@@ -1,5 +1,8 @@
 import type { BookSourceUploadKind } from '../../types/bookSource.types';
-import type { SourceSetCandidate } from '../../types/bookAssembly.types';
+import type {
+  SourceSetCandidate,
+  TrustedBookSourceVersionProjection,
+} from '../../types/bookAssembly.types';
 import { sessionStore } from '../../core/platform/storage';
 import type { SourceUploadInspectionClaim } from './sourceUpload.protocol';
 
@@ -35,6 +38,9 @@ export interface CompleteSourceUploadResult {
   readonly status: 'verified_completed' | 'replayed';
   readonly reservationId: string;
   readonly sourceVersionId: string;
+  /** Present when verified completion also advanced the canonical Book authority. */
+  readonly bookRevision?: number;
+  readonly sourceSetRevision?: number;
 }
 
 export interface AttachSourceSetCommand {
@@ -57,6 +63,9 @@ export interface CancelSourceUploadCommand {
   readonly reservationId: string;
   readonly providerFileId?: string;
   readonly providerFileVersionId?: string;
+  /** Present only after trusted completion has advanced the canonical Book authority. */
+  readonly bookRevision?: number;
+  readonly sourceSetRevision?: number;
 }
 
 export interface SourceUploadLifecycleStatus {
@@ -130,6 +139,14 @@ export interface SourceUploadClientOptions {
 
 export interface SourceSetAttachmentClient {
   attachSourceSet(command: AttachSourceSetCommand): Promise<AttachSourceSetResult>;
+}
+
+export type SourceUploadSourceVersionProjection = TrustedBookSourceVersionProjection & {
+  readonly sourceKey: string;
+};
+
+export interface SourceUploadSourceVersionReader {
+  listSourceVersions(bookId: string): Promise<readonly SourceUploadSourceVersionProjection[]>;
 }
 
 const trimBaseUrl = (value: string): string => value.trim().replace(/\/+$/u, '');
@@ -213,6 +230,30 @@ const request = async (
 const safeId = (value: unknown): value is string =>
   nonEmpty(value) && /^[A-Za-z0-9._:-]{1,512}$/u.test(value);
 
+const sourceVersionProjection = (
+  value: unknown,
+  bookId: string,
+): SourceUploadSourceVersionProjection => {
+  const candidate = record(value);
+  if (!candidate
+    || Object.keys(candidate).sort().join(',') !== 'bookId,physicalPageCount,sourceKey,sourceVersionId,verifiedUsable'
+    || candidate.bookId !== bookId
+    || !safeId(candidate.sourceKey)
+    || !safeId(candidate.sourceVersionId)
+    || !Number.isSafeInteger(candidate.physicalPageCount)
+    || (candidate.physicalPageCount as number) <= 0
+    || typeof candidate.verifiedUsable !== 'boolean') {
+    throw new SourceUploadClientError('invalid_response', 502);
+  }
+  return Object.freeze({
+    sourceKey: candidate.sourceKey,
+    sourceVersionId: candidate.sourceVersionId,
+    bookId: candidate.bookId,
+    physicalPageCount: candidate.physicalPageCount as number,
+    verifiedUsable: candidate.verifiedUsable,
+  });
+};
+
 const safeRevision = (value: unknown): value is number =>
   Number.isSafeInteger(value) && (value as number) >= 0;
 
@@ -260,6 +301,8 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
     'phase',
     'providerFileId',
     'providerFileVersionId',
+    'bookRevision',
+    'sourceSetRevision',
   ]);
   if (
     !Object.keys(candidate).every((key) => allowedKeys.has(key))
@@ -283,6 +326,8 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
       || candidate.sourceVersionId !== undefined
       || candidate.providerFileId !== undefined
       || candidate.providerFileVersionId !== undefined
+      || candidate.bookRevision !== undefined
+      || candidate.sourceSetRevision !== undefined
     ) {
       return null;
     }
@@ -299,6 +344,14 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
     } as SourceUploadBeginPendingState);
   }
   if (!safeId(candidate.reservationId) || !safeId(candidate.sourceVersionId)) {
+    return null;
+  }
+  const hasBookRevision = candidate.bookRevision !== undefined;
+  const hasSourceSetRevision = candidate.sourceSetRevision !== undefined;
+  if (hasBookRevision !== hasSourceSetRevision
+    || (hasBookRevision
+      && (!safeRevision(candidate.bookRevision) || !safeRevision(candidate.sourceSetRevision)))
+    || (hasBookRevision && candidate.phase !== 'verified')) {
     return null;
   }
   const identityRequired = candidate.phase === 'completion_pending';
@@ -329,6 +382,12 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
       ? {
           providerFileId: candidate.providerFileId,
           providerFileVersionId: candidate.providerFileVersionId,
+        }
+      : {}),
+    ...(hasBookRevision
+      ? {
+          bookRevision: candidate.bookRevision,
+          sourceSetRevision: candidate.sourceSetRevision,
         }
       : {}),
   } as SourceUploadSafeOperationState);
@@ -429,10 +488,24 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
     ) {
       throw new SourceUploadClientError('invalid_response', 502);
     }
+    const hasBookRevision = body.bookRevision !== undefined;
+    const hasSourceSetRevision = body.sourceSetRevision !== undefined;
+    if (hasBookRevision !== hasSourceSetRevision
+      || (hasBookRevision
+        && (!safeRevision(body.bookRevision) || !safeRevision(body.sourceSetRevision)))) {
+      throw new SourceUploadClientError('invalid_response', 502);
+    }
+    const authorityRevisions = hasBookRevision
+      ? {
+          bookRevision: body.bookRevision as number,
+          sourceSetRevision: body.sourceSetRevision as number,
+        }
+      : undefined;
     return {
       status: body.status,
       reservationId: body.reservationId,
       sourceVersionId: body.sourceVersionId,
+      ...authorityRevisions,
       upload: {
         url: upload.url as string,
         expiresAt: upload.expiresAt as string,
@@ -523,6 +596,21 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
       'GET',
     );
     return lifecycleStatus(body, command);
+  },
+
+  async listSourceVersions(bookId: string): Promise<readonly SourceUploadSourceVersionProjection[]> {
+    if (!nonEmpty(bookId)) throw new SourceUploadClientError('invalid_input', 0);
+    const body = await request(
+      options,
+      `${BOOK_SOURCE_UPLOAD_ROUTE}/${encodeURIComponent(bookId)}/sources`,
+      undefined,
+      undefined,
+      'GET',
+    );
+    if (Object.keys(body).length !== 1 || !Array.isArray(body.sources) || body.sources.length > 128) {
+      throw new SourceUploadClientError('invalid_response', 502);
+    }
+    return Object.freeze(body.sources.map((source) => sourceVersionProjection(source, bookId)));
   },
 
   async reconcile(command: Pick<CancelSourceUploadCommand, 'bookId' | 'reservationId'>): Promise<SourceUploadLifecycleStatus> {
