@@ -20,6 +20,8 @@ export interface ActivityAuthoringMutation {
   sourceEvidenceRefs?: string[];
   answerEvidenceRefs?: string[];
   unitActivityBinding?: { readonly unitKey: string; readonly activityKey: string };
+  /** Explicit teacher intent to replace an unpublished Unit-slot candidate binding. */
+  replaceExistingUnitActivityBinding?: true;
 }
 
 export type ActivityCandidateLifecycle =

@@ -404,6 +404,78 @@ describe('Book Activity authoring Worker boundary', () => {
     expect(staleScope.state['teacher-1'].activities ?? {}).toEqual({});
   });
 
+  it('replaces an unpublished same-Activity binding only with explicit intent and exact CAS', async () => {
+    let storedBinding: Parameters<UnitActivityBindingRepository['bindCandidate']>[0] | null = null;
+    const bindingRepository: UnitActivityBindingRepository = {
+      read: vi.fn(async () => storedBinding),
+      bindCandidate: vi.fn(async (input) => {
+        const status = storedBinding ? 'updated' : 'created';
+        storedBinding = input;
+        return status;
+      }),
+      recordPublication: vi.fn(),
+    };
+    const current = worker({
+      assemblyActivityKeys: ['slot-1'],
+      bindingRepositoryFactory: () => bindingRepository,
+    });
+    const targetActivityId = 'ba_626f6f6b2d31_736c6f742d31';
+    const unitActivityBinding = { unitKey: 'unit-1', activityKey: 'slot-1' };
+
+    const firstStage = await current.handlers.stage({
+      request: request({
+        operationId: operation('120'), expectedRevision: 0, targetActivityId,
+        unitActivityBinding, content: activity,
+      }), env: {}, uid: 'teacher-1',
+    });
+    const firstCandidateId = String((firstStage.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({
+      request: request({ operationId: operation('121'), candidateId: firstCandidateId, expectedRevision: 1,
+        unitActivityBinding }), env: {}, uid: 'teacher-1',
+    });
+    await expect(current.handlers.saveDraft({
+      request: request({ operationId: operation('122'), candidateId: firstCandidateId, expectedRevision: 2,
+        unitActivityBinding }), env: {}, uid: 'teacher-1',
+    })).resolves.toMatchObject({ init: { status: 200 }, body: { status: 'saved', binding: { phase: 'complete' } } });
+
+    const replacementStage = await current.handlers.stage({
+      request: request({
+        operationId: operation('123'), expectedRevision: 1, targetActivityId,
+        unitActivityBinding, content: { ...activity, title: 'Replacement' },
+      }), env: {}, uid: 'teacher-1',
+    });
+    const replacementCandidateId = String((replacementStage.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({
+      request: request({ operationId: operation('124'), candidateId: replacementCandidateId, expectedRevision: 1,
+        unitActivityBinding }), env: {}, uid: 'teacher-1',
+    });
+
+    await expect(current.handlers.saveDraft({
+      request: request({ operationId: operation('125'), candidateId: replacementCandidateId, expectedRevision: 2,
+        unitActivityBinding }), env: {}, uid: 'teacher-1',
+    })).resolves.toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_conflict' } });
+    expect(storedBinding?.candidateId).toBe(firstCandidateId);
+
+    await expect(current.handlers.saveDraft({
+      request: request({
+        operationId: operation('126'), candidateId: replacementCandidateId, expectedRevision: 2,
+        unitActivityBinding, replaceExistingUnitActivityBinding: true,
+      }), env: {}, uid: 'teacher-1',
+    })).resolves.toMatchObject({
+      init: { status: 200 },
+      body: {
+        status: 'saved', activityId: targetActivityId,
+        binding: { phase: 'complete', candidateId: replacementCandidateId },
+      },
+    });
+    expect(storedBinding).toMatchObject({
+      activityId: targetActivityId,
+      candidateId: replacementCandidateId,
+      candidateLifecycle: 'saved',
+    });
+    expect(current.state['teacher-1'].activities?.[targetActivityId]).toMatchObject({ revision: 2 });
+  });
+
   it('rejects an Activity whose context contract disagrees with the trusted Unit slot', async () => {
     const bindCandidate = vi.fn(async () => 'created' as const);
     const current = worker({

@@ -329,6 +329,9 @@ export const stageUnitActivityImportBundle = async ({
         sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
         answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
         unitActivityBinding: { unitKey, activityKey: slot.activityKey },
+        ...((expectedActivityRevisions[slot.activityKey] ?? 0) > 0
+          ? { replaceExistingUnitActivityBinding: true }
+          : {}),
       });
       if (saved.status !== 'saved' || saved.activityId !== result.targetActivityId) {
         throw new UnitActivityImportError('activity-binding-save-failed', `Activity slot ${slot.activityKey} was not saved.`);

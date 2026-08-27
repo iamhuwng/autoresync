@@ -39,6 +39,8 @@ export interface ActivityAuthoringService {
     answerEvidenceRefs?: string[];
     /** Optional server-verified Book Assembly slot context. */
     unitActivityBinding?: { readonly unitKey: string; readonly activityKey: string };
+    /** Set only after the teacher explicitly accepts replacing the existing draft. */
+    replaceExistingUnitActivityBinding?: true;
   }): Promise<ActivitySaveDraftResult>;
   discard(input: {
     candidateId: string;

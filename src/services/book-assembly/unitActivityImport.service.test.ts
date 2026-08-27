@@ -256,6 +256,10 @@ describe('unit Activity JSON import', () => {
       expectedRevision: 1,
       unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
     }));
+    expect(service.saveDraft).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      replaceExistingUnitActivityBinding: true,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
+    }));
   });
 
   it('discards already staged candidates when a later 12C stage fails', async () => {

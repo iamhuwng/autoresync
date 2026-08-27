@@ -158,6 +158,13 @@ const unitActivityBinding = (body: Record<string, unknown>): { unitKey: string; 
     activityKey: validId(value.activityKey, 'activity_key'),
   };
 };
+const replaceExistingUnitActivityBinding = (body: Record<string, unknown>): boolean => {
+  if (body.replaceExistingUnitActivityBinding === undefined) return false;
+  if (body.replaceExistingUnitActivityBinding !== true) {
+    throw new AuthoringError('invalid_unit_activity_binding_replacement');
+  }
+  return true;
+};
 
 const activityContext = (content: unknown): { mode: ActivityContextMode; acceptedKinds: string[] } | undefined => {
   const record = plainRecord(content);
@@ -702,6 +709,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         ? exact(body, [
           'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
           'sourceEvidenceRefs', 'answerEvidenceRefs', 'unitActivityBinding',
+          'replaceExistingUnitActivityBinding',
         ])
         : undefined;
       const requestedBinding = (mutation === 'stage' || mutation === 'validate' || mutation === 'save-draft' || mutation === 'discard')
@@ -710,6 +718,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       const bindingRequest = mutation === 'save-draft' ? requestedBinding : undefined;
       const saveOperationId = saveRequest ? operation(saveRequest) : undefined;
       const saveExpectedRevision = saveRequest ? validRevision(saveRequest.expectedRevision) : undefined;
+      const replaceBinding = saveRequest ? replaceExistingUnitActivityBinding(saveRequest) : false;
       const candidateId = mutation === 'stage'
         ? undefined
         : (validIdValue(bodyRecord?.candidateId) ? bodyRecord.candidateId : undefined);
@@ -791,8 +800,10 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
             ownerId: input.uid, bookId: trustedBookId, unitKey: bindingRequest.unitKey,
             activityKey: bindingRequest.activityKey,
           });
-          if (existing && (existing.activityId !== candidate.targetActivityId || existing.candidateId !== candidate.candidateId
-            || existing.activityVersionId !== undefined || existing.candidateRevision > candidate.revision + 1)) {
+          if (existing && (existing.activityId !== candidate.targetActivityId
+            || existing.activityVersionId !== undefined
+            || existing.candidateRevision > candidate.revision + 1
+            || (existing.candidateId !== candidate.candidateId && !replaceBinding))) {
             throw new AuthoringError('unit_activity_binding_conflict', 409);
           }
         }
@@ -800,6 +811,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         saveBindingFingerprint = stable({
           action: 'save-draft', candidateId, expectedRevision: saveExpectedRevision,
           evidenceRefs: refs ?? null, unitActivityBinding: bindingRequest,
+          ...(replaceBinding ? { replaceExistingUnitActivityBinding: true } : {}),
         });
       }
       let output = await repository.transaction(input.uid, (root) => {
@@ -1056,12 +1068,18 @@ const saveDraft = (
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
     'sourceEvidenceRefs', 'answerEvidenceRefs', 'unitActivityBinding',
+    'replaceExistingUnitActivityBinding',
   ]);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision); const refs = evidenceRefGroups(input);
   prune(root, at);
   const binding = unitActivityBinding(input);
-  const fingerprint = stable({ action: 'save-draft', candidateId, expectedRevision, evidenceRefs: refs ?? null, unitActivityBinding: binding ?? null });
+  const replaceBinding = replaceExistingUnitActivityBinding(input);
+  const fingerprint = stable({
+    action: 'save-draft', candidateId, expectedRevision, evidenceRefs: refs ?? null,
+    unitActivityBinding: binding ?? null,
+    ...(replaceBinding ? { replaceExistingUnitActivityBinding: true } : {}),
+  });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     const candidate = asCandidate(root.candidates?.[candidateId], candidateId);
     if (!candidate || candidate.ownerId !== ownerId) return { status: 'not-found' };
