@@ -770,6 +770,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       }
       let bindingRepository: UnitActivityBindingRepository | undefined;
       let saveBindingFingerprint: string | undefined;
+      let replacementCandidateRevisionFloor: number | undefined;
       let bindingContent: unknown;
       if (bindingRequest) {
         if (!trustedBookId || !options.bindingRepositoryFactory || !options.readAssemblyActivityKeys) {
@@ -802,9 +803,17 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
           });
           if (existing && (existing.activityId !== candidate.targetActivityId
             || existing.activityVersionId !== undefined
-            || existing.candidateRevision > candidate.revision + 1
+            || (existing.candidateId === candidate.candidateId
+              && existing.candidateRevision > candidate.revision + 1)
             || (existing.candidateId !== candidate.candidateId && !replaceBinding))) {
             throw new AuthoringError('unit_activity_binding_conflict', 409);
+          }
+          if (existing && existing.candidateId !== candidate.candidateId && replaceBinding) {
+            const floor = existing.candidateRevision + 1;
+            if (!Number.isSafeInteger(floor)) {
+              throw new AuthoringError('unit_activity_binding_conflict', 409);
+            }
+            replacementCandidateRevisionFloor = floor;
           }
         }
         const refs = evidenceRefGroups(saveRequest!);
@@ -818,7 +827,12 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         assertPersistedRoot(root, input.uid);
         if (mutation === 'stage') return stage(root, input.uid, body, now(), createRecordId, trustedBookId!, activityValidationContext);
         if (mutation === 'validate') return validate(root, input.uid, body, now(), activityValidationContext);
-        if (mutation === 'save-draft') return saveDraft(root, input.uid, body, now(), trustedBookId!, activityValidationContext);
+        if (mutation === 'save-draft') {
+          return saveDraft(
+            root, input.uid, body, now(), trustedBookId!, activityValidationContext,
+            replacementCandidateRevisionFloor,
+          );
+        }
         return discard(root, input.uid, body, now(), activityValidationContext);
       }, {
         beforeWrite: async (next) => {
@@ -1064,6 +1078,7 @@ const saveDraft = (
   at: number,
   trustedBookId: string,
   validationContext: ActivityValidationContext = {},
+  replacementCandidateRevisionFloor?: number,
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
@@ -1110,7 +1125,8 @@ const saveDraft = (
       draft: checked.normalized,
       updatedAt: at,
     };
-    const saved: CandidateRecord = { ...candidate, revision: candidate.revision + 1, lifecycle: 'saved',
+    const savedCandidateRevision = Math.max(candidate.revision + 1, replacementCandidateRevisionFloor ?? 0);
+    const saved: CandidateRecord = { ...candidate, revision: savedCandidateRevision, lifecycle: 'saved',
       validation: checked.validation, diff: checked.diff,
       evidenceRefs: input.evidenceRefs === undefined ? candidate.evidenceRefs : refs.legacy,
       sourceEvidenceRefs: input.sourceEvidenceRefs === undefined ? candidate.sourceEvidenceRefs : refs.source,

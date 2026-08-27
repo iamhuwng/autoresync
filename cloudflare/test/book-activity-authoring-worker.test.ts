@@ -471,9 +471,30 @@ describe('Book Activity authoring Worker boundary', () => {
     expect(storedBinding).toMatchObject({
       activityId: targetActivityId,
       candidateId: replacementCandidateId,
+      candidateRevision: 4,
       candidateLifecycle: 'saved',
     });
+    expect(current.state['teacher-1'].candidates?.[replacementCandidateId]).toMatchObject({ revision: 4 });
     expect(current.state['teacher-1'].activities?.[targetActivityId]).toMatchObject({ revision: 2 });
+
+    const nextStage = await current.handlers.stage({
+      request: request({
+        operationId: operation('127'), expectedRevision: 2, targetActivityId,
+        unitActivityBinding, content: { ...activity, title: 'Next replacement' },
+      }), env: {}, uid: 'teacher-1',
+    });
+    const nextCandidateId = String((nextStage.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({
+      request: request({ operationId: operation('128'), candidateId: nextCandidateId, expectedRevision: 1,
+        unitActivityBinding }), env: {}, uid: 'teacher-1',
+    });
+    await expect(current.handlers.saveDraft({
+      request: request({
+        operationId: operation('129'), candidateId: nextCandidateId, expectedRevision: 2,
+        unitActivityBinding, replaceExistingUnitActivityBinding: true,
+      }), env: {}, uid: 'teacher-1',
+    })).resolves.toMatchObject({ init: { status: 200 } });
+    expect(storedBinding).toMatchObject({ candidateId: nextCandidateId, candidateRevision: 5 });
   });
 
   it('rejects an Activity whose context contract disagrees with the trusted Unit slot', async () => {
