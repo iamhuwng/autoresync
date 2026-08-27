@@ -11,9 +11,11 @@ export interface UnitActivityImportControlsProps {
   readonly canCancel: boolean;
   readonly selectedUnitKey: string | null;
   readonly statusText: string | null;
+  readonly conflict: { readonly activityKey: string } | null;
   readonly onCopyPrompt: (copied: boolean) => void;
   readonly onImportTextChange: (text: string) => void;
   readonly onImport: () => void;
+  readonly onReplaceExisting: () => void;
   readonly onCancel: () => void;
   readonly onFileReadError: () => void;
 }
@@ -30,9 +32,11 @@ const UnitActivityImportControls = ({
   canCancel,
   selectedUnitKey,
   statusText,
+  conflict,
   onCopyPrompt,
   onImportTextChange,
   onImport,
+  onReplaceExisting,
   onCancel,
   onFileReadError,
 }: UnitActivityImportControlsProps) => {
@@ -118,6 +122,12 @@ const UnitActivityImportControls = ({
         </label>
       )}
       {statusText && <p role="status">{statusText}</p>}
+      {conflict && (
+        <div role="alert" className="book-assembly-guided__error">
+          <p>{conflict.activityKey} already has a newer saved draft. Replacing it will use this imported JSON as the next revision.</p>
+          <button type="button" disabled={busy} onClick={onReplaceExisting}>Replace existing Activity draft</button>
+        </div>
+      )}
     </section>
   );
 };

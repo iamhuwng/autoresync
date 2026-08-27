@@ -18,7 +18,7 @@ import { analyzeBookAssemblyReconciliation } from '../../services/book-assembly/
 import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
 import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
 import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
-import { bookScopedActivityTargetId, discardStagedUnitActivities, parseUnitActivityImportBundle, stageUnitActivityImportBundle, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
+import { bookScopedActivityTargetId, discardStagedUnitActivities, parseUnitActivityImportBundle, stageUnitActivityImportBundle, UnitActivityImportConflictError, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
 import { buildUnitActivityImportPrompt } from '../../services/book-assembly/unitPrompt.service';
 import type {
   BookAssemblyCandidateRecord,
@@ -116,6 +116,11 @@ type AssemblyEditorDraft = {
 type VisibleTreeItem = {
   readonly node: DraftNode;
   readonly level: number;
+};
+type UnitImportConflict = {
+  readonly unitKey: string;
+  readonly activityKey: string;
+  readonly currentRevision: number;
 };
 
 const STRUCTURAL_NODE_TYPES = ['section', 'chapter', 'unit', 'test'] as const satisfies readonly BookContentNodeType[];
@@ -322,6 +327,7 @@ const BookAssemblyWorkspace = ({
   const [reconciliationBusy, setReconciliationBusy] = useState(false);
   const [migrationRequestedStrategy, setMigrationRequestedStrategy] = useState<BookSourceStrategy | null>(null);
   const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
+  const [unitImportConflict, setUnitImportConflict] = useState<UnitImportConflict | null>(null);
   const [manualCopyFallback, setManualCopyFallback] = useState(false);
   const [mockupUnitToolsOpen, setMockupUnitToolsOpen] = useState(false);
   const [mockupPageToolsOpen, setMockupPageToolsOpen] = useState(false);
@@ -1088,7 +1094,7 @@ const BookAssemblyWorkspace = ({
     });
   };
 
-  const importUnitJson = async () => {
+  const importUnitJson = async (expectedActivityRevisions: Readonly<Record<string, number>> = {}) => {
     const unitKey = selectedUnitKey;
     if (!unitKey) {
       setValidationMessage('Select a Unit before importing Activity JSON.');
@@ -1149,6 +1155,7 @@ const BookAssemblyWorkspace = ({
         manifest: validManifest,
         unitKey,
         activityAuthoring,
+        expectedActivityRevisions,
         resolveActivityTargetId: (slot) => {
           const unit = validManifest.units.find((entry) => entry.unitKey === unitKey);
           return unit?.activitySlots.some((entry) => entry.activityKey === slot.activityKey)
@@ -1168,6 +1175,7 @@ const BookAssemblyWorkspace = ({
         ...current,
         [unitKey]: importResult.bundle.slots.map((slot) => slot.activityKey),
       }));
+      setUnitImportConflict(null);
       setUnitImportText('');
       setUnitImportStatus(`Imported ${importResult.staged.length} Activity slot${importResult.staged.length === 1 ? '' : 's'}.`);
       onDirtyChange?.(false);
@@ -1180,6 +1188,25 @@ const BookAssemblyWorkspace = ({
         slotCount: importResult.staged.length,
       });
     } catch (error) {
+      if (error instanceof UnitActivityImportConflictError) {
+        // The prerequisite Assembly save succeeded; keep that status distinct
+        // from the blocked Activity replacement decision below.
+        setStatus('saved');
+        setUnitImportConflict({
+          unitKey,
+          activityKey: error.activityKey,
+          currentRevision: error.currentRevision,
+        });
+        setUnitImportStatus(error.message);
+        setErrorMessage(null);
+        toast.warning('This Unit Activity already has a newer draft. Review the replacement choice before importing.');
+        emit('teacher_materials_book_assembly_unit_import_conflict_detected', {
+          unitKey,
+          activityKey: error.activityKey,
+          currentRevision: error.currentRevision,
+        });
+        return;
+      }
       const message = error instanceof UnitActivityImportError
         ? error.message
         : error instanceof Error
@@ -1198,6 +1225,23 @@ const BookAssemblyWorkspace = ({
       setUnitImportCancelable(false);
       setUnitImportBusy(false);
     }
+  };
+
+  const replaceConflictingUnitActivity = () => {
+    const conflict = unitImportConflict;
+    if (!conflict || conflict.unitKey !== selectedUnitKey || unitImportBusy) return;
+    emit('teacher_materials_book_assembly_unit_import_replacement_selected', {
+      unitKey: conflict.unitKey,
+      activityKey: conflict.activityKey,
+      currentRevision: conflict.currentRevision,
+    });
+    setUnitImportConflict(null);
+    void importUnitJson({ [conflict.activityKey]: conflict.currentRevision });
+  };
+
+  const updateUnitImportText = (text: string) => {
+    setUnitImportConflict(null);
+    setUnitImportText(text);
   };
 
   const reload = async () => {
@@ -1336,7 +1380,7 @@ const BookAssemblyWorkspace = ({
               ? <div className="pbf-callout is-good" style={{ marginTop: 12 }}><strong>Unit content is ready</strong><span>{selectedUnit?.activitySlots.length ?? 0} activities will use this PDF section.</span></div>
               : <p className="pbf-muted" style={{ marginTop: 12 }}>Add the activities for this Unit to continue.</p>}
             <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" disabled={!guidedHasUnit} onClick={() => setMockupUnitToolsOpen((open) => !open)}>{mockupHasContent ? 'Replace Unit content' : 'Add Unit content'}</button></div>
-            {mockupUnitToolsOpen && <div className="pbf-mockup-advanced"><UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={setUnitImportText} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} /></div>}
+            {mockupUnitToolsOpen && <div className="pbf-mockup-advanced"><UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={updateUnitImportText} onReplaceExisting={replaceConflictingUnitActivity} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} /></div>}
           </div>
           <div className="pbf-surface">
             <div className="pbf-row">
@@ -1401,7 +1445,7 @@ const BookAssemblyWorkspace = ({
               <div className="pbf-row"><div><h3>Unit 1 content</h3><p className="pbf-muted">The activities students will complete.</p></div>{mockupHasContent && <span className="pbf-status is-good">Added</span>}</div>
               {mockupHasContent ? <div className="pbf-callout is-good" style={{ marginTop: 12 }}><strong>Unit content is ready</strong><span>{selectedUnit?.activitySlots.length ?? 0} activities are waiting to be connected to PDF pages.</span></div> : <p className="pbf-muted" style={{ marginTop: 9 }}>Add the activities for the first Unit to continue.</p>}
               <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" disabled={!guidedHasUnit} onClick={() => setMockupUnitToolsOpen((open) => !open)}>{mockupHasContent ? 'Replace Unit content' : 'Add Unit 1 content'}</button></div>
-              {mockupUnitToolsOpen && <div className="pbf-mockup-advanced"><UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={setUnitImportText} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} /></div>}
+              {mockupUnitToolsOpen && <div className="pbf-mockup-advanced"><UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={updateUnitImportText} onReplaceExisting={replaceConflictingUnitActivity} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} /></div>}
             </div>
           </div>
           <details className="pbf-details" style={{ marginTop: 14 }}><summary>Need help creating the content?</summary><p>Copy the Book or Unit prompt, create the JSON in your usual tool, then bring it back here. The current Book is not changed until the import is valid.</p></details>
@@ -1730,13 +1774,15 @@ const BookAssemblyWorkspace = ({
                   guided
                   busy={unitImportBusy}
                   canCancel={unitImportCancelable}
+                  conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null}
                   importText={unitImportText}
                   manualCopyFallback={manualCopyFallback}
                   onCancel={cancelUnitImport}
                   onCopyPrompt={copyUnitPrompt}
                   onFileReadError={handleUnitImportFileReadError}
                   onImport={() => void importUnitJson()}
-                  onImportTextChange={setUnitImportText}
+                  onImportTextChange={updateUnitImportText}
+                  onReplaceExisting={replaceConflictingUnitActivity}
                   promptText={unitPromptText}
                   selectedUnitKey={selectedUnitKey}
                   statusText={unitImportStatus}
@@ -1996,13 +2042,15 @@ const BookAssemblyWorkspace = ({
       <UnitActivityImportControls
         busy={unitImportBusy}
         canCancel={unitImportCancelable}
+        conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null}
         importText={unitImportText}
         manualCopyFallback={manualCopyFallback}
         onCancel={cancelUnitImport}
         onCopyPrompt={copyUnitPrompt}
         onFileReadError={handleUnitImportFileReadError}
         onImport={() => void importUnitJson()}
-        onImportTextChange={setUnitImportText}
+        onImportTextChange={updateUnitImportText}
+        onReplaceExisting={replaceConflictingUnitActivity}
         promptText={unitPromptText}
         selectedUnitKey={selectedUnitKey}
         statusText={unitImportStatus}

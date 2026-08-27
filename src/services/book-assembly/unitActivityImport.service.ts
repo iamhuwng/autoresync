@@ -1,5 +1,6 @@
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
 import type { ActivityStageResult } from '../book-activity/activityAuthoring.repository';
+import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
 import { UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
 
@@ -37,6 +38,19 @@ export class UnitActivityImportError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
     this.name = 'UnitActivityImportError';
+  }
+}
+
+export class UnitActivityImportConflictError extends UnitActivityImportError {
+  constructor(
+    readonly activityKey: string,
+    readonly currentRevision: number,
+  ) {
+    super(
+      'activity-revision-conflict',
+      `Activity slot ${activityKey} already has a newer draft. Choose whether to replace it before importing again.`,
+    );
+    this.name = 'UnitActivityImportConflictError';
   }
 }
 
@@ -124,6 +138,33 @@ const clientMappedBookPageRefsForSlot = (unit: BookUnitCandidate, activityKey: s
     const group = groups.get(groupKey);
     return group?.pages.map((page) => `source:${group.sourceKey}:page:${page}`) ?? [];
   });
+};
+
+const stageOrSurfaceRevisionConflict = async (
+  activityAuthoring: ActivityAuthoringService,
+  activityKey: string,
+  input: Parameters<ActivityAuthoringService['stage']>[0],
+): Promise<ActivityStageResult> => {
+  try {
+    return await activityAuthoring.stage(input);
+  } catch (error) {
+    const currentRevision = error instanceof ActivityAuthoringHttpError
+      ? error.body.currentRevision
+      : undefined;
+    if (
+      !(error instanceof ActivityAuthoringHttpError)
+      || error.statusCode !== 409
+      || error.body.status !== 'conflict'
+      || typeof currentRevision !== 'number'
+      || !Number.isSafeInteger(currentRevision)
+      || currentRevision <= 0
+    ) {
+      throw error;
+    }
+    // The Worker remains the target and revision authority. Never overwrite a
+    // newer draft implicitly; return its CAS revision to an explicit UI choice.
+    throw new UnitActivityImportConflictError(activityKey, currentRevision);
+  }
 };
 const assertSourceRefs = (refs: readonly string[], allowed: Set<string>, label: string): void => {
   for (const ref of refs) {
@@ -257,7 +298,7 @@ export const stageUnitActivityImportBundle = async ({
       if (typeof targetActivityId !== 'string' || targetActivityId.length === 0) {
         throw new UnitActivityImportError('unresolved-activity-target', `Activity slot ${slot.activityKey} has no trusted target Activity ID.`);
       }
-      const result = await activityAuthoring.stage({
+      const result = await stageOrSurfaceRevisionConflict(activityAuthoring, slot.activityKey, {
         bookId: manifest.bookId,
         targetActivityId,
         expectedRevision: expectedActivityRevisions[slot.activityKey] ?? 0,

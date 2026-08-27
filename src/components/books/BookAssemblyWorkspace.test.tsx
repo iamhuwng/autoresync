@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
+import { ActivityAuthoringHttpError } from '../../services/book-activity/activityStorage.service';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
 import { createBookTeacherAssemblyDocumentRoute } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
@@ -704,6 +705,58 @@ describe('BookAssemblyWorkspace', () => {
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'teacher_materials_book_assembly_unit_import_staged',
       expect.objectContaining({ slotCount: 1 }),
+    );
+  });
+
+  it('requires an explicit teacher choice before replacing a conflicting Unit Activity draft', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    const authoring = activityAuthoring();
+    vi.mocked(authoring.stage).mockRejectedValueOnce(new ActivityAuthoringHttpError(409, {
+      status: 'conflict',
+      currentRevision: 1,
+    }));
+    renderWorkspace({
+      repository: repo,
+      activityAuthoring: authoring,
+      initialCandidate: {
+        ...candidate(),
+        manifest: {
+          ...candidate().manifest!,
+          units: [{
+            unitKey: 'unit-1',
+            activitySlots: [{ activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-full-2-activity'] }],
+            pageGroups: [{ pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1'], mode: 'activity' }],
+          }],
+        },
+      },
+    });
+
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), {
+      target: { value: unitImportJson() },
+    });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+
+    const replace = await screen.findByRole('button', { name: 'Replace existing Activity draft' });
+    expect(screen.queryByText('Current candidate changed. Choose an action.')).not.toBeInTheDocument();
+    expect(authoring.stage).toHaveBeenCalledTimes(1);
+    expect(authoring.stage).toHaveBeenNthCalledWith(1, expect.objectContaining({ expectedRevision: 0 }));
+    expect(authoring.validate).not.toHaveBeenCalled();
+    expect(mocks.warning).toHaveBeenCalledWith(
+      'This Unit Activity already has a newer draft. Review the replacement choice before importing.',
+    );
+
+    await user.click(replace);
+
+    await waitFor(() => expect(authoring.stage).toHaveBeenCalledTimes(2));
+    expect(authoring.stage).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      expectedRevision: 1,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-reading-1' },
+    }));
+    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith('Unit Activity JSON imported.'));
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_unit_import_replacement_selected',
+      expect.objectContaining({ activityKey: 'activity-reading-1', currentRevision: 1 }),
     );
   });
 

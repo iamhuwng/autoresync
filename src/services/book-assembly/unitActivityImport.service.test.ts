@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
+import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
 import type { EditableActivity } from '../../types/bookActivity.types';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
 import {
@@ -7,6 +8,7 @@ import {
   discardStagedUnitActivities,
   parseUnitActivityImportBundle,
   stageUnitActivityImportBundle,
+  UnitActivityImportConflictError,
   UnitActivityImportError,
 } from './unitActivityImport.service';
 import { UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
@@ -207,6 +209,52 @@ describe('unit Activity JSON import', () => {
 
     expect(service.stage).toHaveBeenNthCalledWith(1, expect.objectContaining({
       targetActivityId: 'resolved-activity-a',
+    }));
+  });
+
+  it('surfaces the authoritative Activity target revision without overwriting it', async () => {
+    const service = authoring();
+    vi.mocked(service.stage).mockRejectedValueOnce(new ActivityAuthoringHttpError(409, {
+      status: 'conflict',
+      currentRevision: 1,
+    }));
+
+    await expect(stageUnitActivityImportBundle({
+      text: bundle(),
+      manifest,
+      unitKey: 'unit-1',
+      activityAuthoring: service,
+      resolveActivityTargetId: (slot) => slot.activityKey,
+    })).rejects.toEqual(expect.objectContaining<UnitActivityImportConflictError>({
+      code: 'activity-revision-conflict',
+      activityKey: 'activity-a',
+      currentRevision: 1,
+    }));
+
+    expect(service.stage).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      targetActivityId: 'activity-a',
+      expectedRevision: 0,
+    }));
+    expect(service.stage).toHaveBeenCalledTimes(1);
+    expect(service.validate).not.toHaveBeenCalled();
+  });
+
+  it('uses an explicitly supplied Activity revision for a teacher-approved replacement', async () => {
+    const service = authoring();
+
+    await stageUnitActivityImportBundle({
+      text: bundle(),
+      manifest,
+      unitKey: 'unit-1',
+      activityAuthoring: service,
+      expectedActivityRevisions: { 'activity-a': 1 },
+      resolveActivityTargetId: (slot) => slot.activityKey,
+    });
+
+    expect(service.stage).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      targetActivityId: 'activity-a',
+      expectedRevision: 1,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
     }));
   });
 
