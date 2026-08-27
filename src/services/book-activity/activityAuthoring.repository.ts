@@ -216,17 +216,20 @@ const validation = (value: unknown): ActivityCandidateValidation => {
 };
 const diff = (value: unknown): ActivityDiff | null => {
   if (value === null) return null;
-  const result = exact(value, ['classification', 'reasons', 'requiresRedo']);
+  const result = exact(value, ['classification', 'requiresRedo'], ['reasons']);
+  const normalizedReasons = result.reasons === undefined && result.classification === 'unchanged'
+    ? []
+    : result.reasons;
   if (
     typeof result.classification !== 'string'
     || !DIFF_CLASSES.has(result.classification as ActivityDiff['classification'])
-    || !Array.isArray(result.reasons)
-    || result.reasons.length > MAX_DIFF_REASONS
+    || !Array.isArray(normalizedReasons)
+    || normalizedReasons.length > MAX_DIFF_REASONS
     || typeof result.requiresRedo !== 'boolean'
   ) {
     throw new Error('Activity authoring returned a malformed response.');
   }
-  const reasons = result.reasons.map(boundedText);
+  const reasons = normalizedReasons.map(boundedText);
   const requiresRedo = result.classification === 'redo-required'
     || result.classification === 'reordered'
     || result.classification === 'unsupported';

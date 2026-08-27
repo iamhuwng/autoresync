@@ -89,6 +89,36 @@ describe('Activity authoring repository response boundary', () => {
     })).resolves.toEqual(savedResponse);
   });
 
+  it('restores RTDB-elided empty reasons only for an unchanged diff', async () => {
+    const repository = createActivityAuthoringRepository({
+      mutate: vi.fn(async () => ({
+        ...savedResponse,
+        diff: { classification: 'unchanged', requiresRedo: false },
+      })),
+      read: vi.fn(),
+    });
+    await expect(repository.saveDraft({
+      operationId: '123e4567-e89b-42d3-a456-426614174005',
+      expectedRevision: 2,
+      candidateId: 'candidate-1',
+    })).resolves.toMatchObject({
+      diff: { classification: 'unchanged', reasons: [], requiresRedo: false },
+    });
+
+    const malformed = createActivityAuthoringRepository({
+      mutate: vi.fn(async () => ({
+        ...savedResponse,
+        diff: { classification: 'display-only', requiresRedo: false },
+      })),
+      read: vi.fn(),
+    });
+    await expect(malformed.saveDraft({
+      operationId: '123e4567-e89b-42d3-a456-426614174006',
+      expectedRevision: 2,
+      candidateId: 'candidate-1',
+    })).rejects.toThrow('malformed response');
+  });
+
   it('requests an exact-operation replay for a valid binding-pending receipt', async () => {
     const repository = createActivityAuthoringRepository({
       mutate: vi.fn(async () => ({
