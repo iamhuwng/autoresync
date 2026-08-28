@@ -35,6 +35,7 @@
     {"profile":{"taxonomyId":"ielts-listening","typeId":"listening-sentence-completion","taxonomyVersion":1},"family":"text-entry","variant":"inline-blank","presentationMode":"structured","responseCodec":"text-entry-v1","rendererId":"text-entry-v1","codecId":"text-entry-v1"},
     {"profile":{"taxonomyId":"ielts-listening","typeId":"listening-short-answer","taxonomyVersion":1},"family":"text-entry","variant":"short-answer","presentationMode":"structured","responseCodec":"text-entry-v1","rendererId":"text-entry-v1","codecId":"text-entry-v1"},
     {"profile":null,"family":"choice","variant":"v1","presentationMode":"structured","responseCodec":"choice-single-v1","rendererId":"choice-v1","codecId":"choice-single-v1"},
+    {"profile":null,"family":"choice","variant":"v1","presentationMode":"source-assisted","responseCodec":"choice-single-v1","rendererId":"choice-v1","codecId":"choice-single-v1"},
     {"profile":null,"family":"long-response","variant":"v1","presentationMode":"structured","responseCodec":"long-response-v1","rendererId":"long-response-v1","codecId":"long-response-v1"}
   ]
 }

@@ -22,7 +22,7 @@ const unitKey = 'unit-1';
 const activityKey = 'slot-1';
 const sourceKey = 'full';
 const sourceVersionId = 'source-v1';
-const previewRegistryVersion = 'activity-renderer-manifest-v1@sha256:2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c';
+const previewRegistryVersion = 'activity-renderer-manifest-v1@sha256:7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5';
 const operation = (suffix: string): string => `123e4567-e89b-42d3-a456-426614174${suffix}`;
 
 const activity: EditableActivity = {

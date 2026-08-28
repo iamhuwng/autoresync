@@ -81,7 +81,8 @@ const manifestEntriesOverlap = (
   left: ActivityRendererManifestEntry,
   right: ActivityRendererManifestEntry,
 ): boolean => {
-  if (left.family !== right.family || left.variant !== right.variant) return false;
+  if (left.family !== right.family || left.variant !== right.variant ||
+      left.presentationMode !== right.presentationMode) return false;
   if (left.profile === null || right.profile === null) return true;
   return left.profile.taxonomyId === right.profile.taxonomyId &&
     left.profile.typeId === right.profile.typeId &&

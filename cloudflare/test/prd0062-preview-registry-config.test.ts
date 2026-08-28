@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import manifestSource from '../../src/services/book-activity/runtime/activityRendererManifest.json?raw';
 import activationConfigSource from '../wrangler.prd0062-ticket126-vocab-u1-activation.jsonc?raw';
 
-const expectedRegistryVersion = 'activity-renderer-manifest-v1@sha256:2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c';
+const expectedRegistryVersion = 'activity-renderer-manifest-v1@sha256:7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5';
 
 const stripJsoncLineComments = (source: string): string => {
   let output = '';
@@ -40,7 +40,7 @@ describe('prd0062 preview registry activation config', () => {
     };
     const manifestDigest = createHash('sha256').update(manifestSource, 'utf8').digest('hex');
 
-    expect(manifestDigest).toBe('2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c');
+    expect(manifestDigest).toBe('7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5');
     expect(activationConfig.vars.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION)
       .toBe(`activity-renderer-manifest-v1@sha256:${manifestDigest}`);
     expect(activationConfig.vars.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION).toBe(expectedRegistryVersion);

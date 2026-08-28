@@ -90,4 +90,14 @@ describe('Activity renderer manifest', () => {
       ],
     })).toBe(false);
   });
+
+  it('allows the same renderer selector in distinct presentation modes', () => {
+    expect(isActivityRendererManifest({
+      ...manifest,
+      registrations: [
+        manifest.registrations[0],
+        { ...manifest.registrations[0], presentationMode: 'source-assisted' },
+      ],
+    })).toBe(true);
+  });
 });

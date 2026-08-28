@@ -247,6 +247,16 @@ export const activityRendererRegistrations: readonly ActivityRendererRegistratio
     codec: asUnknownCodec(choiceSingleResponseCodec),
   },
   {
+    family: 'choice',
+    variant: 'v1',
+    presentationMode: 'source-assisted',
+    responseCodec: CHOICE_SINGLE_RESPONSE_CODEC_ID,
+    rendererId: 'choice-v1',
+    codecId: CHOICE_SINGLE_RESPONSE_CODEC_ID,
+    renderer: asUnknownRenderer(SingleChoiceRenderer),
+    codec: asUnknownCodec(choiceSingleResponseCodec),
+  },
+  {
     family: 'long-response',
     variant: 'v1',
     presentationMode: 'structured',

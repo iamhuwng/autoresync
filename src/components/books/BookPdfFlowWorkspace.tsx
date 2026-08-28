@@ -14,6 +14,7 @@ import type { SourceSetCandidate, TrustedBookSourceVersionProjection } from '../
 import type { BookAssemblyPreviewApprovalReference } from '../../types/bookAssembly.types';
 import type { ReactNode } from 'react';
 import BookAssemblyWorkspace from './BookAssemblyWorkspace';
+import BookAssemblyUnitPreview from './assembly/BookAssemblyUnitPreview';
 import BookSourceInspectionPanel, { type BookSourceInspectionAction } from './BookSourceInspectionPanel';
 import BookSourceUploadPanel, { type BookSourceUploadAction } from './BookSourceUploadPanel';
 import './BookPdfFlowWorkspace.css';
@@ -138,6 +139,7 @@ const BookPdfFlowWorkspace = ({
   const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(assemblyInitialCandidate ?? null);
   const [previewProjection, setPreviewProjection] = useState<CandidateUnitPreviewProjection | null>(null);
+  const [dismissedPreviewIdentity, setDismissedPreviewIdentity] = useState<string | null>(null);
   const [previewApproval, setPreviewApproval] = useState<BookAssemblyPreviewApprovalReference | null>(null);
   const [publication, setPublication] = useState<AssemblyPublicationReceipt | null>(null);
   const [publishRights, setPublishRights] = useState(false);
@@ -398,6 +400,36 @@ const BookPdfFlowWorkspace = ({
     candidateId: candidate.candidateId,
     expectedCandidateRevision: candidate.revision,
   } : null;
+  const trustedRuntimePreview = useMemo(() => {
+    const preview = previewProjection ?? assemblyCandidateRuntimePreview;
+    if (!candidate || !preview
+      || preview.bookId !== bookId
+      || preview.bookRevision !== candidate.bookRevision
+      || preview.bookRevision !== effectiveAssemblyBookRevision
+      || preview.candidateId !== candidate.candidateId
+      || preview.candidateRevision !== candidate.revision
+      || preview.sourceSetRevision !== candidate.sourceSetRevision
+      || preview.sourceSetRevision !== effectiveAssemblySourceSetRevision
+      || preview.unitKey !== candidate.unitKey) {
+      return null;
+    }
+    const identity = [
+      preview.candidateId,
+      preview.candidateRevision,
+      preview.sourceSetRevision,
+      preview.unitKey,
+      preview.registryVersion,
+    ].join(':');
+    return dismissedPreviewIdentity === identity ? null : { identity, preview };
+  }, [
+    assemblyCandidateRuntimePreview,
+    bookId,
+    candidate,
+    dismissedPreviewIdentity,
+    effectiveAssemblyBookRevision,
+    effectiveAssemblySourceSetRevision,
+    previewProjection,
+  ]);
 
   const requestPreview = async () => {
     if (!assemblyPreviewClient || !previewInput) {
@@ -407,7 +439,9 @@ const BookPdfFlowWorkspace = ({
     try {
       const result = await assemblyPreviewClient.preview(previewInput);
       setPreviewProjection(result.preview);
+      setDismissedPreviewIdentity(null);
       setPreviewApproval(null);
+      setMessage({ text: '', kind: '' });
       track('teacher_materials_book_assembly_candidate_preview_opened', { candidateId: candidate?.candidateId });
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : 'Student preview could not be loaded.', kind: 'error' });
@@ -554,7 +588,6 @@ const BookPdfFlowWorkspace = ({
           bookId={bookId}
           bookTitle={title}
           bookRevision={effectiveAssemblyBookRevision}
-          candidateRuntimePreview={previewProjection ?? assemblyCandidateRuntimePreview}
           initialCandidate={candidate}
           initialSavedActivityKeysByUnit={assemblyInitialSavedActivityKeysByUnit}
           initialSourceSet={persistedSourceSet}
@@ -583,6 +616,12 @@ const BookPdfFlowWorkspace = ({
           <FlowSurface>
             <div className="pbf-row"><div><h3>Preview as a student</h3><p className="pbf-muted">Open the trusted preview before publishing. Nothing is published by opening it.</p></div><span className={`pbf-status${previewApproval ? ' is-good' : ''}`}>{previewApproval ? 'Approved' : previewProjection ? 'Ready to approve' : 'Review needed'}</span></div>
             <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void requestPreview()} disabled={!candidate || candidate.lifecycle !== 'validated' || !assemblyPreviewClient}>{previewProjection ? 'Refresh preview' : 'Preview as a student'}</button><button type="button" className="pbf-button" onClick={() => void approvePreview()} disabled={!previewProjection || Boolean(previewApproval) || !assemblyPreviewClient}>Approve this preview</button></div>
+            {trustedRuntimePreview ? (
+              <BookAssemblyUnitPreview
+                preview={trustedRuntimePreview.preview}
+                onExit={() => setDismissedPreviewIdentity(trustedRuntimePreview.identity)}
+              />
+            ) : null}
           </FlowSurface>
         )}
       </FlowView>

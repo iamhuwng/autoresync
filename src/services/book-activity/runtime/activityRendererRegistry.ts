@@ -72,6 +72,7 @@ const registrationKey = (registration: RegisteredActivityRenderer): string => {
   return [
     registration.family,
     registration.variant,
+    registration.presentationMode,
     profile?.taxonomyId ?? '',
     profile?.typeId ?? '',
     profile?.taxonomyVersion ?? '',
@@ -82,7 +83,8 @@ const registrationsOverlap = (
   left: RegisteredActivityRenderer,
   right: RegisteredActivityRenderer,
 ): boolean => {
-  if (left.family !== right.family || left.variant !== right.variant) return false;
+  if (left.family !== right.family || left.variant !== right.variant ||
+      left.presentationMode !== right.presentationMode) return false;
   if (!left.taskProfile || !right.taskProfile) return true;
   if (
     left.taskProfile.taxonomyId !== right.taskProfile.taxonomyId ||
@@ -159,7 +161,8 @@ export const createActivityRendererRegistry = (
   }
   if (manifestRegistrations !== undefined) {
     const manifestByKey = new Map(manifestRegistrations.map((entry) => [[
-      entry.family, entry.variant, entry.profile?.taxonomyId ?? '', entry.profile?.typeId ?? '',
+      entry.family, entry.variant, entry.presentationMode,
+      entry.profile?.taxonomyId ?? '', entry.profile?.typeId ?? '',
       entry.profile?.taxonomyVersion ?? '',
     ].join('\u0000'), entry]));
     if (manifestByKey.size !== manifestRegistrations.length || manifestByKey.size !== seen.size) {

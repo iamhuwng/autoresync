@@ -71,6 +71,35 @@ describe('Book Activity renderer registry', () => {
     ])).toThrow('Duplicate Activity renderer registration');
   });
 
+  it('treats presentation mode as part of renderer identity', () => {
+    const sourceAssisted = registerActivityRenderer({
+      ...registration(),
+      presentationMode: 'source-assisted',
+    });
+    const registry = createActivityRendererRegistry([
+      registerActivityRenderer(registration()),
+      sourceAssisted,
+    ]);
+    const sourceProjection = projection();
+    sourceProjection.presentationMode = 'source-assisted';
+    sourceProjection.contextRequirement = { mode: 'required', acceptedKinds: ['book-pages'] };
+    sourceProjection.interactions[0]!.sourceAssisted = {
+      questionLabel: '1.1',
+      accessiblePrompt: 'Choose answer 1.1.',
+      responseShape: 'single-choice',
+      sourceExerciseLabel: 'Exercise 1',
+    };
+
+    expect(registry.resolve(sourceProjection, {
+      surface: 'assembly-preview',
+      mode: 'editable',
+      sourceContext: { available: true, description: 'PDF page 1.' },
+    })).toMatchObject({
+      supported: true,
+      registration: { presentationMode: 'source-assisted', variant: 'v1' },
+    });
+  });
+
   it('returns a typed unknown-renderer diagnostic for an unregistered variant', () => {
     const registry = createActivityRendererRegistry([
       registerActivityRenderer(registration()),
