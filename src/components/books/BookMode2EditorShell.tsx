@@ -17,9 +17,13 @@ import {
   type SourceSetAttachmentClient,
   type SourceUploadSourceVersionReader,
 } from '../../services/book-source-delivery/sourceUpload.client';
-import { createBookAssemblyClient, type BookAssemblyMigrationClient } from '../../services/book-assembly/assemblyClient.browser';
+import {
+  BookAssemblyClientError,
+  createBookAssemblyClient,
+  type BookAssemblyMigrationClient,
+} from '../../services/book-assembly/assemblyClient.browser';
 import { createBookAssemblyPreviewClient, type BookAssemblyPreviewClient } from '../../services/book-assembly/assemblyPublication.client';
-import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
+import type { LoadedCurrentAssemblyDraft, UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
 import type { TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
 import type { BookTeacherAssemblyDocumentProjection } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
@@ -177,6 +181,60 @@ const BookMode2EditorShell = ({
     () => assemblyRepository === undefined ? configuredAssemblyRepository() : assemblyRepository,
     [assemblyRepository],
   );
+  const candidateOwnerKeys = useMemo(() => [...new Set(
+    (book.sourceSet?.sources ?? [])
+      .map((source) => source.ownerNodeKey)
+      .filter((ownerNodeKey): ownerNodeKey is string => typeof ownerNodeKey === 'string' && ownerNodeKey.length > 0),
+  )], [book.sourceSet]);
+  const [loadedAssemblyCandidate, setLoadedAssemblyCandidate] = useState<{
+    readonly bookId: string;
+    readonly status: 'loading' | 'loaded' | 'error';
+    readonly candidate: BookAssemblyCandidateRecord | null;
+    readonly savedActivityKeysByUnit: Readonly<Record<string, readonly string[]>>;
+  }>({ bookId: book.bookId, status: 'loading', candidate: null, savedActivityKeysByUnit: {} });
+  useEffect(() => {
+    if (assemblyInitialCandidate !== undefined
+      || access === 'public-readonly'
+      || !resolvedAssemblyRepository?.loadCurrent
+      || candidateOwnerKeys.length === 0) {
+      setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loaded', candidate: null, savedActivityKeysByUnit: {} });
+      return;
+    }
+    let active = true;
+    setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loading', candidate: null, savedActivityKeysByUnit: {} });
+    void Promise.all(candidateOwnerKeys.map(async (unitKey) => {
+      try {
+        return await resolvedAssemblyRepository.loadCurrent!(book.bookId, unitKey);
+      } catch (error) {
+        if (error instanceof BookAssemblyClientError && error.status === 409) return null;
+        throw error;
+      }
+    }))
+      .then((candidates) => {
+        if (!active) return;
+        const draft = candidates
+          .filter((value): value is LoadedCurrentAssemblyDraft => value !== null)
+          .sort((left, right) => right.candidate.updatedAt.localeCompare(left.candidate.updatedAt))[0] ?? null;
+        setLoadedAssemblyCandidate({
+          bookId: book.bookId,
+          status: 'loaded',
+          candidate: draft?.candidate ?? null,
+          savedActivityKeysByUnit: draft?.savedActivityKeysByUnit ?? {},
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setLoadedAssemblyCandidate({
+          bookId: book.bookId,
+          status: 'error',
+          candidate: null,
+          savedActivityKeysByUnit: {},
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [access, assemblyInitialCandidate, book.bookId, candidateOwnerKeys, resolvedAssemblyRepository]);
   const resolvedSourceSetAttachmentClient = useMemo(
     () => sourceSetAttachmentClient === undefined
       ? configuredSourceSetAttachmentClient()
@@ -230,6 +288,23 @@ const BookMode2EditorShell = ({
     : !resolvedUploadWorkflow
       ? 'Upload authorization is unavailable because the source Worker configuration is missing.'
       : undefined;
+  const candidateLoading = assemblyInitialCandidate === undefined
+    && candidateOwnerKeys.length > 0
+    && Boolean(resolvedAssemblyRepository?.loadCurrent)
+    && loadedAssemblyCandidate.bookId === book.bookId
+    && loadedAssemblyCandidate.status === 'loading';
+  const resolvedInitialCandidate = assemblyInitialCandidate !== undefined
+    ? assemblyInitialCandidate
+    : loadedAssemblyCandidate.bookId === book.bookId
+      ? loadedAssemblyCandidate.candidate
+      : null;
+  const resolvedInitialSavedActivityKeysByUnit = assemblyInitialCandidate === undefined
+    && loadedAssemblyCandidate.bookId === book.bookId
+      ? loadedAssemblyCandidate.savedActivityKeysByUnit
+      : {};
+  const candidateLoadFailed = assemblyInitialCandidate === undefined
+    && loadedAssemblyCandidate.bookId === book.bookId
+    && loadedAssemblyCandidate.status === 'error';
 
   useEffect(() => {
     trackAction('openBook', { bookId: book.bookId, source });
@@ -246,7 +321,11 @@ const BookMode2EditorShell = ({
 
   return (
     <main className="book-mode2-editor-shell" data-book-mode="pdf" data-presentation={presentation} data-flow="pdf-book-flow">
-      <BookPdfFlowWorkspace
+      {candidateLoading
+        ? <p aria-busy="true">Loading saved Book draft...</p>
+        : candidateLoadFailed
+          ? <p role="alert">The saved Book draft could not be loaded. Close and reopen the editor before making changes.</p>
+        : <BookPdfFlowWorkspace
         access={access}
         bookId={book.bookId}
         title={book.title}
@@ -260,7 +339,8 @@ const BookMode2EditorShell = ({
         activityAuthoring={resolvedActivityAuthoring}
         assemblySourceVersions={resolvedAssemblySourceVersions}
         assemblyInitialSourceSet={book.sourceSet ?? null}
-        assemblyInitialCandidate={assemblyInitialCandidate}
+        assemblyInitialCandidate={resolvedInitialCandidate}
+        assemblyInitialSavedActivityKeysByUnit={resolvedInitialSavedActivityKeysByUnit}
         assemblyBookRevision={assemblyBookRevision}
         assemblySourceSetRevision={assemblySourceSetRevision}
         sourceSetAttachmentClient={resolvedSourceSetAttachmentClient}
@@ -272,7 +352,7 @@ const BookMode2EditorShell = ({
         onInspectionAction={trackInspectionAction}
         onUploadAction={trackUploadAction}
         onTrackAction={(action, metadata) => trackAction(action, { source, ...metadata })}
-      />
+      />}
     </main>
   );
 };

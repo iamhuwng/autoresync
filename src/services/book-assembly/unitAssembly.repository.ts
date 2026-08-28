@@ -5,6 +5,11 @@ import type {
   BookAssemblyMutationResult,
 } from './unitAssembly.types';
 
+export interface LoadedCurrentAssemblyDraft {
+  readonly candidate: BookAssemblyCandidateRecord;
+  readonly savedActivityKeysByUnit: Readonly<Record<string, readonly string[]>>;
+}
+
 export interface UnitAssemblyRepository {
   create(input: CreateAssemblyCandidateInput): Promise<BookAssemblyMutationResult>;
   replace(input: ReplaceAssemblyCandidateInput): Promise<BookAssemblyMutationResult>;
@@ -27,14 +32,20 @@ export interface UnitAssemblyRepository {
     candidate: BookAssemblyCandidateRecord;
     conflict: Record<string, unknown> | null;
   }>;
+  loadCurrent?(bookId: string, unitKey: string): Promise<LoadedCurrentAssemblyDraft | null>;
 }
 
 export const createUnitAssemblyRepository = (
-  commands: AssemblyCandidateCommandPort,
+  commands: AssemblyCandidateCommandPort & {
+    readonly loadCurrent?: (bookId: string, unitKey: string) => Promise<LoadedCurrentAssemblyDraft | null>;
+  },
 ): UnitAssemblyRepository => Object.freeze({
   create: (input) => commands.create(input),
   replace: (input) => commands.replace(input),
   validate: (input) => commands.validate(input),
   discard: (input) => commands.discard(input),
   load: (bookId, unitKey, candidateId) => commands.load(bookId, unitKey, candidateId),
+  loadCurrent: commands.loadCurrent
+    ? (bookId, unitKey) => commands.loadCurrent!(bookId, unitKey)
+    : undefined,
 });

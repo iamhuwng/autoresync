@@ -49,6 +49,7 @@ export interface BookPdfFlowWorkspaceProps {
   readonly assemblySourceVersions: readonly TrustedBookSourceVersionProjection[];
   readonly assemblyInitialSourceSet?: SourceSetCandidate | null;
   readonly assemblyInitialCandidate?: BookAssemblyCandidateRecord | null;
+  readonly assemblyInitialSavedActivityKeysByUnit?: Readonly<Record<string, readonly string[]>>;
   readonly assemblyBookRevision: number;
   readonly assemblySourceSetRevision: number;
   readonly sourceSetAttachmentClient?: SourceSetAttachmentClient | null;
@@ -108,6 +109,7 @@ const BookPdfFlowWorkspace = ({
   assemblySourceVersions,
   assemblyInitialSourceSet,
   assemblyInitialCandidate,
+  assemblyInitialSavedActivityKeysByUnit,
   assemblyBookRevision,
   assemblySourceSetRevision,
   sourceSetAttachmentClient,
@@ -554,6 +556,7 @@ const BookPdfFlowWorkspace = ({
           bookRevision={effectiveAssemblyBookRevision}
           candidateRuntimePreview={previewProjection ?? assemblyCandidateRuntimePreview}
           initialCandidate={candidate}
+          initialSavedActivityKeysByUnit={assemblyInitialSavedActivityKeysByUnit}
           initialSourceSet={persistedSourceSet}
           migrationClient={assemblyMigrationClient}
           onAction={onTrackAction}

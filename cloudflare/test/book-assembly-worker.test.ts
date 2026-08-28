@@ -104,6 +104,18 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
       repository,
       readBookAuthority: async () => repository.book,
       createCandidateId: () => 'candidate-scoped',
+      bindingRepositoryFactory: () => ({
+        read: async (key) => ({
+          ...key,
+          schemaVersion: 1,
+          activityId: 'activity-target-1',
+          candidateId: 'activity-candidate-1',
+          candidateRevision: 3,
+          candidateLifecycle: 'saved',
+        }),
+        bindCandidate: async () => 'created',
+        recordPublication: async () => 'updated',
+      }),
     });
     const scopedEnv = {
       BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true',
@@ -138,6 +150,29 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
     }) as { body: unknown; init: ResponseInit };
 
     expect(created).toMatchObject({ init: { status: 200 }, body: { status: 'created' } });
+    const current = await routed['bookAssembly.loadCurrent']!({
+      request: new Request('https://assembly.example/book-assembly/books/book-1/units/unit-1/current'),
+      env: scopedEnv as never,
+      uid: 'teacher-1',
+      params: { bookId: 'book-1', unitKey: 'unit-1' },
+      descriptor: {
+        id: 'book.assembly.load-current', methods: ['GET'],
+        pathTemplate: '/book-assembly/books/:bookId/units/:unitKey/current',
+        owner: '#59', domain: 'assembly', handler: 'bookAssembly.loadCurrent',
+        firebaseAuth: 'firebase-id-token', rateClass: 'book-control',
+        gateEnv: 'BOOK_ASSEMBLY_ROUTES_ENABLED', gateDefault: 'disabled',
+        requestBodyBytes: 0, responseLimitBytes: 256_000,
+        source: 'contributor', contributorTicket: '#13A',
+      },
+    }) as { body: unknown; init: ResponseInit };
+    expect(current).toMatchObject({
+      init: { status: 200 },
+      body: {
+        status: 'loaded',
+        candidate: { candidateId: 'candidate-scoped' },
+        savedActivityKeysByUnit: { 'unit-1': ['activity-1'] },
+      },
+    });
   });
 
   it('creates, reloads, validates, and replaces one owner-scoped candidate with CAS revisions', async () => {
@@ -160,6 +195,8 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
     } });
     const loaded = await handlers.load({ env: {} as never, uid: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', candidateId: 'candidate-1' });
     expect(loaded.body).toMatchObject({ status: 'loaded', conflict: null, candidate: { revision: 1 } });
+    const current = await handlers.loadCurrent({ env: {} as never, uid: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1' });
+    expect(current.body).toMatchObject({ status: 'loaded', conflict: null, candidate: { revision: 1 } });
     const validated = await handlers.validate({
       request: request({
         operationId: op('2'), bookId: 'book-1', unitKey: 'unit-1',

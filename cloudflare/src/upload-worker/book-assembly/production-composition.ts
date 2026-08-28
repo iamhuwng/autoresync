@@ -138,6 +138,7 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
     readBookAuthority: (_repository, bookId, context) => context
       ? authority(context.env as Env, context.ownerId, bookId, 'candidate')
       : Promise.resolve(null),
+    bindingRepositoryFactory: (env) => bindings(env as Env),
   }),
   activityAuthoringHandlers: createBookActivityAuthoringWorkerHandlers({
     resolveOwnedPdfBookId: async ({ env, ownerId, claimedBookId }) => {

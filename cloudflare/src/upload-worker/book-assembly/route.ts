@@ -8,6 +8,7 @@ export const bookAssemblyRouteDescriptors = [
   { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/validate', handler: 'validate' },
   { method: 'DELETE', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'discard' },
   { method: 'GET', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'load' },
+  { method: 'GET', path: '/book-assembly/books/:bookId/units/:unitKey/current', handler: 'loadCurrent' },
 ] as const;
 
 /** Ticket 63 candidate preview and approval. The capability stays disabled by default. */

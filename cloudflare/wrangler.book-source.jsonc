@@ -22,6 +22,12 @@
     "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
     "BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "enabled",
     "BOOK_DELIVERY_SERVICE_IDENTITY": "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY": "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "enabled",
+    "BOOK_ASSEMBLY_SERVICE_IDENTITY": "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_ASSEMBLY_ROUTES_ENABLED": "enabled",
+    "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c",
+    "BOOK_ASSEMBLY_MUTATIONS_ENABLED": "true",
     "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "disabled",
     "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173",
     "BOOK_SOURCE_B2_ENDPOINT": "https://s3.us-west-004.backblazeb2.com",
@@ -35,6 +41,8 @@
   // BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY
   // BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY
   // BOOK_DELIVERY_GOOGLE_SA_KEY
+  // BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY
+  // BOOK_ASSEMBLY_GOOGLE_SA_KEY
   // BOOK_SOURCE_B2_PRIVATE_BUCKET_ID
   // BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID
   // BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY

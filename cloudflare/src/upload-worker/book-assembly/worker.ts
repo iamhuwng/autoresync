@@ -8,6 +8,7 @@ import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from '../../../../src/services/book-assembly/unitAssembly.types.ts';
+import type { UnitActivityBindingRepository } from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
 import {
   FirebaseRestBookAssemblyRepository,
   type BookAssemblyRepositoryEnv,
@@ -221,6 +222,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
   now?: () => string;
   createCandidateId?: () => string;
   readBookAuthority?: BookAssemblyAuthorityReader;
+  bindingRepositoryFactory?: (env: BookAssemblyRepositoryEnv) => UnitActivityBindingRepository;
 } = {}) => {
   const now = options.now ?? nowDefault;
   const repositoryFor = (env: BookAssemblyRepositoryEnv, ownerId: string): BookAssemblyRepositoryPort =>
@@ -474,6 +476,67 @@ export const createBookAssemblyWorkerHandlers = (options: {
               bookRevision: authority?.bookRevision,
               sourceSetRevision: authority?.sourceSetRevision,
             } : null,
+          },
+          init: { status: 200 },
+        };
+      } catch (error) {
+        const status = error instanceof BookAssemblyWorkerError ? error.status : 500;
+        return { body: { code: error instanceof BookAssemblyWorkerError ? error.code : 'book_assembly_failed' }, init: { status } };
+      }
+    },
+    async loadCurrent(input: {
+      env: BookAssemblyRepositoryEnv;
+      uid: string;
+      bookId: string;
+      unitKey: string;
+    }) {
+      try {
+        const repository = repositoryFor(input.env, input.uid);
+        await authenticate(repository, input.uid);
+        const bookId = id(input.bookId, 'book_id');
+        const unitKey = id(input.unitKey, 'unit_key');
+        const scope = await repository.readScope(bookId, unitKey);
+        const candidate = scope.current
+          ? scope.candidates?.[scope.current.candidateId]
+          : undefined;
+        if (!candidate) {
+          return { body: { status: 'empty' }, init: { status: 200 } };
+        }
+        if (candidate.ownerId !== input.uid) {
+          return { body: { status: 'not-found' }, init: { status: 404 } };
+        }
+        const authority = await authorityFor(repository, bookId, input.env, input.uid);
+        if (!authority || authority.ownerId !== input.uid || authority.bookMode !== 'pdf') {
+          return { body: { status: 'not-found' }, init: { status: 404 } };
+        }
+        if (authority.bookRevision !== candidate.bookRevision
+          || authority.sourceSetRevision !== candidate.sourceSetRevision
+          || (candidate.manifest !== null
+            && stable(candidate.manifest.sourceSet) !== stable(authority.sourceSet))) {
+          return { body: { status: 'conflict' }, init: { status: 409 } };
+        }
+        const savedActivityKeysByUnit: Record<string, string[]> = {};
+        if (candidate.manifest && options.bindingRepositoryFactory) {
+          const bindings = options.bindingRepositoryFactory(input.env);
+          await Promise.all(candidate.manifest.units.map(async (unit) => {
+            const saved = await Promise.all(unit.activitySlots.map(async (slot) => {
+              const binding = await bindings.read({
+                ownerId: input.uid,
+                bookId,
+                unitKey: unit.unitKey,
+                activityKey: slot.activityKey,
+              });
+              return binding?.candidateLifecycle === 'saved' ? slot.activityKey : null;
+            }));
+            savedActivityKeysByUnit[unit.unitKey] = saved.filter((key): key is string => key !== null);
+          }));
+        }
+        return {
+          body: {
+            status: 'loaded',
+            candidate: clone(candidate),
+            savedActivityKeysByUnit,
+            conflict: null,
           },
           init: { status: 200 },
         };

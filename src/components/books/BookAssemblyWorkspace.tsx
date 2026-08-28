@@ -63,6 +63,8 @@ export interface BookAssemblyWorkspaceProps {
   /** Persisted material Book source set, used only to resume a verified source. */
   readonly initialSourceSet?: SourceSetCandidate | null;
   readonly initialCandidate?: BookAssemblyCandidateRecord | null;
+  /** Exact saved Unit-Activity bindings returned with the current Assembly draft. */
+  readonly initialSavedActivityKeysByUnit?: Readonly<Record<string, readonly string[]>>;
   readonly repository?: UnitAssemblyRepository;
   readonly migrationClient?: BookAssemblyMigrationClient | null;
   readonly activityAuthoring?: ActivityAuthoringService | null;
@@ -276,6 +278,7 @@ const BookAssemblyWorkspace = ({
   sourceVersions,
   initialSourceSet,
   initialCandidate,
+  initialSavedActivityKeysByUnit = {},
   repository,
   migrationClient,
   activityAuthoring,
@@ -323,7 +326,9 @@ const BookAssemblyWorkspace = ({
   const [unitImportText, setUnitImportText] = useState('');
   const [unitImportBusy, setUnitImportBusy] = useState(false);
   const [unitImportCancelable, setUnitImportCancelable] = useState(false);
-  const [importedActivityKeysByUnit, setImportedActivityKeysByUnit] = useState<Readonly<Record<string, readonly string[]>>>({});
+  const [importedActivityKeysByUnit, setImportedActivityKeysByUnit] = useState<Readonly<Record<string, readonly string[]>>>(
+    initialSavedActivityKeysByUnit,
+  );
   const [reconciliationBusy, setReconciliationBusy] = useState(false);
   const [migrationRequestedStrategy, setMigrationRequestedStrategy] = useState<BookSourceStrategy | null>(null);
   const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
@@ -554,12 +559,12 @@ const BookAssemblyWorkspace = ({
     setSources((current) => {
       const existing = current.find((source) => source.sourceVersionId === sourceVersionId);
       const next = existing
-        ? current.map((source) => source.sourceVersionId === sourceVersionId ? { ...source, ownerNodeKey: section.nodeKey } : source)
+        ? current.map((source) => source.sourceVersionId === sourceVersionId ? { ...source, ownerNodeKey: unit.nodeKey } : source)
         : [...current, {
             sourceKey,
             sourceVersionId,
             sourceOrder: current.length + 1,
-            ownerNodeKey: section.nodeKey,
+            ownerNodeKey: unit.nodeKey,
           }];
       return normalizeSources('component_pdfs', next);
     });
@@ -748,19 +753,20 @@ const BookAssemblyWorkspace = ({
   const setSource = (sourceVersionId: string, ownerNodeKey?: string) => {
     const sourceVersion = sourceVersions.find((value) => value.sourceVersionId === sourceVersionId);
     if (!sourceVersion?.verifiedUsable) return;
+    const componentSourceKey = sourceVersion.sourceKey ?? `source-${sourceVersionId}`;
     setSources((current) => {
       if (current.some((source) => source.sourceVersionId === sourceVersionId)) return current;
       const next: DraftSource = strategy === 'full_pdf'
         ? { sourceKey: 'full', sourceVersionId, sourceOrder: 1 }
         : {
-            sourceKey: `source-${sourceVersionId}`,
+            sourceKey: componentSourceKey,
             sourceVersionId,
             sourceOrder: current.length + 1,
             ownerNodeKey: ownerNodeKey ?? selectedNodeKey ?? nodes[0]?.nodeKey ?? '',
           };
       return normalizeSources(strategy, strategy === 'full_pdf' ? [next] : [...current, next]);
     });
-    setMappingSourceKey((current) => current || (strategy === 'full_pdf' ? 'full' : `source-${sourceVersionId}`));
+    setMappingSourceKey((current) => current || (strategy === 'full_pdf' ? 'full' : componentSourceKey));
     emit('teacher_materials_book_assembly_source_bound', { sourceVersionId, ownerNodeKey, strategy });
   };
 
@@ -1327,15 +1333,18 @@ const BookAssemblyWorkspace = ({
           .filter((source) => !sourceVersions.some((version) => version.sourceVersionId === source.sourceVersionId))
           .map((source) => ({ source, version: undefined })),
       ].sort((left, right) => left.source.sourceOrder - right.source.sourceOrder);
+      const componentUnitFor = (source: DraftSource) => {
+        if (!source.ownerNodeKey) return undefined;
+        const ownerUnit = nodes.find((node) => node.nodeKey === source.ownerNodeKey && node.nodeType === 'unit')
+          ?? nodes.find((node) => node.nodeType === 'unit' && node.parentNodeKey === source.ownerNodeKey);
+        return ownerUnit ? units.find((unit) => unit.unitKey === ownerUnit.nodeKey) : undefined;
+      };
       const componentStructureReady = componentSources.length > 0
-        && componentSources.every(({ source }) => Boolean(source.ownerNodeKey));
+        && componentSources.every(({ source }) => Boolean(componentUnitFor(source)));
       const componentContentReady = componentSources.length > 0
         && componentSources.every(({ source }) => {
-          if (!source.ownerNodeKey) return false;
-          const ownerUnit = nodes.find((node) => node.nodeKey === source.ownerNodeKey && node.nodeType === 'unit')
-            ?? nodes.find((node) => node.nodeType === 'unit' && node.parentNodeKey === source.ownerNodeKey);
-          return Boolean(ownerUnit && units.find((unit) => unit.unitKey === ownerUnit.nodeKey)
-            && hasExactActivityContent(units.find((unit) => unit.unitKey === ownerUnit.nodeKey)!));
+          const ownerUnit = componentUnitFor(source);
+          return Boolean(ownerUnit && hasExactActivityContent(ownerUnit));
         });
       return (
         <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-components-title">
@@ -1346,12 +1355,14 @@ const BookAssemblyWorkspace = ({
                 <p className="pbf-muted">Each PDF gets its own section and Unit content. Nothing is merged behind the scenes.</p>
               </div>
               <span className={`pbf-status${componentStructureReady ? ' is-good' : ''}`}>
-                {componentSources.filter(({ source }) => Boolean(source.ownerNodeKey)).length} of {componentSources.length} placed
+                {componentSources.filter(({ source }) => Boolean(componentUnitFor(source))).length} of {componentSources.length} placed
               </span>
             </div>
             <div className="pbf-source-list" style={{ marginTop: 14 }}>
               {componentSources.map(({ source, version }, index) => {
-                const placed = Boolean(source.ownerNodeKey);
+                const ownerUnit = componentUnitFor(source);
+                const placed = Boolean(ownerUnit);
+                const selected = ownerUnit?.unitKey === selectedUnitKey;
                 return (
                   <div className="pbf-source" key={source.sourceVersionId}>
                     <span className="pbf-file-symbol" aria-hidden="true">{index + 1}</span>
@@ -1360,8 +1371,25 @@ const BookAssemblyWorkspace = ({
                       <span>{version ? `${version.physicalPageCount} pages` : 'Verified PDF'}</span>
                       <span>{placed ? 'A section and Unit are ready for this PDF.' : 'Add a section and Unit for this PDF.'}</span>
                     </div>
-                    {placed
-                      ? <span className="pbf-status is-good">Placed</span>
+                    {ownerUnit
+                      ? <div className="pbf-actions">
+                          <span className="pbf-status is-good">Placed</span>
+                          <button
+                            type="button"
+                            className="pbf-button"
+                            aria-pressed={selected}
+                            onClick={() => {
+                              requestNodeFocus(ownerUnit.unitKey);
+                              setMockupUnitToolsOpen(false);
+                              emit('teacher_materials_book_assembly_component_unit_selected', {
+                                sourceVersionId: source.sourceVersionId,
+                                unitKey: ownerUnit.unitKey,
+                              });
+                            }}
+                          >
+                            {selected ? 'Selected' : `Select PDF ${index + 1}`}
+                          </button>
+                        </div>
                       : <button type="button" className="pbf-button pbf-button-primary" onClick={() => addComponentStructure(source.sourceVersionId)}>Add structure</button>}
                   </div>
                 );
@@ -1398,7 +1426,7 @@ const BookAssemblyWorkspace = ({
               </button>
             </div>
             <ol className="pbf-tree" style={{ marginTop: 14 }} aria-label="Component PDF order">
-              {normalizedSources.map((source, index) => <li key={source.sourceVersionId}><strong>{`PDF ${index + 1}`}</strong><small>{source.ownerNodeKey ? 'Structure added' : 'Needs structure'}</small></li>)}
+              {normalizedSources.map((source, index) => <li key={source.sourceVersionId}><strong>{`PDF ${index + 1}`}</strong><small>{componentUnitFor(source) ? 'Structure added' : 'Needs structure'}</small></li>)}
             </ol>
           </div>
           <details className="pbf-details"><summary>What happens to page numbers?</summary><p>Each PDF keeps its own page numbers. When you connect an activity later, choose the PDF first and then its page.</p></details>

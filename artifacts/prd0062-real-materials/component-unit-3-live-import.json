@@ -1,0 +1,38 @@
+{
+  "promptVersion": "book-unit-json-v1",
+  "schemaVersion": "prd0062.unit_activity_import.v1",
+  "bookId": "book-mt8hq47o",
+  "unitKey": "unit-74f8b31dc317",
+  "slots": [
+    {
+      "activityKey": "activity-c8278a7e6a1e",
+      "content": {
+        "schemaVersion": 1,
+        "title": "IELTS Vocabulary Unit 3: Keeping fit",
+        "taskProfile": null,
+        "presentationMode": "source-assisted",
+        "contextRequirement": { "mode": "required", "acceptedKinds": ["book-pages"] },
+        "instructions": [{ "text": "Review page 1 of the Unit 3 component PDF before responding." }],
+        "stimulus": null,
+        "assetRefs": [],
+        "interaction": { "family": "choice", "variant": "v1" },
+        "answerRule": { "defaultPoints": 1, "normalization": "exact", "requiredSelectionCount": 1 },
+        "interactions": [{
+          "prompt": "Which food appears in the exercise 1.1 frequency table?",
+          "options": ["Fruit", "Engine oil"],
+          "acceptedOptionIndexes": [0],
+          "sourceAssisted": {
+            "questionLabel": "Unit 3",
+            "sourceExerciseLabel": "Exercise 1.1: Diet",
+            "accessiblePrompt": "Choose the food listed in the exercise 1.1 frequency table on Unit 3 page 1.",
+            "responseShape": "single-choice"
+          }
+        }],
+        "scoring": { "mode": "auto-where-possible" }
+      },
+      "evidenceRefs": ["import:activity-c8278a7e6a1e", "pageGroup:pages-ab352dcfe7fc", "source:component-3:page:1"],
+      "sourceEvidenceRefs": ["pageGroup:pages-ab352dcfe7fc", "source:component-3:page:1"],
+      "answerEvidenceRefs": ["pageGroup:pages-ab352dcfe7fc", "source:component-3:page:1"]
+    }
+  ]
+}

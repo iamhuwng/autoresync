@@ -11,6 +11,7 @@ import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from './unitAssembly.types';
+import type { LoadedCurrentAssemblyDraft } from './unitAssembly.repository';
 import type { BookAssemblyPublicationStatus } from './publicationTransaction.service';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
@@ -147,6 +148,16 @@ const body = async (response: Response): Promise<Record<string, unknown>> => {
   } catch {
     throw new BookAssemblyClientError('invalid_response', 502);
   }
+};
+const savedActivityKeysByUnit = (value: unknown): Readonly<Record<string, readonly string[]>> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new BookAssemblyClientError('invalid_response', 502);
+  }
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([unitKey, activityKeys]) => {
+    safeId(unitKey, 'unit_key');
+    if (!Array.isArray(activityKeys)) throw new BookAssemblyClientError('invalid_response', 502);
+    return [unitKey, activityKeys.map((activityKey) => safeId(activityKey, 'activity_key'))];
+  }));
 };
 const result = (value: Record<string, unknown>): BookAssemblyMutationResult => {
   const receipt = value.receipt;
@@ -367,6 +378,37 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
         status: 'loaded';
         candidate: BookAssemblyCandidateRecord;
         conflict: Record<string, unknown> | null;
+      };
+    },
+    async loadCurrent(bookId: string, unitKey: string): Promise<LoadedCurrentAssemblyDraft | null> {
+      const token = (await options.getIdToken()).trim();
+      safeId(bookId, 'book_id');
+      safeId(unitKey, 'unit_key');
+      if (!token) throw new BookAssemblyClientError('unauthorized', 401);
+      const url = `${base}/book-assembly/books/${encodeURIComponent(bookId)}/units/${encodeURIComponent(unitKey)}/current`;
+      const response = await (options.fetchImpl ?? globalThis.fetch)(url, {
+        method: 'GET',
+        credentials: 'omit',
+        redirect: 'error',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.redirected || (response.url && response.url !== url)) {
+        throw new BookAssemblyClientError('response_binding_mismatch', 502);
+      }
+      const parsed = await body(response);
+      if (!response.ok || (parsed.status !== 'loaded' && parsed.status !== 'empty')) {
+        throw new BookAssemblyClientError(
+          typeof parsed.code === 'string' ? parsed.code : `http_${response.status}`,
+          response.status,
+        );
+      }
+      if (parsed.status === 'empty') return null;
+      if (!parsed.candidate || typeof parsed.candidate !== 'object' || Array.isArray(parsed.candidate)) {
+        throw new BookAssemblyClientError('invalid_response', 502);
+      }
+      return {
+        candidate: parsed.candidate as BookAssemblyCandidateRecord,
+        savedActivityKeysByUnit: savedActivityKeysByUnit(parsed.savedActivityKeysByUnit),
       };
     },
   };

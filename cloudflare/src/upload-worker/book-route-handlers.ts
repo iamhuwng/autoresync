@@ -115,7 +115,7 @@ const directDescriptorFor = (
 });
 
 const READ_HANDLER_NAMES = new Set([
-  'loadCandidate', 'load', 'readDraft', 'status', 'resolve', 'current', 'catalog',
+  'loadCandidate', 'load', 'loadCurrent', 'readDraft', 'status', 'resolve', 'current', 'catalog',
   'studentProjection', 'teacherStudentProjection', 'teacherProjection',
   'homeworkStudentLaunch', 'sources',
 ]);
@@ -332,6 +332,7 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, assembly,
     ['create', 'replace', 'validate', 'discard'], 'bookAssembly', () => ['bookId']);
   addFactoryHandlers(handlers, assembly, ['load'], 'bookAssembly', () => ['bookId', 'unitKey', 'candidateId']);
+  addFactoryHandlers(handlers, assembly, ['loadCurrent'], 'bookAssembly', () => ['bookId', 'unitKey']);
   addFactoryHandlers(handlers, assemblyPreview, ['preview', 'approve', 'revoke'], 'bookAssembly', (name) => [
     'bookId', 'unitKey', 'candidateId',
     ...(name === 'revoke' ? ['approvalId'] : []),

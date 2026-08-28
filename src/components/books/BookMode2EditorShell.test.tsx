@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { materialCatalogIds, type MaterialBookMetadata } from '../../types/materialCatalog.types';
 import BookMode2EditorShell from './BookMode2EditorShell';
 import type { SourceUploadBrowserWorkflow } from '../../services/book-source-delivery/sourceUpload.browserWorkflow';
+import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
+import { BookAssemblyClientError } from '../../services/book-assembly/assemblyClient.browser';
 
 vi.mock('../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: vi.fn() }),
@@ -125,5 +127,61 @@ describe('BookMode2EditorShell', () => {
     await user.click(screen.getByRole('button', { name: 'Add a PDF' }));
     expect(screen.getByRole('heading', { name: 'PDF 1' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Book PDF' })).not.toBeInTheDocument();
+  });
+
+  it('fails closed when the saved Assembly draft cannot be loaded', async () => {
+    const assemblyRepository = {
+      loadCurrent: vi.fn().mockRejectedValue(new Error('network unavailable')),
+    } as unknown as UnitAssemblyRepository;
+    render(
+      <BookMode2EditorShell
+        access="owner"
+        book={{
+          ...book,
+          sourceSet: {
+            sourceStrategy: 'component_pdfs',
+            sources: [{
+              sourceKey: 'component-1',
+              sourceVersionId: 'source-version-1',
+              sourceOrder: 1,
+              ownerNodeKey: 'unit-1',
+            }],
+          },
+        }}
+        presentation="modal"
+        assemblyRepository={assemblyRepository}
+      />,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('saved Book draft could not be loaded');
+    expect(screen.queryByRole('heading', { name: 'Bring in your PDF sections' })).not.toBeInTheDocument();
+  });
+
+  it('ignores only explicit stale current-candidate conflicts while loading a Book', async () => {
+    const assemblyRepository = {
+      loadCurrent: vi.fn().mockRejectedValue(new BookAssemblyClientError('stale-book-revision', 409)),
+    } as unknown as UnitAssemblyRepository;
+    render(
+      <BookMode2EditorShell
+        access="owner"
+        book={{
+          ...book,
+          sourceSet: {
+            sourceStrategy: 'component_pdfs',
+            sources: [{
+              sourceKey: 'component-1',
+              sourceVersionId: 'source-version-1',
+              sourceOrder: 1,
+              ownerNodeKey: 'unit-1',
+            }],
+          },
+        }}
+        presentation="modal"
+        assemblyRepository={assemblyRepository}
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Bring in your PDF sections' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

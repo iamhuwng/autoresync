@@ -108,6 +108,33 @@ const componentMappingCandidate = (): BookAssemblyCandidateRecord => ({
   },
 });
 
+const componentReadyCandidate = (): BookAssemblyCandidateRecord => ({
+  ...componentMappingCandidate(),
+  lifecycle: 'validated',
+  manifest: {
+    ...componentMappingCandidate().manifest!,
+    sourceSet: {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'source-source-part-a', sourceVersionId: 'source-part-a', sourceOrder: 1, ownerNodeKey: 'unit-a' },
+        { sourceKey: 'source-source-part-b', sourceVersionId: 'source-part-b', sourceOrder: 2, ownerNodeKey: 'unit-b' },
+      ],
+    },
+    units: [
+      {
+        unitKey: 'unit-a',
+        activitySlots: [{ activityKey: 'activity-a', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-a'] }],
+        pageGroups: [{ pageGroupKey: 'pages-a', sourceKey: 'source-source-part-a', pages: [1], activityKeys: ['activity-a'], mode: 'activity', defaultPhysicalPageNumber: 1 }],
+      },
+      {
+        unitKey: 'unit-b',
+        activitySlots: [{ activityKey: 'activity-b', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-b'] }],
+        pageGroups: [{ pageGroupKey: 'pages-b', sourceKey: 'source-source-part-b', pages: [1], activityKeys: ['activity-b'], mode: 'activity', defaultPhysicalPageNumber: 1 }],
+      },
+    ],
+  },
+});
+
 const repository = (createResult: 'created' | 'conflict' | 'forbidden' = 'created'): UnitAssemblyRepository => ({
   create: vi.fn(async (input) => ({
     status: createResult === 'created' ? 'created' : createResult,
@@ -327,6 +354,119 @@ describe('BookAssemblyWorkspace', () => {
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'teacher_materials_book_assembly_source_removed',
       expect.objectContaining({ sourceVersionId: 'source-part-b' }),
+    );
+  });
+
+  it('seeds a valid Activity slot and page group when component structure is added', async () => {
+    const user = userEvent.setup();
+    renderWorkspace({
+      guided: true,
+      guidedStep: 'outline',
+      guidedUiVariant: 'mockup',
+      strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1]],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Add structure' }));
+
+    expect(screen.getByText('Add the activities for this Unit to continue.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Unit content' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('repairs persisted component owners that do not resolve to the current Book tree', async () => {
+    const user = userEvent.setup();
+    renderWorkspace({
+      guided: true,
+      guidedStep: 'outline',
+      guidedUiVariant: 'mockup',
+      strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1], sourceVersions[2]],
+      initialSourceSet: {
+        sourceStrategy: 'component_pdfs',
+        sources: [
+          { sourceKey: 'component-1', sourceVersionId: 'source-part-a', sourceOrder: 1, ownerNodeKey: 'missing-section-a' },
+          { sourceKey: 'component-2', sourceVersionId: 'source-part-b', sourceOrder: 2, ownerNodeKey: 'missing-section-b' },
+        ],
+      },
+    });
+
+    expect(screen.getByText('0 of 2 placed')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Add structure' })).toHaveLength(2);
+
+    await user.click(screen.getAllByRole('button', { name: 'Add structure' })[0]);
+
+    expect(screen.getByText('1 of 2 placed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Unit content' })).toBeEnabled();
+  });
+
+  it('targets the newly added component Unit when copying authoring instructions', async () => {
+    const user = userEvent.setup();
+    mocks.writeClipboardText.mockResolvedValue(true);
+    renderWorkspace({
+      guided: true,
+      guidedStep: 'outline',
+      guidedUiVariant: 'mockup',
+      strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1], sourceVersions[2]],
+    });
+
+    await user.click(screen.getAllByRole('button', { name: 'Add structure' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add Unit content' }));
+    await user.click(screen.getByRole('button', { name: 'Copy instructions' }));
+    const firstPrompt = mocks.writeClipboardText.mock.calls.at(-1)?.[0] as string;
+
+    await user.click(screen.getAllByRole('button', { name: 'Add structure' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Copy instructions' }));
+    const secondPrompt = mocks.writeClipboardText.mock.calls.at(-1)?.[0] as string;
+
+    expect(secondPrompt).not.toBe(firstPrompt);
+    expect(secondPrompt).toContain('"sourceKey": "source-source-part-b"');
+  });
+
+  it('hydrates exact saved Unit Activity bindings when a Component-PDF draft is reopened', () => {
+    renderWorkspace({
+      guided: true,
+      guidedStep: 'outline',
+      guidedUiVariant: 'mockup',
+      strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1], sourceVersions[2]],
+      initialCandidate: componentReadyCandidate(),
+      initialSavedActivityKeysByUnit: {
+        'unit-a': ['activity-a'],
+        'unit-b': ['activity-b'],
+      },
+    });
+
+    expect(screen.getByText('2 of 2 placed')).toBeInTheDocument();
+    expect(screen.getByText('Unit content is ready')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
+  });
+
+  it('lets a teacher select every persisted Component-PDF Unit after reopen', async () => {
+    const user = userEvent.setup();
+    mocks.writeClipboardText.mockResolvedValue(true);
+    renderWorkspace({
+      guided: true,
+      guidedStep: 'outline',
+      guidedUiVariant: 'mockup',
+      strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1], sourceVersions[2]],
+      initialCandidate: componentReadyCandidate(),
+      initialSavedActivityKeysByUnit: {
+        'unit-a': ['activity-a'],
+        'unit-b': ['activity-b'],
+      },
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Select PDF 2' }));
+    await user.click(screen.getByRole('button', { name: 'Replace Unit content' }));
+    await user.click(screen.getByRole('button', { name: 'Copy instructions' }));
+
+    expect(mocks.writeClipboardText.mock.calls.at(-1)?.[0]).toContain('"unitKey": "unit-b"');
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_component_unit_selected',
+      expect.objectContaining({ sourceVersionId: 'source-part-b', unitKey: 'unit-b' }),
     );
   });
 

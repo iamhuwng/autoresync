@@ -119,6 +119,30 @@ describe('PRD0062 ticket 13A browser client boundary', () => {
     expect(String(discardInit.body)).not.toContain('unitKey');
   });
 
+  it('loads the current owner-scoped Unit candidate without a browser-supplied candidate id', async () => {
+    const fetchImpl = vi.fn(async () => ok({
+      status: 'loaded',
+      candidate: { candidateId: 'candidate-1' },
+      savedActivityKeysByUnit: { 'unit-1': ['activity-1'] },
+      conflict: null,
+    }));
+    const client = createBookAssemblyClient({
+      baseUrl: 'https://assembly.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+
+    await expect(client.loadCurrent('book-1', 'unit-1'))
+      .resolves.toEqual({
+        candidate: { candidateId: 'candidate-1' },
+        savedActivityKeysByUnit: { 'unit-1': ['activity-1'] },
+      });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://assembly.example/book-assembly/books/book-1/units/unit-1/current',
+      expect.objectContaining({ method: 'GET', credentials: 'omit', redirect: 'error' }),
+    );
+  });
+
   it('binds published source-strategy successor commands to the canonical route', async () => {
     const fetchImpl = vi.fn(async () => ok({
       status: 'published',
