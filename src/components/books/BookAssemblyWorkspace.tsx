@@ -35,7 +35,7 @@ import type { ActivityAuthoringService } from '../../services/book-activity/acti
 import type { SourceSetAttachmentClient } from '../../services/book-source-delivery/sourceUpload.client';
 import BookAssemblyMappingViewerHost from './assembly/BookAssemblyMappingViewerHost';
 import BookAssemblyReconciliationPanel from './assembly/BookAssemblyReconciliationPanel';
-import BookAssemblyUnitPreview from './assembly/BookAssemblyUnitPreview';
+import BookAssemblyStudentPreviewHost from './assembly/BookAssemblyStudentPreviewHost';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import UnitActivityImportControls from './assembly/UnitActivityImportControls';
 import BookAssemblyStrategyMigrationPanel from './assembly/BookAssemblyStrategyMigrationPanel';
@@ -1935,7 +1935,13 @@ const BookAssemblyWorkspace = ({
               />
             </section>
             {currentRuntimePreview ? (
-              <BookAssemblyUnitPreview preview={currentRuntimePreview.preview} onExit={() => setDismissedRuntimePreviewIdentity(currentRuntimePreview.identity)} />
+              <BookAssemblyStudentPreviewHost
+                bookTitle={bookTitle}
+                documents={currentPreviewDocuments}
+                getIdToken={previewGetIdToken}
+                preview={currentRuntimePreview.preview}
+                onExit={() => setDismissedRuntimePreviewIdentity(currentRuntimePreview.identity)}
+              />
             ) : null}
             <div className="book-assembly-guided__publish-note" role="status">
               <strong>Ready for the next release step</strong>
@@ -2118,7 +2124,10 @@ const BookAssemblyWorkspace = ({
       </section>
 
       {currentRuntimePreview ? (
-        <BookAssemblyUnitPreview
+        <BookAssemblyStudentPreviewHost
+          bookTitle={bookTitle}
+          documents={currentPreviewDocuments}
+          getIdToken={previewGetIdToken}
           preview={currentRuntimePreview.preview}
           onExit={() => setDismissedRuntimePreviewIdentity(currentRuntimePreview.identity)}
         />

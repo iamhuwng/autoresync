@@ -1,4 +1,4 @@
-import type { BookRuntimeDeliveryProjection } from './bookDelivery.types';
+import type { BookRuntimeProjection } from './bookDelivery.types';
 import type {
   BookDeliveryComponentDescriptor,
   BookDeliveryComponentProjection,
@@ -31,10 +31,10 @@ const error = (
 };
 
 const sourceRequestMap = (
-  projection: BookRuntimeDeliveryProjection,
+  projection: BookRuntimeProjection,
   errors: BookDeliveryComponentProjectionValidationError[],
-): Map<string, BookRuntimeDeliveryProjection['documentRequests'][number]> => {
-  const requests = new Map<string, BookRuntimeDeliveryProjection['documentRequests'][number]>();
+): Map<string, BookRuntimeProjection['documentRequests'][number]> => {
+  const requests = new Map<string, BookRuntimeProjection['documentRequests'][number]>();
   projection.documentRequests.forEach((request, index) => {
     const path = `documentRequests[${index}]`;
     if (!validId(request.sourceKey)) error(errors, `${path}.sourceKey`, 'Source key is invalid.');
@@ -46,12 +46,12 @@ const sourceRequestMap = (
   return requests;
 };
 
-const sortedActivities = (projection: BookRuntimeDeliveryProjection) => [...projection.activities].sort(
+const sortedActivities = (projection: BookRuntimeProjection) => [...projection.activities].sort(
   (left, right) => left.order - right.order || left.activityId.localeCompare(right.activityId),
 );
 
 export const validateBookDeliveryComponentProjection = (
-  projection: BookRuntimeDeliveryProjection,
+  projection: BookRuntimeProjection,
 ): BookDeliveryComponentProjectionValidationResult => {
   const errors: BookDeliveryComponentProjectionValidationError[] = [];
   const sources = projection.sourceSet.sources;
@@ -90,7 +90,7 @@ export const validateBookDeliveryComponentProjection = (
     else if (request.sourceVersionId !== source.sourceVersionId) {
       error(errors, `${path}.sourceVersionId`, 'Document request Source Version does not match component source.');
     }
-    sourceOrders.add(source.sourceOrder);
+    sourceOrders.add(source.sourceOrder!);
     sourceKeys.add(source.sourceKey);
   });
   if (requests.size !== sources.length) error(errors, 'documentRequests', 'Document requests must match authorized components exactly.');
@@ -126,7 +126,7 @@ export const validateBookDeliveryComponentProjection = (
 };
 
 export const createBookDeliveryComponentProjection = (
-  projection: BookRuntimeDeliveryProjection,
+  projection: BookRuntimeProjection,
 ): BookDeliveryComponentProjection => {
   const validation = validateBookDeliveryComponentProjection(projection);
   if (!validation.valid) throw new BookDeliveryComponentProjectionError(validation.errors);

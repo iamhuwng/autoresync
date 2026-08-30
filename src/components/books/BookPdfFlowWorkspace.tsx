@@ -14,7 +14,7 @@ import type { SourceSetCandidate, TrustedBookSourceVersionProjection } from '../
 import type { BookAssemblyPreviewApprovalReference } from '../../types/bookAssembly.types';
 import type { ReactNode } from 'react';
 import BookAssemblyWorkspace from './BookAssemblyWorkspace';
-import BookAssemblyUnitPreview from './assembly/BookAssemblyUnitPreview';
+import BookAssemblyStudentPreviewHost from './assembly/BookAssemblyStudentPreviewHost';
 import BookSourceInspectionPanel, { type BookSourceInspectionAction } from './BookSourceInspectionPanel';
 import BookSourceUploadPanel, { type BookSourceUploadAction } from './BookSourceUploadPanel';
 import './BookPdfFlowWorkspace.css';
@@ -617,7 +617,10 @@ const BookPdfFlowWorkspace = ({
             <div className="pbf-row"><div><h3>Preview as a student</h3><p className="pbf-muted">Open the trusted preview before publishing. Nothing is published by opening it.</p></div><span className={`pbf-status${previewApproval ? ' is-good' : ''}`}>{previewApproval ? 'Approved' : previewProjection ? 'Ready to approve' : 'Review needed'}</span></div>
             <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void requestPreview()} disabled={!candidate || candidate.lifecycle !== 'validated' || !assemblyPreviewClient}>{previewProjection ? 'Refresh preview' : 'Preview as a student'}</button><button type="button" className="pbf-button" onClick={() => void approvePreview()} disabled={!previewProjection || Boolean(previewApproval) || !assemblyPreviewClient}>Approve this preview</button></div>
             {trustedRuntimePreview ? (
-              <BookAssemblyUnitPreview
+              <BookAssemblyStudentPreviewHost
+                bookTitle={title}
+                documents={assemblyPreviewDocuments}
+                getIdToken={assemblyPreviewGetIdToken}
                 preview={trustedRuntimePreview.preview}
                 onExit={() => setDismissedPreviewIdentity(trustedRuntimePreview.identity)}
               />

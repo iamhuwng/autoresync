@@ -152,6 +152,47 @@
   padding: 6px 10px;
 }
 
+.book-runtime-shell__outline {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--runtime-outline) 28%, transparent);
+  border-radius: 12px;
+  background: var(--runtime-surface);
+}
+
+.book-runtime-shell__outline ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-runtime-shell__outline li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--runtime-outline);
+  border-radius: 8px;
+  color: var(--runtime-body);
+}
+
+.book-runtime-shell__outline li[aria-current="page"] {
+  border-color: var(--runtime-accent);
+  background: var(--runtime-accent-soft);
+  color: var(--runtime-text);
+}
+
+.book-runtime-shell__outline small {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+}
+
 .book-runtime-shell__component-selector {
   display: grid;
   gap: 12px;

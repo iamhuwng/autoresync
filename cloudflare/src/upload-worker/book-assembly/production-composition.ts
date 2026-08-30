@@ -49,11 +49,18 @@ const approvalClaimProvider = (
   return () => provider({ service, ownerId, bookId, unitKey, approvalId });
 };
 
-const authority = (env: Env, ownerId: string, bookId: string, unitKey: string) => createFirebaseBookSourceAuthorityReader({
+export const readProductionBookAssemblyAuthority = (
+  env: Env,
+  ownerId: string,
+  bookId: string,
+  unitKey: string,
+) => createFirebaseBookSourceAuthorityReader({
   ...(env as never),
   BOOK_SOURCE_UPLOAD_ACCOUNT_ID: typeof env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID === 'string' ? env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID : '',
   getFirebaseAuthToken: claimProvider(env, ownerId, bookId, unitKey),
 }).read({ ownerId, bookId });
+
+const authority = readProductionBookAssemblyAuthority;
 
 const bindings = (env: Env) => new FirebaseRestUnitActivityBindingRepository({ env: env as never });
 

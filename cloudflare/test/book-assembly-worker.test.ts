@@ -96,6 +96,18 @@ const request = (body: unknown): Request => new Request('https://assembly.exampl
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify(body),
 });
+const mutationEnv = () => ({
+  BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true',
+  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
+  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
+  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
+    schemaVersion: 'v1', environment: 'test', revision: 'assembly-worker-tests',
+    issuedAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'assignment-1',
+    studentIds: ['student-1'], maxStudents: 30,
+  }),
+});
 
 describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
   it('uses the trusted canonical route Book subject for the mandatory pilot gate', async () => {
@@ -188,7 +200,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
         operationId: op('1'), bookId: 'book-1', expectedBookRevision: 4,
         expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
       }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(created.body).toMatchObject({ status: 'created', candidate: {
       candidateId: 'candidate-1', revision: 1, lifecycle: 'draft',
@@ -202,7 +214,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
         operationId: op('2'), bookId: 'book-1', unitKey: 'unit-1',
         candidateId: 'candidate-1', expectedCandidateRevision: 1,
       }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(validated.body).toMatchObject({ status: 'validated', candidate: { revision: 2, lifecycle: 'validated' } });
     const replacedManifest = manifest();
@@ -213,7 +225,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
         bookId: 'book-1', expectedBookRevision: 4, expectedSourceSetRevision: 2,
         unitKey: 'unit-1', manifest: replacedManifest,
       }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(replaced.body).toMatchObject({ status: 'replaced', candidate: { revision: 3, lifecycle: 'validated' } });
   });
@@ -230,7 +242,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
         operationId: op('4'), bookId: 'book-1', expectedBookRevision: 3,
         expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
       }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(stale.body).toMatchObject({ status: 'conflict', currentBookRevision: 4 });
     expect(repository.root.candidates).toBeUndefined();
@@ -242,7 +254,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
         operationId: op('5'), bookId: 'book-1', expectedBookRevision: 4,
         expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
       }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(notFound.body).toEqual({ status: 'forbidden' });
     repository.book = authority();
@@ -252,7 +264,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
         operationId: op('6'), bookId: 'book-1', expectedBookRevision: 4,
         expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
       }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(created.body).toMatchObject({ status: 'created' });
     const otherOwner = await handlers.load({ env: {} as never, uid: 'teacher-2', bookId: 'book-1', unitKey: 'unit-1', candidateId: 'candidate-1' });
@@ -265,7 +277,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
         bookId: 'book-1', expectedBookRevision: 4, expectedSourceSetRevision: 2,
         unitKey: 'unit-1', manifest: invalid,
       }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(bad.body).toMatchObject({ status: 'invalid' });
   });
@@ -281,16 +293,119 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
       operationId: op('8'), bookId: 'book-1', expectedBookRevision: 4,
       expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
     };
-    const first = await handlers.create({ request: request(payload), env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1' });
-    const replay = await handlers.create({ request: request(payload), env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1' });
+    const first = await handlers.create({ request: request(payload), env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1' });
+    const replay = await handlers.create({ request: request(payload), env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1' });
     expect(replay.body).toMatchObject({ status: 'replayed', candidate: { candidateId: 'candidate-1' } });
     const conflict = await handlers.create({
       request: request({ ...payload, manifest: { ...manifest(), units: [] } }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(conflict.body).toMatchObject({ status: 'idempotency-conflict' });
     expect(Object.keys(repository.root.candidates ?? {})).toHaveLength(1);
     expect(first.body).toMatchObject({ status: 'created' });
+  });
+
+  it('retains candidate history while creating above the legacy eight-candidate bound', async () => {
+    const repository = new MemoryRepository();
+    repository.root = {
+      candidates: Object.fromEntries(Array.from({ length: 8 }, (_, index) => {
+        const candidateId = `candidate-history-${index + 1}`;
+        return [candidateId, {
+          candidateId,
+          ownerId: 'teacher-1',
+          bookId: 'book-1',
+          bookRevision: 4,
+          sourceSetRevision: 2,
+          unitKey: 'unit-1',
+          revision: 2,
+          lifecycle: 'validated' as const,
+          manifest: manifest(),
+          validation: { valid: true, errors: [] },
+          updatedAt: `2026-07-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`,
+        }];
+      })),
+      current: {
+        candidateId: 'candidate-history-8',
+        candidateRevision: 2,
+        bookRevision: 4,
+        sourceSetRevision: 2,
+        updatedAt: '2026-07-08T00:00:00.000Z',
+      },
+    };
+    const handlers = createBookAssemblyWorkerHandlers({
+      repository,
+      readBookAuthority: async () => repository.book,
+      createCandidateId: () => 'candidate-new',
+      now: () => '2026-07-09T00:00:00.000Z',
+    });
+
+    const result = await handlers.create({
+      request: request({
+        operationId: op('10'), bookId: 'book-1', expectedBookRevision: 4,
+        expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+
+    expect(result).toMatchObject({ init: { status: 200 }, body: { status: 'created' } });
+    expect(Object.keys(repository.root.candidates ?? {})).toHaveLength(9);
+    expect(repository.root.candidates?.['candidate-history-1']).toBeDefined();
+    expect(repository.root.candidates?.['candidate-history-8']).toBeDefined();
+    expect(repository.root.candidates?.['candidate-new']).toBeDefined();
+    expect(repository.root.current?.candidateId).toBe('candidate-new');
+  });
+
+  it('returns an explicit conflict without mutation at the durable candidate bound', async () => {
+    const repository = new MemoryRepository();
+    repository.root = {
+      candidates: Object.fromEntries(Array.from({ length: 32 }, (_, index) => {
+        const candidateId = `candidate-bound-${index + 1}`;
+        return [candidateId, {
+          candidateId,
+          ownerId: 'teacher-1',
+          bookId: 'book-1',
+          bookRevision: 4,
+          sourceSetRevision: 2,
+          unitKey: 'unit-1',
+          revision: 2,
+          lifecycle: 'validated' as const,
+          manifest: manifest(),
+          validation: { valid: true, errors: [] },
+          updatedAt: `2026-07-${String((index % 28) + 1).padStart(2, '0')}T00:00:00.000Z`,
+        }];
+      })),
+      current: {
+        candidateId: 'candidate-bound-32',
+        candidateRevision: 2,
+        bookRevision: 4,
+        sourceSetRevision: 2,
+        updatedAt: '2026-07-04T00:00:00.000Z',
+      },
+    };
+    const before = structuredClone(repository.root);
+    const handlers = createBookAssemblyWorkerHandlers({
+      repository,
+      readBookAuthority: async () => repository.book,
+      createCandidateId: () => 'candidate-overflow',
+    });
+
+    const result = await handlers.create({
+      request: request({
+        operationId: op('11'), bookId: 'book-1', expectedBookRevision: 4,
+        expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+
+    expect(result).toEqual({
+      body: { code: 'book_assembly_candidate_capacity_exceeded' },
+      init: { status: 409 },
+    });
+    expect(repository.root).toEqual(before);
   });
 
   it('rejects authority changes before scoped CAS write and preserves prior state', async () => {
@@ -311,7 +426,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
         operationId: op('9'), bookId: 'book-1', expectedBookRevision: 4,
         expectedSourceSetRevision: 2, unitKey: 'unit-1', manifest: manifest(),
       }),
-      env: { BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true' } as never, uid: 'teacher-1',
+      env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1',
     });
     expect(result).toEqual({ body: { code: 'assembly_authority_changed' }, init: { status: 409 } });
     expect(repository.root).toEqual(original);

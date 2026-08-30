@@ -73,6 +73,26 @@ const fileInfoResponse = (overrides: Record<string, unknown> = {}): Response => 
 });
 
 describe('Backblaze B2 private Source provider adapter', () => {
+  it('authorizes through the canonical account endpoint before using the returned regional API URL', async () => {
+    const calls: string[] = [];
+    const provider = createProvider(async (input, init) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('b2_authorize_account')) {
+        const encoded = new Headers(init?.headers).get('authorization')?.replace(/^Basic /u, '');
+        const keyId = encoded ? atob(encoded).split(':', 1)[0] : '';
+        return authorityResponse(keyId ?? '');
+      }
+      return fileInfoResponse();
+    });
+
+    await expect(provider.readObjectMetadata({ identity })).resolves.toMatchObject({ identity });
+    expect(calls).toEqual([
+      'https://api.backblazeb2.com/b2api/v4/b2_authorize_account',
+      `https://api004.backblazeb2.com/b2api/v4/b2_get_file_info?fileId=${identity.providerFileVersionId}`,
+    ]);
+  });
+
   it('issues one short-lived exact-object S3 upload authorization with required signed headers', async () => {
     const provider = createProvider(withValidatedAuthority(() => new Response(null, { status: 500 })));
     const authorization = await provider.authorizeUpload({

@@ -3,10 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { BookAssemblyPreviewClient } from '../../services/book-assembly/assemblyPublication.client';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
+import { createCandidateUnitPreview } from '../../services/book-assembly/unitPreview.service';
+import type { NormalizedActivity } from '../../types/bookActivity.types';
 import BookPdfFlowWorkspace from './BookPdfFlowWorkspace';
 
 vi.mock('../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: vi.fn() }),
+}));
+
+vi.mock('../book-runtime/BookPdfViewerHost', () => ({
+  BookPdfViewerHost: ({ title }: { title: string }) => <div data-testid="candidate-pdf">{title}</div>,
 }));
 
 const candidate = (strategy: 'component_pdfs' | 'full_pdf'): BookAssemblyCandidateRecord => ({
@@ -52,36 +58,31 @@ const candidate = (strategy: 'component_pdfs' | 'full_pdf'): BookAssemblyCandida
   updatedAt: '2026-08-28T00:00:00.000Z',
 });
 
-const previewClient = (): BookAssemblyPreviewClient => ({
+const previewActivity: NormalizedActivity = {
+  schemaVersion: 1, title: 'Student-visible Unit B activity', taskProfile: null,
+  presentationMode: 'structured', contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Student preview content.' }], interaction: { family: 'choice', variant: 'v1' },
+  answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 }, stimulus: null, assetRefs: [],
+  interactions: [{ family: 'choice', interactionId: 'choice-b', prompt: 'Choose B', options: ['B'],
+    itemIdentities: { family: 'choice', optionIds: ['b'] }, answerKey: { family: 'choice', acceptedOptionItemIds: ['b'] } }],
+  scoring: { mode: 'auto-where-possible' },
+};
+
+const previewClient = (strategy: 'component_pdfs' | 'full_pdf' = 'component_pdfs'): BookAssemblyPreviewClient => ({
   preview: vi.fn(async () => ({
     status: 'previewed' as const,
-    preview: {
-      bookId: 'book-1',
-      bookRevision: 2,
-      candidateId: 'candidate-1',
-      candidateRevision: 4,
-      sourceSetRevision: 3,
-      unitKey: 'unit-b',
+    preview: createCandidateUnitPreview({
+      candidate: candidate(strategy),
+      sourceVersions: strategy === 'component_pdfs'
+        ? [
+            { sourceVersionId: 'source-a', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true },
+            { sourceVersionId: 'source-b', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true },
+          ]
+        : [{ sourceVersionId: 'source-b', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true }],
+      sourceIsPreviewReady: () => true,
+      activitiesByKey: { 'activity-b': previewActivity },
       registryVersion: 'registry-v1',
-      activities: [{
-        activityKey: 'activity-b',
-        sourceContext: { available: true, description: 'Component B page 1.' },
-        projection: {
-          schemaVersion: 1,
-          title: 'Student-visible Unit B activity',
-          taskProfile: null,
-          presentationMode: 'structured',
-          contextRequirement: { mode: 'none', acceptedKinds: [] },
-          instructions: [{ text: 'Student preview content.' }],
-          interaction: { family: 'choice', variant: 'v1' },
-          answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
-          stimulus: null,
-          assetRefs: [],
-          interactions: [{ family: 'choice', interactionId: 'choice-b', prompt: 'Choose B', options: [{ itemId: 'b', label: 'B' }] }],
-          scoring: { mode: 'auto-where-possible', feedbackVisibility: 'none' },
-        },
-      }],
-    },
+    }),
   })),
   approve: vi.fn(),
   publish: vi.fn(),
@@ -111,21 +112,28 @@ describe('BookPdfFlowWorkspace student preview', () => {
         assemblyInitialCandidate={initialCandidate}
         assemblyBookRevision={2}
         assemblySourceSetRevision={3}
-        assemblyPreviewClient={previewClient()}
+        assemblyPreviewClient={previewClient(strategy)}
+        assemblyPreviewDocuments={[{
+          kind: 'teacher_assembly', bookId: 'book-1', candidateId: 'candidate-1', candidateRevision: 4,
+          bookRevision: 2, sourceSetRevision: 3,
+          sourceKey: strategy === 'component_pdfs' ? 'component-b' : 'full', sourceVersionId: 'source-b',
+          route: { url: 'http://localhost:8787/preview', sourceVersionId: 'source-b' },
+        }]}
       />,
     );
 
     await user.click(screen.getByRole('button', { name: /Check & preview/i }));
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
 
-    expect(await screen.findByRole('heading', { name: 'Candidate runtime preview' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Student Book preview' })).toBeInTheDocument();
+    expect(screen.getByTestId('book-runtime-shell')).toBeInTheDocument();
     expect(screen.getByText('Student preview content.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Exit preview' }));
-    expect(screen.queryByRole('heading', { name: 'Candidate runtime preview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Student Book preview' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Refresh preview' }));
-    expect(await screen.findByRole('heading', { name: 'Candidate runtime preview' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Student Book preview' })).toBeInTheDocument();
   });
 
   it('clears a stale preview failure after a successful retry', async () => {
@@ -158,7 +166,7 @@ describe('BookPdfFlowWorkspace student preview', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('temporary preview failure');
 
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
-    expect(await screen.findByRole('heading', { name: 'Candidate runtime preview' })).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Student Book preview' })).toBeInTheDocument();
+    expect(screen.queryByText('temporary preview failure')).not.toBeInTheDocument();
   });
 });
