@@ -139,12 +139,9 @@ export interface BookRuntimeDeliveryDocumentRequest {
   readonly localPageScope: BookDeliverySourcePageScope;
 }
 
-export interface BookRuntimeDeliveryActivityProjection {
+export interface BookRuntimeActivityPlacementProjection {
   readonly placementId: string;
   readonly activityId: string;
-  readonly activityVersion: number;
-  /** Optional until older Delivery bindings are upgraded; Book Homework rejects missing pins. */
-  readonly activityVersionId: string;
   readonly nodeKey: string;
   readonly order: number;
   readonly contextMode: BookDeliveryPlacement['contextMode'];
@@ -157,6 +154,37 @@ export interface BookRuntimeDeliveryActivityProjection {
   };
   /** Required on trusted Homework projections; absent on non-scheduled contexts. */
   readonly scheduleWindow?: import('./bookScheduleWindow.service').BookScheduleWindowDecision;
+}
+
+export interface BookRuntimeDeliveryActivityProjection extends BookRuntimeActivityPlacementProjection {
+  readonly activityVersion: number;
+  /** Optional until older Delivery bindings are upgraded; Book Homework rejects missing pins. */
+  readonly activityVersionId: string;
+}
+
+/** Unpublished, owner-scoped runtime input. It is never a Delivery entitlement. */
+export interface BookRuntimeCandidatePreviewProjection {
+  readonly schemaVersion: 1;
+  readonly projectionKind: 'book-runtime-candidate-preview';
+  readonly candidateId: string;
+  readonly candidateRevision: number;
+  readonly sourceSetRevision: number;
+  readonly unitKey: string;
+  readonly book: Pick<BookDeliveryBookReference, 'bookId' | 'bookMode' | 'bookRevision'>;
+  readonly context: {
+    readonly contextId: string;
+    readonly kind: 'preview';
+    readonly entitlementBasis: 'candidate-preview';
+  };
+  readonly outline: readonly BookDeliveryStructuralNodeProjection[];
+  readonly sourceSet: BookDeliverySourceSet;
+  readonly documentRequests: readonly BookRuntimeDeliveryDocumentRequest[];
+  readonly activities: readonly BookRuntimeActivityPlacementProjection[];
+  readonly actionFlags: {
+    readonly canAutosave: false;
+    readonly canSubmit: false;
+    readonly canReview: false;
+  };
 }
 
 export interface BookRuntimeDeliveryProjection {
@@ -185,6 +213,10 @@ export interface BookRuntimeDeliveryProjection {
     readonly bindingRevision: number;
   };
 }
+
+export type BookRuntimeProjection =
+  | BookRuntimeDeliveryProjection
+  | BookRuntimeCandidatePreviewProjection;
 
 export interface BookDeliveryLegacyV1Read {
   readonly version: 1;

@@ -36,6 +36,7 @@ describe('BookPdfViewerHost', () => {
         }}
         title="Smoke PDF"
         getIdToken={getIdToken}
+        trustedWorkerOrigins={['https://worker.example']}
         transportFactory={transportFactory as never}
       />,
     );
@@ -46,6 +47,7 @@ describe('BookPdfViewerHost', () => {
         sourceVersionId: 'source-v1',
       }),
       getIdToken: expect.any(Function),
+      trustedWorkerOrigins: ['https://worker.example'],
     }));
     const factoryOptions = transportFactory.mock.calls[0]?.[0] as {
       readonly getIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;

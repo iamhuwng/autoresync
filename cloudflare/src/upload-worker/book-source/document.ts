@@ -60,6 +60,16 @@ import {
 import {
   FirebaseRestBookAssemblyPublicationRepository,
 } from '../book-assembly/publication-repository.ts';
+import { FirebaseRestBookAssemblyRepository } from '../book-assembly/repository.ts';
+import { readProductionBookAssemblyAuthority } from '../book-assembly/production-composition.ts';
+import {
+  authorizeTeacherAssemblyDocumentRequest,
+  type TeacherAssemblyAuthorizationFailureCode,
+  type TeacherAssemblyBookAuthority,
+  type TeacherAssemblyCandidateLookup,
+  type TeacherAssemblyDocumentRoute,
+  type TeacherAssemblySourceVersion,
+} from '../book-delivery/teacher-assembly-authority.ts';
 import type {
   BookRouteHandler,
   BookRouteHandlerInput,
@@ -119,6 +129,18 @@ export interface BookSourceDocumentRuntime {
     readonly availability: 'available' | 'missing' | 'deleted' | 'replaced' | 'revoked';
     readonly source: BookDocumentAuthorizedSource | null;
   }>;
+  readonly readTeacherBookAuthority?: (
+    uid: string,
+    bookId: string,
+  ) => Promise<TeacherAssemblyBookAuthority | null>;
+  readonly readTeacherCandidate?: (
+    uid: string,
+    input: Pick<TeacherAssemblyDocumentRoute, 'bookId' | 'unitKey' | 'candidateId'>,
+  ) => Promise<TeacherAssemblyCandidateLookup | null>;
+  readonly readTeacherSourceVersion?: (
+    uid: string,
+    input: Pick<TeacherAssemblyDocumentRoute, 'bookId' | 'sourceVersionId'>,
+  ) => Promise<TeacherAssemblySourceVersion | null>;
 }
 
 export interface BookSourceDocumentDeliveryOptions {
@@ -328,6 +350,8 @@ const defaultRuntimeFactory = (
   const readAccountState = async () => validateBookSourceUploadAccountState(
     await rtdb.readValue(sourceUploadAccountPath(accountId)),
   );
+  const readTeacherAuthority = (uid: string, bookId: string) =>
+    readProductionBookAssemblyAuthority(env, uid, bookId, 'preview');
 
   return {
     repository,
@@ -389,6 +413,64 @@ const defaultRuntimeFactory = (
       return {
         availability: 'available',
         source: {
+          ...storage,
+          provider: 'b2',
+          bucket: privateBucketName,
+          objectKey: storage.providerObjectKey,
+        },
+      };
+    },
+    readTeacherBookAuthority: async (uid, bookId) => {
+      const authority = await readTeacherAuthority(uid, bookId);
+      return authority ? {
+        bookId: authority.bookId,
+        ownerId: authority.ownerId,
+        bookMode: authority.bookMode,
+        status: 'active',
+        bookRevision: authority.bookRevision,
+        sourceSetRevision: authority.sourceSetRevision,
+        sourceSet: authority.sourceSet,
+      } : null;
+    },
+    readTeacherCandidate: async (uid, { bookId, unitKey, candidateId }) => {
+      const scope = await new FirebaseRestBookAssemblyRepository({
+        env: env as never,
+        ownerId: uid,
+      }).readScope(bookId, unitKey);
+      return {
+        current: scope.current ? {
+          candidateId: scope.current.candidateId,
+          candidateRevision: scope.current.candidateRevision,
+        } : null,
+        candidate: scope.candidates?.[candidateId] ?? null,
+      };
+    },
+    readTeacherSourceVersion: async (uid, { bookId, sourceVersionId }) => {
+      const authority = await readTeacherAuthority(uid, bookId);
+      const sourceEntry = authority?.sourceSet.sources.find(
+        (source) => source.sourceVersionId === sourceVersionId,
+      );
+      if (!authority || !sourceEntry
+        || authority.sourceVersionAuthority.getSourceVersion(sourceVersionId)?.verifiedUsable !== true) return null;
+      const accountState = await readAccountState();
+      const matches = Object.values(accountState.operations).filter(
+        (operation) => operation.status === 'verified_completed'
+          && operation.bookId === bookId
+          && operation.ownerId === uid
+          && operation.sourceVersionId === sourceVersionId
+          && operation.verifiedStorage !== undefined,
+      );
+      if (matches.length !== 1) return null;
+      const storage = matches[0]!.verifiedStorage!;
+      return {
+        sourceVersionId,
+        sourceKey: sourceEntry.sourceKey,
+        bookId,
+        ownerId: uid,
+        bookRevision: authority.bookRevision,
+        sourceSetRevision: authority.sourceSetRevision,
+        lifecycle: 'verified-usable',
+        storage: {
           ...storage,
           provider: 'b2',
           bucket: privateBucketName,
@@ -502,6 +584,77 @@ export const createBookSourceDocumentDeliveryHandler = (
         ok: true,
         decision: result.decision,
         source,
+      };
+    },
+  });
+  return worker.fetch(input.request, input.env);
+};
+
+const teacherAssemblyFailure = (
+  code: TeacherAssemblyAuthorizationFailureCode,
+): BookDocumentWorkerAuthorization => ({
+  ok: false,
+  code,
+  status: code === 'unauthorized'
+    ? 401
+    : code === 'not-found'
+      ? 404
+      : code === 'authorization-unavailable'
+        ? 503
+        : code === 'forbidden'
+          ? 403
+          : 409,
+});
+
+const teacherAssemblyErrorResponse = (code: string, status: number): Response => new Response(
+  JSON.stringify({ code }),
+  {
+    status,
+    headers: {
+      'access-control-expose-headers': 'X-Book-Document-Error-Code',
+      'cache-control': 'no-store',
+      'content-type': 'application/json; charset=utf-8',
+      'x-book-document-error-code': code,
+    },
+  },
+);
+
+export const createBookTeacherAssemblyDocumentDeliveryHandler = (
+  options: BookSourceDocumentDeliveryOptions = {},
+): BookRouteHandler => async (input: BookRouteHandlerInput): Promise<Response> => {
+  let runtime: BookSourceDocumentRuntime;
+  try {
+    runtime = await (options.runtimeFactory ?? defaultRuntimeFactory)(input.env);
+  } catch {
+    return teacherAssemblyErrorResponse('teacher_assembly_document_configuration_unavailable', 503);
+  }
+  if (!runtime.readTeacherBookAuthority
+    || !runtime.readTeacherCandidate
+    || !runtime.readTeacherSourceVersion) {
+    return teacherAssemblyErrorResponse('teacher_assembly_document_configuration_unavailable', 503);
+  }
+  const worker = createBookDocumentWorker({
+    provider: runtime.provider,
+    authorize: async (request): Promise<BookDocumentWorkerAuthorization> => {
+      const result = await authorizeTeacherAssemblyDocumentRequest({
+        request,
+        ports: {
+          verifyFirebaseIdentity: async () => {
+            const profile = activeDocumentProfile(await runtime.readProfile(input.uid));
+            return profile?.role === 'teacher'
+              ? { uid: input.uid, role: 'teacher', status: 'active' as const }
+              : null;
+          },
+          readBookAuthority: (bookId) => runtime.readTeacherBookAuthority!(input.uid, bookId),
+          readCandidate: (scope) => runtime.readTeacherCandidate!(input.uid, scope),
+          readSourceVersion: (scope) => runtime.readTeacherSourceVersion!(input.uid, scope),
+        },
+      });
+      if (!result.ok) return teacherAssemblyFailure(result.code);
+      return {
+        ok: true,
+        decision: result.decision,
+        source: result.decision.sourceLocations[0],
       };
     },
   });

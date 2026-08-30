@@ -9,6 +9,7 @@ import type {
   TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import type { BookAssemblyCandidateRecord } from './unitAssembly.types';
+import type { BookRuntimeCandidatePreviewProjection } from '../book-delivery/bookDelivery.types';
 
 export type UnitPreviewFailureCode =
   | 'candidate-not-previewable'
@@ -46,6 +47,8 @@ export interface CandidateUnitPreviewProjection {
   readonly unitKey: string;
   readonly registryVersion: string;
   readonly activities: readonly UnitPreviewActivity[];
+  /** Absent only on stale pre-upgrade fixtures/responses; the UI fails closed. */
+  readonly runtime?: BookRuntimeCandidatePreviewProjection;
 }
 
 /** Stored by the trusted preview boundary; never a student entitlement. */
@@ -111,6 +114,82 @@ const sourceDescription = (unit: BookUnitCandidate, activityKey: string): string
     : 'Candidate source context is not required for this Activity.';
 };
 
+const runtimeProjection = (
+  candidate: BookAssemblyCandidateRecord,
+  unit: BookUnitCandidate,
+): BookRuntimeCandidatePreviewProjection => {
+  const manifest = candidate.manifest!;
+  const selectedSources = manifest.sourceSet.sources.filter((source) => (
+    manifest.sourceSet.sourceStrategy === 'full_pdf'
+    || unit.pageGroups.some((group) => group.sourceKey === source.sourceKey)
+  ));
+  const sourceScopes = new Map(selectedSources.map((source) => {
+    const pages = unit.pageGroups
+      .filter((group) => group.sourceKey === source.sourceKey)
+      .flatMap((group) => group.pages);
+    return [source.sourceKey, [...new Set(pages)].sort((left, right) => left - right)] as const;
+  }));
+  const sources = selectedSources
+    .slice()
+    .sort((left, right) => left.sourceOrder - right.sourceOrder || left.sourceKey.localeCompare(right.sourceKey))
+    .map((source, index) => ({
+      sourceKey: source.sourceKey,
+      sourceVersionId: source.sourceVersionId,
+      lifecycle: 'verified-usable' as const,
+      sourceOrder: index + 1,
+      ...('ownerNodeKey' in source ? { ownerNodeKey: source.ownerNodeKey } : {}),
+      localPageScope: manifest.sourceSet.sourceStrategy === 'full_pdf'
+        ? { kind: 'all' as const, pages: [] }
+        : { kind: 'pages' as const, pages: sourceScopes.get(source.sourceKey) ?? [] },
+    }));
+  const requests = sources.map((source) => ({
+    sourceKey: source.sourceKey,
+    sourceVersionId: source.sourceVersionId,
+    opaqueRouteKey: source.sourceKey,
+    localPageScope: source.localPageScope,
+  }));
+  const placements = unit.activitySlots
+    .slice()
+    .sort((left, right) => left.order - right.order || left.activityKey.localeCompare(right.activityKey))
+    .map((slot) => {
+      const groups = slot.pageGroupKeys
+        .map((key) => unit.pageGroups.find((group) => group.pageGroupKey === key))
+        .filter((group): group is NonNullable<typeof group> => group !== undefined);
+      return {
+        placementId: `${candidate.candidateId}:${slot.activityKey}`,
+        activityId: slot.activityKey,
+        nodeKey: slot.pageGroupKeys[0] ?? unit.unitKey,
+        order: slot.order,
+        contextMode: slot.contextRequirement,
+        sourceContext: {
+          available: groups.length > 0,
+          description: sourceDescription(unit, slot.activityKey),
+          pageGroupKeys: slot.pageGroupKeys,
+          sourcePageScopes: groups.map((group) => ({ sourceKey: group.sourceKey, pages: group.pages })),
+        },
+      };
+    });
+  return Object.freeze({
+    schemaVersion: 1,
+    projectionKind: 'book-runtime-candidate-preview',
+    candidateId: candidate.candidateId,
+    candidateRevision: candidate.revision,
+    sourceSetRevision: candidate.sourceSetRevision,
+    unitKey: unit.unitKey,
+    book: { bookId: candidate.bookId, bookMode: 'pdf' as const, bookRevision: candidate.bookRevision },
+    context: {
+      contextId: candidate.candidateId,
+      kind: 'preview' as const,
+      entitlementBasis: 'candidate-preview' as const,
+    },
+    outline: Object.freeze(manifest.nodes.map((node) => ({ ...node }))),
+    sourceSet: { strategy: manifest.sourceSet.sourceStrategy, sources: Object.freeze(sources) },
+    documentRequests: Object.freeze(requests),
+    activities: Object.freeze(placements),
+    actionFlags: { canAutosave: false, canSubmit: false, canReview: false },
+  });
+};
+
 export const createCandidateUnitPreview = (input: {
   readonly candidate: BookAssemblyCandidateRecord;
   readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
@@ -163,6 +242,7 @@ export const createCandidateUnitPreview = (input: {
     unitKey: unit.unitKey,
     registryVersion: input.registryVersion,
     activities: Object.freeze(activities),
+    runtime: runtimeProjection(input.candidate, unit),
   });
 };
 

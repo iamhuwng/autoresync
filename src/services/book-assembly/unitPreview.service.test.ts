@@ -122,7 +122,12 @@ describe('createCandidateUnitPreview', () => {
     expect(JSON.stringify(preview)).not.toContain('acceptedOptionItemIds');
     expect(JSON.stringify(preview)).not.toContain('authoringNote');
     expect(JSON.stringify(preview)).not.toContain('providerUrl');
-    expect(JSON.stringify(preview)).not.toContain('source-1');
+    expect(preview.runtime).toMatchObject({
+      projectionKind: 'book-runtime-candidate-preview',
+      unitKey: 'unit-1',
+      sourceSet: { strategy: 'full_pdf' },
+      activities: [{ activityId: 'activity-1', nodeKey: 'pages-1' }],
+    });
   });
 
   it('fails closed for a stale source or missing Activity candidate', () => {

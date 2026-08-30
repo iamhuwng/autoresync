@@ -11,7 +11,7 @@ import type {
 
 export const BOOK_ASSEMBLY_ROOT = 'book_assembly/books';
 const MAX_RETRIES = 5;
-const MAX_CANDIDATES_PER_SCOPE = 8;
+export const BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE = 32;
 const MAX_OPERATIONS_PER_SCOPE = 32;
 const MAX_SCOPE_BYTES = 2 * 1024 * 1024;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
@@ -160,7 +160,7 @@ const parseScope = (
       throw new Error('invalid_book_assembly_candidates');
     }
     const entries = Object.entries(rawCandidates);
-    if (entries.length > MAX_CANDIDATES_PER_SCOPE) throw new Error('book_assembly_candidate_capacity_exceeded');
+    if (entries.length > BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE) throw new Error('book_assembly_candidate_capacity_exceeded');
     for (const [id, candidate] of entries) {
       const hydratedCandidate = options.hydrate ? hydrateCandidate(candidate) : candidate;
       if (!validCandidate(hydratedCandidate, id, bookId, unitKey)) {

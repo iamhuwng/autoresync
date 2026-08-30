@@ -301,7 +301,7 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     if (new Set(credentialIds).size !== credentialIds.length
       || new Set(credentialSecrets).size !== credentialSecrets.length) fail('unauthorized');
     this.endpoint = endpoint;
-    this.authorizationUrl = `https://api${cluster}.backblazeb2.com/b2api/v4/b2_authorize_account`;
+    this.authorizationUrl = 'https://api.backblazeb2.com/b2api/v4/b2_authorize_account';
     this.fetcher = config.fetch ?? fetch;
     this.now = config.now ?? (() => new Date());
     this.maxReadBytes = config.maxReadBytes ?? DEFAULT_MAX_READ_BYTES;

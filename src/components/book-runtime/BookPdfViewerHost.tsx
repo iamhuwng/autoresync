@@ -14,6 +14,7 @@ export interface BookPdfViewerHostProps {
   readonly initialZoom?: number;
   readonly env?: BookDeliveryBrowserEnv;
   readonly getIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
+  readonly trustedWorkerOrigins?: readonly string[];
   readonly transportFactory?: typeof createBookDeliveryDocumentTransport;
 }
 export const BookPdfViewerHost = ({
@@ -23,6 +24,7 @@ export const BookPdfViewerHost = ({
   initialZoom,
   env,
   getIdToken,
+  trustedWorkerOrigins,
   transportFactory = createBookDeliveryDocumentTransport,
 }: BookPdfViewerHostProps) => {
   const [retryToken, setRetryToken] = useState(0);
@@ -39,13 +41,14 @@ export const BookPdfViewerHost = ({
         const auth = await import('firebase/auth');
         return auth.getAuth().currentUser?.getIdToken(forceRefresh) ?? '';
       },
+      trustedWorkerOrigins,
     });
     setTransport(nextTransport);
 
     return () => {
       nextTransport.destroy();
     };
-  }, [env, getIdToken, retryToken, route, transportFactory]);
+  }, [env, getIdToken, retryToken, route, transportFactory, trustedWorkerOrigins]);
 
   if (!transport) {
     return <div role="status">Preparing PDF transport...</div>;

@@ -44,7 +44,11 @@ describe('PRD0062 #63 candidate preview Worker', () => {
     const preview = await handlers.preview({ uid: 'teacher-1', body });
     expect(preview.init.status).toBe(200);
     expect(JSON.stringify(preview.body)).not.toContain('answerKey');
-    expect(JSON.stringify(preview.body)).not.toContain('source-1');
+    expect(preview.body).toMatchObject({ preview: { runtime: {
+      projectionKind: 'book-runtime-candidate-preview',
+      sourceSet: { strategy: 'full_pdf', sources: [{ sourceVersionId: 'source-1' }] },
+      activities: [{ activityId: 'activity-1', nodeKey: 'pages-1' }],
+    } } });
     const approval = await handlers.approve({ uid: 'teacher-1', body });
     expect(approval.body).toMatchObject({ approval: { candidateId: 'candidate-1', sourceSetRevision: 4, registryVersion: 'registry-v1', actorId: 'teacher-1' } });
     expect(JSON.stringify(approval.body)).not.toContain('canonicalActivityFingerprintsByKey');

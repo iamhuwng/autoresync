@@ -112,6 +112,23 @@ const handlerInput = (
   descriptor: {} as never,
 });
 
+const teacherHandlerInput = () => ({
+  request: new Request(
+    'https://worker.test/v1/book-delivery/teacher-assembly/book-pdf-1/unit-1/candidate-1/3/full/source-v1/2/4',
+    {
+      method: 'HEAD',
+      headers: { authorization: 'Bearer teacher-token', origin: 'http://localhost:5173' },
+    },
+  ),
+  env: {},
+  uid: 'teacher-1',
+  params: {
+    bookId: 'book-pdf-1', unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: '3',
+    sourceKey: 'full', sourceVersionId: 'source-v1', sourceSetRevision: '2', bookRevision: '4',
+  },
+  descriptor: {} as never,
+});
+
 const documentRuntimeEnvironment = (): Record<string, unknown> => {
   const serviceIdentity = 'book-delivery-runtime@temp-a143.iam.gserviceaccount.com';
   const assemblyIdentity = 'book-assembly-p2-runtime@temp-a143.iam.gserviceaccount.com';
@@ -147,6 +164,56 @@ const documentRuntimeEnvironment = (): Record<string, unknown> => {
 };
 
 describe('Ticket #49 canonical source document composition', () => {
+  it('serves the exact current teacher candidate through the real source provider seam', async () => {
+    const repository = new InMemoryBookDeliveryRepository();
+    const readObjectMetadata = vi.fn(async ({ identity }) => ({
+      identity,
+      contentType: 'application/pdf' as const,
+    }));
+    const candidate = {
+      candidateId: 'candidate-1', ownerId: 'teacher-1', bookId: 'book-pdf-1', bookRevision: 4,
+      sourceSetRevision: 2, unitKey: 'unit-1', revision: 3, lifecycle: 'validated' as const,
+      validation: { valid: true, errors: [] }, updatedAt: '2026-08-29T00:00:00.000Z',
+      manifest: {
+        bookId: 'book-pdf-1',
+        sourceSet: { sourceStrategy: 'full_pdf' as const, sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1 }] },
+        nodes: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit' as const, order: 1 }],
+        units: [{
+          unitKey: 'unit-1',
+          activitySlots: [{ activityKey: 'activity-1', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pages-1'] }],
+          pageGroups: [{ pageGroupKey: 'pages-1', sourceKey: 'full', pages: [1], activityKeys: ['activity-1'], mode: 'activity' as const }],
+        }],
+      },
+    };
+    const handlers = createBookRouteHandlers({
+      sourceDocument: {
+        runtimeFactory: () => ({
+          repository,
+          provider: { readObjectMetadata, readBounded: vi.fn() },
+          readProfile: async () => ({ role: 'teacher', status: 'active' }),
+          readCurrentAuthority: async () => liveAuthority(),
+          readTeacherBookAuthority: async () => ({
+            bookId: 'book-pdf-1', ownerId: 'teacher-1', bookMode: 'pdf', status: 'active',
+            bookRevision: 4, sourceSetRevision: 2, sourceSet: candidate.manifest.sourceSet,
+          }),
+          readTeacherCandidate: async () => ({
+            current: { candidateId: 'candidate-1', candidateRevision: 3 }, candidate,
+          }),
+          readTeacherSourceVersion: async () => ({
+            sourceVersionId: 'source-v1', sourceKey: 'full', bookId: 'book-pdf-1', ownerId: 'teacher-1',
+            bookRevision: 4, sourceSetRevision: 2, lifecycle: 'verified-usable', storage: sourceLocation(),
+          }),
+        }),
+      },
+    });
+
+    const response = await handlers.serveTeacherAssemblyDocument!(teacherHandlerInput()) as Response;
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/pdf');
+    expect(readObjectMetadata).toHaveBeenCalledTimes(1);
+  });
+
   it('fails closed with a stable configuration error when the disabled preview is not provisioned', async () => {
     const response = await createBookRouteHandlers().serveAuthorizedDocument!(
       handlerInput(`${canonicalBindingId}-1-full-source-v1`),

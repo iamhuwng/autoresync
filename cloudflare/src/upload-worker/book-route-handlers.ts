@@ -25,9 +25,9 @@ import { createBookSourceUploadWorkerHandlers } from './book-source/worker.ts';
 import {
   createBookHistoricalAttemptDocumentDeliveryHandler,
   createBookSourceDocumentDeliveryHandler,
+  createBookTeacherAssemblyDocumentDeliveryHandler,
   type BookSourceDocumentDeliveryOptions,
 } from './book-source/document.ts';
-import { createTeacherAssemblyPreviewWorker } from './book-delivery/teacher-assembly-preview-worker.js';
 import { createCourseBookPlacementWorkerHandlers } from './course-book-placement/worker.ts';
 import {
   createClassBookPlacementWorkerHandlers,
@@ -374,11 +374,10 @@ export const createBookRouteHandlers = (
 
   const documentHandler = options.documentHandler
     ?? createBookSourceDocumentDeliveryHandler(options.sourceDocument);
-  const teacherPreviewWorker = createTeacherAssemblyPreviewWorker();
   const historicalDocumentHandler = options.historicalDocumentHandler
     ?? createBookHistoricalAttemptDocumentDeliveryHandler(options.sourceDocument);
   const teacherDocumentHandler = options.teacherDocumentHandler
-    ?? ((input) => teacherPreviewWorker.fetch(input.request, input.env));
+    ?? createBookTeacherAssemblyDocumentDeliveryHandler(options.sourceDocument);
   handlers.serveAuthorizedDocument = documentHandler;
   handlers.document = documentHandler;
   handlers.serveHistoricalAttemptDocument = historicalDocumentHandler;

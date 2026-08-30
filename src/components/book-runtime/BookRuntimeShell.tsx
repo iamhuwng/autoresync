@@ -3,7 +3,7 @@ import type { ActivityRendererRegistry } from '../../services/book-activity/runt
 import type { ActivityResponseValidationState } from '../../services/book-activity/runtime/activityRenderer.types';
 import type {
   BookRuntimeDeliveryDocumentRequest,
-  BookRuntimeDeliveryProjection,
+  BookRuntimeProjection,
 } from '../../services/book-delivery/bookDelivery.types';
 import {
   createBookDeliveryComponentProjection,
@@ -81,13 +81,20 @@ export interface BookRuntimeIntegrityCaptureSeam {
 }
 
 export interface BookRuntimeShellProps {
-  readonly deliveryProjection: BookRuntimeDeliveryProjection;
+  readonly deliveryProjection: BookRuntimeProjection;
+  readonly display?: {
+    readonly bookTitle?: string;
+    readonly unitTitle?: string;
+    readonly contextLabel?: string;
+  };
   readonly activities: readonly BookRuntimeShellActivity[];
   readonly registry: ActivityRendererRegistry;
   readonly viewer: BookRuntimeViewerAdapter;
   readonly responses: Readonly<Record<string, unknown>>;
   readonly validationByInteractionId?: Readonly<Record<string, ActivityResponseValidationState>>;
   readonly onResponseChange: (interactionId: string, response: unknown) => void;
+  /** Candidate previews may be interactive without enabling persistence. */
+  readonly responseMode?: 'editable' | 'read-only';
   readonly initialNavigation?: Partial<BookRuntimeNavigationState>;
   readonly onFlushBeforeNavigate?: (
     reason: BookRuntimeNavigationReason,
@@ -120,7 +127,7 @@ interface ResolvedRuntimeActivity extends BookRuntimeShellActivity {
   readonly pageGroupKey: string;
   readonly componentIds: readonly string[];
   readonly label: string;
-  readonly placement: BookRuntimeDeliveryProjection['activities'][number];
+  readonly placement: BookRuntimeProjection['activities'][number];
 }
 
 interface ActivityResolution {
@@ -130,7 +137,7 @@ interface ActivityResolution {
 }
 
 const resolveActivities = (
-  deliveryProjection: BookRuntimeDeliveryProjection,
+  deliveryProjection: BookRuntimeProjection,
   activities: readonly BookRuntimeShellActivity[],
 ): ActivityResolution => {
   let componentProjection: BookDeliveryComponentProjection;
@@ -274,6 +281,7 @@ interface BookRuntimeShellReadyProps extends Omit<BookRuntimeShellProps, 'activi
 
 const BookRuntimeShellReady = ({
   deliveryProjection,
+  display,
   activities,
   componentProjection,
   registry,
@@ -281,6 +289,7 @@ const BookRuntimeShellReady = ({
   responses,
   validationByInteractionId = {},
   onResponseChange,
+  responseMode,
   initialNavigation,
   onFlushBeforeNavigate,
   onNavigationStateChange,
@@ -291,12 +300,16 @@ const BookRuntimeShellReady = ({
   persistence,
 }: BookRuntimeShellReadyProps) => {
   const navigationActivities = useMemo(
-    () => activities.map(({ activityId, pageGroupKey, componentIds }) => ({
-      activityId,
-      pageGroupKey,
-      componentIds,
-    })),
-    [activities],
+    () => activities.map(({ activityId, pageGroupKey, componentIds, placement }) => {
+      const componentPageById = Object.fromEntries(placement.sourceContext.sourcePageScopes.flatMap((scope) => {
+        const componentId = componentProjection.components.find((component) => component.sourceKey === scope.sourceKey)?.componentId
+          ?? (componentProjection.fullPdfRequest?.sourceKey === scope.sourceKey ? 'full-pdf' : null);
+        const page = scope.pages.find((candidate) => Number.isSafeInteger(candidate) && candidate > 0);
+        return componentId && page ? [[componentId, page]] : [];
+      }));
+      return { activityId, pageGroupKey, componentIds, componentPageById };
+    }),
+    [activities, componentProjection],
   );
   const navigationComponents = useMemo<readonly BookRuntimeNavigationComponent[]>(
     () => componentProjection.components.map(({ componentId, sourceOrder, activityIds, localPageScope }) => ({
@@ -349,6 +362,14 @@ const BookRuntimeShellReady = ({
     || activeActivity.placement.sourceContext.available;
   const isViewerLoading = viewer.status?.state === 'loading';
   const isViewerError = viewer.status?.state === 'error';
+  const isCandidatePreview = deliveryProjection.projectionKind === 'book-runtime-candidate-preview';
+  const bookTitle = display?.bookTitle?.trim() || deliveryProjection.book.bookId;
+  const unitTitle = display?.unitTitle?.trim()
+    || (isCandidatePreview ? deliveryProjection.unitKey : activeActivity.placement.nodeKey);
+  const contextLabel = display?.contextLabel?.trim()
+    || (isCandidatePreview
+      ? 'Unpublished candidate · answers are temporary'
+      : `${deliveryProjection.context.kind} · ${deliveryProjection.book.publicationId}`);
 
   const handleResponseChange = (interactionId: string, response: unknown) => {
     onAction?.('bookRuntimeResponseChanged', { interactionId });
@@ -365,10 +386,10 @@ const BookRuntimeShellReady = ({
     >
       <header className="book-runtime-shell__header">
         <div>
-          <p className="book-runtime-shell__eyebrow">Published unit</p>
-          <h1>{deliveryProjection.book.bookId}</h1>
+          <p className="book-runtime-shell__eyebrow">{isCandidatePreview ? 'Student preview' : 'Published unit'}</p>
+          <h1>{bookTitle}</h1>
           <p className="book-runtime-shell__context">
-            {deliveryProjection.context.kind} · {deliveryProjection.book.publicationId}
+            {unitTitle} · {contextLabel}
           </p>
         </div>
         <div className="book-runtime-shell__header-tools">
@@ -401,6 +422,25 @@ const BookRuntimeShellReady = ({
             </div>
           ) : null}
         </section>
+      ) : null}
+
+      {(deliveryProjection.outline ?? []).length > 0 ? (
+        <nav aria-label="Book outline" className="book-runtime-shell__outline" data-testid="book-runtime-outline">
+          <p className="book-runtime-shell__eyebrow">Book outline</p>
+          <ol>
+            {[...(deliveryProjection.outline ?? [])]
+              .sort((left, right) => left.order - right.order || left.nodeKey.localeCompare(right.nodeKey))
+              .map((node) => (
+                <li
+                  aria-current={isCandidatePreview && node.nodeKey === deliveryProjection.unitKey ? 'page' : undefined}
+                  key={node.nodeKey}
+                >
+                  <span>{node.titleSnapshot?.trim() || node.nodeKey}</span>
+                  <small>{node.nodeType}</small>
+                </li>
+              ))}
+          </ol>
+        </nav>
       ) : null}
 
       <div className="book-runtime-shell__mobile-tabs" role="tablist" aria-label="Book runtime panels">
@@ -587,7 +627,7 @@ const BookRuntimeShellReady = ({
 
           <ActivityRendererHost
             context={{
-              mode: deliveryProjection.actionFlags.canAutosave ? 'editable' : 'read-only',
+              mode: responseMode ?? (deliveryProjection.actionFlags.canAutosave ? 'editable' : 'read-only'),
               sourceContext: activeActivity.placement.sourceContext,
               surface: 'student-runtime',
             }}
@@ -676,7 +716,8 @@ const BookRuntimeShellReady = ({
       </div>
     </div>
   );
-  if (!integrityCapture) return shell;
+  if (!integrityCapture || deliveryProjection.projectionKind !== 'book-runtime-delivery') return shell;
+  if (!('activityVersion' in activeActivity.placement)) return shell;
   const frozenPolicy = integrityCapture.frozenPoliciesByPlacementId[
     activeActivity.placement.placementId
   ];

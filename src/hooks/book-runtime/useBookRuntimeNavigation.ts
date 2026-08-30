@@ -8,6 +8,7 @@ export interface BookRuntimeNavigationActivity {
   readonly pageGroupKey: string;
   readonly componentId?: string;
   readonly componentIds?: readonly string[];
+  readonly componentPageById?: Readonly<Record<string, number>>;
 }
 
 export interface BookRuntimeNavigationPageScope {
@@ -138,7 +139,10 @@ const normalizeState = (
     pageGroupKey: active.pageGroupKey,
     activityId: active.activityId,
     componentId,
-    componentPageById: pageByComponent(requested?.componentPageById, components),
+    componentPageById: pageByComponent({
+      ...active.componentPageById,
+      ...requested?.componentPageById,
+    }, components),
     desktopView: requested?.desktopView === 'pdf-focus' ? 'pdf-focus' : 'split',
     mobileTab: requested?.mobileTab === 'activity' ? 'activity' : 'page',
     navigatorCollapsed: requested?.navigatorCollapsed === true,
@@ -228,11 +232,12 @@ export const useBookRuntimeNavigation = ({
         pageGroupKey,
         activityId: nextActivity.activityId,
         componentId: componentForActivity(nextActivity, components),
+        componentPageById: { ...state.componentPageById, ...nextActivity.componentPageById },
         mobileTab: 'page',
       },
       'page-group-selected',
     );
-  }, [activities, components, transition]);
+  }, [activities, components, state.componentPageById, transition]);
 
   const selectActivity = useCallback((activityId: string) => {
     const nextActivity = activities.find((activity) => activity.activityId === activityId);
@@ -242,11 +247,12 @@ export const useBookRuntimeNavigation = ({
         pageGroupKey: nextActivity.pageGroupKey,
         activityId,
         componentId: componentForActivity(nextActivity, components),
+        componentPageById: { ...state.componentPageById, ...nextActivity.componentPageById },
         mobileTab: 'activity',
       },
       'activity-selected',
     );
-  }, [activities, components, transition]);
+  }, [activities, components, state.componentPageById, transition]);
 
   const selectComponent = useCallback((componentId: string) => {
     const component = components.find((candidate) => candidate.componentId === componentId);
@@ -260,11 +266,12 @@ export const useBookRuntimeNavigation = ({
         componentId,
         pageGroupKey: nextActivity.pageGroupKey,
         activityId: nextActivity.activityId,
+        componentPageById: { ...state.componentPageById, ...nextActivity.componentPageById },
         mobileTab: 'page',
       },
       'component-selected',
     );
-  }, [activities, components, transition]);
+  }, [activities, components, state.componentPageById, transition]);
 
   const setComponentPage = useCallback((componentId: string, page: number) => {
     const component = components.find((candidate) => candidate.componentId === componentId);
@@ -287,11 +294,12 @@ export const useBookRuntimeNavigation = ({
         pageGroupKey: previous.pageGroupKey,
         activityId: previous.activityId,
         componentId: componentForActivity(previous, components),
+        componentPageById: { ...state.componentPageById, ...previous.componentPageById },
         mobileTab: 'activity',
       },
       'previous-activity',
     );
-  }, [activities, components, state.activityId, transition]);
+  }, [activities, components, state.activityId, state.componentPageById, transition]);
 
   const nextActivity = useCallback(() => {
     const index = activities.findIndex((activity) => activity.activityId === state.activityId);
@@ -302,11 +310,12 @@ export const useBookRuntimeNavigation = ({
         pageGroupKey: next.pageGroupKey,
         activityId: next.activityId,
         componentId: componentForActivity(next, components),
+        componentPageById: { ...state.componentPageById, ...next.componentPageById },
         mobileTab: 'activity',
       },
       'next-activity',
     );
-  }, [activities, components, state.activityId, transition]);
+  }, [activities, components, state.activityId, state.componentPageById, transition]);
 
   const setDesktopView = useCallback((desktopView: BookRuntimeDesktopView) => {
     setState((current) => ({

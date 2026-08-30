@@ -10,6 +10,7 @@ import type {
 } from '../../../../src/services/book-assembly/unitAssembly.types.ts';
 import type { UnitActivityBindingRepository } from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
 import {
+  BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE,
   FirebaseRestBookAssemblyRepository,
   type BookAssemblyRepositoryEnv,
   type BookAssemblyScope,
@@ -327,6 +328,9 @@ export const createBookAssemblyWorkerHandlers = (options: {
             const collision = output(operation, fingerprint, 'conflict', at);
             remember(scope, input.uid, operation, fingerprint, collision, at);
             return { outcome: collision, next: scope, write: true };
+          }
+          if (Object.keys(scope.candidates ?? {}).length >= BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE) {
+            throw new BookAssemblyWorkerError('book_assembly_candidate_capacity_exceeded', 409);
           }
           const candidate: BookAssemblyCandidateRecord = {
             candidateId: createCandidateId,
