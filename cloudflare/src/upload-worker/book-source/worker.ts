@@ -19,7 +19,6 @@ import type {
   BookSourceUploadOperation,
 } from '../../../../src/types/bookSource.types.ts';
 import type { SourceSetCandidate } from '../../../../src/types/bookAssembly.types.ts';
-import { createBookRolloutWorkerGate } from '../../book-rollout-gate.ts';
 import {
   dispatchBookSourceControlRequest,
   type BookSourceControlDispatchResult,
@@ -222,7 +221,6 @@ const defaultRuntimeFactory = async (
       && profileRecord.forceReauth !== true
       && !['blocked', 'inactive', 'suspended'].includes(String(profileRecord.status ?? ''));
   };
-  const productionRollout = createBookRolloutWorkerGate(env);
   const commonDependencies: Omit<BookSourceUploadControlDependencies, 'releaseAuthorization'> = {
     bookManagementAuthority: { canManageBookSource: authorizeOwner },
     deployment: {
@@ -258,7 +256,7 @@ const defaultRuntimeFactory = async (
   const productionControl = createBookSourceUploadControl({
     ...commonDependencies,
     authorizationCache: BOOK_SOURCE_AUTHORIZATION_CACHE,
-    releaseAuthorization: { authorizeUpload: () => productionRollout.upload().allowed },
+    releaseAuthorization: { authorizeUpload: () => true },
   });
   const service: BookSourceUploadControlService = {
     begin: productionControl.begin,

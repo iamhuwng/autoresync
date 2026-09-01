@@ -12,12 +12,10 @@ import {
   type BookActivityAuthoringRoot,
 } from './repository.ts';
 import {
-  createBookRolloutWorkerGate,
   type BookRolloutWorkerGate,
 } from '../../book-rollout-gate.ts';
 import {
   BookRolloutDeniedError,
-  createBookRolloutTrustedSeamGate,
 } from '../../book-rollout-seams.ts';
 import type {
   UnitActivityBinding,
@@ -545,7 +543,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
   }) => Promise<string | undefined>;
   now?: () => number;
   createRecordId?: () => string;
-  /** Test-only trusted adapter; production reads deployment-owned input.env. */
+  /** Optional test-only gate; released production authoring does not use an expiring rollout config. */
   rolloutGate?: BookRolloutWorkerGate;
   /** #59: only the production composition supplies this server-side CAS port. */
   bindingRepositoryFactory?: (
@@ -686,10 +684,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
   });
   const respond = async (mutation: Mutation, input: { request: Request; env: BookActivityAuthoringRepositoryEnv; uid: string }) => {
     try {
-      const rolloutGate = createBookRolloutTrustedSeamGate(
-        options.rolloutGate ?? createBookRolloutWorkerGate(input.env),
-      );
-      rolloutGate.homeworkMutation();
+      options.rolloutGate?.homeworkMutation();
       const repository = repositoryFor(input.env);
       const body = await readBody(input.request);
       await authenticate(input.uid, repository);
@@ -818,7 +813,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         beforeWrite: async (next) => {
           // Recheck rollout enforcement and authenticated ownership on every
           // CAS attempt, then derive the Book from the post-mutation candidate.
-          rolloutGate.homeworkMutation();
+          options.rolloutGate?.homeworkMutation();
           await authenticate(input.uid, repository);
           let nextBookId = mutation === 'stage'
             ? trustedBookId
