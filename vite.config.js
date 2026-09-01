@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
 import fs from 'node:fs';
@@ -15,14 +15,25 @@ const sharedEnvFiles = ['.env', '.env.local', '.env.development', '.env.developm
 const envDir = sharedEnvFiles.some((name) => fs.existsSync(path.join(sharedEnvDir, name)))
   ? sharedEnvDir
   : repoRoot;
-const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
-
-const bookSourcePreviewCsp = createBookSourcePreviewCsp(process.env);
-
 // https://vitejs.dev/config/
-export default defineConfig({
-  // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.
-  envDir,
+export default defineConfig(({ mode }) => {
+  const bookEnv = {
+    ...loadEnv(mode, sharedEnvDir, 'VITE_BOOK_'),
+    ...loadEnv(mode, repoRoot, 'VITE_BOOK_'),
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => key.startsWith('VITE_BOOK_')),
+    ),
+  };
+  const bookEnvDefinitions = Object.fromEntries(
+    Object.entries(bookEnv).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
+  );
+  const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
+  const bookSourcePreviewCsp = createBookSourcePreviewCsp({ ...process.env, ...bookEnv });
+
+  return {
+    // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.
+    envDir,
+    define: bookEnvDefinitions,
   // IMPORTANT: Fixed port for OAuth compatibility with Google Drive
   // The OAuth credentials in Google Cloud Console must include this exact origin
   // If you get 403 errors, ensure http://localhost:5173 is in your authorized origins
@@ -106,4 +117,5 @@ export default defineConfig({
       }
     }
   },
+  };
 });
