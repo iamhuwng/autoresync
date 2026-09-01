@@ -1835,7 +1835,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
-  it('creates a PDF Book and opens the PDF Assembly editor', async () => {
+  it('creates a PDF Book and continues into the guided PDF setup', async () => {
     const user = userEvent.setup();
     const createdBook = {
       id: 'book-pdf',
@@ -1893,9 +1893,12 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       );
     });
 
-    expect(await screen.findByRole('dialog', { name: 'PDF Assembly Book' })).toBeInTheDocument();
-    expect(await screen.findByText('PDF Assembly')).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'Assembly is currently read-only' })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'PDF Assembly Book' });
+    expect(dialog).toHaveAttribute('data-editor-intent', 'create');
+    expect(within(dialog).getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /One complete PDF/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /Several component PDFs/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('tab')).not.toBeInTheDocument();
   });
 
   it('keeps Book private/public scope inside the Book tab', async () => {
@@ -2036,7 +2039,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
-  it('opens a stored PDF Book card in the separate read-only Assembly shell', async () => {
+  it('opens a stored PDF Book card in the direct PDF editing workspace', async () => {
     const user = userEvent.setup();
     const pdfBook = {
       id: 'book-pdf',
@@ -2055,6 +2058,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       createdBy: 'teacher-1',
       updatedBy: 'teacher-1',
       isOwner: true,
+      sourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-full', sourceOrder: 1 }],
+      },
     };
     mocks.listTeacherBooks.mockResolvedValue([pdfBook]);
     mocks.readBook.mockResolvedValue(pdfBook);
@@ -2066,11 +2073,22 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(within(card).getByRole('button', { name: 'Edit' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'PDF Assembly Book' });
-    expect(within(dialog).getByText('PDF Assembly')).toBeInTheDocument();
-    expect(within(dialog).getByRole('heading', { name: 'Assembly is currently read-only' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('tab')).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
-    expect(mocks.listBookNodes).not.toHaveBeenCalled();
+    expect(dialog).toHaveAttribute('data-editor-intent', 'edit');
+    expect(within(dialog).getByRole('tablist', { name: 'PDF Book edit sections' })).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Metadata',
+      'PDF files',
+      'Content tree',
+      'Activity JSON',
+      'Page mapping',
+      'Preview',
+      'Settings',
+    ]);
+    expect(within(dialog).getByRole('tab', { name: 'Metadata' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByRole('button', { name: 'Save metadata' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mocks.listBookNodes).toHaveBeenCalledWith('book-pdf');
+    });
   });
 
   it('archives selected Books from the bulk toolbar', async () => {

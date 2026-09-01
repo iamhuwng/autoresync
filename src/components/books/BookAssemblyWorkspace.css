@@ -346,6 +346,233 @@
 .book-assembly-guided__progress { margin: 0; color: #5d687b; font-size: .85rem; }
 .book-assembly-guided__visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 
+.book-assembly-edit {
+  display: grid;
+  gap: 1rem;
+}
+
+.book-assembly-edit__layout {
+  display: grid;
+  grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.book-assembly-edit__sidebar,
+.book-assembly-edit__main {
+  min-width: 0;
+}
+
+.book-assembly-edit__sidebar {
+  display: grid;
+  gap: .6rem;
+  border: 1px solid #dfe2e9;
+  border-radius: .65rem;
+  padding: .75rem;
+  background: #fff;
+}
+
+.book-assembly-edit__sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .15rem .25rem .55rem;
+  border-bottom: 1px solid #e7e9ef;
+}
+
+.book-assembly-edit__sidebar-heading h3 {
+  margin: 0;
+  font-size: .9rem;
+}
+
+.book-assembly-edit__sidebar-heading span {
+  min-width: 1.6rem;
+  border-radius: 999px;
+  padding: .15rem .45rem;
+  background: #eef0ff;
+  color: #463bc8;
+  font-size: .75rem;
+  text-align: center;
+}
+
+.book-assembly-edit__unit-list,
+.book-assembly-edit__source-list {
+  display: grid;
+  gap: .4rem;
+}
+
+.book-assembly-edit__unit-list > button,
+.book-assembly-edit__source-list > div > button:first-child {
+  display: grid;
+  width: 100%;
+  min-height: 2.75rem;
+  gap: .2rem;
+  border: 1px solid transparent;
+  border-radius: .5rem;
+  padding: .6rem .7rem;
+  background: transparent;
+  color: #252a38;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-assembly-edit__source-list > div {
+  display: grid;
+  gap: .35rem;
+}
+
+.book-assembly-edit__source-summary {
+  border: 1px solid #b9b5f5;
+  border-radius: .5rem;
+  padding: .65rem .7rem;
+  background: #f5f4ff;
+}
+
+.book-assembly-edit__unit-list > button:hover,
+.book-assembly-edit__unit-list > button.is-selected,
+.book-assembly-edit__source-list > div.is-selected > button:first-child,
+.book-assembly-edit__source-list > div > button:first-child:hover:not(:disabled) {
+  border-color: #b9b5f5;
+  background: #f5f4ff;
+}
+
+.book-assembly-edit__unit-list small,
+.book-assembly-edit__source-list small {
+  color: #697080;
+}
+
+.book-assembly-edit__main {
+  display: grid;
+  gap: 1rem;
+}
+
+.book-assembly-edit__main h3,
+.book-assembly-edit__main p {
+  margin: 0;
+}
+
+.book-assembly-edit__tree {
+  display: grid;
+  gap: .35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-assembly-edit__tree button {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  border: 1px solid #dfe2e9;
+  border-radius: .45rem;
+  padding: .55rem .7rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-assembly-edit__tree [aria-selected='true'] > button {
+  border-color: #6d65ec;
+  background: #f5f4ff;
+}
+
+.book-assembly-edit__tree small {
+  overflow: hidden;
+  color: #697080;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-assembly-edit__actions {
+  flex-wrap: wrap;
+}
+
+.book-assembly-edit__savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .75rem;
+  border: 1px solid #dfe2e9;
+  border-radius: .65rem;
+  padding: .7rem .8rem;
+  background: rgba(255, 255, 255, .97);
+  box-shadow: 0 -4px 16px rgba(35, 39, 52, .06);
+}
+
+.book-assembly-edit__empty {
+  margin: 0;
+  border: 1px dashed #c9ced8;
+  border-radius: .5rem;
+  padding: .9rem;
+  color: #697080;
+}
+
+.book-assembly-edit__mapping-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem;
+  border-top: 1px solid #e4e6ec;
+  padding-top: 1rem;
+}
+
+.book-assembly-edit__mapping-form label,
+.book-assembly-edit__mapping-form > div {
+  display: grid;
+  min-width: 0;
+  gap: .35rem;
+  font-weight: 650;
+}
+
+.book-assembly-edit__mapping-form > div {
+  align-content: center;
+  overflow-wrap: anywhere;
+}
+
+.book-assembly-edit__mapping-form input,
+.book-assembly-edit__mapping-form select {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid #697786;
+  border-radius: .4rem;
+  background: #fff;
+  color: inherit;
+}
+
+.book-assembly-edit__readiness {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.book-assembly-edit__readiness > div {
+  display: grid;
+  gap: .3rem;
+  border-left: 3px solid #6d65ec;
+  padding: .35rem .7rem;
+}
+
+.book-assembly-edit__readiness span {
+  color: #697080;
+  font-size: .8rem;
+}
+
+.book-assembly-edit button:focus-visible,
+.book-assembly-edit input:focus-visible,
+.book-assembly-edit select:focus-visible {
+  outline: 2px solid #5146d9;
+  outline-offset: 2px;
+}
+
 @media (max-width: 760px) {
   .book-assembly-guided__steps ol,
   .book-assembly-guided__mode-choice,
@@ -361,4 +588,9 @@
   .book-assembly-guided__source-list article > button,
   .book-assembly-guided__source-list article > .book-assembly-guided__bound-label { align-self: flex-end; }
   .book-assembly-guided__mapping-form { grid-template-columns: minmax(0, 1fr); }
+  .book-assembly-edit__layout,
+  .book-assembly-edit__mapping-form,
+  .book-assembly-edit__readiness { grid-template-columns: minmax(0, 1fr); }
+  .book-assembly-edit__savebar { align-items: stretch; flex-direction: column; }
+  .book-assembly-edit__savebar .pbf-button { width: 100%; }
 }

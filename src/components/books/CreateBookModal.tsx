@@ -49,7 +49,7 @@ const CreateBookModal = ({
   testTypes,
   initialValue,
   title = 'Create Book',
-  // Ticket 50B owns activation; default stays fail-closed.
+  // The caller owns product availability; this reusable modal stays fail-closed by default.
   pdfModeEnabled = false,
   onClose,
   onModeSelect,

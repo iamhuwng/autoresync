@@ -138,6 +138,23 @@ const componentReadyCandidate = (): BookAssemblyCandidateRecord => ({
   },
 });
 
+const nestedComponentReadyCandidate = (): BookAssemblyCandidateRecord => {
+  const current = componentReadyCandidate();
+  const nodes = current.manifest!.nodes;
+  return {
+    ...current,
+    manifest: {
+      ...current.manifest!,
+      nodes: [
+        nodes[0]!,
+        { nodeKey: 'chapter-a', parentNodeKey: 'section-a', nodeType: 'chapter', order: 1 },
+        { ...nodes[1]!, parentNodeKey: 'chapter-a' },
+        ...nodes.slice(2),
+      ],
+    },
+  };
+};
+
 const repository = (createResult: 'created' | 'conflict' | 'forbidden' = 'created'): UnitAssemblyRepository => ({
   create: vi.fn(async (input) => ({
     status: createResult === 'created' ? 'created' : createResult,
@@ -263,6 +280,40 @@ describe('BookAssemblyWorkspace', () => {
     expect(screen.queryByRole('heading', { name: 'Choose the PDF for this Book' })).not.toBeInTheDocument();
   });
 
+  it('copies the current Book structure contract and exposes manual copy when clipboard is blocked', async () => {
+    const user = userEvent.setup();
+    mocks.writeClipboardText.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    renderWorkspace({
+      guided: true,
+      guidedStep: 'outline',
+      guidedUiVariant: 'mockup',
+      strategyOverride: 'full_pdf',
+      initialSourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-full', sourceOrder: 1 }],
+      },
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Copy Prompt' }));
+
+    const fallback = screen.getByLabelText('Manual copy Book structure prompt') as HTMLTextAreaElement;
+    expect(fallback.value).toContain('book-structure-json-v1');
+    expect(fallback.value).toContain('"title": "Assembly Book"');
+    expect(fallback.value).toContain('"sourceKey": "full"');
+    expect(fallback.value).toContain('"physicalPageCount": 40');
+    expect(fallback.value).toContain('"nodes"');
+    expect(fallback.value).toContain('"units"');
+    expect(mocks.warning).toHaveBeenCalledWith('Clipboard was blocked. Copy the visible Book structure prompt manually.');
+
+    await user.click(screen.getByRole('button', { name: 'Copy Prompt' }));
+
+    expect(mocks.success).toHaveBeenCalledWith('Book structure prompt copied.');
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_structure_prompt_copied',
+      expect.objectContaining({ sourceKey: 'full', physicalPageCount: 40 }),
+    );
+  });
+
   it('builds full-PDF hierarchy with native tree semantics and saves through 13A CAS', async () => {
     const user = userEvent.setup();
     const repo = repository();
@@ -283,6 +334,7 @@ describe('BookAssemblyWorkspace', () => {
       bookId: 'book-1',
       expectedBookRevision: 2,
       expectedSourceSetRevision: 3,
+      unitKey: 'unit-1',
       manifest: expect.objectContaining({
         sourceSet: expect.objectContaining({ sourceStrategy: 'full_pdf' }),
       }),
@@ -444,6 +496,24 @@ describe('BookAssemblyWorkspace', () => {
     expect(screen.getByText('2 of 2 placed')).toBeInTheDocument();
     expect(screen.getByText('Unit content is ready')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
+  });
+
+  it('resolves component owners through nested hierarchy in the guided editor', () => {
+    renderWorkspace({
+      guided: true,
+      guidedStep: 'outline',
+      guidedUiVariant: 'mockup',
+      strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1], sourceVersions[2]],
+      initialCandidate: nestedComponentReadyCandidate(),
+      initialSavedActivityKeysByUnit: {
+        'unit-a': ['activity-a'],
+        'unit-b': ['activity-b'],
+      },
+    });
+
+    expect(screen.getByText('2 of 2 placed')).toBeInTheDocument();
+    expect(screen.getByText('Unit content is ready')).toBeInTheDocument();
   });
 
   it('lets a teacher select every persisted Component-PDF Unit after reopen', async () => {

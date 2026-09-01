@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -41,6 +41,10 @@ vi.mock('firebase/database', () => ({
 vi.mock('../../services/firebase', () => ({ database: {} }));
 
 const NOW = '2026-07-23T00:00:00.000Z';
+const configuredFullPdfSourceSet = {
+  sourceStrategy: 'full_pdf' as const,
+  sources: [{ sourceKey: 'full', sourceVersionId: 'source-full', sourceOrder: 1 }] as const,
+};
 
 const makeBook = (
   overrides: Partial<MaterialBookMetadata> = {},
@@ -123,10 +127,11 @@ describe('Book editor persisted-mode dispatch', () => {
     expect(repository.readBook).toHaveBeenCalledWith('book-123');
   });
 
-  it('routes stored pdf mode to separate read-only Assembly shell and never material controls', async () => {
+  it('routes stored pdf mode to focused PDF edit sections and never material controls', async () => {
     const repository = makeRepository(makeBook({
       bookMode: 'pdf',
       title: 'Stored PDF Book',
+      sourceSet: configuredFullPdfSourceSet,
     }));
 
     renderPage(repository, {
@@ -134,8 +139,17 @@ describe('Book editor persisted-mode dispatch', () => {
     });
 
     expect(await screen.findByRole('heading', { name: 'Stored PDF Book' })).toBeInTheDocument();
-    expect(screen.getByText('PDF Assembly')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Assembly is read-only' })).toBeInTheDocument();
+    const tabs = screen.getByRole('tablist', { name: 'PDF Book edit sections' });
+    expect(within(tabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Metadata',
+      'PDF files',
+      'Content tree',
+      'Activity JSON',
+      'Page mapping',
+      'Preview',
+      'Settings',
+    ]);
+    expect(within(tabs).getByRole('tab', { name: 'Metadata' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('tab', { name: 'Content' })).not.toBeInTheDocument();
     expect(screen.queryByText('Book content')).not.toBeInTheDocument();
     expect(screen.queryByText(/material picker/i)).not.toBeInTheDocument();
@@ -240,15 +254,18 @@ describe('Book editor persisted-mode dispatch', () => {
     expect(screen.queryByRole('tab', { name: 'Content' })).not.toBeInTheDocument();
   });
 
-  it('uses the same stored pdf dispatch in modal compatibility presentation', async () => {
+  it('uses the same stored pdf dispatch in the modal presentation', async () => {
+    const user = userEvent.setup();
     const repository = makeRepository(makeBook({
       bookMode: 'pdf',
       title: 'Modal PDF Book',
+      sourceSet: configuredFullPdfSourceSet,
     }));
 
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook({ bookMode: 'materials' })}
         repository={repository}
@@ -257,9 +274,61 @@ describe('Book editor persisted-mode dispatch', () => {
     );
 
     expect(await screen.findByRole('dialog', { name: 'Modal PDF Book' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Assembly is read-only' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'PDF Book edit sections' })).toBeInTheDocument();
+    const metadataTab = screen.getByRole('tab', { name: 'Metadata' });
+    expect(metadataTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Save metadata' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Request review' })).not.toBeInTheDocument();
+
+    metadataTab.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'PDF files' })).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{End}');
+    expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Save settings' })).toBeInTheDocument();
+  });
+
+  it('keeps the guided PDF pipeline on the post-metadata creation handoff', async () => {
+    const repository = makeRepository(makeBook({
+      bookMode: 'pdf',
+      title: 'New PDF Book',
+    }));
+
+    render(
+      <BookEditorModal
+        opened
+        intent="create"
+        bookId="book-123"
+        repository={repository}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole('dialog', { name: 'New PDF Book' });
+    expect(dialog).toHaveAttribute('data-editor-intent', 'create');
+    expect(screen.getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: 'PDF Book edit sections' })).not.toBeInTheDocument();
+  });
+
+  it('resumes guided setup for an existing PDF draft that has no persisted source strategy', async () => {
+    const repository = makeRepository(makeBook({
+      bookMode: 'pdf',
+      title: 'Incomplete PDF Draft',
+    }));
+
+    render(
+      <BookEditorModal
+        opened
+        intent="edit"
+        bookId="book-123"
+        repository={repository}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole('dialog', { name: 'Incomplete PDF Draft' });
+    expect(dialog).toHaveAttribute('data-editor-experience', 'guided-creation');
+    expect(within(dialog).getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('tablist', { name: 'PDF Book edit sections' })).not.toBeInTheDocument();
   });
 });

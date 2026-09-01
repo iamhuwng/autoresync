@@ -2,6 +2,9 @@
 export const BOOK_SOURCE_STRATEGIES = ['full_pdf', 'component_pdfs'] as const;
 export type BookSourceStrategy = (typeof BOOK_SOURCE_STRATEGIES)[number];
 
+/** Canonical MVP Assembly scope for the Unit 1 Full-PDF workflow. */
+export const FULL_PDF_PRIMARY_UNIT_KEY = 'unit-1';
+
 export const BOOK_CONTENT_NODE_TYPES = [
   'intro-placeholder',
   'toc-placeholder',

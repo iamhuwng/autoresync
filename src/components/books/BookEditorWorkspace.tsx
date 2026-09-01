@@ -56,6 +56,7 @@ interface BookEditorWorkspaceProps {
   readonly onClose?: () => void;
   readonly onSaved?: (bookId: string) => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
+  readonly showInlineSaveActions?: boolean;
 }
 
 export interface BookEditorWorkspaceHandle {
@@ -445,6 +446,7 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
   onActiveTabChange,
   onSaved,
   onDirtyChange,
+  showInlineSaveActions = false,
 }, workspaceRef) => {
   const { user, profile } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
@@ -1397,6 +1399,11 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
           <h2 id="book-editor-settings">Book settings</h2>
           <p>Access, public review state, and maintenance controls.</p>
         </div>
+        {showInlineSaveActions && (
+          <button type="button" onClick={() => void handleSaveMetadata()}>
+            Save settings
+          </button>
+        )}
       </div>
 
       <fieldset className="book-editor-page__access-group">
@@ -1411,7 +1418,7 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
         <div className="book-editor-page__review-state">
           <span>Public review</span>
           <strong>{metadataForm.visibility === 'public-library-pending-review' ? 'Requested' : 'Not requested'}</strong>
-          <p>Use the modal header to request review. Save keeps the selected access state.</p>
+          <p>{showInlineSaveActions ? 'Save settings keeps the selected access state.' : 'Use the modal header to request review. Save keeps the selected access state.'}</p>
         </div>
       </fieldset>
 
@@ -1657,9 +1664,9 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
             <h2 id="book-editor-overview">Book overview</h2>
             <p>Metadata, readiness, and catalog health.</p>
           </div>
-          {!isModalPresentation && (
+          {(!isModalPresentation || showInlineSaveActions) && (
             <button type="button" onClick={() => void handleSaveMetadata()}>
-              Save Metadata
+              Save metadata
             </button>
           )}
         </div>

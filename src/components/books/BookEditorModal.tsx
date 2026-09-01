@@ -14,11 +14,13 @@ import BookEditorWorkspace, {
   type BookEditorWorkspaceHandle,
 } from './BookEditorWorkspace';
 import BookMode2EditorShell from './BookMode2EditorShell';
+import BookPdfEditWorkspace from './BookPdfEditWorkspace';
 import { useBookEditorModeResolution } from './useBookEditorModeResolution';
 import './BookEditorModal.css';
 
 interface BookEditorModalProps {
   readonly opened: boolean;
+  readonly intent: 'create' | 'edit';
   readonly bookId: string | null;
   readonly initialBook?: MaterialBookMetadata | null;
   readonly initialNodes?: readonly MaterialBookNode[];
@@ -82,6 +84,7 @@ const CloseIcon = ({ size = 18 }: IconProps) => (
 
 const BookEditorModal = ({
   opened,
+  intent,
   bookId,
   initialNodes,
   materialCandidates,
@@ -153,7 +156,8 @@ const BookEditorModal = ({
       return;
     }
 
-    const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+      .filter((element) => !element.closest('[hidden], [aria-hidden="true"], [inert]'));
 
     if (focusable.length === 0) {
       event.preventDefault();
@@ -221,6 +225,10 @@ const BookEditorModal = ({
 
   const resolvedBook = resolution.status === 'resolved' ? resolution.book : null;
   const isMaterialsEditor = resolvedBook?.bookMode === 'materials';
+  const pdfRequiresSetup = resolvedBook?.bookMode === 'pdf'
+    && !resolvedBook.sourceSet
+    && resolution.status === 'resolved'
+    && resolution.access !== 'public-readonly';
   const title = resolvedBook?.title || 'Book Editor';
 
   return (
@@ -240,6 +248,8 @@ const BookEditorModal = ({
         tabIndex={-1}
         className="book-editor-modal__frame"
         data-book-mode={resolvedBook?.bookMode ?? 'loading'}
+        data-editor-intent={intent}
+        data-editor-experience={pdfRequiresSetup || intent === 'create' ? 'guided-creation' : 'focused-editing'}
         onKeyDown={handleKeyDown}
       >
         <header className="book-editor-modal__header">
@@ -313,11 +323,23 @@ const BookEditorModal = ({
               <p>{resolution.message}</p>
             </section>
           )}
-          {resolution.status === 'resolved' && resolution.book.bookMode === 'pdf' && (
+          {resolution.status === 'resolved' && resolution.book.bookMode === 'pdf' && (intent === 'create' || pdfRequiresSetup) && (
             <BookMode2EditorShell
               access={resolution.access}
               book={resolution.book}
               presentation="modal"
+              experience="guided-creation"
+              onDirtyChange={setDirty}
+            />
+          )}
+          {resolution.status === 'resolved' && resolution.book.bookMode === 'pdf' && intent === 'edit' && !pdfRequiresSetup && (
+            <BookPdfEditWorkspace
+              access={resolution.access}
+              book={resolution.book}
+              presentation="modal"
+              repository={repository}
+              usePublicProjection={resolution.usePublicProjection}
+              onSaved={onSaved}
               onDirtyChange={setDirty}
             />
           )}

@@ -21,10 +21,10 @@ import {
 import { createBookAssemblyPreviewClient, type BookAssemblyPreviewClient } from '../../services/book-assembly/assemblyPublication.client';
 import type { LoadedCurrentAssemblyDraft, UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
-import type { TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
+import { FULL_PDF_PRIMARY_UNIT_KEY, type TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
 import type { BookTeacherAssemblyDocumentProjection } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
-import BookPdfFlowWorkspace from './BookPdfFlowWorkspace';
+import BookPdfFlowWorkspace, { type BookPdfEditorSection } from './BookPdfFlowWorkspace';
 import type { BookSourceInspectionAction } from './BookSourceInspectionPanel';
 import type { BookSourceUploadAction } from './BookSourceUploadPanel';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
@@ -38,6 +38,8 @@ export interface BookMode2EditorShellProps {
   readonly access: BookEditorAccess;
   readonly book: MaterialBookMetadata;
   readonly presentation: 'modal' | 'page-compat';
+  readonly experience: 'guided-creation' | 'focused-editing';
+  readonly editingSection?: BookPdfEditorSection;
   readonly uploadWorkflow?: SourceUploadBrowserWorkflow | null;
   readonly assemblyRepository?: UnitAssemblyRepository | null;
   readonly assemblyMigrationClient?: BookAssemblyMigrationClient | null;
@@ -134,6 +136,8 @@ const BookMode2EditorShell = ({
   access,
   book,
   presentation,
+  experience,
+  editingSection,
   uploadWorkflow,
   assemblyRepository,
   assemblyMigrationClient,
@@ -172,11 +176,13 @@ const BookMode2EditorShell = ({
     () => assemblyRepository === undefined ? configuredAssemblyRepository() : assemblyRepository,
     [assemblyRepository],
   );
-  const candidateOwnerKeys = useMemo(() => [...new Set(
-    (book.sourceSet?.sources ?? [])
-      .map((source) => source.ownerNodeKey)
-      .filter((ownerNodeKey): ownerNodeKey is string => typeof ownerNodeKey === 'string' && ownerNodeKey.length > 0),
-  )], [book.sourceSet]);
+  const candidateOwnerKeys = useMemo(() => book.sourceSet?.sourceStrategy === 'full_pdf'
+    ? [FULL_PDF_PRIMARY_UNIT_KEY]
+    : [...new Set(
+      (book.sourceSet?.sources ?? [])
+        .map((source) => source.ownerNodeKey)
+        .filter((ownerNodeKey): ownerNodeKey is string => typeof ownerNodeKey === 'string' && ownerNodeKey.length > 0),
+    )], [book.sourceSet]);
   const [loadedAssemblyCandidate, setLoadedAssemblyCandidate] = useState<{
     readonly bookId: string;
     readonly status: 'loading' | 'loaded' | 'error';
@@ -319,6 +325,8 @@ const BookMode2EditorShell = ({
         bookId={book.bookId}
         title={book.title}
         presentation={presentation}
+        experience={experience}
+        editingSection={editingSection}
         uploadWorkflow={resolvedUploadWorkflow}
         uploadWorkflowForSource={resolvedUploadWorkflowForSource}
         uploadUnavailableMessage={uploadUnavailableMessage}

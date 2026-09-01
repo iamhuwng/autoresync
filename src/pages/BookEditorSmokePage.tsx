@@ -233,6 +233,7 @@ export default function BookEditorSmokePage() {
     <main>
       <BookEditorModal
         opened={opened}
+        intent="edit"
         bookId={book.bookId}
         initialBook={book}
         initialNodes={nodes}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { materialCatalogIds, type MaterialBookMetadata } from '../../types/materialCatalog.types';
@@ -35,7 +35,7 @@ describe('BookMode2EditorShell', () => {
     'starts the mode-first flow for authorized %s',
     async (access) => {
       const user = userEvent.setup();
-      render(<BookMode2EditorShell access={access} book={book} presentation="page-compat" />);
+      render(<BookMode2EditorShell access={access} book={book} presentation="page-compat" experience="guided-creation" />);
 
       expect(screen.getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: /One complete PDF/iu }));
@@ -50,6 +50,7 @@ describe('BookMode2EditorShell', () => {
         access="public-readonly"
         book={book}
         presentation="page-compat"
+        experience="guided-creation"
       />,
     );
 
@@ -72,6 +73,7 @@ describe('BookMode2EditorShell', () => {
         access="owner"
         book={book}
         presentation="page-compat"
+        experience="guided-creation"
         uploadWorkflow={uploadWorkflow}
       />,
     );
@@ -97,6 +99,7 @@ describe('BookMode2EditorShell', () => {
         access="owner"
         book={book}
         presentation="modal"
+        experience="guided-creation"
         uploadWorkflow={uploadWorkflow}
         assemblyRepository={null}
       />,
@@ -116,6 +119,7 @@ describe('BookMode2EditorShell', () => {
         access="owner"
         book={book}
         presentation="page-compat"
+        experience="guided-creation"
         uploadWorkflow={null}
       />,
     );
@@ -126,6 +130,33 @@ describe('BookMode2EditorShell', () => {
     await user.click(screen.getByRole('button', { name: 'Add a PDF' }));
     expect(screen.getByRole('heading', { name: 'PDF 1' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Book PDF' })).not.toBeInTheDocument();
+  });
+
+  it('loads a configured Full-PDF candidate from the canonical Unit 1 scope', async () => {
+    const assemblyRepository = {
+      loadCurrent: vi.fn().mockResolvedValue(null),
+    } as unknown as UnitAssemblyRepository;
+
+    render(
+      <BookMode2EditorShell
+        access="owner"
+        book={{
+          ...book,
+          sourceSet: {
+            sourceStrategy: 'full_pdf',
+            sources: [{ sourceKey: 'full', sourceVersionId: 'source-version-1', sourceOrder: 1 }],
+          },
+        }}
+        presentation="modal"
+        experience="focused-editing"
+        editingSection="content-tree"
+        assemblyRepository={assemblyRepository}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(assemblyRepository.loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-1');
+    });
   });
 
   it('fails closed when the saved Assembly draft cannot be loaded', async () => {
@@ -148,6 +179,7 @@ describe('BookMode2EditorShell', () => {
           },
         }}
         presentation="modal"
+        experience="guided-creation"
         assemblyRepository={assemblyRepository}
       />,
     );
@@ -176,6 +208,7 @@ describe('BookMode2EditorShell', () => {
           },
         }}
         presentation="modal"
+        experience="guided-creation"
         assemblyRepository={assemblyRepository}
       />,
     );

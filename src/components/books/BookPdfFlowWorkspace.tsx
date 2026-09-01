@@ -22,6 +22,7 @@ import './BookPdfFlowWorkspace.css';
 type PdfFlowMode = 'full' | 'component';
 type PdfFlowStep = 1 | 2 | 3 | 4 | 5;
 type AssemblyStep = 'mode' | 'outline' | 'pages' | 'review';
+export type BookPdfEditorSection = 'pdf-files' | 'content-tree' | 'activity-json' | 'page-mapping' | 'preview';
 
 interface SourceSlot {
   readonly id: string;
@@ -40,6 +41,8 @@ export interface BookPdfFlowWorkspaceProps {
   readonly bookId: string;
   readonly title: string;
   readonly presentation: 'modal' | 'page-compat';
+  readonly experience: 'guided-creation' | 'focused-editing';
+  readonly editingSection?: BookPdfEditorSection;
   readonly uploadWorkflow: SourceUploadBrowserWorkflow | null;
   readonly uploadWorkflowForSource?: (sourceKey: string) => SourceUploadBrowserWorkflow | null;
   readonly uploadUnavailableMessage?: string;
@@ -99,6 +102,8 @@ const BookPdfFlowWorkspace = ({
   bookId,
   title,
   presentation,
+  experience,
+  editingSection,
   uploadWorkflow,
   uploadWorkflowForSource,
   uploadUnavailableMessage,
@@ -134,6 +139,7 @@ const BookPdfFlowWorkspace = ({
       : 1;
     return Array.from({ length: initialCount }, (_, index) => slotFor(initialStrategy === 'component_pdfs' ? 'component' : 'full', index));
   });
+  const [replacingSourceId, setReplacingSourceId] = useState<string | null>(null);
   const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(assemblyInitialCandidate ?? null);
   const [previewProjection, setPreviewProjection] = useState<CandidateUnitPreviewProjection | null>(null);
@@ -147,8 +153,10 @@ const BookPdfFlowWorkspace = ({
   const [message, setMessage] = useState<{ text: string; kind: '' | 'good' | 'warn' | 'error' }>({ text: '', kind: '' });
   const [effectiveAssemblyBookRevision, setEffectiveAssemblyBookRevision] = useState(assemblyBookRevision);
   const [effectiveAssemblySourceSetRevision, setEffectiveAssemblySourceSetRevision] = useState(assemblySourceSetRevision);
+  const [assemblyDirty, setAssemblyDirty] = useState(false);
 
   const canEdit = access !== 'public-readonly';
+  const focusedEditing = experience === 'focused-editing';
   const selectedMode = mode ?? 'full';
   const visibleSlots = selectedMode === 'full' ? slots.slice(0, 1) : slots;
   const verifiedSlots = visibleSlots.filter((slot) => slot.uploadState?.phase === 'verified');
@@ -158,9 +166,10 @@ const BookPdfFlowWorkspace = ({
   const persistedSourceReady = persistedStrategyMatches
     && (selectedMode === 'full' ? candidateSourceIds.size === 1 : candidateSourceIds.size >= 2)
     && [...candidateSourceIds].every((sourceVersionId) => assemblySourceVersions.some((source) => source.sourceVersionId === sourceVersionId && source.verifiedUsable));
-  const sourceReady = selectedMode === 'full'
+  const sourceReady = replacingSourceId === null && (selectedMode === 'full'
     ? verifiedSlots.length === 1 || persistedSourceReady
-    : (verifiedSlots.length >= 2 && verifiedSlots.length === visibleSlots.length) || persistedSourceReady;
+    : (verifiedSlots.length >= 2 && verifiedSlots.length === visibleSlots.length) || persistedSourceReady);
+  const sourceDirty = slots.some((slot) => slot.selection !== null || slot.uploadState !== null);
 
   useEffect(() => {
     setEffectiveAssemblyBookRevision((current) => Math.max(current, assemblyBookRevision));
@@ -208,8 +217,8 @@ const BookPdfFlowWorkspace = ({
   }, [assemblySourceVersions, candidateSourceIds, localSources, persistedSourceSet, selectedMode]);
 
   useEffect(() => {
-    onDirtyChange?.(slots.some((slot) => slot.selection !== null || slot.uploadState !== null) || candidate !== null);
-  }, [candidate, onDirtyChange, slots]);
+    onDirtyChange?.(sourceDirty || assemblyDirty);
+  }, [assemblyDirty, onDirtyChange, sourceDirty]);
 
   useEffect(() => {
     if (!candidate || !previewApproval) return;
@@ -241,6 +250,14 @@ const BookPdfFlowWorkspace = ({
   const requestSetupChange = () => {
     setMigrationOpen(true);
     track('teacher_materials_book_assembly_strategy_migration_requested', { fromMode: selectedMode });
+  };
+
+  const requestSourceReplacement = (slot: SourceSlot) => {
+    updateSlot(slot.id, { selection: null, uploadState: null });
+    setReplacingSourceId(slot.id);
+    setActiveUploadId(null);
+    setMessage({ text: '', kind: '' });
+    track('teacher_materials_book_pdf_source_replacement_requested', { sourceKey: slot.sourceKey });
   };
 
   const confirmSetupChange = async () => {
@@ -362,6 +379,7 @@ const BookPdfFlowWorkspace = ({
         });
       }
       setActiveUploadId(null);
+      setReplacingSourceId((current) => current === slot.id ? null : current);
       onDirtyChange?.(true);
       track('teacher_materials_book_pdf_source_upload_verified', {
         sourceKey: slot.sourceKey,
@@ -376,6 +394,26 @@ const BookPdfFlowWorkspace = ({
     if (nextStep === 3) setAssemblyStep('pages');
     if (nextStep === 4) setAssemblyStep('review');
   };
+
+  useEffect(() => {
+    if (!focusedEditing || !editingSection || !mode) return;
+    if (editingSection === 'pdf-files') {
+      setStep(1);
+      return;
+    }
+    if (editingSection === 'content-tree' || editingSection === 'activity-json') {
+      setStep(2);
+      setAssemblyStep('outline');
+      return;
+    }
+    if (editingSection === 'page-mapping') {
+      setStep(3);
+      setAssemblyStep('pages');
+      return;
+    }
+    setStep(4);
+    setAssemblyStep('review');
+  }, [editingSection, focusedEditing, mode]);
 
   const continueFromFiles = () => {
     if (!sourceReady) {
@@ -500,8 +538,9 @@ const BookPdfFlowWorkspace = ({
     const persistedVersion = persistedSource
       ? assemblySourceVersions.find((source) => source.sourceVersionId === persistedSource.sourceVersionId)
       : undefined;
-    const verified = slot.uploadState?.phase === 'verified' || Boolean(persistedVersion?.verifiedUsable);
-    const persistedReady = !slot.uploadState && Boolean(persistedVersion?.verifiedUsable);
+    const replacing = replacingSourceId === slot.id;
+    const verified = !replacing && (slot.uploadState?.phase === 'verified' || Boolean(persistedVersion?.verifiedUsable));
+    const persistedReady = !replacing && !slot.uploadState && Boolean(persistedVersion?.verifiedUsable);
     const activeUpload = activeUploadId === slot.id && slot.selection !== null;
     return (
       <section className="pbf-surface" key={slot.id} aria-labelledby={`${slot.id}-title`}>
@@ -532,6 +571,7 @@ const BookPdfFlowWorkspace = ({
           <div className="pbf-callout is-good" style={{ marginTop: 14 }}>
             <strong>{selectedMode === 'full' ? 'Your PDF is ready' : 'PDF ready'}</strong>
             <span>{persistedReady ? 'This verified PDF is already part of the saved Book draft.' : 'Nothing is published yet. You can continue to assemble the Book.'}</span>
+            {focusedEditing && <div className="pbf-actions" style={{ marginTop: 12 }}><button type="button" className="pbf-button" onClick={() => requestSourceReplacement(slot)}>Replace PDF</button></div>}
           </div>
         ) : (
           <div className="pbf-real-source-panel">
@@ -553,23 +593,35 @@ const BookPdfFlowWorkspace = ({
 
   const renderFiles = () => (
     <FlowView
-      title={selectedMode === 'full' ? 'Start with one PDF' : 'Bring in your PDF sections'}
-      subtitle={selectedMode === 'full' ? 'Choose the student-safe PDF you want to use in this Book.' : 'Each file becomes a named part of the Book. Add at least two so we can compose them together.'}
+      title={focusedEditing ? 'Manage PDF files' : selectedMode === 'full' ? 'Start with one PDF' : 'Bring in your PDF sections'}
+      subtitle={focusedEditing
+        ? selectedMode === 'full'
+          ? 'This Book uses one complete PDF. Replace that file here without rebuilding the Book structure.'
+          : 'This Book uses component PDFs. Replace or add files here without rebuilding the Book.'
+        : selectedMode === 'full'
+          ? 'Choose the student-safe PDF you want to use in this Book.'
+          : 'Each file becomes a named part of the Book. Add at least two so we can compose them together.'}
       status={sourceReady ? 'Ready' : selectedMode === 'full' ? '1 file' : `${verifiedSlots.length} of 2 files`}
       statusKind={sourceReady ? 'good' : undefined}
     >
       {visibleSlots.length === 0 && <FlowSurface><div className="pbf-upload-zone"><div><div className="pbf-upload-icon">PDF</div><strong>Add a PDF</strong><p>We will check the file in your browser before anything is uploaded.</p><button type="button" className="pbf-button pbf-button-primary" onClick={addComponentSlot}>Add a PDF</button></div></div></FlowSurface>}
       {visibleSlots.map(renderSourceCard)}
       {selectedMode === 'component' && visibleSlots.length > 0 && (
-        <button type="button" className="pbf-button" style={{ marginTop: 12 }} onClick={addComponentSlot}>Add a PDF</button>
+        <button type="button" className="pbf-button" style={{ marginTop: 12 }} onClick={addComponentSlot}>{focusedEditing ? 'Add another PDF' : 'Add a PDF'}</button>
       )}
-      {selectedMode === 'component' && visibleSlots.length > 0 && visibleSlots.length < 2 && <p className="pbf-callout is-warn" style={{ marginTop: 12 }}>Add at least two PDFs so we can compose them together.</p>}
+      {!focusedEditing && selectedMode === 'component' && visibleSlots.length > 0 && visibleSlots.length < 2 && <p className="pbf-callout is-warn" style={{ marginTop: 12 }}>Add at least two PDFs so we can compose them together.</p>}
+      {focusedEditing && (
+        <div className="pbf-actions" style={{ marginTop: 14, justifyContent: 'space-between' }}>
+          <span className="pbf-status">PDF mode: {selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'}</span>
+          <button type="button" className="pbf-button" onClick={requestSetupChange}>Change PDF setup</button>
+        </div>
+      )}
     </FlowView>
   );
 
   const renderAssembly = () => {
     if (!canEdit) return <FlowView title="Book structure" subtitle="This Book is read-only in this view." status="Read-only"><FlowSurface><p className="pbf-muted">Ask the Book owner to make changes.</p></FlowSurface></FlowView>;
-    const assemblyView = assemblyStep === 'outline'
+    const guidedAssemblyView = assemblyStep === 'outline'
       ? (selectedMode === 'full'
         ? { title: 'Build the Book structure', subtitle: 'Start with the outline students will follow, then add the content for the first Unit.' }
         : { title: 'Give each PDF a place', subtitle: 'Choose which section each file belongs to, keep the order clear, and add its activities.' })
@@ -578,6 +630,15 @@ const BookPdfFlowWorkspace = ({
         : assemblyStep === 'review'
           ? { title: 'Take a look before you publish', subtitle: 'Review the Book as a teacher, then open the student view for the Unit you are about to share.' }
           : { title: 'Build the Book structure', subtitle: 'Start with the outline students will follow, then add the content for the first Unit.' };
+    const assemblyView = focusedEditing
+      ? editingSection === 'content-tree'
+        ? { title: 'Edit the content tree', subtitle: selectedMode === 'full' ? 'Change the Book hierarchy while keeping the existing full PDF.' : 'Change the Book hierarchy and the section owned by each PDF.' }
+        : editingSection === 'activity-json'
+          ? { title: 'Edit Activity JSON', subtitle: 'Choose a Unit, then add or replace its student activities.' }
+          : editingSection === 'page-mapping'
+            ? { title: 'Edit page mapping', subtitle: 'Connect each activity to the exact PDF pages students should see.' }
+            : { title: 'Preview the student Book', subtitle: 'Review the complete Book experience before publishing.' }
+      : guidedAssemblyView;
     return (
       <FlowView title={assemblyView.title} subtitle={assemblyView.subtitle} status={assemblyStep === 'review' ? 'Review' : 'In progress'}>
         <BookAssemblyWorkspace
@@ -592,7 +653,7 @@ const BookPdfFlowWorkspace = ({
           migrationClient={assemblyMigrationClient}
           onAction={onTrackAction}
           onCandidateChange={setCandidate}
-          onDirtyChange={onDirtyChange}
+          onDirtyChange={setAssemblyDirty}
           onGuidedStepChange={onAssemblyStepChange}
           presentation={presentation}
           previewDocuments={assemblyPreviewDocuments}
@@ -606,6 +667,11 @@ const BookPdfFlowWorkspace = ({
           guided
           guidedUiVariant="mockup"
           guidedStep={assemblyStep}
+          editingPanel={focusedEditing
+            ? editingSection === 'content-tree' || editingSection === 'activity-json' || editingSection === 'page-mapping' || editingSection === 'preview'
+              ? editingSection
+              : undefined
+            : undefined}
           suppressGuidedChrome
           suppressModeChoice
           validateCandidateAfterSave
@@ -613,7 +679,12 @@ const BookPdfFlowWorkspace = ({
         {assemblyStep === 'review' && (
           <FlowSurface>
             <div className="pbf-row"><div><h3>Preview as a student</h3><p className="pbf-muted">Open the trusted preview before publishing. Nothing is published by opening it.</p></div><span className={`pbf-status${previewApproval ? ' is-good' : ''}`}>{previewApproval ? 'Approved' : previewProjection ? 'Ready to approve' : 'Review needed'}</span></div>
-            <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void requestPreview()} disabled={!candidate || candidate.lifecycle !== 'validated' || !assemblyPreviewClient}>{previewProjection ? 'Refresh preview' : 'Preview as a student'}</button><button type="button" className="pbf-button" onClick={() => void approvePreview()} disabled={!previewProjection || Boolean(previewApproval) || !assemblyPreviewClient}>Approve this preview</button></div>
+            <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void requestPreview()} disabled={!sourceReady || !candidate || candidate.lifecycle !== 'validated' || !assemblyPreviewClient}>{previewProjection ? 'Refresh preview' : 'Preview as a student'}</button><button type="button" className="pbf-button" onClick={() => void approvePreview()} disabled={!sourceReady || !previewProjection || Boolean(previewApproval) || !assemblyPreviewClient}>Approve this preview</button></div>
+            {focusedEditing && sourceReady && previewApproval && (
+              <div className="pbf-actions" style={{ marginTop: 10 }}>
+                <button type="button" className="pbf-button" onClick={() => setStep(5)}>Review publication</button>
+              </div>
+            )}
             {trustedRuntimePreview ? (
               <BookAssemblyStudentPreviewHost
                 bookTitle={title}
@@ -632,18 +703,37 @@ const BookPdfFlowWorkspace = ({
   const renderPublish = () => (
     <FlowView title={publication ? 'Unit 1 is live' : 'Ready to share Unit 1?'} subtitle={publication ? 'Students can now open the published Unit. Unit 2 and your existing homework are unchanged.' : 'This will make Unit 1 available to students. Later Units will stay private until you publish them.'} status={publication ? 'Published' : 'Ready'} statusKind={publication ? 'good' : undefined}>
       <FlowSurface className="pbf-publish-surface">
-        {publication && <div className="pbf-success"><div className="pbf-success-mark" aria-hidden="true">✓</div><h2>Unit 1 is live</h2><p>Students can now open the published Unit. Unit 2 and your existing homework are unchanged.</p><div className="pbf-actions" style={{ marginTop: 18, justifyContent: 'center' }}><button type="button" className="pbf-button" disabled>Preview homework handoff</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { setMode(null); setStep(1); }}>Return to Book</button></div></div>}
+        {focusedEditing && (
+          <div className="pbf-actions" style={{ marginBottom: 14 }}>
+            <button type="button" className="pbf-button" onClick={() => setFlowStep(4)}>Back to preview</button>
+          </div>
+        )}
+        {publication && <div className="pbf-success"><div className="pbf-success-mark" aria-hidden="true">✓</div><h2>Unit 1 is live</h2><p>Students can now open the published Unit. Unit 2 and your existing homework are unchanged.</p><div className="pbf-actions" style={{ marginTop: 18, justifyContent: 'center' }}><button type="button" className="pbf-button" disabled>Preview homework handoff</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { if (focusedEditing) { setPublication(null); setPublishRights(false); setFlowStep(4); } else { setMode(null); setStep(1); } track('teacher_materials_book_pdf_returned_to_book'); }}>Return to Book</button></div></div>}
         {!publication && <><div className="pbf-callout is-warn"><strong>Nothing is published yet</strong><span>Publishing Unit 1 will not change later Units or existing homework.</span></div><div className="pbf-checklist" style={{ marginTop: 16 }}><div className="pbf-checklist-item">Unit 1 will be published with its current activities</div><div className="pbf-checklist-item">Students will see only the pages connected to this Unit</div><div className="pbf-checklist-item">Your current Book and later Units will remain safe</div></div></>}
-        {!publication && <><label className="pbf-check"><input type="checkbox" checked={publishRights} onChange={(event) => setPublishRights(event.currentTarget.checked)} /> <span>I confirm the PDF permission is still valid for publishing.</span></label><div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => setPublishConfirmOpen(true)} disabled={!publishRights || !previewApproval || !assemblyPreviewClient || !candidate}>{assemblyPreviewClient ? 'Publish Unit 1' : 'Publication service unavailable'}</button></div></>}
+        {!publication && <><label className="pbf-check"><input type="checkbox" checked={publishRights} onChange={(event) => setPublishRights(event.currentTarget.checked)} /> <span>I confirm the PDF permission is still valid for publishing.</span></label><div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => setPublishConfirmOpen(true)} disabled={!sourceReady || !publishRights || !previewApproval || !assemblyPreviewClient || !candidate}>{assemblyPreviewClient ? 'Publish Unit 1' : 'Publication service unavailable'}</button></div></>}
       </FlowSurface>
     </FlowView>
   );
 
   if (!mode) {
+    if (focusedEditing) {
+      return (
+        <section className="book-pdf-flow" data-access={access} data-presentation={presentation} data-experience="focused-editing">
+          <div className="pbf-window pbf-window--focused">
+            <main className="pbf-main">
+              <div className="pbf-view">
+                <div className="pbf-heading"><div><h2>PDF setup is incomplete</h2><p>Resume the Book setup before editing files, content, activities, or page mapping.</p></div></div>
+                <p className="pbf-callout is-warn" role="alert">Close this editor and reopen the draft to continue its guided PDF setup.</p>
+              </div>
+            </main>
+          </div>
+        </section>
+      );
+    }
     return (
       <section className="book-pdf-flow" data-access={access} data-presentation={presentation}>
-        <div className="pbf-window">
-          <header className="pbf-header"><div className="pbf-brand"><span className="pbf-mark">PDF</span><div><p className="pbf-eyebrow">Book editor</p><h1>{title}</h1></div></div><div className="pbf-header-actions"><span className="pbf-status">Draft</span><button type="button" className="pbf-button pbf-button-quiet" onClick={() => setMode(null)}>Change PDF setup</button></div></header>
+        <div className={`pbf-window${focusedEditing ? ' pbf-window--focused' : ''}`}>
+          {!focusedEditing && <header className="pbf-header"><div className="pbf-brand"><span className="pbf-mark">PDF</span><div><p className="pbf-eyebrow">Book creation</p><h1>{title}</h1></div></div><div className="pbf-header-actions"><span className="pbf-status">Draft</span></div></header>}
           <main className="pbf-main">
             <div className="pbf-hero pbf-mode-hero"><div className="pbf-eyebrow">Set up your PDF Book</div><h2>How will this Book use PDFs?</h2><p>Choose the setup that matches your files. You can change it later through a reviewed migration.</p></div>
             <div className="pbf-choice-grid">
@@ -652,13 +742,26 @@ const BookPdfFlowWorkspace = ({
             </div>
             <div className="pbf-callout" style={{ marginTop: 18 }}><strong>Nothing is published yet</strong><span>This walkthrough keeps your current Book unchanged until you explicitly publish a Unit.</span></div>
           </main>
-          <footer className="pbf-footer"><p>Choose a setup to begin.</p><div /></footer>
+          {!focusedEditing && <footer className="pbf-footer"><p>Choose a setup to begin.</p><div /></footer>}
         </div>
       </section>
     );
   }
 
   const renderStep = step === 1 ? renderFiles : step === 5 ? renderPublish : renderAssembly;
+  if (focusedEditing) {
+    return (
+      <section className="book-pdf-flow" data-access={access} data-presentation={presentation} data-mode={mode} data-experience="focused-editing">
+        <div className="pbf-window pbf-window--focused">
+          <main className="pbf-main">{renderStep()}</main>
+          {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">Publish Unit 1?</h2><p>Students will be able to open this Unit immediately.</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'} source is ready</li><li>Student preview is approved</li><li>Later Units remain private</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { setPublishConfirmOpen(false); void publish(); }}>Publish Unit 1</button></div></div></div>}
+          {migrationOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-migration-title"><h2 id="pbf-migration-title">Change your PDF setup</h2><p>This creates a reviewed draft. Your current Book stays safe while you check the new setup.</p><div className="pbf-surface" style={{ marginTop: 15 }}><div className="pbf-row"><strong>Current setup</strong><span>{selectedMode === 'full' ? 'One complete PDF' : 'Several component PDFs'}</span></div><div className="pbf-row"><strong>New setup</strong><span>{selectedMode === 'full' ? 'Several component PDFs' : 'One complete PDF'}</span></div><div className="pbf-row"><strong>Page connections</strong><span className="pbf-status is-warn">Review before publishing</span></div></div><div className="pbf-callout is-warn" style={{ marginTop: 13 }}><strong>Your current Book stays safe</strong><span>The new setup is prepared and confirmed separately. Nothing is published by changing setup.</span></div><div className="pbf-overlay-footer"><button type="button" className="pbf-button" disabled={migrationBusy} onClick={() => setMigrationOpen(false)}>Cancel</button><button type="button" className="pbf-button pbf-button-primary" disabled={migrationBusy} onClick={() => void confirmSetupChange()}>{migrationBusy ? 'Preparing reviewed change…' : 'Prepare reviewed change'}</button></div></div></div>}
+          {message.text && <div className={`pbf-toast is-${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</div>}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="book-pdf-flow" data-access={access} data-presentation={presentation} data-mode={mode}>
       <div className="pbf-window">

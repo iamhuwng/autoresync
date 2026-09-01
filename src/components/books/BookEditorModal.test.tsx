@@ -79,6 +79,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -123,6 +124,7 @@ describe('BookEditorModal', () => {
           <button ref={setLauncher} type="button" data-testid="launcher">Edit</button>
           <BookEditorModal
             opened
+            intent="edit"
             bookId="book-123"
             initialBook={makeBook()}
             initialNodes={[]}
@@ -151,6 +153,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -193,6 +196,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -240,6 +244,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={currentBook}
         initialNodes={[]}
@@ -296,6 +301,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={currentBook}
         initialNodes={[]}
@@ -324,6 +330,7 @@ describe('BookEditorModal', () => {
     const { rerender } = render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -337,6 +344,7 @@ describe('BookEditorModal', () => {
     rerender(
       <BookEditorModal
         opened={false}
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -352,6 +360,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}

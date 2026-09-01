@@ -493,6 +493,7 @@ const TeacherLobbyPage = () => {
   const [bookSuccessorPredecessor, setBookSuccessorPredecessor] = useState(null);
   const [bookEditorOpen, setBookEditorOpen] = useState(false);
   const [bookEditorBookId, setBookEditorBookId] = useState(null);
+  const [bookEditorIntent, setBookEditorIntent] = useState('edit');
   const [, setBookEditorDirty] = useState(false);
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
@@ -2055,6 +2056,7 @@ const TeacherLobbyPage = () => {
     setBookScope(value.visibility === 'private' ? 'private' : 'public');
     setBookListVersion((version) => version + 1);
     setBookEditorBookId(createdBook.bookId);
+    setBookEditorIntent(createdBook.bookMode === 'pdf' ? 'create' : 'edit');
     bookEditorLauncherRef.current = null;
     setBookEditorOpen(true);
     trackAction('teacher_materials_book_editor_opened', {
@@ -2078,6 +2080,7 @@ const TeacherLobbyPage = () => {
     trackAction('teacher_materials_book_editor_opened', { bookId, source: 'teacher_materials_book_card' });
     setContentFilter('book');
     setBookEditorBookId(bookId);
+    setBookEditorIntent('edit');
     bookEditorLauncherRef.current = launcher || null;
     setBookEditorOpen(true);
   }, [teacherMaterialsCapabilities.canUseMaterialBookEditor, trackAction]);
@@ -2085,6 +2088,7 @@ const TeacherLobbyPage = () => {
   const handleCloseBookEditor = useCallback(() => {
     setBookEditorDirty(false);
     setBookEditorOpen(false);
+    setBookEditorIntent('edit');
   }, []);
 
   const handleOpenBookSuccessor = useCallback((book) => {
@@ -2138,6 +2142,7 @@ const TeacherLobbyPage = () => {
       setBookScope('private');
       setBookListVersion((version) => version + 1);
       setBookEditorBookId(result.successor.bookId);
+      setBookEditorIntent(targetMode === 'pdf' ? 'create' : 'edit');
       bookEditorLauncherRef.current = null;
       setBookEditorOpen(true);
     } catch (error) {
@@ -3607,6 +3612,7 @@ const TeacherLobbyPage = () => {
 
         <BookEditorModal
           opened={bookEditorOpen}
+          intent={bookEditorIntent}
           bookId={bookEditorBookId}
           initialBook={activeBookEditorBook}
           repository={materialBooksRepository}

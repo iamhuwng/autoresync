@@ -31,7 +31,6 @@ import {
   type CandidateUnitPreviewProjection,
 } from '../services/book-assembly/unitPreview.service';
 import type { SourceUploadBrowserWorkflow } from '../services/book-source-delivery/sourceUpload.browserWorkflow';
-import type { SourceUploadSafeOperationState } from '../services/book-source-delivery/sourceUpload.client';
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../types/bookAssembly.types';
 import type { NormalizedActivity } from '../types/bookActivity.types';
 import { materialCatalogIds, type MaterialBookMetadata } from '../types/materialCatalog.types';
@@ -44,20 +43,6 @@ import {
 const NOW = '2026-07-27T00:00:00.000Z';
 const BOOK_ID = 'prd0062-ticket56-book';
 const OWNER_ID = 'teacher-1';
-const ticket50CleanupState: SourceUploadSafeOperationState = Object.freeze({
-  schemaVersion: 1,
-  bookId: BOOK_ID,
-  operationId: 'ticket50-cleanup-operation',
-  reservationId: 'ticket50-cleanup-reservation',
-  sourceVersionId: 'ticket50-unusable-source-version',
-  sourceKey: 'main',
-  kind: 'initial',
-  displayFilename: 'ticket50-disposable.pdf',
-  exactByteSize: 1024,
-  sha256Hex: 'a'.repeat(64),
-  phase: 'cancel_requested',
-});
-
 const sourceVersions: readonly TrustedBookSourceVersionProjection[] = [
   { bookId: BOOK_ID, physicalPageCount: 48, sourceVersionId: 'source-full-ready', verifiedUsable: true },
   { bookId: BOOK_ID, physicalPageCount: 16, sourceVersionId: 'source-component-a', verifiedUsable: true },
@@ -550,8 +535,6 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const ticket66Fixture = fixture === 'ticket66-component-pdf';
   const pdfUploadFixture = fixture === 'pdf-upload';
   const ticket70Fixture = fixture === 'ticket70-full' || fixture === 'ticket70-component';
-  const ticket50Fixture = fixture === 'ticket50-reconciliation';
-  const ticket50CleanupReleased = searchParams.get('cleanup') === 'released';
   const ticket70OriginalSourceVersionIds = fixture === 'ticket70-full'
     ? ['source-full-ready']
     : ['source-component-a'];
@@ -796,21 +779,6 @@ export default function BookAssemblyWorkspaceSmokePage() {
     };
   }, [persistTicket70State, ticket70Fixture]);
 
-  const ticket50UploadWorkflow = useMemo<SourceUploadBrowserWorkflow | null>(() => {
-    if (!ticket50Fixture) return null;
-    return {
-      load: async () => ticket50CleanupReleased ? null : ticket50CleanupState,
-      start: async () => { throw new Error('ticket50_fresh_upload_disabled'); },
-      retryBytes: async () => { throw new Error('ticket50_byte_upload_owned_by_ticket49'); },
-      retryCompletion: async () => { throw new Error('ticket50_completion_owned_by_ticket49'); },
-      requestCancellation: async () => true,
-      retryCleanup: async () => {
-        setSearchParams({ fixture, cleanup: 'released' }, { replace: true });
-        return 'released';
-      },
-    };
-  }, [fixture, setSearchParams, ticket50CleanupReleased, ticket50Fixture]);
-
   const pdfUploadWorkflow = useMemo<SourceUploadBrowserWorkflow | null>(() => {
     if (!pdfUploadFixture) return null;
     const verified = async (input: Parameters<SourceUploadBrowserWorkflow['start']>[0]) => ({
@@ -985,9 +953,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
     }),
   }), [fixture]);
 
-  const fixtureTitle = ticket50Fixture
-    ? 'PRD0062 Ticket 50 Reconciliation Fixture'
-    : ticket63Fixture
+  const fixtureTitle = ticket63Fixture
       ? 'PRD0062 Ticket 63 Candidate Preview Fixture'
       : smokeBook.title;
   const publishFullPdfUnit = async () => {
@@ -1390,7 +1356,8 @@ export default function BookAssemblyWorkspaceSmokePage() {
         book={{ ...smokeBook, title: fixtureTitle }}
         onDirtyChange={setDirty}
         presentation="page-compat"
-        uploadWorkflow={pdfUploadFixture ? pdfUploadWorkflow : ticket50UploadWorkflow}
+        experience="guided-creation"
+        uploadWorkflow={pdfUploadWorkflow}
       />
     </main>
   );
