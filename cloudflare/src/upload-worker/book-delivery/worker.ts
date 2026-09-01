@@ -47,10 +47,6 @@ import {
   FirebaseRestBookRuntimeRepository,
   type BookRuntimeRepositoryEnv,
 } from '../book-runtime/repository.ts';
-import {
-  BookPilotScopeDeniedError,
-  enforceBookPilotScopeIfConfigured,
-} from '../../book-pilot-scope.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 
@@ -571,23 +567,6 @@ export const createBookDeliveryWorkerHandlers = (options: {
         if (!(await authorize(input.env, input.uid, publication.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
-        // The issuance body carries one authoritative recipient. Check the
-        // bounded pilot only after the trusted owner/context checks so an
-        // unauthorized actor cannot learn pilot configuration details.
-        await enforceBookPilotScopeIfConfigured({
-          env: input.env,
-          uid: input.uid,
-          request: input.request,
-          operation: 'assign-place',
-          actorKind: 'teacher',
-          bookId: intent.bookId,
-          assignmentId: intent.contextId,
-          contextKind: intent.contextKind,
-          selectedStudentIds: intent.contextKind === 'preview' ? [] : [intent.recipientId],
-          requireBook: true,
-          requireAssignment: intent.contextKind !== 'preview',
-          requireStudents: intent.contextKind !== 'preview',
-        });
         const timestamp = now();
         const binding = createBookDeliveryBinding({
           bindingId: await allocateBindingId(operationId),
@@ -617,22 +596,6 @@ export const createBookDeliveryWorkerHandlers = (options: {
         if (!record || !(await authorize(input.env, input.uid, record.binding.issuer.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
-        await enforceBookPilotScopeIfConfigured({
-          env: input.env,
-          uid: input.uid,
-          request: input.request,
-          operation: 'assign-place',
-          actorKind: 'teacher',
-          bookId: record.binding.book.bookId,
-          assignmentId: record.binding.context.contextId,
-          contextKind: record.binding.context.kind,
-          selectedStudentIds: record.binding.context.kind === 'preview'
-            ? []
-            : [record.binding.recipient.recipientId],
-          requireBook: true,
-          requireAssignment: record.binding.context.kind !== 'preview',
-          requireStudents: record.binding.context.kind !== 'preview',
-        });
         const result = await lifecycle.activate(String(request.bindingId), Number(request.expectedRecordRevision), String(request.operationId), now());
         return { body: result as unknown as Record<string, unknown>, init: { status: 200 } };
       }
@@ -651,20 +614,6 @@ export const createBookDeliveryWorkerHandlers = (options: {
         if (!(await authorize(input.env, input.uid, publication.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
-        await enforceBookPilotScopeIfConfigured({
-          env: input.env,
-          uid: input.uid,
-          request: input.request,
-          operation: 'assign-place',
-          actorKind: 'teacher',
-          bookId: intent.bookId,
-          assignmentId: intent.contextId,
-          contextKind: intent.contextKind,
-          selectedStudentIds: intent.contextKind === 'preview' ? [] : [intent.recipientId],
-          requireBook: true,
-          requireAssignment: intent.contextKind !== 'preview',
-          requireStudents: intent.contextKind !== 'preview',
-        });
         const timestamp = now();
         const binding = createBookDeliveryBinding({
           bindingId: await allocateBindingId(operationId),
@@ -695,26 +644,10 @@ export const createBookDeliveryWorkerHandlers = (options: {
       }
       const request = exact(value, ['bindingId', 'expectedRecordRevision', 'expectedCurrentBindingId', 'operationId']);
       const record = await repository.readBinding(String(request.bindingId));
-        if (!record || !(await authorize(input.env, input.uid, record.binding.issuer.ownerId))) {
-          return { body: { status: 'forbidden' }, init: { status: 403 } };
-        }
-        await enforceBookPilotScopeIfConfigured({
-          env: input.env,
-          uid: input.uid,
-          request: input.request,
-          operation: 'assign-place',
-          actorKind: 'teacher',
-          bookId: record.binding.book.bookId,
-          assignmentId: record.binding.context.contextId,
-          contextKind: record.binding.context.kind,
-          selectedStudentIds: record.binding.context.kind === 'preview'
-            ? []
-            : [record.binding.recipient.recipientId],
-          requireBook: true,
-          requireAssignment: record.binding.context.kind !== 'preview',
-          requireStudents: record.binding.context.kind !== 'preview',
-        });
-        const result = await lifecycle.revoke(
+      if (!record || !(await authorize(input.env, input.uid, record.binding.issuer.ownerId))) {
+        return { body: { status: 'forbidden' }, init: { status: 403 } };
+      }
+      const result = await lifecycle.revoke(
         String(request.bindingId),
         Number(request.expectedRecordRevision),
         String(request.expectedCurrentBindingId),
@@ -723,9 +656,6 @@ export const createBookDeliveryWorkerHandlers = (options: {
       );
       return { body: result as unknown as Record<string, unknown>, init: { status: 200 } };
     } catch (error) {
-      if (error instanceof BookPilotScopeDeniedError) {
-        return { body: { code: error.message, decision: error.decision }, init: { status: error.status } };
-      }
       if (error instanceof BookDeliveryWorkerError || error instanceof BookDeliveryLifecycleError) {
         return { body: { code: error.code }, init: { status: error.status } };
       }

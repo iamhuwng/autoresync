@@ -13,23 +13,6 @@ const SERVICE_KEY = JSON.stringify({
   private_key: 'private-key',
 });
 const operationId = '00000000-0000-4000-8000-000000000086';
-const pilotScopeConfig = {
-  schemaVersion: 'v1',
-  environment: 'test',
-  revision: 'book-homework-route-pilot',
-  issuedAt: new Date(Date.now() - 60_000).toISOString(),
-  expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-  teacherId: 'teacher-1',
-  bookId: 'book-1',
-  assignmentId: 'assignment-1',
-  studentIds: ['student-1'],
-  maxStudents: 30,
-} as const;
-const pilotScopeEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify(pilotScopeConfig),
-} as const;
 
 const command = (): Omit<BookHomeworkSagaCommand, 'ownerId' | 'createdAt'> => ({
   assignmentId: 'assignment-1',
@@ -86,7 +69,6 @@ const record = (): BookHomeworkSagaRecord => ({
 });
 
 const env = (overrides: Partial<BookHomeworkWorkerEnv> = {}): BookHomeworkWorkerEnv => ({
-  ...pilotScopeEnv,
   BOOK_HOMEWORK_ROUTES_ENABLED: 'enabled',
   BOOK_HOMEWORK_READ_ROUTES_ENABLED: 'enabled',
   BOOK_HOMEWORK_SERVICE_IDENTITY: 'book-homework@example.test',
@@ -231,7 +213,7 @@ describe('Ticket 33E canonical Book Homework route', () => {
 
     const pathMismatch = await router.fetch(
       requestFor(command(), '/book-homework/assignments/other-assignment/commands'),
-      env({ BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({ ...pilotScopeConfig, assignmentId: 'other-assignment' }) }),
+      env(),
     );
     expect(pathMismatch.status).toBe(409);
 

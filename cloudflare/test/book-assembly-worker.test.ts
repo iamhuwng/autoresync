@@ -98,19 +98,10 @@ const request = (body: unknown): Request => new Request('https://assembly.exampl
 });
 const mutationEnv = () => ({
   BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true',
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1', environment: 'test', revision: 'assembly-worker-tests',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'assignment-1',
-    studentIds: ['student-1'], maxStudents: 30,
-  }),
 });
 
 describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
-  it('uses the trusted canonical route Book subject for the mandatory pilot gate', async () => {
+  it('uses the trusted canonical route Book subject for assembly mutations', async () => {
     const repository = new MemoryRepository();
     const handlers = createBookAssemblyWorkerHandlers({
       repository,
@@ -131,15 +122,6 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
     });
     const scopedEnv = {
       BOOK_ASSEMBLY_MUTATIONS_ENABLED: 'true',
-      BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-      BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-      BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-        schemaVersion: 'v1', environment: 'test', revision: 'assembly-route-subject',
-        issuedAt: new Date(Date.now() - 60_000).toISOString(),
-        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-        teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'assignment-1',
-        studentIds: ['student-1'], maxStudents: 30,
-      }),
     };
     const routed = createBookRouteHandlers({ assemblyHandlers: handlers });
     const created = await routed['bookAssembly.create']!({

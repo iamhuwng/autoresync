@@ -18,22 +18,7 @@ import { createBookRuntimeWorkerHandlers } from '../src/upload-worker/book-runti
 import { InMemoryBookRuntimeRepository } from '../src/upload-worker/book-runtime/repository';
 
 const BINDING_ID = bookHomeworkRecipientDeliveryBindingId('homework-1', 'student-1');
-const pilotEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1',
-    environment: 'test',
-    revision: 'book-homework-schedule-enforcement-pilot',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1',
-    bookId: 'book-1',
-    assignmentId: 'homework-1',
-    studentIds: ['student-1'],
-    maxStudents: 30,
-  }),
-} as const;
+const env = {};
 
 const binding = (): BookDeliveryBinding => ({
   schemaVersion: 3,
@@ -339,7 +324,7 @@ describe('trusted Book Homework schedule enforcement', () => {
     });
     const run = (request: Request) => handlers.command({
       request,
-      env: pilotEnv,
+      env,
       uid: 'student-1',
     });
 

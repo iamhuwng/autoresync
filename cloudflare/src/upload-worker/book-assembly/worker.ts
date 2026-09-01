@@ -15,10 +15,6 @@ import {
   type BookAssemblyRepositoryEnv,
   type BookAssemblyScope,
 } from './repository.ts';
-import {
-  BookPilotScopeDeniedError,
-  enforceBookPilotScopeIfConfigured,
-} from '../../book-pilot-scope.ts';
 export type { BookAssemblyScope } from './repository.ts';
 
 const MAX_BODY_BYTES = 1_200_000;
@@ -255,18 +251,6 @@ export const createBookAssemblyWorkerHandlers = (options: {
     input: { request: Request; env: BookAssemblyRepositoryEnv; uid: string; bookId?: string },
   ) => {
     try {
-      await enforceBookPilotScopeIfConfigured({
-        env: input.env,
-        uid: input.uid,
-        request: input.request,
-        operation: action === 'create' ? 'create' : 'mutation',
-        actorKind: 'teacher',
-        // The canonical router supplies this from the matched path. Passing
-        // the trusted route subject prevents the direct-handler guard from
-        // treating Assembly as owner-only Activity authoring.
-        bookId: input.bookId,
-        requireBook: true,
-      });
       const repository = repositoryFor(input.env, input.uid);
       const body = await readBody(input.request);
       await authenticate(repository, input.uid);
@@ -412,15 +396,6 @@ export const createBookAssemblyWorkerHandlers = (options: {
         return { outcome: result, next: scope, write: true };
       }, {
         beforeWrite: async () => {
-          await enforceBookPilotScopeIfConfigured({
-            env: input.env,
-            uid: input.uid,
-            request: input.request,
-            operation: action === 'create' ? 'create' : 'mutation',
-            actorKind: 'teacher',
-            bookId,
-            requireBook: true,
-          });
           assertAuthorityUnchanged(authority, await authorityFor(repository, bookId, input.env, input.uid));
         },
       });
@@ -430,9 +405,6 @@ export const createBookAssemblyWorkerHandlers = (options: {
         : outputValue.status === 'invalid' ? 422 : 200;
       return { body: outputValue, init: { status } };
     } catch (error) {
-      if (error instanceof BookPilotScopeDeniedError) {
-        return { body: { code: error.message, decision: error.decision }, init: { status: error.status } };
-      }
       if (error instanceof BookAssemblyWorkerError) {
         return { body: { code: error.code }, init: { status: error.status } };
       }

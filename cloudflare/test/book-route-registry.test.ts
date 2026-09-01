@@ -1,25 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { FEATURE_REGISTRY } from '../../src/config/featureRegistry';
-import activationConfig from '../wrangler.prd0062-ticket126-vocab-u1-activation.jsonc?raw';
 import { canonicalBookRouteManifest } from '../src/upload-worker/book-routes/manifest.ts';
 
-describe('#126 route and observability registry consistency', () => {
-  it('binds the bounded read-only candidate to the production control origin', () => {
-    expect(activationConfig).toContain('"BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "disabled"');
-    expect(activationConfig).toContain('"BOOK_DELIVERY_READ_ROUTES_ENABLED": "enabled"');
-    expect(activationConfig).toContain('"BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "enabled"');
-    expect(activationConfig).toContain('"BOOK_HOMEWORK_READ_ROUTES_ENABLED": "enabled"');
-    expect(activationConfig).toContain(
-      '"BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "https://kahut1.web.app"',
-    );
-  });
-
+describe('canonical book route and observability registry consistency', () => {
   it('keeps every canonical mutating book route disabled by default', () => {
     const mutating = canonicalBookRouteManifest.filter((route) =>
-      route.methods.some((method) => !['GET', 'HEAD'].includes(method)));
+      route.domain !== 'source-upload'
+      && route.methods.some((method) => !['GET', 'HEAD'].includes(method)));
     expect(mutating.length).toBeGreaterThan(0);
     expect(mutating.every((route) => route.gateDefault === 'disabled')).toBe(true);
-    expect(mutating.every((route) => /^BOOK_[A-Z0-9_]+_ROUTES_ENABLED$/u.test(route.gateEnv))).toBe(true);
+    expect(mutating.every((route) => typeof route.gateEnv === 'string'
+      && /^BOOK_[A-Z0-9_]+_ROUTES_ENABLED$/u.test(route.gateEnv))).toBe(true);
+  });
+
+  it('leaves source-upload release authorization to its domain service', () => {
+    const sourceRoutes = canonicalBookRouteManifest.filter((route) => route.domain === 'source-upload');
+    expect(sourceRoutes.length).toBeGreaterThan(0);
+    expect(sourceRoutes.every((route) => route.gateEnv === undefined && route.gateDefault === undefined)).toBe(true);
   });
 
   it('keeps update and replacement paths as disabled future seams', () => {
@@ -33,7 +30,7 @@ describe('#126 route and observability registry consistency', () => {
     ]);
   });
 
-  it('maps existing user-facing pilot workflows to the existing feature registry', () => {
+  it('maps existing user-facing book workflows to the feature registry', () => {
     const actions = new Set(FEATURE_REGISTRY.flatMap((feature) => feature.actions));
     for (const action of [
       'teacher_materials_book_created',

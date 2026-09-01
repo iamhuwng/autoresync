@@ -17,22 +17,6 @@ import {
 import type { BookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
 
 const BOOK_HOMEWORK_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\nredacted\n-----END PRIVATE KEY-----';
-const pilotScopeEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1',
-    environment: 'test',
-    revision: 'book-runtime-canonical-composition-pilot',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1',
-    bookId: 'book-1',
-    assignmentId: 'context-1',
-    studentIds: ['student-1'],
-    maxStudents: 30,
-  }),
-} as const;
 
 const normalizedActivity = () => ({
   schemaVersion: 1 as const,
@@ -218,7 +202,6 @@ const dependencies = (runtimeRepository: BookRuntimeRepository): BookRuntimeCano
 });
 
 const env = {
-  ...pilotScopeEnv,
   BOOK_RUNTIME_SERVICE_IDENTITY: 'runtime@example.test',
   BOOK_RUNTIME_GOOGLE_SA_KEY: JSON.stringify({
     client_email: 'runtime@example.test',

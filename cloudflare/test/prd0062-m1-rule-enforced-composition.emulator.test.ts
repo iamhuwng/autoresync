@@ -9,7 +9,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import { exportJWK, importPKCS8, SignJWT } from 'jose';
 import { createUploadWorker } from '../worker.js';
-import { bookActivityRendererRegistry } from '../../src/services/book-activity/runtime/activityRendererRegistry';
+import rendererManifestSource from '../../src/services/book-activity/runtime/activityRendererManifest.json?raw';
 import fixture from '../../tmp/prd0062-bridge-m1-committed-state-fixture.json';
 import publication from '../../tmp/prd0062-converged-publication.json';
 
@@ -143,14 +143,6 @@ const env = {
   BOOK_DELIVERY_GOOGLE_SA_KEY: serviceAccount(serviceIdentities.delivery),
   BOOK_ASSEMBLY_SERVICE_IDENTITY: serviceIdentities.assembly,
   BOOK_ASSEMBLY_GOOGLE_SA_KEY: serviceAccount(serviceIdentities.assembly),
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'production',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1', environment: 'production', revision: 'prd0062-m1-rule-enforced',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-    teacherId: ownerId, bookId, assignmentId, studentIds: [studentId], maxStudents: 30,
-  }),
   BOOK_ROUTE_RATE_LIMITER: { limit: async () => ({ success: true }) },
 };
 
@@ -286,9 +278,18 @@ describe('PRD0062 M1 default Worker composition under exact activation rules', (
     expect(studentProjection).toMatchObject({ status: 200, body: { assignmentId, completion: { recipientId: studentId, contextId: assignmentId } } });
     expect(delivery).toMatchObject({ status: 200, body: { projectionKind: 'book-runtime-delivery', activities: [{ placementId }] } });
     expect(launch).toMatchObject({ status: 200, body: { activities: [{ activityId: fixture.activityId, activityVersionId: fixture.activityVersionId }] } });
-    expect(bookActivityRendererRegistry.resolve(launch.body.activities[0].projection, {
-      surface: 'student-runtime', mode: delivery.body.actionFlags.canAutosave ? 'editable' : 'read-only', sourceContext: delivery.body.activities[0].sourceContext,
-    })).toMatchObject({ supported: true });
+    const projection = launch.body.activities[0].projection as {
+      interaction: { family: string; variant: string };
+      presentationMode: string;
+    };
+    const rendererManifest = JSON.parse(rendererManifestSource) as {
+      registrations: readonly { family: string; variant: string; presentationMode: string }[];
+    };
+    expect(rendererManifest.registrations).toContainEqual(expect.objectContaining({
+      family: projection.interaction.family,
+      variant: projection.interaction.variant,
+      presentationMode: projection.presentationMode,
+    }));
 
     expect(traces).not.toEqual([]);
     expect(traces.every((trace) => trace.method === 'GET' && trace.status === 200 && trace.uid !== null && trace.claims !== null)).toBe(true);

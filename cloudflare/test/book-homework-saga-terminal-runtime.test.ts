@@ -44,22 +44,7 @@ const SOURCE_VERSION_ID = 'source-terminal-v2';
 const PAGE_GROUP_KEY = 'pages-terminal';
 const CREATED_AT = '2026-08-01T00:00:00.000Z';
 const RUNTIME_NOW = '2026-08-01T00:00:01.000Z';
-const pilotScopeEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1',
-    environment: 'test',
-    revision: 'book-homework-terminal-runtime-pilot',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: OWNER_ID,
-    bookId: 'book-terminal',
-    assignmentId: ROOT_CONTEXT_ID,
-    studentIds: [RECIPIENT_ID],
-    maxStudents: 30,
-  }),
-} as const;
+const env = {};
 
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
@@ -422,7 +407,7 @@ describe('Book Homework saga to first terminal runtime submission', () => {
         clientRevision: 0,
         ...common,
       }),
-      env: pilotScopeEnv,
+      env,
       uid: RECIPIENT_ID,
     });
     const submitted = await handlers.command({
@@ -432,7 +417,7 @@ describe('Book Homework saga to first terminal runtime submission', () => {
         clientRevision: 1,
         ...common,
       }),
-      env: pilotScopeEnv,
+      env,
       uid: RECIPIENT_ID,
     });
 
@@ -530,7 +515,7 @@ describe('Book Homework saga to first terminal runtime submission', () => {
         clientRevision: 0,
         response: [{ interactionId: INTERACTION_ID, answer: 'terminal-answer' }],
       }),
-      env: pilotScopeEnv,
+      env,
       uid: RECIPIENT_ID,
     });
 

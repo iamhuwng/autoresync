@@ -1,13 +1,13 @@
 {
   "nodes": [
     { "nodeKey": "section-real-book", "parentNodeKey": null, "nodeType": "section", "order": 1 },
-    { "nodeKey": "unit-real-1", "parentNodeKey": "section-real-book", "nodeType": "unit", "order": 1 },
+    { "nodeKey": "unit-1", "parentNodeKey": "section-real-book", "nodeType": "unit", "order": 1 },
     { "nodeKey": "unit-real-2", "parentNodeKey": "section-real-book", "nodeType": "unit", "order": 2 },
     { "nodeKey": "unit-real-3", "parentNodeKey": "section-real-book", "nodeType": "unit", "order": 3 }
   ],
   "units": [
     {
-      "unitKey": "unit-real-1",
+      "unitKey": "unit-1",
       "activitySlots": [
         { "activityKey": "activity-prd0062-full-unit-1", "order": 1, "contextRequirement": "required", "pageGroupKeys": ["page-group-real-unit-1"] }
       ],

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import manifestSource from '../../src/services/book-activity/runtime/activityRendererManifest.json?raw';
-import activationConfigSource from '../wrangler.prd0062-ticket126-vocab-u1-activation.jsonc?raw';
+import releaseCandidateConfigSource from '../wrangler.book-source.jsonc?raw';
 
 const expectedRegistryVersion = 'activity-renderer-manifest-v1@sha256:7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5';
 
@@ -33,16 +33,16 @@ const stripJsoncLineComments = (source: string): string => {
   return output;
 };
 
-describe('prd0062 preview registry activation config', () => {
-  it('binds preview to the raw canonical renderer manifest digest', () => {
-    const activationConfig = JSON.parse(stripJsoncLineComments(activationConfigSource)) as {
+describe('prd0062 canonical Book Worker registry config', () => {
+  it('binds the release-candidate Worker to the raw canonical renderer manifest digest', () => {
+    const releaseCandidateConfig = JSON.parse(stripJsoncLineComments(releaseCandidateConfigSource)) as {
       vars: Record<string, unknown>;
     };
     const manifestDigest = createHash('sha256').update(manifestSource, 'utf8').digest('hex');
 
     expect(manifestDigest).toBe('7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5');
-    expect(activationConfig.vars.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION)
+    expect(releaseCandidateConfig.vars.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION)
       .toBe(`activity-renderer-manifest-v1@sha256:${manifestDigest}`);
-    expect(activationConfig.vars.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION).toBe(expectedRegistryVersion);
+    expect(releaseCandidateConfig.vars.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION).toBe(expectedRegistryVersion);
   });
 });

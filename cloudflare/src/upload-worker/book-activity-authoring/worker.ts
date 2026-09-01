@@ -19,10 +19,6 @@ import {
   BookRolloutDeniedError,
   createBookRolloutTrustedSeamGate,
 } from '../../book-rollout-seams.ts';
-import {
-  BookPilotScopeDeniedError,
-  enforceBookPilotScopeIfConfigured,
-} from '../../book-pilot-scope.ts';
 import type {
   UnitActivityBinding,
   UnitActivityBindingRepository,
@@ -594,14 +590,19 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
     repository: BookActivityAuthoringRepositoryPort,
     ownerId: string,
     claimedBookId: unknown,
-  ): Promise<string | undefined> => {
-    if (!validIdValue(claimedBookId)) return undefined;
+  ): Promise<string> => {
+    if (!validIdValue(claimedBookId)) {
+      throw new AuthoringError('book_activity_authoring_authority_unavailable', 503);
+    }
     const resolvedBookId = options.resolveOwnedPdfBookId
       ? await options.resolveOwnedPdfBookId({ env, ownerId, claimedBookId })
       : await resolveOwnedPdfBookIdFromRepository(repository, ownerId, claimedBookId);
     // The port may only confirm the already-derived claim; it cannot select a
     // different Book as the mutation subject.
-    return resolvedBookId === claimedBookId ? resolvedBookId : undefined;
+    if (resolvedBookId !== claimedBookId) {
+      throw new AuthoringError('book_activity_authoring_authority_unavailable', 503);
+    }
+    return resolvedBookId;
   };
   const advanceBindingReceipt = async (
     repository: BookActivityAuthoringRepositoryPort,
@@ -688,18 +689,6 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       const rolloutGate = createBookRolloutTrustedSeamGate(
         options.rolloutGate ?? createBookRolloutWorkerGate(input.env),
       );
-      const rolloutOperation = mutation === 'stage' ? 'create' : 'mutation';
-      // Validate deployment enforcement before reading any mutation subject. The
-      // exact Book check follows only after the server resolves the binding.
-      await enforceBookPilotScopeIfConfigured({
-        env: input.env,
-        uid: input.uid,
-        request: input.request,
-        operation: rolloutOperation,
-        actorKind: 'teacher',
-        bookId: null,
-        requireBook: false,
-      });
       rolloutGate.homeworkMutation();
       const repository = repositoryFor(input.env);
       const body = await readBody(input.request);
@@ -732,15 +721,6 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       const trustedBookId = await resolveOwnedPdfBookId(input.env, repository, input.uid, claimedBookId);
       // The body Book ID is only a claim for stage. For later mutations the
       // candidate's persisted binding is the sole subject input.
-      await enforceBookPilotScopeIfConfigured({
-        env: input.env,
-        uid: input.uid,
-        request: input.request,
-        operation: rolloutOperation,
-        actorKind: 'teacher',
-        bookId: trustedBookId,
-        requireBook: true,
-      });
       let activityValidationContext: ActivityValidationContext = {};
       if (mutation === 'stage' && requestedBinding) {
         const expectedTargetActivityId = bookScopedActivityTargetId(trustedBookId!, requestedBinding.activityKey);
@@ -836,17 +816,8 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         return discard(root, input.uid, body, now(), activityValidationContext);
       }, {
         beforeWrite: async (next) => {
-          // Recheck deployment enforcement and authenticated ownership on every
+          // Recheck rollout enforcement and authenticated ownership on every
           // CAS attempt, then derive the Book from the post-mutation candidate.
-          await enforceBookPilotScopeIfConfigured({
-            env: input.env,
-            uid: input.uid,
-            request: input.request,
-            operation: rolloutOperation,
-            actorKind: 'teacher',
-            bookId: null,
-            requireBook: false,
-          });
           rolloutGate.homeworkMutation();
           await authenticate(input.uid, repository);
           let nextBookId = mutation === 'stage'
@@ -863,16 +834,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
               nextBookId = persisted.bookId;
             }
           }
-          const resolvedBookId = await resolveOwnedPdfBookId(input.env, repository, input.uid, nextBookId);
-          await enforceBookPilotScopeIfConfigured({
-            env: input.env,
-            uid: input.uid,
-            request: input.request,
-            operation: rolloutOperation,
-            actorKind: 'teacher',
-            bookId: resolvedBookId,
-            requireBook: true,
-          });
+          await resolveOwnedPdfBookId(input.env, repository, input.uid, nextBookId);
         },
       });
       if (bindingRequest) {
@@ -947,12 +909,6 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
       if (error instanceof BookRolloutDeniedError) {
         return {
           body: { code: error.code, decision: error.authorization.decision },
-          init: { status: error.status },
-        };
-      }
-      if (error instanceof BookPilotScopeDeniedError) {
-        return {
-          body: { code: error.message, decision: error.decision },
           init: { status: error.status },
         };
       }

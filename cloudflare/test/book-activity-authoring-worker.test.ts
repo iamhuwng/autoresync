@@ -31,17 +31,6 @@ const sourceAssistedActivity = {
   }],
 };
 const operation = (suffix: string) => `123e4567-e89b-42d3-a456-426614174${suffix}`;
-const pilotEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1', environment: 'test', revision: 'authoring-pilot',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'assignment-1',
-    studentIds: ['student-1'], maxStudents: 30,
-  }),
-} as const;
 const request = (body: unknown, options: { includeBook?: boolean } = {}) => {
   const isRecord = body !== null && typeof body === 'object' && !Array.isArray(body);
   const isStage = isRecord && !Object.prototype.hasOwnProperty.call(body, 'candidateId');
@@ -124,16 +113,12 @@ const worker = (options: {
       ? undefined
       : async () => options.assemblyActivityPageRefs,
   });
-  const scopedInput = <T extends { env: Record<string, unknown> }>(input: T): T => ({
-    ...input,
-    env: Object.keys(input.env).length === 0 ? pilotEnv : input.env,
-  });
   return {
     handlers: {
-      stage: (input: Parameters<typeof rawHandlers.stage>[0]) => rawHandlers.stage(scopedInput(input)),
-      validate: (input: Parameters<typeof rawHandlers.validate>[0]) => rawHandlers.validate(scopedInput(input)),
-      saveDraft: (input: Parameters<typeof rawHandlers.saveDraft>[0]) => rawHandlers.saveDraft(scopedInput(input)),
-      discard: (input: Parameters<typeof rawHandlers.discard>[0]) => rawHandlers.discard(scopedInput(input)),
+      stage: rawHandlers.stage,
+      validate: rawHandlers.validate,
+      saveDraft: rawHandlers.saveDraft,
+      discard: rawHandlers.discard,
       loadCandidate: rawHandlers.loadCandidate,
     },
     state,
@@ -143,60 +128,6 @@ const worker = (options: {
 
 describe('Book Activity authoring Worker boundary', () => {
   afterEach(() => vi.restoreAllMocks());
-  it('fails closed before mutation for missing/disabled/malformed pilot config and unbound Books', async () => {
-    const cases: Array<{ name: string; env: Record<string, unknown>; body?: unknown; uid?: string }> = [
-      {
-        name: 'missing enforcement flag',
-        env: Object.fromEntries(Object.entries(pilotEnv).filter(([key]) => key !== 'BOOK_PILOT_SCOPE_ENFORCEMENT')),
-      },
-      { name: 'disabled enforcement flag', env: { ...pilotEnv, BOOK_PILOT_SCOPE_ENFORCEMENT: 'disabled' } },
-      { name: 'malformed config', env: { ...pilotEnv, BOOK_PILOT_SCOPE_CONFIG_JSON: '{malformed' } },
-      { name: 'missing Book claim', env: pilotEnv, body: { operationId: operation('061'), expectedRevision: 0, content: activity }, },
-      { name: 'wrong Book claim', env: pilotEnv, body: { operationId: operation('062'), expectedRevision: 0, bookId: 'book-2', content: activity }, },
-    ];
-    for (const testCase of cases) {
-      const current = worker();
-      const before = structuredClone(current.state);
-      const response = await current.handlers.stage({
-        request: request(testCase.body ?? { operationId: operation('060'), expectedRevision: 0, content: activity },
-          testCase.body === undefined ? undefined : { includeBook: false }),
-        env: testCase.env,
-        uid: testCase.uid ?? 'teacher-1',
-      });
-      expect(response.init.status, testCase.name).toBe(503);
-      expect(response.body, testCase.name).toMatchObject({ code: 'book_pilot_scope_denied' });
-      expect(JSON.stringify(response.body), testCase.name).not.toContain('book-2');
-      expect(current.state, testCase.name).toEqual(before);
-    }
-
-    const nonPdf = worker({ bookMetadata: { ...bookMetadata, bookMode: 'materials' } });
-    const nonPdfBefore = structuredClone(nonPdf.state);
-    const nonPdfResponse = await nonPdf.handlers.stage({
-      request: request({ operationId: operation('063'), expectedRevision: 0, content: activity }),
-      env: pilotEnv,
-      uid: 'teacher-1',
-    });
-    expect(nonPdfResponse).toMatchObject({ init: { status: 503 }, body: { code: 'book_pilot_scope_denied' } });
-    expect(nonPdf.state).toEqual(nonPdfBefore);
-
-    const legacy = worker();
-    const staged = await legacy.handlers.stage({
-      request: request({ operationId: operation('064'), expectedRevision: 0, content: activity }),
-      env: pilotEnv,
-      uid: 'teacher-1',
-    });
-    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
-    delete (legacy.state['teacher-1'].candidates as Record<string, Record<string, unknown>>)[candidateId].bookId;
-    const legacyBefore = structuredClone(legacy.state);
-    const legacyResponse = await legacy.handlers.validate({
-      request: request({ operationId: operation('065'), candidateId, expectedRevision: 1 }),
-      env: pilotEnv,
-      uid: 'teacher-1',
-    });
-    expect(legacyResponse).toMatchObject({ init: { status: 503 }, body: { code: 'book_pilot_scope_denied' } });
-    expect(legacy.state).toEqual(legacyBefore);
-  });
-
   it('denies every mutation when the deployment-owned mutation gate is disabled', async () => {
     const current = worker({ rolloutGate: denyMutationGate });
     const response = await current.handlers.stage({
@@ -917,7 +848,7 @@ describe('Book Activity authoring Worker boundary', () => {
       request: request({ operationId: operation('067'), expectedRevision: 0, content: activity }),
       env: {}, uid: 'teacher-1',
     });
-    expect(response).toMatchObject({ init: { status: 503 }, body: { code: 'book_pilot_scope_denied' } });
+    expect(response.init.status).toBe(503);
     expect(current.state).toEqual({});
   });
 
@@ -930,7 +861,7 @@ describe('Book Activity authoring Worker boundary', () => {
       request: request({ operationId: operation('068'), expectedRevision: 0, content: activity }),
       env: {}, uid: 'teacher-1',
     });
-    expect(response).toMatchObject({ init: { status: 503 }, body: { code: 'book_pilot_scope_denied' } });
+    expect(response.init.status).toBe(503);
     expect(resolveOwnedPdfBookId).toHaveBeenCalledTimes(2);
     expect(current.state).toEqual({});
   });

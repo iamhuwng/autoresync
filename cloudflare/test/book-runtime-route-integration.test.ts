@@ -127,15 +127,6 @@ const command = () => ({
 });
 
 const env = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1', environment: 'test', revision: 'runtime-route-pilot',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'context-1',
-    studentIds: ['student-1'], maxStudents: 30,
-  }),
   BOOK_RUNTIME_ROUTES_ENABLED: 'enabled',
   BOOK_RUNTIME_SERVICE_IDENTITY: 'book-runtime@test.iam.gserviceaccount.com',
   BOOK_RUNTIME_GOOGLE_SA_KEY: JSON.stringify({

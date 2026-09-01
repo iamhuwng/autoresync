@@ -245,3 +245,18 @@ batches pass 97/97, 95/95, and 89/89; the assembled rules matrix passes 89/89;
 and local recovery passes its root and R2-worker suites. These results do not
 close the browser-positive, deployed, screen-reader, measurement, pilot, or
 release gates, and no production mutation was made.
+
+## Append-only release-candidate transition — 2026-08-31
+
+The product owner ended the bounded pilot phase and directed PRD0062 Book PDF
+work to proceed as real release-candidate testing. `BOOK_PILOT_SCOPE_*`, its
+single-Book/time-bounded policy, and its activation/rollback configurations are
+therefore obsolete product controls and must not gate ordinary Book workflows.
+
+This decision does not authorize a production deployment. Pre-release testing
+continues to require the permanent controls already owned by the canonical
+Book interfaces: authenticated actor and service identity, exact route
+enablement, ownership and Book scope, explicit CAS conflicts, rollout
+enablement, current candidate/source authority, immutable provider versions,
+and final ETag CAS. Historical pilot evidence above remains a record of what
+was executed at that time; it is not current runtime or configuration authority.

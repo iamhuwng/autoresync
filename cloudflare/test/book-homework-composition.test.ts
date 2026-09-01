@@ -18,22 +18,6 @@ import {
 const operationId = '00000000-0000-4000-8000-000000000100';
 const assignmentId = 'assignment-1';
 const committedAt = '2026-08-03T12:00:00.000Z';
-const pilotScopeEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1',
-    environment: 'test',
-    revision: 'book-homework-composition-pilot',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1',
-    bookId: 'book-1',
-    assignmentId,
-    studentIds: ['student-1'],
-    maxStudents: 30,
-  }),
-} as const;
 
 const record = (): BookHomeworkSagaRecord => ({
   schemaVersion: 1,
@@ -99,7 +83,6 @@ const request = () => new Request('https://worker.example/book-homework', {
 });
 
 const workerEnv = {
-  ...pilotScopeEnv,
   BOOK_NOTIFICATIONS_EMISSION_ENABLED: true,
   readDatabaseValue: async () => ({
     role: 'teacher',

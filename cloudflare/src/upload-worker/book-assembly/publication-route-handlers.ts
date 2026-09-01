@@ -46,10 +46,6 @@ import {
 import type { BookAssemblyRepositoryPort } from './worker.ts';
 import type { UnitActivityBindingRepository } from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
 import type { BookRouterEnv } from '../book-router.ts';
-import {
-  BookPilotScopeDeniedError,
-  enforceBookPilotScopeIfConfigured,
-} from '../../book-pilot-scope.ts';
 
 export interface BookAssemblyPublicationRouteInput {
   readonly request: Request;
@@ -221,18 +217,6 @@ const defaultActivityVersionWriterFactory = (
   })
 );
 
-/** Read only the Book subject needed by the pilot guard without consuming the request body. */
-const requestedBookId = async (request: Request): Promise<string | undefined> => {
-  try {
-    const value = await request.clone().json() as unknown;
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
-    const bookId = (value as Record<string, unknown>).bookId;
-    return typeof bookId === 'string' ? bookId : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 const readCandidate = async (
   options: BookAssemblyPublicationRouteOptions,
   input: BookAssemblyPublicationRouteInput,
@@ -362,22 +346,6 @@ const createFullPdfHandler = (
   const ports = options.fullPdf;
   if (!ports) return unavailable('book_full_pdf_publication_dependencies_unavailable');
   return async (input) => {
-    try {
-      await enforceBookPilotScopeIfConfigured({
-        env: input.env,
-        uid: input.uid,
-        request: input.request,
-        operation: 'publish',
-        actorKind: 'teacher',
-        bookId: await requestedBookId(input.request),
-        requireBook: true,
-      });
-    } catch (error) {
-      if (error instanceof BookPilotScopeDeniedError) {
-        return { body: { code: error.message, decision: error.decision }, init: { status: error.status } };
-      }
-      return { body: { code: 'book_pilot_scope_unavailable' }, init: { status: 503 } };
-    }
     let worker: ReturnType<typeof createFullPdfPublicationWorkerHandlers>;
     try {
       worker = createFullPdfPublicationWorkerHandlers({
@@ -448,22 +416,6 @@ const createComponentPdfHandler = (
   const ports = options.componentPdf;
   if (!ports) return unavailable('book_component_pdf_publication_dependencies_unavailable');
   return async (input) => {
-    try {
-      await enforceBookPilotScopeIfConfigured({
-        env: input.env,
-        uid: input.uid,
-        request: input.request,
-        operation: 'publish',
-        actorKind: 'teacher',
-        bookId: await requestedBookId(input.request),
-        requireBook: true,
-      });
-    } catch (error) {
-      if (error instanceof BookPilotScopeDeniedError) {
-        return { body: { code: error.message, decision: error.decision }, init: { status: error.status } };
-      }
-      return { body: { code: 'book_pilot_scope_unavailable' }, init: { status: 503 } };
-    }
     let worker: ReturnType<typeof createComponentPdfPublicationWorkerHandlers>;
     try {
       worker = createComponentPdfPublicationWorkerHandlers({

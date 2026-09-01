@@ -20,23 +20,6 @@ import {
 const operationId = '00000000-0000-4000-8000-000000000265';
 const now = '2026-07-27T13:00:00.000Z';
 
-const pilotEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1',
-    environment: 'test',
-    revision: 'book-publication-route-test-1',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1',
-    bookId: 'book-1',
-    assignmentId: 'assignment-1',
-    studentIds: ['student-1'],
-    maxStudents: 30,
-  }),
-};
-
 const activity = (): NormalizedActivity => ({
   schemaVersion: 1,
   title: 'Choose safely',
@@ -222,7 +205,6 @@ describe('Book publication route composition', () => {
     const repositoryFactory = vi.fn(() => repository);
     const readAuthority = vi.fn(async () => null);
     const env = {
-      ...pilotEnv,
       BOOK_ASSEMBLY_SERVICE_IDENTITY: 'book-assembly@example.test',
       BOOK_ASSEMBLY_GOOGLE_SA_KEY: JSON.stringify({
         client_email: 'book-assembly@example.test',
@@ -279,7 +261,6 @@ describe('Book publication route composition', () => {
       }),
     });
     const env = {
-      ...pilotEnv,
       ...(strategy === 'full_pdf'
         ? { BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true' }
         : { BOOK_COMPONENT_PDF_PUBLICATION_ENABLED: 'true' }),
@@ -341,7 +322,6 @@ describe('Book publication route composition', () => {
       },
     });
     const env = {
-      ...pilotEnv,
       BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true',
       BOOK_ASSEMBLY_REGISTRY_VERSION: 'registry-1',
     };
@@ -384,7 +364,6 @@ describe('Book publication route composition', () => {
       },
     }));
     const env = {
-      ...pilotEnv,
       BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true',
       BOOK_ASSEMBLY_REGISTRY_VERSION: 'registry-1',
       readDatabaseValue: vi.fn(async () => ({ role: 'teacher' })),
@@ -457,7 +436,7 @@ describe('Book publication route composition', () => {
         readActivities, ...fullPdfApprovalPorts,
       },
     });
-    const env = { ...pilotEnv, BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true', readDatabaseValue: async () => ({ role: 'teacher' }) };
+    const env = { BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true', readDatabaseValue: async () => ({ role: 'teacher' }) };
     const first = await handlers.fullPdfPublish({ request: request(undefined, body()), env, uid: 'teacher-1' });
     expect(first).toMatchObject({ init: { status: 503 }, body: { code: 'book_assembly_activity_binding_unavailable' } });
     const committed = await repository.readScope('book-1');
@@ -495,23 +474,22 @@ describe('Book publication route composition', () => {
       private_key: 'private-key',
     });
     const env = {
-      ...pilotEnv,
       [gate]: 'enabled',
       BOOK_ASSEMBLY_REGISTRY_VERSION: 'registry-1',
       BOOK_ASSEMBLY_SERVICE_IDENTITY: 'book-assembly@example.test',
       BOOK_ASSEMBLY_GOOGLE_SA_KEY: identity,
       BOOK_ROUTE_RATE_LIMITER: { limit: vi.fn(async () => ({ success: true })) },
     };
-    const pilotRequestBody = JSON.stringify({ bookId: 'book-1' });
+    const requestBody = JSON.stringify({ bookId: 'book-1' });
     const routeRequest = () => new Request(`https://worker.test${path}`, {
       method: 'POST',
       headers: {
         Origin: 'http://localhost:5173',
         Authorization: 'Bearer firebase-token',
         'Content-Type': 'application/json',
-        'Content-Length': String(new TextEncoder().encode(pilotRequestBody).byteLength),
+        'Content-Length': String(new TextEncoder().encode(requestBody).byteLength),
       },
-      body: pilotRequestBody,
+      body: requestBody,
     });
     const response = await router(routeRequest(), env);
 

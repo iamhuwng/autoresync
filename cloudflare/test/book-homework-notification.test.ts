@@ -19,22 +19,6 @@ import {
 const operationId = '00000000-0000-4000-8000-000000000100';
 const assignmentId = 'assignment-1';
 const committedAt = '2026-08-03T12:00:00.000Z';
-const pilotScopeEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1',
-    environment: 'test',
-    revision: 'book-homework-notification-pilot',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1',
-    bookId: 'book-1',
-    assignmentId,
-    studentIds: ['student-1', 'student-2'],
-    maxStudents: 30,
-  }),
-} as const;
 
 const record = (
   state: BookHomeworkSagaRecord['state'] = 'committed',
@@ -51,6 +35,7 @@ const record = (
     publicationId: 'publication-1',
     publicationRevision: 1,
     contextId: assignmentId,
+    presentation: { title: 'Book Homework' },
     fingerprint: 'fingerprint-1',
     requestFingerprint: 'request-fingerprint-1',
     state,
@@ -104,6 +89,7 @@ const request = () => new Request(
         expectedPublication: {
           publicationId: 'publication-1', publicationRevision: 1, manifestVersionId: 'manifest-1',
         },
+        presentation: { title: 'Book Homework' },
       },
       selectedRecipientIds: ['student-1', 'student-2'],
     }),
@@ -111,7 +97,6 @@ const request = () => new Request(
 );
 
 const env = (enabled: boolean) => ({
-  ...pilotScopeEnv,
   BOOK_NOTIFICATIONS_EMISSION_ENABLED: enabled,
   readDatabaseValue: vi.fn(async () => ({
     role: 'teacher',

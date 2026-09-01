@@ -28,6 +28,7 @@
     "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5",
     "BOOK_ASSEMBLY_MUTATIONS_ENABLED": "true",
     "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED": "enabled",
     "BOOK_ROLLOUT_ENVIRONMENT": "staging",
     "BOOK_ROLLOUT_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"staging\",\"revision\":\"prd0062-release-upload-20260901t064719z\",\"issuedAt\":\"2026-09-01T06:47:19Z\",\"expiresAt\":\"2026-09-01T18:47:19Z\",\"actions\":{\"create\":\"deny\",\"upload\":\"allow\",\"publish\":\"deny\",\"assign-place\":\"deny\",\"launch-delivery\":\"deny\",\"mutation\":\"allow\"}}",
     "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173",

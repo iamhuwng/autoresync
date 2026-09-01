@@ -26,10 +26,12 @@ const previewRegistryVersion = 'activity-renderer-manifest-v1@sha256:7be1fce11aa
 const operation = (suffix: string): string => `123e4567-e89b-42d3-a456-426614174${suffix}`;
 
 const activity: EditableActivity = {
-  schemaVersion: 1, title: 'Verified PDF activity', taskProfile: null, presentationMode: 'structured',
+  schemaVersion: 1, title: 'Verified PDF activity', taskProfile: null, presentationMode: 'source-assisted',
   contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] }, instructions: [{ text: 'Read.' }], stimulus: null, assetRefs: [],
   interaction: { family: 'choice', variant: 'v1' }, answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
-  interactions: [{ prompt: 'Choose', options: ['A', 'B'], acceptedOptionIndexes: [0] }], scoring: { mode: 'auto-where-possible' },
+  interactions: [{ prompt: 'Choose', options: ['A', 'B'], acceptedOptionIndexes: [0], sourceAssisted: {
+    questionLabel: 'Question 1', accessiblePrompt: 'Choose one answer.', responseShape: 'single-choice', sourceExerciseLabel: 'Exercise 1',
+  } }], scoring: { mode: 'auto-where-possible' },
 };
 
 const sourceSet = { sourceStrategy: 'full_pdf' as const, sources: [{ sourceKey, sourceVersionId, sourceOrder: 1 }] };
@@ -230,8 +232,6 @@ describe('production-normal #59 workflow', () => {
       BOOK_ROUTE_RATE_LIMITER: { limit: async () => ({ success: true }) },
       BOOK_ACTIVITY_ROLLOUT_ENVIRONMENT: 'test',
       BOOK_ACTIVITY_ROLLOUT_CONFIG_JSON: JSON.stringify({ schemaVersion: 'v1', environment: 'test', revision: 'production-normal-59', issuedAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(), actions: { create: 'deny', upload: 'deny', publish: 'deny', 'assign-place': 'deny', 'launch-delivery': 'deny', mutation: 'allow' } }),
-      BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled', BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-      BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({ schemaVersion: 'v1', environment: 'test', revision: 'production-normal-59', issuedAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(), teacherId: ownerId, bookId, assignmentId: 'assignment-1', studentIds: ['student-1'], maxStudents: 30 }),
     };
     const worker = createUploadWorker() as { fetch: (request: Request, workerEnv: typeof env) => Promise<Response> };
     const request = (path: string, body: unknown): Request => new Request(`https://worker.test${path}`, {
@@ -273,12 +273,14 @@ describe('production-normal #59 workflow', () => {
     expect(validated.body).toMatchObject({ status: 'validated', candidate: { candidateId, lifecycle: 'validated', revision: 2 } });
 
     const staged = await fetchRoute('/book-activity-authoring/stage', {
-      operationId: operation('004'), expectedRevision: 0, bookId, content: activity,
+      operationId: operation('004'), expectedRevision: 0, bookId, targetActivityId: 'ba_626f6f6b2d31_736c6f742d31',
+      unitActivityBinding: { unitKey, activityKey }, content: activity,
     });
     expect(staged.response.status).toBe(200);
     const activityCandidateId = String(staged.body.candidateId);
     const authoringValidated = await fetchRoute('/book-activity-authoring/validate', {
       operationId: operation('005'), candidateId: activityCandidateId, expectedRevision: 1,
+      unitActivityBinding: { unitKey, activityKey },
     });
     expect(authoringValidated.response.status).toBe(200);
     // The Activity CAS below succeeds before this deliberately failed binding
@@ -564,8 +566,6 @@ if (rtdbEmulatorHost) {
         BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED: 'enabled', BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true',
         BOOK_ROUTE_RATE_LIMITER: { limit: async () => ({ success: true }) }, BOOK_ACTIVITY_ROLLOUT_ENVIRONMENT: 'test',
         BOOK_ACTIVITY_ROLLOUT_CONFIG_JSON: JSON.stringify({ schemaVersion: 'v1', environment: 'test', revision: 'production-normal-emulator', issuedAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(), actions: { create: 'deny', upload: 'deny', publish: 'deny', 'assign-place': 'deny', 'launch-delivery': 'deny', mutation: 'allow' } }),
-        BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled', BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-        BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({ schemaVersion: 'v1', environment: 'test', revision: 'production-normal-emulator', issuedAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(), teacherId: ownerId, bookId, assignmentId: 'assignment-1', studentIds: ['student-1'], maxStudents: 30 }),
       };
       const worker = createUploadWorker() as { fetch: (request: Request, workerEnv: typeof env) => Promise<Response> };
       const invoke = async (path: string, body: unknown) => {
