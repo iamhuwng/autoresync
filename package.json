@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev-env.mjs ensure && vite",
+    "env:bootstrap": "node scripts/dev-env.mjs bootstrap",
+    "env:check": "node scripts/dev-env.mjs check",
     "build": "node scripts/harness/run-tool.mjs vite . build && node scripts/check-bundle-budget.mjs",
     "deploy:hosting": "npm run build && node scripts/harness/run-tool.mjs --audit firebase . deploy --only hosting:kahut1",
     "lint": "eslint . && npm run lint:mantine",

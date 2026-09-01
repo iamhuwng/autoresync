@@ -1,17 +1,28 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createBookSourcePreviewCsp } from './src/services/book-source-delivery/sourceUpload.browserPolicy';
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
+const sharedEnvDir = path.resolve(
+  process.env.LUYENTAP_ENV_DIR || path.join(os.homedir(), '.luyentap', 'env'),
+);
+const sharedEnvFiles = ['.env', '.env.local', '.env.development', '.env.development.local'];
+const envDir = sharedEnvFiles.some((name) => fs.existsSync(path.join(sharedEnvDir, name)))
+  ? sharedEnvDir
+  : repoRoot;
 const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
 
 const bookSourcePreviewCsp = createBookSourcePreviewCsp(process.env);
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.
+  envDir,
   // IMPORTANT: Fixed port for OAuth compatibility with Google Drive
   // The OAuth credentials in Google Cloud Console must include this exact origin
   // If you get 403 errors, ensure http://localhost:5173 is in your authorized origins
