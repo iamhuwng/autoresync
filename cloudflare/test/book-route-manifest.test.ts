@@ -39,7 +39,7 @@ describe('canonical Book route contract catalog', () => {
       'impact-snapshot', 'updates', 'replacement-cleanup',
     ]));
     expect(future.every((route) => route.gateDefault === 'disabled')).toBe(true);
-    expect(future.every((route) => route.gateEnv.endsWith('_ROUTES_ENABLED'))).toBe(true);
+    expect(future.every((route) => route.gateEnv?.endsWith('_ROUTES_ENABLED'))).toBe(true);
   });
 
   it('keeps canonical routes away from backup, public B2, bearer, and paid targets', () => {
@@ -295,7 +295,8 @@ describe('canonical Book route contract catalog', () => {
         domain: 'source-upload',
         handler: 'bookSource.begin',
         firebaseAuth: 'firebase-id-token-teacher',
-        gateEnv: 'BOOK_SOURCE_UPLOAD_ROUTES_ENABLED',
+        gateEnv: undefined,
+        gateDefault: undefined,
         identityEnv: 'BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY',
         credentialEnv: 'BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY',
         contributorTicket: '#49',
@@ -344,7 +345,10 @@ describe('canonical Book route contract catalog', () => {
 
   it('keeps every manifest gate disabled in the safe-deny wrangler source configuration', () => {
     const vars = wranglerConfig().vars;
-    for (const gate of new Set(canonicalBookRouteManifest.map((route) => route.gateEnv))) {
+    const gates = canonicalBookRouteManifest
+      .map((route) => route.gateEnv)
+      .filter((gate): gate is string => typeof gate === 'string');
+    for (const gate of new Set(gates)) {
       expect(vars[gate]).toBe('disabled');
     }
   });

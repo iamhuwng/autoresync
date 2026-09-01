@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   BOOK_ACTIVITY_ROLLOUT_GATE_ENV,
   BOOK_ACTIVITY_ROLLOUT_GATE_MODES,
-  BOOK_ACTIVITY_ROLLOUT_GATE_MODES_BY_SURFACE,
   BOOK_ACTIVITY_ROLLOUT_GATES,
   getBookActivityRolloutGateModes,
   isBookActivityRolloutGateEnabled,
@@ -10,26 +9,25 @@ import {
 } from './bookActivityRolloutGates';
 
 describe('bookActivityRolloutGates', () => {
-  it('exposes six presentation actions and denies all by default', () => {
+  it('exposes five presentation actions and denies all when configuration is absent', () => {
     expect(BOOK_ACTIVITY_ROLLOUT_GATES).toEqual({
       create: 'create',
-      upload: 'upload',
       publish: 'publish',
       assignPlace: 'assign-place',
       launchDelivery: 'launch-delivery',
       mutation: 'mutation',
     });
-    expect(Object.values(BOOK_ACTIVITY_ROLLOUT_GATES)).toHaveLength(6);
-    expect(BOOK_ACTIVITY_ROLLOUT_GATE_MODES_BY_SURFACE).toEqual({
+    expect(Object.values(BOOK_ACTIVITY_ROLLOUT_GATES)).toHaveLength(5);
+    const modes = getBookActivityRolloutGateModes({});
+    expect(modes).toEqual({
       create: 'disabled',
-      upload: 'disabled',
       publish: 'disabled',
       'assign-place': 'disabled',
       'launch-delivery': 'disabled',
       mutation: 'disabled',
     });
     Object.values(BOOK_ACTIVITY_ROLLOUT_GATES).forEach((gate) => {
-      expect(isBookActivityRolloutGateEnabled(gate)).toBe(false);
+      expect(isBookActivityRolloutGateEnabled(gate, modes)).toBe(false);
       expect(BOOK_ACTIVITY_ROLLOUT_GATE_ENV[gate]).toContain('_PRESENTATION');
     });
   });
@@ -49,7 +47,6 @@ describe('bookActivityRolloutGates', () => {
     });
     expect(modes).toEqual({
       create: 'enabled',
-      upload: 'disabled',
       publish: 'disabled',
       'assign-place': 'disabled',
       'launch-delivery': 'disabled',

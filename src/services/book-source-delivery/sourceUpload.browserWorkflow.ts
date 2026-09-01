@@ -169,9 +169,20 @@ const verifiedState = (
     : {}),
 });
 
+const PRE_RESERVATION_FAILURE_CODES = new Set([
+  'account_state_unavailable',
+  'book_route_disabled',
+  'book_route_unavailable',
+  'cors_origin_denied',
+  'invalid_deployment',
+  'rate_limited',
+  'rollout_denied',
+]);
+
 const definitelyUnreserved = (error: unknown): boolean =>
   error instanceof SourceUploadClientError
-  && [400, 401, 403, 404, 405].includes(error.status);
+  && ([400, 401, 403, 404, 405, 413, 429].includes(error.status)
+    || PRE_RESERVATION_FAILURE_CODES.has(error.code));
 
 const samePersistedState = (
   left: SourceUploadSafeOperationState | null,
@@ -482,9 +493,9 @@ export const createSourceUploadBrowserWorkflow = (
           inspection: input.claim,
         });
       } catch (error) {
-        if (existing.phase === 'begin_pending' && definitelyUnreserved(error)) {
-          await clearIfCurrent(existing);
-        }
+        // A retry can follow an earlier request that reserved server state before
+        // its response failed. Keep the original idempotency key until the
+        // server returns its exact reservation binding or cleanup state.
         throw error;
       }
       if (existing.phase === 'reserved' && (

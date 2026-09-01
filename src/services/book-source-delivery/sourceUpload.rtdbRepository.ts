@@ -228,6 +228,7 @@ export class SourceUploadRtdbRepository {
             throw new SourceUploadConflictError('providerObjectKey is already reserved.');
           }
           if (input.kind !== 'replacement'
+              && operation.status !== 'released'
               && operation.bookId === input.bookId
               && operation.sourceKey === input.sourceKey) {
             throw new SourceUploadConflictError('sourceKey is already reserved.');

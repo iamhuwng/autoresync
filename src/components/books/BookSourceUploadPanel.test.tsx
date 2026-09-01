@@ -7,6 +7,7 @@ import type {
 import type {
   SourceUploadSafeOperationState,
 } from '../../services/book-source-delivery/sourceUpload.client';
+import { SourceUploadClientError } from '../../services/book-source-delivery/sourceUpload.client';
 import BookSourceUploadPanel from './BookSourceUploadPanel';
 
 const { toast } = vi.hoisted(() => ({
@@ -107,6 +108,30 @@ afterEach(() => {
 });
 
 describe('BookSourceUploadPanel', () => {
+  it.each([
+    ['rollout_denied', 503, 'New PDF uploads are not enabled in the current release configuration.'],
+    ['provider_unauthorized', 502, 'The private PDF storage service is unavailable. Try again after its credentials are repaired.'],
+    ['active_artifact_conflict', 409, 'Another PDF upload for this Book is still being reconciled. Retry when it finishes.'],
+  ] as const)('shows actionable upload error %s', async (code, status, message) => {
+    const client = workflow();
+    vi.mocked(client.start).mockRejectedValueOnce(new SourceUploadClientError(code, status));
+    render(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        immutablePublished={false}
+        selection={selection}
+        workflow={client}
+      />,
+    );
+
+    await waitFor(() => expect(client.load).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Upload PDF' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('button', { name: 'Upload PDF' })).toBeEnabled();
+  });
+
   it('announces upload, reports confirmed transferred bytes, and keeps verified inline state', async () => {
     const client = workflow();
     render(

@@ -11,6 +11,7 @@ import {
 import type {
   SourceUploadSafeOperationState,
 } from '../../services/book-source-delivery/sourceUpload.client';
+import { SourceUploadClientError } from '../../services/book-source-delivery/sourceUpload.client';
 import './BookSourceUploadPanel.css';
 
 type ActivePhase = 'idle' | 'uploading' | 'verifying' | 'reconciling' | 'failed';
@@ -53,6 +54,32 @@ const emptyProgress: SourceUploadByteProgress = {
 };
 
 const errorMessage = (error: unknown): string => {
+  if (error instanceof SourceUploadClientError) {
+    if (error.code === 'rollout_denied' || error.code === 'book_route_disabled') {
+      return 'New PDF uploads are not enabled in the current release configuration.';
+    }
+    if (error.code === 'unauthorized') {
+      return 'Your sign-in expired. Sign in again, then upload the PDF.';
+    }
+    if (error.code === 'authority_denied') {
+      return 'You no longer have permission to upload files to this Book.';
+    }
+    if (['invalid_deployment', 'book_route_unavailable', 'account_state_unavailable'].includes(error.code)) {
+      return 'The private PDF upload service is unavailable. Try again after its configuration is repaired.';
+    }
+    if (['provider_unauthorized', 'provider_failed'].includes(error.code)) {
+      return 'The private PDF storage service is unavailable. Try again after its credentials are repaired.';
+    }
+    if (error.code === 'active_artifact_conflict') {
+      return 'Another PDF upload for this Book is still being reconciled. Retry when it finishes.';
+    }
+  }
+  if (error instanceof SourceUploadWorkflowError && error.code === 'stale_file') {
+    return 'The selected PDF no longer matches this upload. Choose the file again.';
+  }
+  if (error instanceof SourceUploadWorkflowError && error.code === 'invalid_operation') {
+    return 'This saved upload can no longer be resumed. Choose the PDF again to start a fresh upload.';
+  }
   if (
     error instanceof SourceUploadWorkflowError
     && error.code === 'verified_source_exists'
@@ -143,7 +170,9 @@ const BookSourceUploadPanel = ({
     setActivePhase('failed');
     setError(message);
     onAction?.('book_source_upload_failed', {
-      code: uploadError instanceof Error ? uploadError.name : 'unexpected',
+      code: uploadError instanceof SourceUploadClientError || uploadError instanceof SourceUploadWorkflowError
+        ? uploadError.code
+        : uploadError instanceof Error ? uploadError.name : 'unexpected',
     });
     toast.error(message);
   };

@@ -57,7 +57,7 @@ describe('BookMode2EditorShell', () => {
     expect(screen.queryByRole('heading', { name: 'Choose the PDF for this Book' })).not.toBeInTheDocument();
   });
 
-  it('keeps upload default-deny while preserving restored operation UI', async () => {
+  it('keeps preparation locked until a PDF is selected', async () => {
     const uploadWorkflow: SourceUploadBrowserWorkflow = {
       load: vi.fn(async () => null),
       start: vi.fn(),
@@ -82,7 +82,7 @@ describe('BookMode2EditorShell', () => {
       .toBeInTheDocument();
   });
 
-  it('exposes the authorized upload step when the local presentation gate is enabled', async () => {
+  it('exposes upload when the canonical source workflow is configured', async () => {
     const uploadWorkflow: SourceUploadBrowserWorkflow = {
       load: vi.fn(async () => null),
       start: vi.fn(),
@@ -98,7 +98,6 @@ describe('BookMode2EditorShell', () => {
         book={book}
         presentation="modal"
         uploadWorkflow={uploadWorkflow}
-        uploadPresentationEnabled
         assemblyRepository={null}
       />,
     );

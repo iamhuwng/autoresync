@@ -42,7 +42,6 @@ import type {
   BookRouterEnv,
   CanonicalBookRouteDescriptor,
 } from './book-router.ts';
-import { enforceBookPilotScopeIfConfigured } from '../book-pilot-scope.ts';
 
 export interface BookRouteHandlerInput {
   readonly request: Request;
@@ -79,61 +78,10 @@ type FactoryHandler = (input: {
   [key: string]: unknown;
 }) => WorkerResult | Promise<WorkerResult>;
 
-const routeDomainFor = (namespace: string): CanonicalBookRouteDescriptor['domain'] => {
-  if (namespace === 'bookActivityAuthoring') return 'activity-authoring';
-  if (namespace === 'bookAssembly' || namespace.startsWith('bookAssembly')) return 'assembly';
-  if (namespace === 'bookSource') return 'source-upload';
-  if (namespace === 'bookRuntime' || namespace === 'bookRuntimeLaunch') return 'runtime';
-  if (namespace === 'futureSeam') return 'homework';
-  if (namespace === 'courseBookPlacement' || namespace === 'classBookPlacement') return 'delivery';
-  return 'delivery';
-};
-
-const directDescriptorFor = (
-  namespace: string,
-  name: string,
-): CanonicalBookRouteDescriptor => ({
-  id: `book.pilot.direct.${namespace}.${name}`,
-  methods: ['POST'],
-  pathTemplate: `/book-pilot/direct/${namespace}/${name}`,
-  owner: '#126',
-  domain: namespace === 'futureSeam' && name === 'updateCommand'
-    ? 'updates'
-    : namespace === 'futureSeam' && name === 'replacementCleanupCommand'
-      ? 'replacement-cleanup'
-      : routeDomainFor(namespace),
-  handler: `${namespace}.${name}`,
-  firebaseAuth: namespace === 'bookRuntime' || namespace === 'bookRuntimeLaunch'
-    ? 'firebase-id-token-student'
-    : 'firebase-id-token-teacher',
-  rateClass: 'book-control',
-  gateEnv: 'BOOK_PILOT_SCOPE_ROUTES_ENABLED',
-  gateDefault: 'disabled',
-  requestBodyBytes: 256 * 1024,
-  responseLimitBytes: 256 * 1024,
-  source: 'future-seam',
-});
-
-const READ_HANDLER_NAMES = new Set([
-  'loadCandidate', 'load', 'loadCurrent', 'readDraft', 'status', 'resolve', 'current', 'catalog',
-  'studentProjection', 'teacherStudentProjection', 'teacherProjection',
-  'homeworkStudentLaunch', 'sources',
-]);
-
 const adapt = (
   handler: FactoryHandler,
   params: readonly string[] = [],
-  descriptor?: CanonicalBookRouteDescriptor,
 ): BookRouteHandler => async (input) => {
-  if (descriptor && !READ_HANDLER_NAMES.has(descriptor.handler.split('.').at(-1) ?? '')) {
-    await enforceBookPilotScopeIfConfigured({
-      request: input.request,
-      env: input.env,
-      uid: input.uid,
-      params: input.params,
-      descriptor,
-    });
-  }
   return handler({
     request: input.request,
     env: input.env,
@@ -157,7 +105,6 @@ const addFactoryHandlers = (
       const adapted = adapt(
         handler as FactoryHandler,
         paramsFor(name),
-        directDescriptorFor(namespace, name),
       );
       target[`${namespace}.${name}`] = adapted;
     }
@@ -292,19 +239,7 @@ export const createBookRouteHandlers = (
 ): BookRouteHandlerMap => {
   const handlers: Record<string, BookRouteHandler> = {};
   for (const [name, handler] of Object.entries(options.futureHandlers ?? {})) {
-    handlers[name] = async (input) => {
-      const shortName = name.split('.').at(-1) ?? name;
-      if (shortName === 'updateCommand' || shortName === 'replacementCleanupCommand') {
-        await enforceBookPilotScopeIfConfigured({
-          request: input.request,
-          env: input.env,
-          uid: input.uid,
-          params: input.params,
-          descriptor: directDescriptorFor('futureSeam', shortName),
-        });
-      }
-      return handler(input);
-    };
+    handlers[name] = handler;
   }
   const delivery = options.deliveryHandlers ?? createBookDeliveryWorkerHandlers();
   const activity = options.activityAuthoringHandlers

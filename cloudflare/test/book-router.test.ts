@@ -17,7 +17,7 @@ const descriptor = (overrides: Partial<CanonicalBookRouteDescriptor> = {}): Cano
   pathTemplate: '/book-delivery/test/:bookId',
   owner: '#test',
   // Fixture uses the #126 assembly subject shape: this route carries a Book
-  // but no assignment/student subject, so the real pilot guard can allow it.
+  // but no assignment/student subject.
   domain: 'assembly',
   handler: 'bookDelivery.create',
   firebaseAuth: 'firebase-id-token',
@@ -38,14 +38,6 @@ const env = (overrides: Record<string, unknown> = {}) => ({
   BOOK_TEST_IDENTITY: 'book-service@example.test',
   BOOK_TEST_KEY: identity,
   BOOK_ROUTE_RATE_LIMITER: { limit: vi.fn(async () => ({ success: true })) },
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1', environment: 'test', revision: 'router-fixture-126',
-    issuedAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-    teacherId: 'teacher-1', bookId: 'book-1', assignmentId: 'assignment-1', studentIds: ['student-1'], maxStudents: 30,
-  }),
   ...overrides,
 });
 

@@ -1,9 +1,5 @@
 // @ts-ignore Existing Worker verifier is JavaScript without declarations.
 import { createFirebaseVerifier } from './firebase-verification.js';
-import {
-  BookPilotScopeDeniedError,
-  enforceBookPilotScopeRoute,
-} from '../book-pilot-scope.ts';
 import { canonicalBookRouteManifest } from './book-routes/manifest.ts';
 import type { CanonicalBookRouteDescriptor } from './book-routes/types.ts';
 import {
@@ -64,7 +60,6 @@ const ALLOWED_HEADERS = new Set([
   'idempotency-key',
   'range',
 ]);
-const DEFAULT_GATE_ENV = 'BOOK_ROUTES_ENABLED';
 const SAFE_PARAM = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const BOOK_PATH = /^\/(?:v1\/)?book(?:-|\/)/u;
 
@@ -180,6 +175,22 @@ const routeForPath = (
   });
 };
 
+const sourceOriginFailure = (
+  request: Request,
+  env: BookRouterEnv,
+  descriptor: CanonicalBookRouteDescriptor,
+): { readonly code: 'invalid_deployment' | 'cors_origin_denied'; readonly status: 500 | 403 } | null => {
+  if (descriptor.domain !== 'source-upload') return null;
+  if (typeof env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN !== 'string'
+    || !env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
+    return { code: 'invalid_deployment', status: 500 };
+  }
+  if (request.headers.get('Origin') !== env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
+    return { code: 'cors_origin_denied', status: 403 };
+  }
+  return null;
+};
+
 const preflight = (
   request: Request,
   manifest: readonly CanonicalBookRouteDescriptor[],
@@ -195,15 +206,8 @@ const preflight = (
   if (!requestedMethod) return jsonResponse(request, { code: 'cors_method_required' }, 405);
   const descriptor = candidates.find((candidate) => methodList(candidate).includes(requestedMethod));
   if (!descriptor) return jsonResponse(request, { code: 'cors_method_denied' }, 405);
-  if (descriptor.domain === 'source-upload') {
-    if (typeof env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN !== 'string'
-      || !env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
-      return jsonResponse(request, { code: 'invalid_deployment' }, 500);
-    }
-    if (origin !== env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
-      return jsonResponse(request, { code: 'cors_origin_denied' }, 403);
-    }
-  }
+  const sourceOrigin = sourceOriginFailure(request, env, descriptor);
+  if (sourceOrigin) return jsonResponse(request, { code: sourceOrigin.code }, sourceOrigin.status);
   const requestedHeaders = (headerValue(request, 'Access-Control-Request-Headers') ?? '')
     .split(',')
     .map((header) => header.trim().toLowerCase())
@@ -247,12 +251,8 @@ const enforceRateLimit = async (
   if (!outcome?.success) throw new Error('book_rate_limited');
 };
 
-const gateEnvFor = (descriptor: CanonicalBookRouteDescriptor): string => {
-  return descriptor.gateEnv || DEFAULT_GATE_ENV;
-};
-
 const enforceGate = (env: BookRouterEnv, descriptor: CanonicalBookRouteDescriptor): void => {
-  if (env[gateEnvFor(descriptor)] !== 'enabled') {
+  if (descriptor.gateEnv && env[descriptor.gateEnv] !== 'enabled') {
     throw new Error('book_route_disabled');
   }
 };
@@ -456,19 +456,16 @@ export const createBookRouter = (options: BookRouterOptions = {}): BookRouter =>
 
     const uid = await authorized(request, env, verifier);
     if (!uid) return jsonResponse(request, { code: 'unauthorized' }, 401, methods);
+    const sourceOrigin = sourceOriginFailure(request, env, descriptor);
+    if (sourceOrigin) {
+      return jsonResponse(request, { code: sourceOrigin.code }, sourceOrigin.status, methods);
+    }
     try {
       await enforceRateLimit(request, env, uid, descriptor);
       enforceGate(env, descriptor);
       enforceServiceIdentity(env, descriptor);
       await enforceBodyLimit(request, descriptor);
-      await enforceBookPilotScopeRoute({ request, env, uid, params, descriptor });
     } catch (error) {
-      if (error instanceof BookPilotScopeDeniedError) {
-        return jsonResponse(request, {
-          code: error.message,
-          decision: error.decision,
-        }, error.status, methods);
-      }
       const message = error instanceof Error ? error.message : '';
       if (message === 'book_limited' || message === 'book_rate_limited') {
         return jsonResponse(request, { code: 'rate_limited' }, 429, methods);
@@ -487,12 +484,6 @@ export const createBookRouter = (options: BookRouterOptions = {}): BookRouter =>
     try {
       return await handleResult(await handler({ request, env, uid, params, descriptor }), request, descriptor);
     } catch (error) {
-      if (error instanceof BookPilotScopeDeniedError) {
-        return jsonResponse(request, {
-          code: error.message,
-          decision: error.decision,
-        }, error.status, methods);
-      }
       return jsonResponse(request, { code: 'book_route_failed' }, 500, methods);
     }
   };

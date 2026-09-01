@@ -233,15 +233,20 @@ describe('SourceUploadRtdbRepository', () => {
       releasedAt: '2026-07-23T00:01:01.000Z',
       proof: 'exact_version_deleted',
     });
-    await expect(cleanupRepository.reserve(reservation({
+    const sameBookAfterRelease = await cleanupRepository.reserve(reservation({
       expectedRevision: released.revision,
       reservationId: 'reservation-same-book-released',
       sourceVersionId: 'source-same-book-released',
       sourceKey: 'main',
       providerObjectKey: 'private/book-1/source-same-book-released.pdf',
-    }))).rejects.toThrow('sourceKey is already reserved');
+    }));
+    expect(sameBookAfterRelease.operations['reservation-same-book-released']).toMatchObject({
+      bookId: 'book-1',
+      sourceKey: 'main',
+      status: 'reserved',
+    });
     await expect(cleanupRepository.reserve(reservation({
-      expectedRevision: released.revision,
+      expectedRevision: sameBookAfterRelease.revision,
       reservationId: 'reservation-1',
       bookId: 'book-5',
       sourceVersionId: 'source-5',
@@ -249,7 +254,7 @@ describe('SourceUploadRtdbRepository', () => {
       providerObjectKey: 'private/book-5/source-5.pdf',
     }))).rejects.toThrow('reservation identity is immutable');
     await expect(cleanupRepository.reserve(reservation({
-      expectedRevision: released.revision,
+      expectedRevision: sameBookAfterRelease.revision,
       reservationId: 'reservation-global-source-version',
       bookId: 'book-5',
       sourceVersionId: 'source-1',
@@ -257,7 +262,7 @@ describe('SourceUploadRtdbRepository', () => {
       providerObjectKey: 'private/book-5/global-source-version.pdf',
     }))).rejects.toThrow('sourceVersionId is already reserved');
     await expect(cleanupRepository.reserve(reservation({
-      expectedRevision: released.revision,
+      expectedRevision: sameBookAfterRelease.revision,
       reservationId: 'reservation-global-provider-key',
       bookId: 'book-5',
       sourceVersionId: 'source-global-provider-key',
@@ -266,7 +271,7 @@ describe('SourceUploadRtdbRepository', () => {
     }))).rejects.toThrow('providerObjectKey is already reserved');
 
     const otherBook = await cleanupRepository.reserve(reservation({
-      expectedRevision: released.revision,
+      expectedRevision: sameBookAfterRelease.revision,
       reservationId: 'reservation-5',
       bookId: 'book-5',
       sourceVersionId: 'source-5',

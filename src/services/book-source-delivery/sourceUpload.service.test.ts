@@ -8,9 +8,9 @@ import { BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
 import type { SourceUploadInspectionClaim } from './sourceUpload.protocol';
 import type { BookSourceRecoveryContext } from './sourceRecovery.adapter';
 import {
-  createSourceUploadControl,
+  createBookSourceUploadControl,
   SourceUploadControlError,
-  type SourceUploadControlDependencies,
+  type BookSourceUploadControlDependencies,
   type SourceUploadProviderPort,
 } from './sourceUpload.service';
 import { SourceUploadConflictError } from './sourceUpload.rtdbRepository';
@@ -52,12 +52,12 @@ const createHarness = (options: {
   readonly authority?: boolean;
   readonly gate?: boolean;
   readonly provider?: Partial<SourceUploadProviderPort>;
-  readonly rolloutGate?: SourceUploadControlDependencies['rolloutGate'];
+  readonly releaseAuthorization?: BookSourceUploadControlDependencies['releaseAuthorization'];
   readonly reserveError?: string;
   readonly staleCompletion?: boolean;
   readonly crashAfterCompletion?: boolean;
   readonly recoveryContext?: BookSourceRecoveryContext;
-  readonly onVerified?: SourceUploadControlDependencies['onVerified'];
+  readonly onVerified?: BookSourceUploadControlDependencies['onVerified'];
 } = {}) => {
   let gateAllowed = options.gate ?? true;
   let state: BookSourceUploadAccountState = {
@@ -66,7 +66,7 @@ const createHarness = (options: {
     operations: {},
     assemblyBooks: {},
   };
-  const reserve = vi.fn(async (input: Parameters<NonNullable<SourceUploadControlDependencies['repository']>['reserve']>[0]) => {
+  const reserve = vi.fn(async (input: Parameters<BookSourceUploadControlDependencies['repository']['reserve']>[0]) => {
     if (options.reserveError) throw new SourceUploadConflictError(options.reserveError);
     if (input.expectedRevision !== state.revision) throw new SourceUploadConflictError('source upload compare-and-set conflict.');
     const operation: BookSourceUploadOperation = {
@@ -82,7 +82,7 @@ const createHarness = (options: {
     };
     return state;
   });
-  const completeVerified = vi.fn(async (input: Parameters<NonNullable<SourceUploadControlDependencies['repository']>['completeVerified']>[0]) => {
+  const completeVerified = vi.fn(async (input: Parameters<BookSourceUploadControlDependencies['repository']['completeVerified']>[0]) => {
     if (options.staleCompletion) throw new SourceUploadConflictError('source upload compare-and-set conflict.');
     if (input.expectedRevision !== state.revision) throw new SourceUploadConflictError('source upload compare-and-set conflict.');
     const operation = state.operations[input.reservationId];
@@ -168,9 +168,9 @@ const createHarness = (options: {
     authorizeUpload: options.provider?.authorizeUpload ?? authorizeUpload,
     verifyCompletedObject: options.provider?.verifyCompletedObject ?? verifyCompletedObject,
   };
-  const dependencies: SourceUploadControlDependencies = {
+  const dependencies: BookSourceUploadControlDependencies = {
     bookManagementAuthority: { canManageBookSource: async () => options.authority ?? true },
-    rolloutGate: options.rolloutGate ?? { isUploadAllowed: async () => gateAllowed },
+    releaseAuthorization: options.releaseAuthorization ?? { authorizeUpload: async () => gateAllowed },
     deployment: {
       accountId: 'account-1',
       storageLocationId: 'location-1',
@@ -185,7 +185,7 @@ const createHarness = (options: {
     onVerified: options.onVerified,
   };
   return {
-    control: createSourceUploadControl(dependencies),
+    control: createBookSourceUploadControl(dependencies),
     state: () => state,
     reserve,
     completeVerified,
@@ -271,21 +271,20 @@ describe('provider-neutral Source Upload control domain', () => {
     await harness.control.begin(BEGIN_INPUT).catch(() => undefined);
     expect(harness.reserve).not.toHaveBeenCalled();
     await expectCode(createHarness({
-      rolloutGate: { authorizeUpload: async () => undefined as never },
+      releaseAuthorization: { authorizeUpload: async () => undefined as never },
     }).control.begin(BEGIN_INPUT), 'rollout_denied');
     await expect(createHarness({
-      rolloutGate: {
-        authorizeUpload: async () => ({ decision: { allowed: true } }),
-      },
+      releaseAuthorization: { authorizeUpload: async () => true },
     }).control.begin(BEGIN_INPUT)).resolves.toMatchObject({ status: 'reserved' });
   });
 
-  it('fails closed before provider authorization when the reconciliation snapshot is unavailable', async () => {
+  it('fails closed without a reservation when the reconciliation snapshot is unavailable', async () => {
     const harness = createHarness({
       reserveError: 'current healthy provider reconciliation is required before upload authorization.',
     });
     await expectCode(harness.control.begin(BEGIN_INPUT), 'account_state_unavailable');
-    expect(harness.authorizeUpload).not.toHaveBeenCalled();
+    expect(harness.authorizeUpload).toHaveBeenCalledTimes(1);
+    expect(harness.state().operations).toEqual({});
   });
 
   it('rejects stale or incompletely bound provider upload authority', async () => {
@@ -474,10 +473,14 @@ describe('provider-neutral Source Upload control domain', () => {
   });
 
   it('sanitizes provider authorization and verification failures', async () => {
+    const authorizeUpload = vi.fn(async () => { throw { code: 'timeout', retryable: true }; });
     const authFailure = createHarness({
-      provider: { authorizeUpload: vi.fn(async () => { throw { code: 'timeout', retryable: true }; }) },
+      provider: { authorizeUpload },
     });
     await expectCode(authFailure.control.begin(BEGIN_INPUT), 'provider_timeout');
+    expect(authorizeUpload).toHaveBeenCalledTimes(1);
+    expect(authFailure.reserve).not.toHaveBeenCalled();
+    expect(authFailure.state().operations).toEqual({});
 
     const verifyFailure = createHarness({
       provider: { verifyCompletedObject: vi.fn(async () => { throw { code: 'not_found', retryable: false }; }) },

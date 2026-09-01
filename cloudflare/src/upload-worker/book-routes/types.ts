@@ -44,8 +44,8 @@ export interface CanonicalBookRouteDescriptor {
   readonly handler: string;
   readonly firebaseAuth: BookRouteFirebaseAuth;
   readonly rateClass: BookRouteRateClass;
-  readonly gateEnv: string;
-  readonly gateDefault: 'disabled';
+  readonly gateEnv?: string;
+  readonly gateDefault?: 'disabled';
   readonly requestBodyBytes: number;
   readonly responseLimitBytes: number;
   readonly identityEnv?: string;

@@ -1,9 +1,5 @@
 import { getAuth } from 'firebase/auth';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  BOOK_ACTIVITY_ROLLOUT_GATES,
-  isBookActivityRolloutGateEnabled,
-} from '../../config/bookActivityRolloutGates';
 import { FEATURE_IDS } from '../../config/featureRegistry';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import type { MaterialBookMetadata } from '../../types/materialCatalog.types';
@@ -43,7 +39,6 @@ export interface BookMode2EditorShellProps {
   readonly book: MaterialBookMetadata;
   readonly presentation: 'modal' | 'page-compat';
   readonly uploadWorkflow?: SourceUploadBrowserWorkflow | null;
-  readonly uploadPresentationEnabled?: boolean;
   readonly assemblyRepository?: UnitAssemblyRepository | null;
   readonly assemblyMigrationClient?: BookAssemblyMigrationClient | null;
   readonly activityAuthoring?: ActivityAuthoringService | null;
@@ -140,7 +135,6 @@ const BookMode2EditorShell = ({
   book,
   presentation,
   uploadWorkflow,
-  uploadPresentationEnabled,
   assemblyRepository,
   assemblyMigrationClient,
   activityAuthoring,
@@ -158,9 +152,6 @@ const BookMode2EditorShell = ({
 }: BookMode2EditorShellProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
   const source = presentation === 'modal' ? 'book_editor_modal' : 'book_editor_route';
-  const uploadEnabled = uploadPresentationEnabled ?? isBookActivityRolloutGateEnabled(
-    BOOK_ACTIVITY_ROLLOUT_GATES.upload,
-  );
   const resolvedUploadWorkflow = useMemo(
     () => uploadWorkflow === undefined ? configuredUploadWorkflow() : uploadWorkflow,
     [uploadWorkflow],
@@ -283,11 +274,9 @@ const BookMode2EditorShell = ({
     () => assemblyPreviewClient === undefined ? configuredAssemblyPreviewClient() : assemblyPreviewClient,
     [assemblyPreviewClient],
   );
-  const uploadUnavailableMessage = !uploadEnabled
-    ? 'Upload authorization is disabled by the current presentation gate.'
-    : !resolvedUploadWorkflow
-      ? 'Upload authorization is unavailable because the source Worker configuration is missing.'
-      : undefined;
+  const uploadUnavailableMessage = !resolvedUploadWorkflow
+    ? 'Upload authorization is unavailable because the source Worker configuration is missing.'
+    : undefined;
   const candidateLoading = assemblyInitialCandidate === undefined
     && candidateOwnerKeys.length > 0
     && Boolean(resolvedAssemblyRepository?.loadCurrent)
@@ -332,7 +321,6 @@ const BookMode2EditorShell = ({
         presentation={presentation}
         uploadWorkflow={resolvedUploadWorkflow}
         uploadWorkflowForSource={resolvedUploadWorkflowForSource}
-        uploadEnabled={uploadEnabled}
         uploadUnavailableMessage={uploadUnavailableMessage}
         assemblyRepository={resolvedAssemblyRepository}
         assemblyMigrationClient={resolvedAssemblyMigrationClient}

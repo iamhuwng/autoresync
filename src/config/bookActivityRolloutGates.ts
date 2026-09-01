@@ -6,7 +6,6 @@
  */
 const ACTIONS = Object.freeze({
   create: 'create',
-  upload: 'upload',
   publish: 'publish',
   assignPlace: 'assign-place',
   launchDelivery: 'launch-delivery',
@@ -27,7 +26,6 @@ export type BookActivityRolloutGateMode =
 
 export const BOOK_ACTIVITY_ROLLOUT_GATE_ENV = {
   [BOOK_ACTIVITY_ROLLOUT_GATES.create]: 'VITE_BOOK_ACTIVITY_CREATE_PRESENTATION',
-  [BOOK_ACTIVITY_ROLLOUT_GATES.upload]: 'VITE_BOOK_ACTIVITY_UPLOAD_PRESENTATION',
   [BOOK_ACTIVITY_ROLLOUT_GATES.publish]: 'VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION',
   [BOOK_ACTIVITY_ROLLOUT_GATES.assignPlace]: 'VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION',
   [BOOK_ACTIVITY_ROLLOUT_GATES.launchDelivery]: 'VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION',

@@ -107,6 +107,8 @@ export interface SourceUploadBoundOperationState extends SourceUploadSafeOperati
     | 'verified';
   readonly providerFileId?: string;
   readonly providerFileVersionId?: string;
+  readonly bookRevision?: number;
+  readonly sourceSetRevision?: number;
 }
 
 export type SourceUploadSafeOperationState =

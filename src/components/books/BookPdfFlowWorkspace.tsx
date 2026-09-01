@@ -42,7 +42,6 @@ export interface BookPdfFlowWorkspaceProps {
   readonly presentation: 'modal' | 'page-compat';
   readonly uploadWorkflow: SourceUploadBrowserWorkflow | null;
   readonly uploadWorkflowForSource?: (sourceKey: string) => SourceUploadBrowserWorkflow | null;
-  readonly uploadEnabled: boolean;
   readonly uploadUnavailableMessage?: string;
   readonly assemblyRepository?: UnitAssemblyRepository | null;
   readonly assemblyMigrationClient?: BookAssemblyMigrationClient | null;
@@ -102,7 +101,6 @@ const BookPdfFlowWorkspace = ({
   presentation,
   uploadWorkflow,
   uploadWorkflowForSource,
-  uploadEnabled,
   uploadUnavailableMessage,
   assemblyRepository,
   assemblyMigrationClient,
@@ -517,7 +515,7 @@ const BookPdfFlowWorkspace = ({
         {activeUpload && workflow && !persistedReady ? (
           <div className="pbf-real-upload">
             <BookSourceUploadPanel
-              allowFreshUpload={uploadEnabled}
+              allowFreshUpload={canEdit}
               bookId={bookId}
               guided
               instanceKey={`${slot.id}-upload`}
@@ -538,7 +536,7 @@ const BookPdfFlowWorkspace = ({
         ) : (
           <div className="pbf-real-source-panel">
             <BookSourceInspectionPanel
-              canRequestUploadAuthorization={Boolean(canEdit && uploadEnabled && workflow)}
+              canRequestUploadAuthorization={Boolean(canEdit && workflow)}
               guided
               instanceKey={`${slot.id}-inspection`}
               uiVariant="mockup"

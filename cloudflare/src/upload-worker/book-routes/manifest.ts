@@ -37,6 +37,7 @@ import {
 } from './types.ts';
 
 const MAX_CONTROL_REQUEST_BYTES = 256 * 1024;
+const MAX_SOURCE_CONTROL_REQUEST_BYTES = 16 * 1024;
 const MAX_ASSEMBLY_REQUEST_BYTES = 1_200_000;
 const MAX_CONTROL_RESPONSE_BYTES = 256 * 1024;
 const MAX_DOCUMENT_RESPONSE_BYTES = 500 * 1024 * 1024;
@@ -50,7 +51,7 @@ const contributor = (input: {
   readonly handler: string;
   readonly firebaseAuth: CanonicalBookRouteDescriptor['firebaseAuth'];
   readonly rateClass: CanonicalBookRouteDescriptor['rateClass'];
-  readonly gateEnv: string;
+  readonly gateEnv?: string;
   readonly requestBodyBytes: number;
   readonly responseLimitBytes: number;
   readonly identityEnv?: string;
@@ -65,8 +66,7 @@ const contributor = (input: {
   handler: input.handler,
   firebaseAuth: input.firebaseAuth,
   rateClass: input.rateClass,
-  gateEnv: input.gateEnv,
-  gateDefault: 'disabled',
+  ...(input.gateEnv ? { gateEnv: input.gateEnv, gateDefault: 'disabled' as const } : {}),
   requestBodyBytes: input.requestBodyBytes,
   responseLimitBytes: input.responseLimitBytes,
   ...(input.identityEnv ? { identityEnv: input.identityEnv } : {}),
@@ -266,8 +266,7 @@ const sourceUploadRoutes = bookSourceRouteDescriptors.map((route) => contributor
   handler: `bookSource.${route.handler}`,
   firebaseAuth: 'firebase-id-token-teacher',
   rateClass: route.method === 'GET' ? 'book-read' : 'book-control',
-  gateEnv: 'BOOK_SOURCE_UPLOAD_ROUTES_ENABLED',
-  requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
+  requestBodyBytes: route.method === 'GET' ? 0 : MAX_SOURCE_CONTROL_REQUEST_BYTES,
   responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
   identityEnv: 'BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY',
   credentialEnv: 'BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY',
@@ -649,8 +648,12 @@ export const validateBookRouteManifest = (manifest: unknown): BookRouteManifest 
     if (!enumIncludes(BOOK_ROUTE_RATE_CLASSES, descriptor.rateClass)) {
       throw new Error(`book_route_rate_class_invalid:${descriptor.id}`);
     }
-    if (!envName(descriptor.gateEnv) || !/^BOOK_[A-Z0-9]+(?:_[A-Z0-9]+)*_ROUTES_ENABLED$/u.test(descriptor.gateEnv)
-      || descriptor.gateDefault !== 'disabled') {
+    const hasRouteGate = descriptor.gateEnv !== undefined || descriptor.gateDefault !== undefined;
+    if ((!hasRouteGate && descriptor.domain !== 'source-upload')
+      || (hasRouteGate && (typeof descriptor.gateEnv !== 'string'
+        || !envName(descriptor.gateEnv)
+        || !/^BOOK_[A-Z0-9]+(?:_[A-Z0-9]+)*_ROUTES_ENABLED$/u.test(descriptor.gateEnv)
+        || descriptor.gateDefault !== 'disabled'))) {
       throw new Error(`book_route_gate_invalid:${descriptor.id}`);
     }
     const requestBodyBytes = descriptor.requestBodyBytes;

@@ -6,8 +6,6 @@ import { canonicalBookRouteManifest } from '../src/upload-worker/book-routes/man
 const operationId = '11111111-1111-4111-8111-111111111111';
 const beginDescriptor = canonicalBookRouteManifest.find((route) => route.id === 'book.source-upload.begin');
 if (!beginDescriptor) throw new Error('missing_book_source_begin_descriptor');
-const pilotIssuedAt = new Date(Date.now() - 60 * 60_000).toISOString();
-const pilotExpiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
 const inspection = {
   schemaVersion: 1,
   trust: 'browser-supplied-untrusted',
@@ -21,21 +19,6 @@ const inspection = {
 };
 
 const env = {
-  BOOK_SOURCE_UPLOAD_ROUTES_ENABLED: 'enabled',
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1',
-    environment: 'test',
-    revision: 'source-upload-test-1',
-    issuedAt: pilotIssuedAt,
-    expiresAt: pilotExpiresAt,
-    teacherId: 'teacher-1',
-    bookId: 'book-1',
-    assignmentId: 'assignment-1',
-    studentIds: ['student-1'],
-    maxStudents: 30,
-  }),
   BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY: 'book-source@test.iam.gserviceaccount.com',
   BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY: '{"client_email":"book-source@test.iam.gserviceaccount.com","private_key":"private"}',
   BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: 'http://localhost:5173',
@@ -89,8 +72,8 @@ describe('canonical #49 source upload composition', () => {
       descriptor: beginDescriptor,
     });
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    expect(response.init.status).toBe(200);
+    expect(response.body).toMatchObject({
       status: 'reserved',
       reservationId: 'reservation-1',
       sourceVersionId: 'source-version-1',
@@ -105,12 +88,13 @@ describe('canonical #49 source upload composition', () => {
     });
   });
 
-  it('keeps the canonical route disabled by default', async () => {
+  it('does not require the retired source-upload route switch', async () => {
+    const begin = vi.fn(async () => ({ body: { status: 'available' }, init: { status: 200 } }));
     const router = createBookRouter({
       firebaseVerifier: { verifyAuthorizationHeader: async () => ({ valid: true, uid: 'teacher-1' }) },
       routeHandlers: {
         sourceUploadHandlers: {
-          begin: vi.fn(),
+          begin,
         },
       },
     });
@@ -119,34 +103,36 @@ describe('canonical #49 source upload composition', () => {
         method: 'POST',
         headers: { origin: 'http://localhost:5173' },
       }),
-      {
-        BOOK_SOURCE_UPLOAD_ROUTES_ENABLED: 'disabled',
-        BOOK_ROUTE_RATE_LIMITER: { limit: async () => ({ success: true }) },
-      },
+      { ...env, BOOK_ROUTE_RATE_LIMITER: { limit: async () => ({ success: true }) } },
     );
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ code: 'book_route_disabled' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: 'available' });
+    expect(begin).toHaveBeenCalledOnce();
   });
 
   it('fails closed when the allowed-origin binding is missing', async () => {
-    const runtimeFactory = vi.fn();
-    const handlers = createBookSourceUploadWorkerHandlers({ runtimeFactory });
+    const begin = vi.fn();
+    const router = createBookRouter({
+      firebaseVerifier: { verifyAuthorizationHeader: async () => ({ valid: true, uid: 'teacher-1' }) },
+      routeHandlers: { sourceUploadHandlers: { begin } },
+    });
     for (const allowedOrigin of [undefined, '', '   ']) {
-      const response = await handlers.begin({
-        request: new Request('https://book.example/v1/book-source/books/book-1/upload/begin', {
+      const response = await router.fetch(
+        new Request('https://book.example/v1/book-source/books/book-1/upload/begin', {
           method: 'POST',
           headers: { origin: 'http://localhost:5173' },
         }),
-        env: { ...env, BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: allowedOrigin },
-        uid: 'teacher-1',
-        params: { bookId: 'book-1' },
-        descriptor: beginDescriptor,
-      });
+        {
+          ...env,
+          BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: allowedOrigin,
+          BOOK_ROUTE_RATE_LIMITER: { limit: async () => ({ success: true }) },
+        },
+      );
 
       expect(response.status).toBe(500);
       expect(await response.json()).toEqual({ code: 'invalid_deployment' });
     }
-    expect(runtimeFactory).not.toHaveBeenCalled();
+    expect(begin).not.toHaveBeenCalled();
   });
 
   it('fails source-upload preflight closed when the allowed-origin binding is missing', async () => {

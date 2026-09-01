@@ -20,7 +20,6 @@
     "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
     "BOOK_SOURCE_UPLOAD_ACCOUNT_ID": "book_b2_primary",
     "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
-    "BOOK_SOURCE_UPLOAD_ROUTES_ENABLED": "enabled",
     "BOOK_DELIVERY_SERVICE_IDENTITY": "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
     "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY": "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
     "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "enabled",
@@ -29,6 +28,8 @@
     "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5",
     "BOOK_ASSEMBLY_MUTATIONS_ENABLED": "true",
     "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_ROLLOUT_ENVIRONMENT": "staging",
+    "BOOK_ROLLOUT_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"staging\",\"revision\":\"prd0062-release-upload-20260901t064719z\",\"issuedAt\":\"2026-09-01T06:47:19Z\",\"expiresAt\":\"2026-09-01T18:47:19Z\",\"actions\":{\"create\":\"deny\",\"upload\":\"allow\",\"publish\":\"deny\",\"assign-place\":\"deny\",\"launch-delivery\":\"deny\",\"mutation\":\"allow\"}}",
     "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173",
     "BOOK_SOURCE_B2_ENDPOINT": "https://s3.us-west-004.backblazeb2.com",
     "BOOK_SOURCE_B2_REGION": "us-west-004",
@@ -50,5 +51,4 @@
   // BOOK_SOURCE_B2_METADATA_APPLICATION_KEY
   // BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID
   // BOOK_SOURCE_B2_READ_APPLICATION_KEY
-  // BOOK_SOURCE_TICKET49_PREVIEW_GATE_JSON
 }

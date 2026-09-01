@@ -1,9 +1,8 @@
 import {
-  createSourceUploadControl,
+  createBookSourceUploadControl,
   SourceUploadControlError,
-  type SourceUploadControl,
   type SourceUploadBeginResult,
-  type SourceUploadControlDependencies,
+  type BookSourceUploadControlDependencies,
 } from '../../../../src/services/book-source-delivery/sourceUpload.service.ts';
 import {
   createTrustedFirebaseRtdbServiceAccountAccessTokenProvider,
@@ -20,16 +19,15 @@ import type {
   BookSourceUploadOperation,
 } from '../../../../src/types/bookSource.types.ts';
 import type { SourceSetCandidate } from '../../../../src/types/bookAssembly.types.ts';
-import { createBookRolloutTrustedSeamGate } from '../../book-rollout-seams.ts';
 import { createBookRolloutWorkerGate } from '../../book-rollout-gate.ts';
 import {
-  BookPilotScopeDeniedError,
-  enforceBookPilotScopeIfConfigured,
-} from '../../book-pilot-scope.ts';
-import { createBookSourceControlHost, type BookSourceUploadControlService } from '../../book-source-worker/control-host.ts';
+  dispatchBookSourceControlRequest,
+  type BookSourceControlDispatchResult,
+  type BookSourceControlRoute,
+  type BookSourceUploadControlService,
+} from '../../book-source-worker/control-host.ts';
 import { createBackblazeB2SourceProviderFromEnv } from '../../book-source-worker/backblaze-b2-source-provider.ts';
 import type { BookRouteHandlerInput } from '../book-route-handlers.ts';
-import { evaluateTicket49PreviewUploadGate } from './ticket49-preview-gate.ts';
 import {
   attachVerifiedFullPdfSource,
   attachVerifiedSourceSet,
@@ -49,7 +47,6 @@ export interface BookSourceUploadWorkerEnv extends Record<string, unknown> {
   readonly FIREBASE_PROJECT_ID?: unknown;
   readonly BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN?: unknown;
   readonly BOOK_SOURCE_B2_OBJECT_KEY_PREFIX?: unknown;
-  readonly BOOK_SOURCE_TICKET49_PREVIEW_GATE_JSON?: unknown;
 }
 
 export interface BookSourceUploadRuntime {
@@ -225,10 +222,8 @@ const defaultRuntimeFactory = async (
       && profileRecord.forceReauth !== true
       && !['blocked', 'inactive', 'suspended'].includes(String(profileRecord.status ?? ''));
   };
-  const productionRollout = createBookRolloutTrustedSeamGate(
-    createBookRolloutWorkerGate(env),
-  ).upload;
-  const commonDependencies: Omit<SourceUploadControlDependencies, 'rolloutGate'> = {
+  const productionRollout = createBookRolloutWorkerGate(env);
+  const commonDependencies: Omit<BookSourceUploadControlDependencies, 'releaseAuthorization'> = {
     bookManagementAuthority: { canManageBookSource: authorizeOwner },
     deployment: {
       accountId,
@@ -260,36 +255,13 @@ const defaultRuntimeFactory = async (
           sourceSetRevision: attachment.sourceSetRevision,
         })),
   };
-  const productionControl = createSourceUploadControl({
+  const productionControl = createBookSourceUploadControl({
     ...commonDependencies,
     authorizationCache: BOOK_SOURCE_AUTHORIZATION_CACHE,
-    rolloutGate: { authorizeUpload: () => ({ decision: productionRollout() }) },
+    releaseAuthorization: { authorizeUpload: () => productionRollout.upload().allowed },
   });
-  const begin = (input: Parameters<typeof productionControl.begin>[0]) => {
-    if (env.BOOK_SOURCE_TICKET49_PREVIEW_GATE_JSON === undefined) {
-      return productionControl.begin(input);
-    }
-    const previewControl = createSourceUploadControl({
-      ...commonDependencies,
-      authorizationCache: BOOK_SOURCE_AUTHORIZATION_CACHE,
-      rolloutGate: {
-        isUploadAllowed: () => evaluateTicket49PreviewUploadGate(
-          env.BOOK_SOURCE_TICKET49_PREVIEW_GATE_JSON,
-          {
-            teacherId: input.actorId,
-            bookId: input.bookId,
-            providerObjectKeyPrefix: commonDependencies.deployment?.objectKeyPrefix,
-          },
-          new Date(),
-        ),
-      },
-    });
-    // The disposable gate may exercise a replacement after a prior released
-    // drill, while the production path keeps its normal caller-selected kind.
-    return previewControl.begin({ ...input, kind: 'replacement' });
-  };
   const service: BookSourceUploadControlService = {
-    begin,
+    begin: productionControl.begin,
     complete: productionControl.complete,
     attachSourceSet: async ({
       actorId,
@@ -390,57 +362,38 @@ const defaultRuntimeFactory = async (
   return { service };
 };
 
+type CanonicalSourceAction = Extract<
+  BookSourceControlRoute['action'],
+  'begin' | 'complete' | 'attach' | 'status' | 'sources' | 'cancel'
+>;
+
 const handlerFor = (
   options: BookSourceUploadWorkerOptions,
-) => async (input: BookRouteHandlerInput): Promise<Response> => {
-  try {
-    await enforceBookPilotScopeIfConfigured(input);
-  } catch (error) {
-    if (error instanceof BookPilotScopeDeniedError) {
-      return Response.json({ code: error.message, decision: error.decision }, { status: error.status });
-    }
-    return Response.json({ code: 'book_pilot_scope_unavailable' }, { status: 503 });
-  }
+  action: CanonicalSourceAction,
+) => async (input: BookRouteHandlerInput): Promise<BookSourceControlDispatchResult> => {
   const env = input.env as BookSourceUploadWorkerEnv;
-  if (typeof env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN !== 'string'
-    || !env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
-    return Response.json({ code: 'invalid_deployment' }, { status: 500 });
-  }
-  const origin = env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim();
-  if (input.request.headers.get('origin') !== origin) {
-    return Response.json({ code: 'cors_origin_denied' }, { status: 403 });
-  }
   const runtime = await (options.runtimeFactory ?? defaultRuntimeFactory)(env);
-  return createBookSourceControlHost({
+  const bookId = input.params.bookId!;
+  const route: BookSourceControlRoute = action === 'begin' || action === 'attach' || action === 'sources'
+    ? { action, bookId }
+    : { action, bookId, reservationId: input.params.reservationId! };
+  return dispatchBookSourceControlRequest({
+    request: input.request,
+    uid: input.uid,
+    route,
     service: runtime.service,
-    pilotScope: ({ actorId, bookId, operation, request }) => enforceBookPilotScopeIfConfigured({
-      env,
-      uid: actorId,
-      request,
-      operation,
-      actorKind: 'teacher',
-      bookId,
-      requireBook: true,
-    }),
-    verifier: {
-      verifyAuthorizationHeader: async () => ({ valid: true, uid: input.uid }),
-    },
-  }).fetch(input.request, {
-    FIREBASE_PROJECT_ID: typeof env.FIREBASE_PROJECT_ID === 'string' ? env.FIREBASE_PROJECT_ID : '',
-    BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: origin,
   });
 };
 
 export const createBookSourceUploadWorkerHandlers = (
   options: BookSourceUploadWorkerOptions = {},
 ) => {
-  const handler = handlerFor(options);
   return Object.freeze({
-    begin: handler,
-    complete: handler,
-    attach: handler,
-    status: handler,
-    sources: handler,
-    cancel: handler,
+    begin: handlerFor(options, 'begin'),
+    complete: handlerFor(options, 'complete'),
+    attach: handlerFor(options, 'attach'),
+    status: handlerFor(options, 'status'),
+    sources: handlerFor(options, 'sources'),
+    cancel: handlerFor(options, 'cancel'),
   });
 };

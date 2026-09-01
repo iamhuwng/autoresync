@@ -102,7 +102,6 @@ describe('BookPdfFlowWorkspace student preview', () => {
         title={`${_label} Book`}
         presentation="modal"
         uploadWorkflow={null}
-        uploadEnabled={false}
         assemblySourceVersions={strategy === 'component_pdfs'
           ? [
               { sourceVersionId: 'source-a', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true },
@@ -149,7 +148,6 @@ describe('BookPdfFlowWorkspace student preview', () => {
         title="Component-PDF Book"
         presentation="modal"
         uploadWorkflow={null}
-        uploadEnabled={false}
         assemblySourceVersions={[
           { sourceVersionId: 'source-a', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true },
           { sourceVersionId: 'source-b', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true },

@@ -82,6 +82,8 @@ export interface BookSourceUploadControlService {
     readonly status: 'verified_completed';
     readonly reservationId: string;
     readonly sourceVersionId: string;
+    readonly bookRevision?: number;
+    readonly sourceSetRevision?: number;
   }>;
   status?(input: {
     readonly actorId: string;
@@ -116,12 +118,6 @@ interface BookSourceUploadSafeLifecycleStatus {
 export interface BookSourceControlHostOptions {
   readonly service: BookSourceUploadControlService;
   readonly verifier?: ControlHostVerifier;
-  readonly pilotScope?: (input: {
-    readonly actorId: string;
-    readonly bookId: string;
-    readonly operation: 'upload' | 'mutation';
-    readonly request: Request;
-  }) => Promise<void> | void;
 }
 
 class ControlRequestError extends Error {
@@ -267,7 +263,7 @@ const parseBody = async (request: Request): Promise<Record<string, unknown>> => 
   }
 };
 
-type Route =
+export type BookSourceControlRoute =
   | { readonly action: 'begin'; readonly bookId: string }
   | { readonly action: 'attach'; readonly bookId: string }
   | { readonly action: 'sources'; readonly bookId: string }
@@ -277,7 +273,7 @@ type Route =
       readonly reservationId: string;
     };
 
-const routeFor = (request: Request): Route | undefined => {
+const routeFor = (request: Request): BookSourceControlRoute | undefined => {
   const segments = new URL(request.url).pathname.split('/').filter(Boolean).map(decodeURIComponent);
   if (
     request.method === 'POST'
@@ -377,10 +373,6 @@ const publicFailure = (error: unknown): { readonly code: string; readonly status
       ? candidate
       : undefined;
     if (code) {
-      if (code === 'book_pilot_scope_denied'
-        && isRecord(error) && typeof error.status === 'number') {
-        return { code, status: error.status };
-      }
       if (code === 'authority_denied') return { code, status: 403 };
       if (code === 'invalid_input' || code === 'invalid_claim') return { code, status: 400 };
       if (code.startsWith('material_book_source_attachment_')) {
@@ -409,6 +401,162 @@ const publicFailure = (error: unknown): { readonly code: string; readonly status
   return { code: 'book_source_upload_unavailable', status: 503 };
 };
 
+export interface BookSourceControlDispatchInput {
+  readonly request: Request;
+  readonly uid: string;
+  readonly route: BookSourceControlRoute;
+  readonly service: BookSourceUploadControlService;
+}
+
+export interface BookSourceControlDispatchResult {
+  readonly body: unknown;
+  readonly init: { readonly status: number };
+}
+
+const dispatchResult = (body: unknown, status = 200): BookSourceControlDispatchResult => ({
+  body,
+  init: { status },
+});
+
+/** Trusted dispatch after the canonical HTTP boundary has authenticated and routed the request. */
+export const dispatchBookSourceControlRequest = async ({
+  request,
+  uid,
+  route,
+  service,
+}: BookSourceControlDispatchInput): Promise<BookSourceControlDispatchResult> => {
+  try {
+    if (route.action === 'status') {
+      if (!service.status) throw new ControlRequestError('cleanup_unavailable', 503);
+      return dispatchResult(await service.status({
+        actorId: uid,
+        bookId: route.bookId,
+        reservationId: route.reservationId,
+      }));
+    }
+
+    if (route.action === 'sources') {
+      if (!service.sources) throw new ControlRequestError('source_projection_unavailable', 503);
+      return dispatchResult(await service.sources({ actorId: uid, bookId: route.bookId }));
+    }
+
+    const body = await parseBody(request);
+    if (route.action === 'attach') {
+      if (!service.attachSourceSet
+        || !exactKeys(body, ['operationId', 'expectedBookRevision', 'expectedSourceSetRevision', 'sourceSet'])) {
+        throw new ControlRequestError('invalid_source_set_attach_request', service.attachSourceSet ? 400 : 503);
+      }
+      if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)
+        || request.headers.get('idempotency-key') !== body.operationId
+        || !Number.isSafeInteger(body.expectedBookRevision) || (body.expectedBookRevision as number) < 0
+        || !Number.isSafeInteger(body.expectedSourceSetRevision) || (body.expectedSourceSetRevision as number) < 0) {
+        throw new ControlRequestError('invalid_source_set_attach_request', 400);
+      }
+      return dispatchResult(await service.attachSourceSet({
+        actorId: uid,
+        bookId: route.bookId,
+        operationId: body.operationId,
+        expectedBookRevision: body.expectedBookRevision as number,
+        expectedSourceSetRevision: body.expectedSourceSetRevision as number,
+        sourceSet: parseSourceSet(body.sourceSet),
+      }));
+    }
+
+    if (route.action === 'begin') {
+      if (!exactKeys(body, ['operationId', 'sourceKey', 'kind', 'inspection'])) {
+        throw new ControlRequestError('invalid_begin_request', 400);
+      }
+      if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)) {
+        throw new ControlRequestError('invalid_operation_id', 400);
+      }
+      if (request.headers.get('idempotency-key') !== body.operationId) {
+        throw new ControlRequestError('idempotency_mismatch', 409);
+      }
+      if (body.kind !== 'initial' && body.kind !== 'replacement') {
+        throw new ControlRequestError('invalid_upload_kind', 400);
+      }
+      const result = await service.begin({
+        actorId: uid,
+        bookId: route.bookId,
+        idempotencyKey: body.operationId,
+        sourceKey: safeId(body.sourceKey, 'source_key'),
+        kind: body.kind,
+        claim: parseInspection(body.inspection),
+      });
+      return dispatchResult({
+        status: result.status,
+        reservationId: result.reservationId,
+        sourceVersionId: result.sourceVersionId,
+        upload: {
+          url: result.uploadUrl,
+          expiresAt: result.expiresAt,
+          requiredHeaders: result.requiredHeaders,
+        },
+      });
+    }
+
+    if (route.action === 'cancel') {
+      if (!service.requestCleanup) throw new ControlRequestError('cleanup_unavailable', 503);
+      const hasIdentity = exactKeys(body, ['providerFileId', 'providerFileVersionId']);
+      if (!hasIdentity && !exactKeys(body, [])) {
+        throw new ControlRequestError('invalid_cancel_request', 400);
+      }
+      return dispatchResult(await service.requestCleanup({
+        actorId: uid,
+        bookId: route.bookId,
+        reservationId: route.reservationId,
+        reason: 'cancel_requested',
+        ...(hasIdentity ? {
+          providerFileId: safeId(body.providerFileId, 'provider_file_id'),
+          providerFileVersionId: safeId(body.providerFileVersionId, 'provider_file_version_id'),
+        } : {}),
+      }));
+    }
+
+    if (route.action === 'retry' || route.action === 'reconcile') {
+      if (!service.reconcile || !exactKeys(body, [])) {
+        throw new ControlRequestError(
+          route.action === 'retry' ? 'invalid_retry_request' : 'invalid_reconcile_request',
+          service.reconcile ? 400 : 503,
+        );
+      }
+      return dispatchResult(await service.reconcile({
+        actorId: uid,
+        bookId: route.bookId,
+        reservationId: route.reservationId,
+      }));
+    }
+
+    if (!exactKeys(body, ['providerFileId', 'providerFileVersionId'])) {
+      throw new ControlRequestError('invalid_complete_request', 400);
+    }
+    const result = await service.complete({
+      actorId: uid,
+      bookId: route.bookId,
+      reservationId: route.reservationId,
+      providerFileId: safeId(body.providerFileId, 'provider_file_id'),
+      providerFileVersionId: safeId(body.providerFileVersionId, 'provider_file_version_id'),
+    });
+    return dispatchResult({
+      status: result.status,
+      reservationId: result.reservationId,
+      sourceVersionId: result.sourceVersionId,
+      ...(result.bookRevision !== undefined && result.sourceSetRevision !== undefined
+        ? { bookRevision: result.bookRevision, sourceSetRevision: result.sourceSetRevision }
+        : {}),
+    });
+  } catch (error) {
+    const failure = publicFailure(error);
+    console.info('book_source_control_failure_detail', {
+      code: failure.code,
+      status: failure.status,
+      name: error instanceof Error ? error.name : typeof error,
+      message: error instanceof Error ? error.message : undefined,
+    });
+    return dispatchResult({ code: failure.code }, failure.status);
+  }
+};
+
 export const createBookSourceControlHost = (options: BookSourceControlHostOptions) => ({
   async fetch(request: Request, env: ControlHostEnv): Promise<Response> {
     if (request.method === 'OPTIONS') {
@@ -424,141 +572,13 @@ export const createBookSourceControlHost = (options: BookSourceControlHostOption
         return json(request, env, { code: 'unauthorized' }, 401);
       }
 
-      if (route.action !== 'status' && route.action !== 'sources') {
-        if (!options.pilotScope) throw new ControlRequestError('book_pilot_scope_unavailable', 503);
-        await options.pilotScope({
-          actorId: authorization.uid,
-          bookId: route.bookId,
-          operation: route.action === 'begin' ? 'upload' : 'mutation',
-          request,
-        });
-      }
-
-      if (route.action === 'status') {
-        if (!options.service.status) throw new ControlRequestError('cleanup_unavailable', 503);
-        return json(request, env, await options.service.status({
-          actorId: authorization.uid,
-          bookId: route.bookId,
-          reservationId: route.reservationId,
-        }));
-      }
-
-      if (route.action === 'sources') {
-        if (!options.service.sources) throw new ControlRequestError('source_projection_unavailable', 503);
-        return json(request, env, await options.service.sources({
-          actorId: authorization.uid,
-          bookId: route.bookId,
-        }));
-      }
-
-      const body = await parseBody(request);
-      if (route.action === 'attach') {
-        if (!options.service.attachSourceSet
-          || !exactKeys(body, ['operationId', 'expectedBookRevision', 'expectedSourceSetRevision', 'sourceSet'])) {
-          throw new ControlRequestError('invalid_source_set_attach_request', options.service.attachSourceSet ? 400 : 503);
-        }
-        if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)
-          || request.headers.get('idempotency-key') !== body.operationId
-          || !Number.isSafeInteger(body.expectedBookRevision) || (body.expectedBookRevision as number) < 0
-          || !Number.isSafeInteger(body.expectedSourceSetRevision) || (body.expectedSourceSetRevision as number) < 0) {
-          throw new ControlRequestError('invalid_source_set_attach_request', 400);
-        }
-        const result = await options.service.attachSourceSet({
-          actorId: authorization.uid,
-          bookId: route.bookId,
-          operationId: body.operationId,
-          expectedBookRevision: body.expectedBookRevision as number,
-          expectedSourceSetRevision: body.expectedSourceSetRevision as number,
-          sourceSet: parseSourceSet(body.sourceSet),
-        });
-        return json(request, env, result);
-      }
-      if (route.action === 'begin') {
-        if (!exactKeys(body, ['operationId', 'sourceKey', 'kind', 'inspection'])) {
-          throw new ControlRequestError('invalid_begin_request', 400);
-        }
-        if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)) {
-          throw new ControlRequestError('invalid_operation_id', 400);
-        }
-        if (request.headers.get('idempotency-key') !== body.operationId) {
-          throw new ControlRequestError('idempotency_mismatch', 409);
-        }
-        if (body.kind !== 'initial' && body.kind !== 'replacement') {
-          throw new ControlRequestError('invalid_upload_kind', 400);
-        }
-        const result = await options.service.begin({
-          actorId: authorization.uid,
-          bookId: route.bookId,
-          idempotencyKey: body.operationId,
-          sourceKey: safeId(body.sourceKey, 'source_key'),
-          kind: body.kind,
-          claim: parseInspection(body.inspection),
-        });
-        return json(request, env, {
-          status: result.status,
-          reservationId: result.reservationId,
-          sourceVersionId: result.sourceVersionId,
-          upload: {
-            url: result.uploadUrl,
-            expiresAt: result.expiresAt,
-            requiredHeaders: result.requiredHeaders,
-          },
-        });
-      }
-
-      if (route.action === 'cancel') {
-        if (!options.service.requestCleanup) throw new ControlRequestError('cleanup_unavailable', 503);
-        const hasIdentity = exactKeys(body, ['providerFileId', 'providerFileVersionId']);
-        if (!hasIdentity && !exactKeys(body, [])) {
-          throw new ControlRequestError('invalid_cancel_request', 400);
-        }
-        return json(request, env, await options.service.requestCleanup({
-          actorId: authorization.uid,
-          bookId: route.bookId,
-          reservationId: route.reservationId,
-          reason: 'cancel_requested',
-          ...(hasIdentity ? {
-            providerFileId: safeId(body.providerFileId, 'provider_file_id'),
-            providerFileVersionId: safeId(body.providerFileVersionId, 'provider_file_version_id'),
-          } : {}),
-        }));
-      }
-
-      if (route.action === 'retry' || route.action === 'reconcile') {
-        if (!options.service.reconcile || !exactKeys(body, [])) {
-          throw new ControlRequestError(
-            route.action === 'retry' ? 'invalid_retry_request' : 'invalid_reconcile_request',
-            options.service.reconcile ? 400 : 503,
-          );
-        }
-        return json(request, env, await options.service.reconcile({
-          actorId: authorization.uid,
-          bookId: route.bookId,
-          reservationId: route.reservationId,
-        }));
-      }
-
-      if (!exactKeys(body, ['providerFileId', 'providerFileVersionId'])) {
-        throw new ControlRequestError('invalid_complete_request', 400);
-      }
-      const result = await options.service.complete({
-        actorId: authorization.uid,
-        bookId: route.bookId,
-        reservationId: route.reservationId,
-        providerFileId: safeId(body.providerFileId, 'provider_file_id'),
-        providerFileVersionId: safeId(body.providerFileVersionId, 'provider_file_version_id'),
+      const result = await dispatchBookSourceControlRequest({
+        request,
+        uid: authorization.uid,
+        route,
+        service: options.service,
       });
-      return json(request, env, {
-        status: result.status,
-        reservationId: result.reservationId,
-        sourceVersionId: result.sourceVersionId,
-        ...(result.bookRevision !== undefined && result.sourceSetRevision !== undefined
-          ? {
-              bookRevision: result.bookRevision,
-              sourceSetRevision: result.sourceSetRevision,
-            }
-          : {}),
-      });
+      return json(request, env, result.body, result.init.status);
     } catch (error) {
       const failure = publicFailure(error);
       console.info('book_source_control_failure_detail', {

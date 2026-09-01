@@ -1,44 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBookSourceControlHost } from '../src/book-source-worker/control-host';
-import { enforceBookPilotScopeIfConfigured } from '../src/book-pilot-scope';
 
 const env = {
   FIREBASE_PROJECT_ID: 'project',
   BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: 'http://localhost:5173',
 };
-const pilotIssuedAt = new Date(Date.now() - 60 * 60_000).toISOString();
-const pilotExpiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
-const pilotEnv = {
-  BOOK_PILOT_SCOPE_ENFORCEMENT: 'enabled',
-  BOOK_PILOT_SCOPE_ENVIRONMENT: 'test',
-  BOOK_PILOT_SCOPE_CONFIG_JSON: JSON.stringify({
-    schemaVersion: 'v1',
-    environment: 'test',
-    revision: 'source-control-test-1',
-    issuedAt: pilotIssuedAt,
-    expiresAt: pilotExpiresAt,
-    teacherId: 'teacher-1',
-    bookId: 'book-1',
-    assignmentId: 'assignment-1',
-    studentIds: ['student-1'],
-    maxStudents: 30,
-  }),
-  BOOK_PILOT_SCOPE_AUDIT: vi.fn(),
-};
-const pilotScope = ({ actorId, bookId, operation, request }: {
-  readonly actorId: string;
-  readonly bookId: string;
-  readonly operation: 'upload' | 'mutation';
-  readonly request: Request;
-}) => enforceBookPilotScopeIfConfigured({
-  env: pilotEnv,
-  uid: actorId,
-  request,
-  operation,
-  actorKind: 'teacher',
-  bookId,
-  requireBook: true,
-});
 const verifier = {
   verifyAuthorizationHeader: vi.fn(async () => ({ valid: true, uid: 'teacher-1' })),
 };
@@ -85,7 +51,7 @@ describe('book source control host', () => {
       })),
       complete: vi.fn(),
     };
-    const host = createBookSourceControlHost({ service, verifier, pilotScope });
+    const host = createBookSourceControlHost({ service, verifier });
     const response = await host.fetch(post(
       '/v1/book-source/books/book-1/upload/begin',
       { operationId, sourceKey: 'source-1', kind: 'initial', inspection },
@@ -113,7 +79,7 @@ describe('book source control host', () => {
         sourceVersionId: 'source-version-1',
       })),
     };
-    const host = createBookSourceControlHost({ service, verifier, pilotScope });
+    const host = createBookSourceControlHost({ service, verifier });
     const response = await host.fetch(post(
       '/v1/book-source/books/book-1/upload/reservation-1/complete',
       { providerFileId: 'file-1', providerFileVersionId: 'version-1' },
@@ -143,7 +109,7 @@ describe('book source control host', () => {
       complete: vi.fn(),
       sources: vi.fn(async () => ({ sources })),
     };
-    const host = createBookSourceControlHost({ service, verifier, pilotScope });
+    const host = createBookSourceControlHost({ service, verifier });
     const response = await host.fetch(new Request(
       'https://control.example/v1/book-source/books/book-1/sources',
       { headers: { authorization: 'Bearer token', origin: 'http://localhost:5173' } },
@@ -163,7 +129,7 @@ describe('book source control host', () => {
     expect((await deniedHost.fetch(post('/v1/book-source/books/book-1/upload/begin', {}), env)).status)
       .toBe(401);
 
-    const host = createBookSourceControlHost({ service, verifier, pilotScope });
+    const host = createBookSourceControlHost({ service, verifier });
     const oversized = post(
       '/v1/book-source/books/book-1/upload/begin',
       { padding: 'x'.repeat(17 * 1024) },
@@ -197,7 +163,6 @@ describe('book source control host', () => {
   it('does not reflect unapproved origins or leak unknown errors', async () => {
     const host = createBookSourceControlHost({
       verifier,
-      pilotScope,
       service: {
         begin: vi.fn(async () => {
           throw { code: 'internal_database_secret', status: 418 };
@@ -220,7 +185,6 @@ describe('book source control host', () => {
   it('preserves only known bounded service Error codes', async () => {
     const host = createBookSourceControlHost({
       verifier,
-      pilotScope,
       service: {
         begin: vi.fn(),
         complete: vi.fn(),
@@ -253,7 +217,7 @@ describe('book source control host', () => {
       requestCleanup: vi.fn(async () => status),
       reconcile: vi.fn(async () => ({ ...status, status: 'released' as const, retryKind: 'none' as const })),
     };
-    const host = createBookSourceControlHost({ service, verifier, pilotScope });
+    const host = createBookSourceControlHost({ service, verifier });
     const get = new Request(
       'https://control.example/v1/book-source/books/book-1/upload/reservation-1/status',
       { headers: { authorization: 'Bearer token', origin: 'http://localhost:5173' } },

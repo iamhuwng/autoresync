@@ -114,17 +114,11 @@ export class SourceUploadControlError extends Error {
 }
 
 export interface SourceUploadBookManagementAuthority {
-  readonly canManageBookSource?: (input: { readonly actorId: string; readonly bookId: string }) => boolean | Promise<boolean>;
-  readonly authorize?: (input: { readonly actorId: string; readonly bookId: string }) => boolean | Promise<boolean>;
+  readonly canManageBookSource: (input: { readonly actorId: string; readonly bookId: string }) => boolean | Promise<boolean>;
 }
 
-export interface SourceUploadRolloutGate {
-  readonly isUploadAllowed?: () => boolean | Promise<boolean>;
-  readonly authorizeUpload?: () =>
-    | boolean
-    | { readonly decision: { readonly allowed: boolean } }
-    | Promise<boolean | { readonly decision: { readonly allowed: boolean } }>;
-  readonly evaluate?: (operation: 'upload') => { readonly allowed: boolean } | boolean;
+export interface BookSourceUploadReleaseAuthorization {
+  readonly authorizeUpload: () => boolean | Promise<boolean>;
 }
 
 export interface SourceUploadDeploymentConfig {
@@ -135,31 +129,24 @@ export interface SourceUploadDeploymentConfig {
   readonly objectKeyPrefix?: string;
 }
 
-export type SourceUploadAccountStateReader =
-  | { readonly read: (accountId: string) => BookSourceUploadAccountState | null | Promise<BookSourceUploadAccountState | null> }
-  | { readonly readAccountState: (accountId: string) => BookSourceUploadAccountState | null | Promise<BookSourceUploadAccountState | null> }
-  | ((accountId: string) => BookSourceUploadAccountState | null | Promise<BookSourceUploadAccountState | null>);
+export interface SourceUploadAccountStateReader {
+  readonly read: (accountId: string) => BookSourceUploadAccountState | null | Promise<BookSourceUploadAccountState | null>;
+}
 
 export interface SourceUploadClock {
   readonly now: () => Date;
 }
 
-export interface SourceUploadControlDependencies {
-  readonly bookManagementAuthority?: SourceUploadBookManagementAuthority;
-  readonly bookAccess?: SourceUploadBookManagementAuthority;
-  readonly bookManagement?: SourceUploadBookManagementAuthority;
-  readonly rolloutGate: SourceUploadRolloutGate;
-  readonly deployment?: SourceUploadDeploymentConfig;
-  readonly deploymentConfig?: SourceUploadDeploymentConfig;
-  readonly accountStateReader?: SourceUploadAccountStateReader;
-  readonly trustedAccountStateReader?: SourceUploadAccountStateReader;
-  readonly repository?: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
-  readonly sourceUploadRepository?: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
-  readonly provider?: SourceUploadProviderPort;
-  readonly sourceProvider?: SourceUploadProviderPort;
+export interface BookSourceUploadControlDependencies {
+  readonly bookManagementAuthority: SourceUploadBookManagementAuthority;
+  readonly releaseAuthorization: BookSourceUploadReleaseAuthorization;
+  readonly deployment: SourceUploadDeploymentConfig;
+  readonly accountStateReader: SourceUploadAccountStateReader;
+  readonly repository: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
+  readonly provider: SourceUploadProviderPort;
   /** Worker-memory cache for short-lived exact replay authorities only. */
   readonly authorizationCache?: Map<string, SourceUploadBeginResult>;
-  readonly clock?: SourceUploadClock | (() => Date);
+  readonly clock: SourceUploadClock;
   readonly reservationTtlMs?: number;
   /** Canonical recovery never creates a new upload or verifies provider bytes. */
   readonly recoveryContext?: BookSourceRecoveryContext;
@@ -215,14 +202,14 @@ export interface SourceUploadVerifiedAuthority {
   readonly sourceSetRevision: number;
 }
 
-export interface SourceUploadControl {
+export interface BookSourceUploadControl {
   readonly begin: (input: BeginSourceUploadInput) => Promise<SourceUploadBeginResult>;
   readonly complete: (input: CompleteSourceUploadInput) => Promise<SourceUploadVerifiedOperation>;
 }
 
 type ResolvedDependencies = {
   readonly authority: SourceUploadBookManagementAuthority;
-  readonly rolloutGate: SourceUploadRolloutGate;
+  readonly releaseAuthorization: BookSourceUploadReleaseAuthorization;
   readonly deployment: SourceUploadDeploymentConfig & { readonly objectKeyPrefix: string };
   readonly accountStateReader: SourceUploadAccountStateReader;
   readonly repository: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
@@ -304,14 +291,10 @@ function assertClaim(value: unknown): asserts value is SourceUploadInspectionCla
   }
 }
 
-const resolveDependencies = (input: SourceUploadControlDependencies): ResolvedDependencies => {
-  const authority = input.bookManagementAuthority ?? input.bookAccess ?? input.bookManagement;
-  const deployment = input.deployment ?? input.deploymentConfig;
-  const accountStateReader = input.accountStateReader ?? input.trustedAccountStateReader;
-  const repository = input.repository ?? input.sourceUploadRepository;
-  const provider = input.provider ?? input.sourceProvider;
-  if (!authority || (!authority.canManageBookSource && !authority.authorize)
-    || !deployment || !accountStateReader || !repository || !provider) {
+const resolveDependencies = (input: BookSourceUploadControlDependencies): ResolvedDependencies => {
+  const { bookManagementAuthority, releaseAuthorization, deployment, accountStateReader, repository, provider } = input;
+  if (!bookManagementAuthority?.canManageBookSource || !releaseAuthorization?.authorizeUpload
+    || !deployment || !accountStateReader?.read || !repository || !provider) {
     throw new SourceUploadControlError('invalid_deployment');
   }
   for (const value of [
@@ -328,11 +311,11 @@ const resolveDependencies = (input: SourceUploadControlDependencies): ResolvedDe
   if (!Number.isSafeInteger(reservationTtlMs) || reservationTtlMs <= 0 || reservationTtlMs > MAX_RESERVATION_TTL_MS) {
     throw new SourceUploadControlError('invalid_deployment');
   }
-  const clock = typeof input.clock === 'function' ? input.clock : input.clock?.now;
+  const clock = input.clock?.now;
   if (!clock) throw new SourceUploadControlError('invalid_deployment');
   return {
-    authority,
-    rolloutGate: input.rolloutGate,
+    authority: bookManagementAuthority,
+    releaseAuthorization,
     deployment: Object.freeze({ ...deployment, objectKeyPrefix }),
     accountStateReader,
     repository,
@@ -346,9 +329,7 @@ const resolveDependencies = (input: SourceUploadControlDependencies): ResolvedDe
 
 const readAccountState = async (reader: SourceUploadAccountStateReader, accountId: string): Promise<BookSourceUploadAccountState> => {
   try {
-    const value = typeof reader === 'function'
-      ? await reader(accountId)
-      : 'read' in reader ? await reader.read(accountId) : await reader.readAccountState(accountId);
+    const value = await reader.read(accountId);
     if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0 || !value.operations) {
       throw new SourceUploadControlError('account_state_unavailable');
     }
@@ -361,9 +342,7 @@ const readAccountState = async (reader: SourceUploadAccountStateReader, accountI
 
 const authorizeBook = async (authority: SourceUploadBookManagementAuthority, actorId: string, bookId: string): Promise<void> => {
   try {
-    const result = authority.canManageBookSource
-      ? await authority.canManageBookSource({ actorId, bookId })
-      : await authority.authorize!({ actorId, bookId });
+    const result = await authority.canManageBookSource({ actorId, bookId });
     if (result !== true) throw new SourceUploadControlError('authority_denied');
   } catch (error) {
     if (error instanceof SourceUploadControlError) throw error;
@@ -371,33 +350,15 @@ const authorizeBook = async (authority: SourceUploadBookManagementAuthority, act
   }
 };
 
-const assertUploadGate = async (gate: SourceUploadRolloutGate): Promise<void> => {
+const assertUploadAuthorized = async (authorization: BookSourceUploadReleaseAuthorization): Promise<void> => {
   try {
-    if (gate.authorizeUpload) {
-      const result = await gate.authorizeUpload();
-      const allowed = result === true
-        || (isPlainRecord(result)
-          && isPlainRecord(result.decision)
-          && result.decision.allowed === true);
-      if (!allowed) throw new SourceUploadControlError('rollout_denied');
-      return;
-    }
-    if (gate.isUploadAllowed) {
-      if ((await gate.isUploadAllowed()) !== true) throw new SourceUploadControlError('rollout_denied');
-      return;
-    }
-    if (gate.evaluate) {
-      const result = gate.evaluate('upload');
-      if ((typeof result === 'boolean' ? result : result.allowed) !== true) {
-        throw new SourceUploadControlError('rollout_denied');
-      }
-      return;
+    if ((await authorization.authorizeUpload()) !== true) {
+      throw new SourceUploadControlError('rollout_denied');
     }
   } catch (error) {
     if (error instanceof SourceUploadControlError) throw error;
     throw new SourceUploadControlError('rollout_denied');
   }
-  throw new SourceUploadControlError('rollout_denied');
 };
 
 const nowIso = (clock: () => Date): Date => {
@@ -625,12 +586,12 @@ const completeRepositoryError = (error: unknown): SourceUploadControlError => {
   return new SourceUploadControlError('reservation_conflict');
 };
 
-const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadControlDependencies): Promise<SourceUploadBeginResult> => {
+const begin = async (input: BeginSourceUploadInput, dependencies: BookSourceUploadControlDependencies): Promise<SourceUploadBeginResult> => {
   assertBeginInput(input);
   const resolved = resolveDependencies(dependencies);
   if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
   await authorizeBook(resolved.authority, input.actorId, input.bookId);
-  await assertUploadGate(resolved.rolloutGate);
+  await assertUploadAuthorized(resolved.releaseAuthorization);
   const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
   const requestNow = nowIso(resolved.clock);
   for (const [cachedReservationId, cachedAuthorization] of resolved.authorizationCache) {
@@ -730,6 +691,7 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
     createdAt: createdAt.toISOString(),
     expiresAt,
   };
+  const authorized = await providerAuthorization(resolved.provider, reservation, 'reserved', createdAt);
   try {
     await resolved.repository.reserve(reservation);
   } catch (error) {
@@ -743,12 +705,11 @@ const begin = async (input: BeginSourceUploadInput, dependencies: SourceUploadCo
     }
     throw new SourceUploadControlError('reservation_conflict');
   }
-  const authorized = await providerAuthorization(resolved.provider, reservation, 'reserved', createdAt);
   cacheAuthorization(resolved.authorizationCache, identity.reservationId, authorized, createdAt.getTime());
   return authorized;
 };
 
-const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUploadControlDependencies): Promise<SourceUploadVerifiedOperation> => {
+const complete = async (input: CompleteSourceUploadInput, dependencies: BookSourceUploadControlDependencies): Promise<SourceUploadVerifiedOperation> => {
   assertCompleteInput(input);
   const resolved = resolveDependencies(dependencies);
   if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
@@ -851,7 +812,7 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: SourceUp
   return finishVerified(completed);
 };
 
-export const createSourceUploadControl = (dependencies: SourceUploadControlDependencies): SourceUploadControl => {
+export const createBookSourceUploadControl = (dependencies: BookSourceUploadControlDependencies): BookSourceUploadControl => {
   const authorizationCache = dependencies.authorizationCache ?? new Map<string, SourceUploadBeginResult>();
   const resolvedDependencies = { ...dependencies, authorizationCache };
   return Object.freeze({
@@ -862,14 +823,14 @@ export const createSourceUploadControl = (dependencies: SourceUploadControlDepen
 
 export async function beginSourceUpload(
   input: BeginSourceUploadInput,
-  dependencies: SourceUploadControlDependencies,
+  dependencies: BookSourceUploadControlDependencies,
 ): Promise<SourceUploadBeginResult> {
   return begin(input, dependencies);
 }
 
 export async function completeSourceUpload(
   input: CompleteSourceUploadInput,
-  dependencies: SourceUploadControlDependencies,
+  dependencies: BookSourceUploadControlDependencies,
 ): Promise<SourceUploadVerifiedOperation> {
   return complete(input, dependencies);
 }

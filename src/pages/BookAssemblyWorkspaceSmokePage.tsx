@@ -1390,7 +1390,6 @@ export default function BookAssemblyWorkspaceSmokePage() {
         book={{ ...smokeBook, title: fixtureTitle }}
         onDirtyChange={setDirty}
         presentation="page-compat"
-        uploadPresentationEnabled={pdfUploadFixture || false}
         uploadWorkflow={pdfUploadFixture ? pdfUploadWorkflow : ticket50UploadWorkflow}
       />
     </main>

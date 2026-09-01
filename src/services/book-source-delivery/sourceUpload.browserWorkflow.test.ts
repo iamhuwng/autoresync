@@ -90,7 +90,7 @@ const setup = () => {
 };
 
 describe('sourceUpload.browserWorkflow', () => {
-  it('persists the same idempotency key across a rejected durable begin response and HTTP replay', async () => {
+  it('persists the same idempotency key across ambiguous begin failure, denied retry, and replay', async () => {
     const state = statePort();
     const operationIds: string[] = [];
     let beginAttempt = 0;
@@ -100,15 +100,18 @@ describe('sourceUpload.browserWorkflow', () => {
         const command = JSON.parse(String(init?.body)) as { operationId: string };
         operationIds.push(command.operationId);
         expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(command.operationId);
+        if (beginAttempt === 1) {
+          return Response.json({ code: 'provider_unauthorized' }, { status: 502 });
+        }
+        if (beginAttempt === 2) {
+          return Response.json({ code: 'rollout_denied' }, { status: 503 });
+        }
         return Response.json({
-          status: beginAttempt === 1 ? 'reserved' : 'replayed',
+          status: 'replayed',
           reservationId: 'reservation-1',
           sourceVersionId: 'source-version-1',
           upload: {
             ...upload,
-            expiresAt: beginAttempt === 1
-              ? '2020-01-01T00:00:00.000Z'
-              : upload.expiresAt,
           },
         });
       }
@@ -142,12 +145,17 @@ describe('sourceUpload.browserWorkflow', () => {
 
     await expect(workflow.start({
       bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
-    })).rejects.toMatchObject({ code: 'invalid_response' });
+    })).rejects.toMatchObject({ code: 'provider_unauthorized' });
+    expect(state.get()).toMatchObject({ phase: 'begin_pending' });
+    await expect(workflow.retryBytes({
+      bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
+    })).rejects.toMatchObject({ code: 'rollout_denied' });
     expect(state.get()).toMatchObject({ phase: 'begin_pending' });
     await expect(workflow.retryBytes({
       bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
     })).resolves.toMatchObject({ state: { phase: 'verified' } });
     expect(operationIds).toEqual([
+      '11111111-1111-4111-8111-111111111111',
       '11111111-1111-4111-8111-111111111111',
       '11111111-1111-4111-8111-111111111111',
     ]);
@@ -164,6 +172,23 @@ describe('sourceUpload.browserWorkflow', () => {
     await expect(harness.workflow.start({
       bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
     })).rejects.toMatchObject({ code: 'authority_denied' });
+    expect(harness.state.get()).toBeNull();
+  });
+
+  it.each([
+    ['rollout_denied', 503],
+    ['invalid_deployment', 503],
+    ['account_state_unavailable', 503],
+    ['rate_limited', 429],
+  ] as const)('clears begin-pending after pre-reservation %s', async (code, status) => {
+    const harness = setup();
+    const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
+    const claim = await inspect(file);
+    harness.control.begin.mockRejectedValueOnce(new SourceUploadClientError(code, status));
+
+    await expect(harness.workflow.start({
+      bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
+    })).rejects.toMatchObject({ code });
     expect(harness.state.get()).toBeNull();
   });
 

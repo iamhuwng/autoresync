@@ -3,7 +3,6 @@ import {
   type BookSourceControlHostOptions,
   type BookSourceUploadControlService,
 } from './control-host';
-import { enforceBookPilotScopeIfConfigured } from '../book-pilot-scope.ts';
 
 export interface BookSourceControlWorkerEnvironment {
   readonly BOOK_SOURCE_UPLOAD_CONTROL_STATE?: unknown;
@@ -44,15 +43,6 @@ export const createBookSourceControlWorker = (
       return await createBookSourceControlHost({
         service: options.serviceFactory(env),
         verifier: options.verifier,
-        pilotScope: ({ actorId, bookId, operation, request }) => enforceBookPilotScopeIfConfigured({
-          env,
-          uid: actorId,
-          request,
-          operation,
-          actorKind: 'teacher',
-          bookId,
-          requireBook: true,
-        }),
       }).fetch(request, env);
     } catch {
       return unavailable();
