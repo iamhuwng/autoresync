@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/dev-env.mjs ensure && cross-env VITE_READING_PASSAGE_LIBRARY=enabled VITE_MATERIAL_BOOKS=enabled VITE_MATERIAL_BOOK_EDITOR=enabled vite",
+    "dev": "node scripts/dev-env.mjs ensure && cross-env VITE_READING_PASSAGE_LIBRARY=enabled VITE_MATERIAL_BOOKS=enabled VITE_MATERIAL_BOOK_EDITOR=enabled VITE_BOOK_ACTIVITY_CREATE_PRESENTATION=enabled VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION=enabled VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION=enabled VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION=enabled VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION=enabled vite",
     "env:bootstrap": "node scripts/dev-env.mjs bootstrap",
     "env:check": "node scripts/dev-env.mjs check",
     "build": "node scripts/harness/run-tool.mjs vite . build && node scripts/check-bundle-budget.mjs",
