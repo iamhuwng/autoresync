@@ -115,6 +115,15 @@ const safeBucketName = /^[a-z0-9][a-z0-9.-]{4,61}[a-z0-9]$/u;
 const safeLocationId = /^[A-Za-z0-9_-]{1,160}$/u;
 const safeRegion = /^[a-z0-9-]{1,64}$/u;
 const PROVIDER_TIMEOUT_MS = 10_000;
+const B2_CONSOLE_WRITE_ONLY_CAPABILITIES = new Set([
+  'deleteFiles', 'listBuckets', 'writeBucketEncryption', 'writeBucketLifecycleRules',
+  'writeBucketLogging', 'writeBucketNotifications', 'writeBucketReplications', 'writeFiles',
+]);
+const B2_CONSOLE_READ_ONLY_CAPABILITIES = new Set([
+  'listBuckets', 'listFiles', 'readBucketEncryption', 'readBucketLifecycleRules',
+  'readBucketLogging', 'readBucketNotifications', 'readBucketReplications', 'readBuckets',
+  'shareFiles', 'readFiles',
+]);
 
 const fail = (code: ConstructorParameters<typeof SourceProviderError>[0], retryable = false): never => {
   throw new SourceProviderError(code, retryable);
@@ -669,13 +678,14 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
       throw new SourceProviderError('metadata_mismatch', false);
     }
     const capabilities = new Set(rawCapabilities as string[]);
-    const required = authority === 'upload' ? ['writeFiles']
-      : authority === 'metadata' ? ['readFiles', 'listFiles'] : ['readFiles'];
-    // Reject "required plus broad powers" keys. A master or over-privileged
-    // application key must not pass merely because it contains the one
-    // capability this operation needs.
-    if (capabilities.size !== required.length
-      || required.some((capability) => !capabilities.has(capability))) fail('unauthorized');
+    // Backblaze's console emits fixed bucket-scoped Read Only and Write Only
+    // capability bundles. Accept those exact bundles, never a master key or an
+    // arbitrary superset assembled by an operator.
+    const allowedCapabilities = authority === 'upload'
+      ? B2_CONSOLE_WRITE_ONLY_CAPABILITIES
+      : B2_CONSOLE_READ_ONLY_CAPABILITIES;
+    if (capabilities.size !== allowedCapabilities.size
+      || [...capabilities].some((capability) => !allowedCapabilities.has(capability))) fail('unauthorized');
 
     const rawBuckets = allowed?.buckets;
     const buckets: readonly { readonly id: string; readonly name: string | null }[] = Array.isArray(rawBuckets)

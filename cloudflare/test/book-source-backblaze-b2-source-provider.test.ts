@@ -25,8 +25,9 @@ const createProvider = (fetcher: typeof fetch) => new BackblazeB2SourceProvider(
 });
 
 const authorityResponse = (keyId: string): Response => {
-  const capabilities = keyId === 'upload-key-id' ? ['writeFiles']
-    : keyId === 'metadata-key-id' ? ['readFiles', 'listFiles'] : ['readFiles'];
+  const capabilities = keyId === 'upload-key-id'
+    ? ['deleteFiles', 'listBuckets', 'writeBucketEncryption', 'writeBucketLifecycleRules', 'writeBucketLogging', 'writeBucketNotifications', 'writeBucketReplications', 'writeFiles']
+    : ['listBuckets', 'listFiles', 'readBucketEncryption', 'readBucketLifecycleRules', 'readBucketLogging', 'readBucketNotifications', 'readBucketReplications', 'readBuckets', 'shareFiles', 'readFiles'];
   return Response.json({
     authorizationToken: `temporary-${keyId}`,
     apiInfo: { storageApi: {
