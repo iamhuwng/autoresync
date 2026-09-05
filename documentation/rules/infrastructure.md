@@ -13,11 +13,21 @@
 On 2026-02-23, an automated sync commit mass-reverted 118 files back to an older remote state, silently wiping out all recent work.
 
 **The rule:**
-Every git sync MUST follow a 3-step safety protocol:
+Every git sync MUST follow a 3-step safety protocol. Preserve pre-existing
+work, inspect ownership, and stage only explicitly authorized paths; never use
+the sync as a reason to stage unrelated changes.
 
-### Step 1: Pre-Sync Safety Commit
+### Step 1: Pre-Sync Inspection and Optional Checkpoint
 ```bash
-git add -A
+git status --short --branch
+```
+
+If a safety checkpoint is explicitly authorized, stage only its intended paths
+and then run:
+
+```bash
+git add -- path/to/intended/file
+git diff --cached --name-only
 git commit -m "chore: safety checkpoint before sync"
 git log -1 --format="%h %s"
 ```
@@ -27,15 +37,15 @@ git log -1 --format="%h %s"
 git fetch origin main
 git diff --stat HEAD origin/main | tail -5
 git diff --name-only HEAD origin/main | wc -l
-# If >20 files changed — STOP and manually inspect
+# If >20 files changed — pause the merge and manually inspect ownership/scope
 git merge origin/main
 ```
 
 ### Step 3: Post-Sync Verification
 ```bash
 git diff HEAD~1 --stat | tail -5
-# If 100+ files changed when you expected 5 → IMMEDIATELY revert:
-git reset --hard HEAD~1
+# If the result is unexpectedly broad, inspect live Git state and choose a
+# recoverable, authorized path; do not automatically use `git reset --hard`.
 ```
 
 **Self-check:** *"Did I verify the file count before accepting this sync?"*

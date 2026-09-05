@@ -1,7 +1,7 @@
 # Codebase Hygiene Rules
 
 > Rules for codebase-wide patterns, import bans, feature registration, and data contracts.
-> **Load this file when:** PRD says "replace ALL", writing import statements, touching code that imports `@mantine/*`, creating user-facing features, or writing data to paths existing code reads.
+> **Load the relevant sections when:** PRD says "replace ALL", writing `@mantine/*` imports, touching UI code that imports `@mantine/*`, creating user-facing features, or writing data to paths existing code reads.
 
 ---
 
@@ -25,7 +25,7 @@ If yes → grep the codebase. Don't assume only one file needs updating.
 
 ## Rule 15 — No Mantine: Import Ban And Encountered-Use Replacement
 
-**Trigger:** Writing ANY `import` statement or `npm install` for `@mantine/*`, or modifying a UI file/component that already imports `@mantine/*`.
+**Trigger:** Writing an import from or installing `@mantine/*`, or modifying a UI file/component that already imports `@mantine/*`.
 
 **The rule:**
 DO NOT import, use, or recommend ANY `@mantine/*` package in new code.

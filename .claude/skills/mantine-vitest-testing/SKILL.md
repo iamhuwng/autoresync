@@ -5,6 +5,14 @@ description: Use this skill when writing Vitest tests for React components that 
 
 # Mantine + Vitest Testing Patterns
 
+## Applicability boundary
+
+Use this skill only for existing tests and product paths that still use Mantine.
+This repository bans new `@mantine/*` imports, so do not recommend adding
+Mantine imports or converting product code to Mantine as part of test work.
+When a touched product path is being migrated away from Mantine, follow the
+repository codebase-hygiene rule.
+
 ## Overview
 
 Testing React components built with Mantine UI requires special handling due to:
