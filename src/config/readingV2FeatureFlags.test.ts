@@ -56,9 +56,9 @@ describe('readingV2FeatureFlags', () => {
     vi.resetModules();
   });
 
-  it('defaults rollout not-public while product decisions remain unresolved', () => {
-    expect(READING_V2_ROLLOUT_MODE).not.toBe('public');
-    expect(isReadingV2PublicRollout()).toBe(false);
+  it('defaults rollout to public for full student access', () => {
+    expect(READING_V2_ROLLOUT_MODE).toBe('public');
+    expect(isReadingV2PublicRollout()).toBe(true);
     // Route exposure depends on env; verify the normalizer denies 'off' explicitly
     expect(isReadingV2TeacherRouteExposureAllowed('off')).toBe(false);
   });
@@ -195,8 +195,8 @@ describe('readingV2FeatureFlags', () => {
     expect(flags.MATERIAL_BOOK_EDITOR_MODE).toBe('disabled');
   });
 
-  it('keeps standalone passage assets hidden from broad Teacher Lobby exposure by default', () => {
-    expect(READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY).toBe('hidden');
+  it('exposes standalone passage assets in Teacher Lobby via opt-in visibility', () => {
+    expect(READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY).toBe('opt-in');
   });
 
   it('normalizes passage asset lobby visibility with hidden fallback', () => {
