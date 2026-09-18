@@ -144,6 +144,23 @@ const mapReadingPassageCandidate = (candidate: ReadingPassageHomeworkCandidate):
     };
 };
 
+const normalizeHomeworkContentRef = (
+    material: Material,
+    contentRef: HomeworkContentRef | undefined,
+): HomeworkContentRef | undefined => {
+    if (material.type === 'reading-passage' && material.readingPassageSnapshot) {
+        return {
+            contentKind: 'reading_passage',
+            contentId: material.readingPassageSnapshot.passageMaterialId,
+            version: material.readingPassageSnapshot.snapshotVersionId,
+            title: material.readingPassageSnapshot.titleSnapshot,
+            source: 'reading-v2',
+        };
+    }
+
+    return contentRef;
+};
+
 const mapReadingPassageSet = (input: {
     title: string;
     passages: readonly ReadingPassageHomeworkCandidate[];
@@ -490,7 +507,10 @@ export function HomeworkCreateModal({
             if (createHomeworkAssignment) {
                 await createHomeworkAssignment({
                     ...homeworkInput,
-                    contentRef: preselectedContentRef,
+                    contentRef: normalizeHomeworkContentRef(
+                        selectedMaterial,
+                        preselectedContentRef,
+                    ),
                 });
             } else {
                 await createHomework(homeworkInput);

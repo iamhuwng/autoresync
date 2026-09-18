@@ -504,6 +504,60 @@ describe('homework assignment Worker route', () => {
         expect(JSON.stringify(firestoreWrites[0])).toContain('readingPassageSnapshot');
     });
 
+    it('normalizes misclassified Reading V2 passage refs from canonical metadata', async () => {
+        const records = new Map<string, unknown>([
+            ['users/teacher-1', { role: 'teacher' }],
+            ['classes/class-1', classRecord],
+            ['reading_v2/material_metadata/passage-misclassified', {
+                materialId: 'passage-misclassified',
+                materialKind: 'reading-passage',
+                deliveryEngine: 'reading-v2',
+                ownerId: 'teacher-1',
+                title: 'Canonical Reading Passage',
+                state: 'published',
+                visibility: 'private',
+                publishedSnapshotVersionId: 'snapshot-passage',
+            }],
+            ['reading_v2/published_snapshots/passage-misclassified/snapshot-passage', {
+                materialId: 'passage-misclassified',
+                snapshotVersionId: 'snapshot-passage',
+                ownerId: 'teacher-1',
+                publishedAt: '2026-09-18T00:00:00.000Z',
+                questionCount: 14,
+            }],
+            ['reading_v2/projections/student_safe_tests/passage-misclassified:snapshot-passage', {
+                deliveryEngine: 'reading-v2',
+                plane: 'projection',
+                projectionKind: 'student-safe',
+                sourceSnapshotVersionId: 'snapshot-passage',
+                content: { title: 'Canonical Reading Passage' },
+            }],
+        ]);
+        const { firestoreWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: {
+                contentKind: 'ielts_reading',
+                contentId: 'passage-misclassified',
+                version: 'snapshot-passage',
+                source: 'reading-v2',
+            },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+        const firestoreBody = JSON.stringify(firestoreWrites[0]);
+
+        expect(response.status).toBe(201);
+        expect(body.contentRef).toMatchObject({
+            contentKind: 'reading_passage',
+            contentId: 'passage-misclassified',
+            version: 'snapshot-passage',
+            source: 'reading-v2',
+        });
+        expect(firestoreBody).toContain('reading-passage');
+        expect(firestoreBody).toContain('readingPassageSnapshot');
+        expect(firestoreBody).not.toContain('readingV2AssignmentPayloadPath');
+    });
+
     it('accepts Reading V2 full tests and writes a frozen assignment payload', async () => {
         const records = new Map<string, unknown>([
             ['users/teacher-1', { role: 'teacher' }],

@@ -816,6 +816,20 @@ async function resolveReadingV2FullTestContent(
         return accessError;
     }
 
+    if (lowerText(metadata.materialKind ?? metadata.kind ?? metadata.type) === 'reading-passage') {
+        return resolveReadingPassageContent(
+            env,
+            accessToken,
+            {
+                ...contentRef,
+                contentKind: 'reading_passage',
+                source: contentRef.source ?? 'reading-v2',
+            },
+            uid,
+            role
+        );
+    }
+
     if (!isReadingV2FullTestMetadata(metadata)) {
         return assignmentError('UNSUPPORTED_CONTENT_KIND', 'Reading V2 source is not a full reading test.', 400);
     }

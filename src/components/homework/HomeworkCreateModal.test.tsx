@@ -365,6 +365,66 @@ describe('HomeworkCreateModal', () => {
         expect(onSuccess).toHaveBeenCalled();
     });
 
+    it('normalizes a stale Reading V2 full-test content ref to the selected Reading Passage identity', async () => {
+        const createHomeworkAssignment = vi.fn(async () => 'homework-worker-1');
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                preselectedTarget={{
+                    type: 'class',
+                    classId: 'class-1',
+                    className: 'IELTS Class',
+                }}
+                preselectedReadingPassage={{
+                    materialId: 'passage-normalized',
+                    title: 'Canonical Passage',
+                    questionCount: 14,
+                    testTypeIds: ['ielts'],
+                    publishedSnapshotVersionId: 'snapshot-passage',
+                    hasStudentSafeProjection: true,
+                    accessible: true,
+                    archived: false,
+                }}
+                preselectedContentRef={{
+                    contentKind: 'ielts_reading',
+                    contentId: 'passage-normalized',
+                    version: 'snapshot-passage',
+                    title: 'Canonical Passage',
+                    source: 'reading-v2',
+                }}
+                createHomeworkAssignment={createHomeworkAssignment}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: /Next/i })).not.toBeDisabled();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        fireEvent.change(screen.getByLabelText(/Due Date/i), {
+            target: { value: '2026-09-20T10:00' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Create Homework/i }));
+
+        await waitFor(() => {
+            expect(createHomeworkAssignment).toHaveBeenCalledWith(expect.objectContaining({
+                materialId: 'passage-normalized',
+                materialType: 'reading-passage',
+                contentRef: {
+                    contentKind: 'reading_passage',
+                    contentId: 'passage-normalized',
+                    version: 'snapshot-passage',
+                    title: 'Canonical Passage',
+                    source: 'reading-v2',
+                },
+            }));
+        });
+    });
+
     it('shows exact denial reason for unpublished preselected Reading Passage homework', async () => {
         render(
             <HomeworkCreateModal
