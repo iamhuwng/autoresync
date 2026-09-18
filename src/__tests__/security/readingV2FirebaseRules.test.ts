@@ -12,7 +12,14 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
+import { readingV2Ids, type ReadingV2Document } from '../../types/readingV2.types';
+import { materialCatalogIds } from '../../types/materialCatalog.types';
+import { DEFAULT_MATERIAL_TEST_TYPES } from '../../services/materialCatalog/testTypeConfig.service';
+import { READING_V2_CANONICAL_FIXTURES } from '../../services/reading-v2/fixtures/readingV2CanonicalFixtures';
+import { buildReadingV2FirebasePublishUpdates } from '../../services/reading-v2/readingV2FirebasePublishAdapter.service';
 import { READING_V2_OPERATIONAL_MATRIX } from '../../services/reading-v2/readingV2OperationalMatrix';
+import { publishReadingV2Material } from '../../services/reading-v2/readingV2PublishPipeline.service';
+import { createReadingV2Repository } from '../../services/reading-v2/readingV2Repository.service';
 import {
   buildReadingV2TeacherSelectedPassageComposition,
   removeReadingV2MasterComposition,
@@ -682,6 +689,93 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
         document: { title: 'Invalid Clone' },
       }),
     );
+  });
+
+  it('allows first-publish no-op cleanup of absent Reading Passage visibility index rows', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const materialId = 'passage-first-publish-cleanup';
+
+    await assertSucceeds(teacher.database().ref().update({
+      [`material_catalog/material_indexes/by_visibility/public/${materialId}`]: null,
+      [`material_catalog/material_summary_indexes/v1/by_visibility/public/${materialId}`]: null,
+    }));
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+      await db.ref('material_catalog/material_indexes/by_visibility/public/other-owned-passage').set({
+        ownerId: 'teacher-2',
+        visibility: 'public',
+      });
+      await db.ref('material_catalog/material_summary_indexes/v1/by_visibility/public/other-owned-passage').set({
+        ownerId: 'teacher-2',
+        visibility: 'public',
+        producerId: 'reading-v2-passage',
+      });
+    });
+
+    await assertFails(teacher.database().ref(
+      'material_catalog/material_indexes/by_visibility/public/other-owned-passage',
+    ).remove());
+    await assertFails(teacher.database().ref(
+      'material_catalog/material_summary_indexes/v1/by_visibility/public/other-owned-passage',
+    ).remove());
+  });
+
+  it('allows the full first-publish standalone Reading Passage fan-out', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const repository = createReadingV2Repository();
+    const document = structuredClone(
+      READING_V2_CANONICAL_FIXTURES['sentence-completion'],
+    ) as ReadingV2Document;
+    const sectionId = document.sectionIds[0]!;
+    const materialId = readingV2Ids.materialId('passage-first-publish-fanout');
+    const snapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-first-publish-fanout');
+    const publishResult = publishReadingV2Material({
+      repository,
+      materialId,
+      ownerId: 'teacher-1',
+      document: {
+        ...document,
+        title: 'First Publish Passage',
+        sections: {
+          ...document.sections,
+          [sectionId]: {
+            ...document.sections[sectionId],
+            title: 'Reading Passage 3',
+          },
+        },
+      },
+      publishedBy: 'teacher-1',
+      snapshotVersionId,
+      publishedAt: '2026-09-18T14:35:00.000Z',
+      metadata: {
+        title: 'First Publish Passage',
+        materialKind: 'reading-passage',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        visibility: 'private',
+      },
+      returnContext: 'direct-studio-route',
+    });
+    const firebaseUpdates = buildReadingV2FirebasePublishUpdates(
+      publishResult.commitPlan,
+      '2026-09-18T14:35:00.000Z',
+    );
+
+    await assertSucceeds(
+      teacher.database().ref().update(firebaseUpdates.updates),
+    );
+
+    const passageSnapshot = await teacher.database().ref(
+      `reading_v2/reading_passage_materials/${materialId}`,
+    ).once('value');
+    expect(passageSnapshot.val()).toMatchObject({
+      passageMaterialId: materialId,
+      ownerId: 'teacher-1',
+      visibility: 'private',
+      state: 'published',
+    });
   });
 
   it('allows owners to republish a private Reading Passage as public', async () => {

@@ -229,6 +229,130 @@ describe('readingV2StudioWorkflow.service', () => {
     expect(Object.values(context.document.interactions)[0]?.scoringRule.acceptableAnswers).toEqual(['teacher key']);
   });
 
+  it('defaults partial Auto V4 source imports to Reading Passage material kind', () => {
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'create-from-auto',
+      draftId: 'studio-workflow-auto-partial-passage',
+      materialId: 'studio-workflow-auto-partial-passage-material',
+      ownerId: 'teacher-modal',
+      initialMetadata: {
+        title: 'Imported Passage 3',
+        ownerId: 'teacher-modal',
+      },
+      initialImportCandidate: {
+        sourceKind: 'auto-gemini',
+        sourceLedgerCategory: 'single-passage-or-partial-extract',
+        rawText: [
+          '## Reading Passage 3',
+          'A synthetic partial passage with enough text to normalize.',
+          '#### Questions 27-27',
+          '**27** imported answer',
+        ].join('\n'),
+        answerKeyText: '27 teacher key',
+        evidence: ['Detected source from Auto V4'],
+        uncertaintyMarkers: [],
+        publishBlockingPlaceholders: [],
+      },
+    });
+
+    expect(context.metadata.materialKind).toBe('reading-passage');
+  });
+
+  it('preserves an explicit full-test choice for partial Auto V4 source imports', () => {
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'create-from-auto',
+      draftId: 'studio-workflow-auto-partial-explicit-full-test',
+      materialId: 'studio-workflow-auto-partial-explicit-full-test-material',
+      ownerId: 'teacher-modal',
+      initialMetadata: {
+        title: 'Explicit Partial Full Test',
+        ownerId: 'teacher-modal',
+        materialKind: 'full-test',
+      },
+      initialImportCandidate: {
+        sourceKind: 'auto-gemini',
+        sourceLedgerCategory: 'single-passage-or-partial-extract',
+        rawText: [
+          '## Reading Passage 3',
+          'A synthetic partial passage with enough text to normalize.',
+          '#### Questions 27-27',
+          '**27** imported answer',
+        ].join('\n'),
+        answerKeyText: '27 teacher key',
+        evidence: ['Detected source from Auto V4'],
+        uncertaintyMarkers: [],
+        publishBlockingPlaceholders: [],
+      },
+    });
+
+    expect(context.metadata.materialKind).toBe('full-test');
+  });
+
+  it('publishes partial Auto V4 source imports as standalone Reading Passage material', async () => {
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'create-from-auto',
+      draftId: 'studio-workflow-auto-partial-publish',
+      materialId: 'studio-workflow-auto-partial-publish-material',
+      ownerId: 'teacher-auto-partial',
+      initialMetadata: {
+        title: 'Imported Passage 3',
+        ownerId: 'teacher-auto-partial',
+        visibility: 'private',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+      initialImportCandidate: {
+        sourceKind: 'auto-gemini',
+        sourceLedgerCategory: 'single-passage-or-partial-extract',
+        rawText: [
+          '## Reading Passage 3',
+          'A synthetic partial passage with enough text to normalize and publish.',
+          '#### Questions 27-27',
+          'Complete the sentence.',
+          '**27** imported answer',
+        ].join('\n'),
+        answerKeyText: '27 teacher key',
+        evidence: ['Detected source from Auto V4'],
+        uncertaintyMarkers: [],
+        publishBlockingPlaceholders: [],
+      },
+    });
+    const commitAdapter = vi.fn(async (commitPlan) => ({
+      commitPath: `/readingV2/publishCommits/${commitPlan.materialId}/${commitPlan.snapshotVersionId}`,
+      operationKeys: commitPlan.operations.map((operation) => operation.operationKey),
+      updates: {},
+      status: 'committed' as const,
+    }));
+
+    const publishDocument = withSectionTitleAndNumbers(
+      createReadingV2CanonicalFixture('sentence-completion'),
+      'Reading Passage 3',
+      [27, 28],
+    );
+    const result = await publishReadingV2StudioDraft({
+      draftId: context.draftId,
+      materialId: context.materialId,
+      document: publishDocument,
+      metadata: context.metadata,
+      revisionToken: context.revisionToken,
+      returnContext: 'teacher-lobby',
+    }, commitAdapter);
+
+    const commitPlan = commitAdapter.mock.calls[0]?.[0];
+    const storagePaths = (commitPlan?.operations ?? [])
+      .filter((operation) => operation.kind === 'storage-write')
+      .map((operation) => operation.path);
+
+    expect(context.metadata.materialKind).toBe('reading-passage');
+    expect(result.firebaseCommitStatus).toBe('committed');
+    expect(result.generatedReadingPassages).toEqual([]);
+    expect(storagePaths).toContain(
+      readingV2StoragePaths.readingPassageMaterials(context.materialId),
+    );
+    expect(storagePaths.some((path) => path.startsWith('reading_v2/full_test_compositions/'))).toBe(false);
+  });
+
   it('opens a reviewable Auto draft when localized duplicate structured-layout questions are canonical-safe', () => {
     const duplicateAnchorPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,

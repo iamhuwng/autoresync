@@ -226,7 +226,7 @@ describe('materialSummaryPort.service', () => {
     expect(rows.map((row) => row.materialId)).toEqual(['public-owned', 'second', 'first']);
   });
 
-  it('strips valid Reading V2 delivery metadata at the read compatibility boundary', async () => {
+  it('preserves valid Reading V2 delivery metadata at the read boundary', async () => {
     const rows = await listActiveMaterialSummaries(
       { scope: 'owned', ownerId: 'teacher-1' },
       {
@@ -243,10 +243,12 @@ describe('materialSummaryPort.service', () => {
     );
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).not.toHaveProperty('hasStudentSafeProjection');
-    expect(rows[0]).not.toHaveProperty('studentSafeProjectionReady');
-    expect(rows[0]).not.toHaveProperty('deliveryProjectionReady');
-    expect(rows[0]).not.toHaveProperty('passageRefCount');
+    expect(rows[0]).toMatchObject({
+      hasStudentSafeProjection: true,
+      studentSafeProjectionReady: true,
+      deliveryProjectionReady: false,
+      passageRefCount: 3,
+    });
   });
 
   it.each([

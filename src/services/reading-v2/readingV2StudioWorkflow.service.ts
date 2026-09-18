@@ -189,6 +189,13 @@ const shouldExtractReadingPassagesOnPublish = (
 ): boolean =>
   metadata.materialKind === 'full-test';
 
+const importMaterialKindFromSourceCategory = (
+  candidate: ReadingV2ImportCandidate | undefined,
+): ReadingV2MaterialKind | undefined =>
+  candidate?.sourceLedgerCategory === 'single-passage-or-partial-extract'
+    ? 'reading-passage'
+    : undefined;
+
 const toReadingPassageExtractionVisibility = (
   visibility: ReadingV2StudioWorkflowMetadata['visibility'],
 ): ReadingPassageVisibilityScope =>
@@ -326,17 +333,22 @@ const createDraftContext = (input: {
   readonly provenanceSummary?: string;
 }): ReadingV2StudioWorkflowContext => {
   const importCreateMode = isImportCreateMode(input.mode);
+  const inferredImportMaterialKind = input.initialMetadata?.materialKind
+    ?? importMaterialKindFromSourceCategory(input.initialImportCandidate);
+  const initialMetadata = inferredImportMaterialKind
+    ? { ...input.initialMetadata, materialKind: inferredImportMaterialKind }
+    : input.initialMetadata;
   const document = importCreateMode
     ? input.initialImportCandidate
       ? (() => {
           const importedDocument = normalizeReadingV2ImportCandidate(input.initialImportCandidate).document;
           return {
             ...importedDocument,
-            title: input.initialMetadata?.title ?? importedDocument.title,
+            title: initialMetadata?.title ?? importedDocument.title,
           };
         })()
-      : createImportPendingDocument(input.initialMetadata?.title)
-    : createDocument(input.initialMetadata?.title ?? input.title);
+      : createImportPendingDocument(initialMetadata?.title)
+    : createDocument(initialMetadata?.title ?? input.title);
   const existing = readingV2StudioRepository.loadDraft(input.draftId);
 
   if (!existing && importCreateMode && input.initialImportCandidate) {
@@ -351,7 +363,7 @@ const createDraftContext = (input: {
         draftId: input.draftId,
         materialId: input.materialId,
         ownerId: input.ownerId,
-        title: input.initialMetadata?.title ?? document.title,
+        title: initialMetadata?.title ?? document.title,
         issueMessages: nonEditableImportIssues.map((issue) =>
           `${issue.code.replace(/-/g, ' ')}: ${issue.message}`,
         ),
@@ -365,10 +377,10 @@ const createDraftContext = (input: {
     materialId: input.materialId,
     document,
     studioMetadata: toStudioMetadataRecord(createReadingV2StudioDefaultMetadata({
-      ...input.initialMetadata,
+      ...initialMetadata,
       title: document.title,
-      ownerId: input.initialMetadata?.ownerId ?? input.ownerId,
-      provenanceSummary: input.initialMetadata?.provenanceSummary ?? input.provenanceSummary,
+      ownerId: initialMetadata?.ownerId ?? input.ownerId,
+      provenanceSummary: initialMetadata?.provenanceSummary ?? input.provenanceSummary,
     })),
   });
   const storedMetadata = draft.studioMetadata as Partial<ReadingV2StudioWorkflowMetadata> | undefined;
@@ -380,13 +392,13 @@ const createDraftContext = (input: {
     materialId: input.materialId,
     document: draft.document,
     metadata: createReadingV2StudioDefaultMetadata({
-      ...input.initialMetadata,
+      ...initialMetadata,
       ...storedMetadata,
-      title: storedMetadata?.title ?? input.initialMetadata?.title ?? draft.document.title,
-      ownerId: storedMetadata?.ownerId ?? input.initialMetadata?.ownerId ?? input.ownerId,
+      title: storedMetadata?.title ?? initialMetadata?.title ?? draft.document.title,
+      ownerId: storedMetadata?.ownerId ?? initialMetadata?.ownerId ?? input.ownerId,
       provenanceSummary:
         storedMetadata?.provenanceSummary ??
-        input.initialMetadata?.provenanceSummary ??
+        initialMetadata?.provenanceSummary ??
         input.provenanceSummary,
     }),
     revisionToken: draft.revisionToken,

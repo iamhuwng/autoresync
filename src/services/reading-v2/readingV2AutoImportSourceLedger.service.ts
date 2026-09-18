@@ -1,4 +1,6 @@
+import { normalizeReadingV2TaskType } from '../../types/readingV2Taxonomy';
 import { parseReadingV2TeacherAnswerKey } from './readingV2ImportNormalization.service';
+import { readingV2TaskUsesPerQuestionLabeledOptions } from './readingV2TaskComponentContracts.service';
 
 export type ReadingV2AutoSourceCategory =
   | 'full-test-with-answer-key'
@@ -137,6 +139,10 @@ export interface ReadingV2AutoSourceLedger {
 export interface ReadingV2AutoLedgerPayloadQuestion {
   readonly number?: number;
   readonly questionNumber?: number;
+  readonly type?: string;
+  readonly labeledOptions?: readonly {
+    readonly label?: string;
+  }[];
 }
 
 export interface ReadingV2AutoLedgerPayloadMaterial {
@@ -1495,6 +1501,22 @@ const payloadInstructionCoverageIssues = (
   });
 };
 
+const payloadQuestionNumber = (
+  question: ReadingV2AutoLedgerPayloadQuestion,
+): number | undefined => {
+  const value = Number(question.questionNumber ?? question.number);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+};
+
+const payloadQuestionLabels = (
+  question: ReadingV2AutoLedgerPayloadQuestion,
+): readonly string[] =>
+  [...new Set(
+    (question.labeledOptions ?? [])
+      .map((option) => option.label?.trim().toUpperCase())
+      .filter((label): label is string => Boolean(label)),
+  )];
+
 const payloadReferenceBankIssues = (
   payload: ReadingV2AutoLedgerPayload,
   ledger: ReadingV2AutoSourceLedger,
@@ -1511,24 +1533,85 @@ const payloadReferenceBankIssues = (
       ...(bank.questionRange ? { questionNumber: bank.questionRange.start } : {}),
     });
     const expectedLabels = [...new Set(bank.labels.map((label) => label.toUpperCase()))];
-    const matchingInstructions = (payload.materials ?? [])
+    const materials = payload.materials ?? [];
+    const instructionCandidates = materials
       .flatMap((material) => material.sectionInstructions ?? [])
-      .map((instruction) => {
-        const start = Number(instruction.questionRange?.start);
-        const end = Number(instruction.questionRange?.end);
-        const range = Number.isFinite(start) && Number.isFinite(end) && start > 0 && end > 0
-          ? { start: Math.min(start, end), end: Math.max(start, end) }
-          : undefined;
+      .map((instruction) => ({
+        range: instructionRange(instruction),
+        labels: payloadInstructionLabels(instruction),
+        taskType: instruction.taskType
+          ? normalizeReadingV2TaskType(instruction.taskType)
+          : null,
+      }))
+      .filter((candidate) => rangesOverlap(bank.questionRange, candidate.range));
+    const matchingInstructions = instructionCandidates
+      .filter((candidate) => candidate.labels.length > 0);
 
-        return {
-          range,
-          labels: payloadInstructionLabels(instruction),
-        };
-      })
-      .filter((candidate) =>
-        rangesOverlap(bank.questionRange, candidate.range)
-        && candidate.labels.length > 0,
-      );
+    const perQuestionCandidates = materials.flatMap((material) => {
+      const instructions = (material.sectionInstructions ?? []).map((instruction) => ({
+        range: instructionRange(instruction),
+        taskType: instruction.taskType
+          ? normalizeReadingV2TaskType(instruction.taskType)
+          : null,
+      }));
+
+      return (material.questions ?? []).flatMap((question) => {
+        const questionNumber = payloadQuestionNumber(question);
+        if (!questionNumber) {
+          return [];
+        }
+
+        const questionTaskType = (
+          question.type
+            ? normalizeReadingV2TaskType(question.type)
+            : null
+        ) ?? instructions.find((candidate) =>
+          candidate.range
+          && questionNumber >= candidate.range.start
+          && questionNumber <= candidate.range.end,
+        )?.taskType;
+
+        if (!questionTaskType || !readingV2TaskUsesPerQuestionLabeledOptions(questionTaskType)) {
+          return [];
+        }
+
+        return [{
+          questionNumber,
+          labels: payloadQuestionLabels(question),
+        }];
+      });
+    }).filter((candidate) =>
+      !bank.questionRange
+      || (
+        candidate.questionNumber >= bank.questionRange.start
+        && candidate.questionNumber <= bank.questionRange.end
+      ),
+    );
+
+    if (perQuestionCandidates.length > 0) {
+      const expectedQuestionNumbers = bank.questionRange
+        ? ledger.questionNumbers.filter((questionNumber) =>
+            questionNumber >= bank.questionRange!.start
+            && questionNumber <= bank.questionRange!.end,
+          )
+        : perQuestionCandidates.map((candidate) => candidate.questionNumber);
+      const allExpectedQuestionsPreserveBank = expectedQuestionNumbers.length > 0
+        && expectedQuestionNumbers.every((questionNumber) => {
+          const candidate = perQuestionCandidates.find((entry) => entry.questionNumber === questionNumber);
+          return candidate
+            ? expectedLabels.every((label) => candidate.labels.includes(label))
+            : false;
+        });
+
+      if (allExpectedQuestionsPreserveBank) {
+        return [];
+      }
+
+      return [issueFor(
+        'source-reference-bank-mismatch',
+        `Source ledger expected per-question ${bank.kind} labels ${bank.labelSummary}, but Gemini output returned different option labels for one or more questions.`,
+      )];
+    }
 
     if (matchingInstructions.length === 0) {
       return [issueFor(

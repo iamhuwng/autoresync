@@ -39,6 +39,12 @@ import {
 
 export interface ReadingV2ImportCandidate {
   readonly sourceKind: 'pasted-text' | 'uploaded-file' | 'auto-gemini';
+  readonly sourceLedgerCategory?:
+    | 'full-test-with-answer-key'
+    | 'full-test-missing-answer-key'
+    | 'single-passage-or-partial-extract'
+    | 'polluted-web-clip'
+    | 'unsupported-or-ambiguous-source';
   readonly fileName?: string;
   readonly supportedFileType?: 'txt' | 'docx' | 'pdf';
   readonly rawText?: string;
