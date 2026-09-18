@@ -77,6 +77,24 @@ async function loadReportingRuntime() {
 
 type ReportingRuntime = Awaited<ReturnType<typeof loadReportingRuntime>>;
 
+const sanitizeFirebaseValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => (
+      entry === undefined ? null : sanitizeFirebaseValue(entry)
+    ));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, entry]) => entry !== undefined)
+        .map(([key, entry]) => [key, sanitizeFirebaseValue(entry)]),
+    );
+  }
+
+  return value;
+};
+
 export class ReportingService {
   private static instance: ReportingService;
 
@@ -610,7 +628,7 @@ export class ReportingService {
           event.databasePath = databasePath;
         }
 
-        updates[databasePath] = event.data;
+        updates[databasePath] = sanitizeFirebaseValue(event.data);
       }
 
       if (Object.keys(updates).length === 0) return;

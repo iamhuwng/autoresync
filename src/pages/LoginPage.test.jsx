@@ -202,6 +202,28 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('button', { name: /sign in with google/i })).not.toBeInTheDocument();
   });
 
+  it('prevents duplicate Google popup requests while sign-in is already in flight', async () => {
+    let resolveLogin;
+    mockLogin.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveLogin = resolve;
+    }));
+
+    const user = userEvent.setup();
+    renderPage();
+
+    const button = screen.getByRole('button', { name: /sign in with google/i });
+    await user.click(button);
+
+    expect(button).toBeDisabled();
+    await user.click(button);
+    expect(mockLogin).toHaveBeenCalledTimes(1);
+
+    resolveLogin();
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+    });
+  });
+
   it('shows a readable error message when login fails', async () => {
     const user = userEvent.setup();
     mockLogin.mockRejectedValueOnce({ code: 'auth/popup-blocked' });
