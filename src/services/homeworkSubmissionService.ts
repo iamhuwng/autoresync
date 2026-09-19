@@ -43,6 +43,7 @@ import { buildRoute } from '../constants/routes';
 import { createTrustedNotification } from './notificationProducerClient';
 
 const SUBMISSION_COLLECTION = 'homework_submissions';
+const HOMEWORK_SUBMISSION_NOTIFICATION_WORKER_ORIGIN = 'https://luyentap-notification-command.iamhuwng.workers.dev';
 
 export interface BookHomeworkProgressRequestOptions {
     readonly workerOrigin?: string;
@@ -489,13 +490,15 @@ export async function submitHomework(
         try {
             const notificationResult = await createTrustedNotification({
                 producerFamily: 'homework',
-                authorityRecordId: authorityHomeworkId,
+                authorityRecordId: resultId,
                 recipientId: teacherRecipientId,
-                operationKey: `homework-submitted:teacher:${submissionId}`,
+                operationKey: `homework-submitted:teacher:${resultId}`,
                 type: 'info',
                 title: 'Homework Submitted',
-                message: `${submission.studentName?.trim() || 'A student'} submitted \"${homework.title || homework.materialTitle || 'Homework'}\".`,
+                message: `${submission.studentName?.trim() || 'A student'} submitted \"${homework.materialTitle || homework.title || 'Homework'}\".`,
                 link: buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: authorityHomeworkId }),
+            }, {
+                workerOrigin: HOMEWORK_SUBMISSION_NOTIFICATION_WORKER_ORIGIN,
             });
             if (!notificationResult.success) {
                 console.warn(

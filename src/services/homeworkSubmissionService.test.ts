@@ -347,13 +347,15 @@ describe('homeworkSubmissionService', () => {
 
         expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
             producerFamily: 'homework',
-            authorityRecordId: mockHomeworkId,
+            authorityRecordId: 'writing-result-1',
             recipientId: 'teacher-1',
-            operationKey: 'homework-submitted:teacher:class-writing-submission',
+            operationKey: 'homework-submitted:teacher:writing-result-1',
             type: 'info',
             title: 'Homework Submitted',
             message: 'Student One submitted \"Class Writing Homework\".',
             link: `/teacher/homework/${mockHomeworkId}`,
+        }, {
+            workerOrigin: 'https://luyentap-notification-command.iamhuwng.workers.dev',
         });
     });
 
