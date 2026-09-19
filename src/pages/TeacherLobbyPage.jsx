@@ -244,13 +244,38 @@ const isRecord = (value) => value !== null && typeof value === 'object' && !Arra
 
 const resolveReadingV2MasterModalRecord = async (material, repository) => {
   const base = toReadingV2MasterModalRecord(material);
-  const compositionId = base.compositionId;
   const existingRefs = Array.isArray(base.passageRefs) ? base.passageRefs : base.passages;
 
-  if (!compositionId || (Array.isArray(existingRefs) && existingRefs.length > 0) || !repository?.read) {
+  if ((Array.isArray(existingRefs) && existingRefs.length > 0) || !repository?.read) {
     return {
       ...base,
       compositionLoadState: Array.isArray(existingRefs) && existingRefs.length > 0 ? 'ready' : 'not-required',
+    };
+  }
+
+  const explicitCompositionId =
+    material?.compositionId ||
+    material?.fullTestCompositionId ||
+    material?.metadata?.compositionId;
+  let compositionId = explicitCompositionId;
+
+  if (!compositionId && base.materialId) {
+    try {
+      const metadata = await repository.read(readingV2StoragePaths.materialMetadata(base.materialId));
+      if (isRecord(metadata) && typeof metadata.compositionId === 'string' && metadata.compositionId.trim()) {
+        compositionId = metadata.compositionId.trim();
+      }
+    } catch {
+      // Metadata enrichment is a compatibility lookup. Fall through to the
+      // deterministic legacy/selected-master identity already derived on base.
+    }
+  }
+
+  compositionId = compositionId || base.compositionId;
+  if (!compositionId) {
+    return {
+      ...base,
+      compositionLoadState: 'not-required',
     };
   }
 
@@ -259,6 +284,7 @@ const resolveReadingV2MasterModalRecord = async (material, repository) => {
     if (!isRecord(composition) || !Array.isArray(composition.passageRefs)) {
       return {
         ...base,
+        compositionId,
         compositionLoadState: 'missing-composition',
       };
     }
@@ -276,6 +302,7 @@ const resolveReadingV2MasterModalRecord = async (material, repository) => {
   } catch (error) {
     return {
       ...base,
+      compositionId,
       compositionLoadState: 'load-failed',
       compositionLoadError: error instanceof Error ? error.message : String(error),
     };

@@ -392,6 +392,37 @@ describe('homeworkManager', () => {
         mockGetStudentClasses.mockResolvedValue([]);
     });
 
+    it('normalizes legacy homework without maxAttempts to unlimited at the read boundary', async () => {
+        const homeworkId = 'legacy-homework-without-max-attempts';
+        firestoreHarness.store.set(`homework_assignments/${homeworkId}`, {
+            id: homeworkId,
+            createdBy: mockTeacherId,
+            createdAt: Date.now() - 10_000,
+            updatedAt: Date.now() - 5_000,
+            materialId: mockMaterialId,
+            materialTitle: 'Legacy Homework',
+            materialType: 'test',
+            materialSkill: 'reading',
+            target: mockStudentsTarget,
+            scheduling: {
+                availableFrom: Date.now() - 1_000,
+                dueDate: Date.now() + 60_000,
+            },
+            config: {
+                timerMinutes: 60,
+                feedbackTiming: 'after_completion',
+                lateSubmissionAllowed: false,
+            },
+            visibility: mockVisibility,
+            status: 'active',
+            stats: mockStats,
+        });
+
+        const homework = await getHomeworkById(homeworkId);
+
+        expect(homework?.config.maxAttempts).toBeNull();
+    });
+
     describe('createHomework', () => {
         it('creates class-target homework, resolves assigned count, and strips undefined title fields', async () => {
             const homeworkId = await createHomework({

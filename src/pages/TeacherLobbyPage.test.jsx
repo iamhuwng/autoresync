@@ -1122,6 +1122,53 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     }));
   });
 
+  it('hydrates master refs from canonical metadata when the list row has no compositionId', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [{
+      id: 'material-v2',
+      materialId: 'material-v2',
+      deliveryEngine: 'reading-v2',
+      ownerId: 'teacher-1',
+      title: 'Published Reading V2',
+      materialKind: 'full-test',
+      publishedSnapshotVersionId: 'snapshot-version-v2',
+      questionCount: 27,
+      passageRefCount: 2,
+    }];
+    mocks.dbReads[readingV2StoragePaths.materialMetadata('material-v2')] = {
+      materialId: 'material-v2',
+      ownerId: 'teacher-1',
+      deliveryEngine: 'reading-v2',
+      materialKind: 'full-test',
+      title: 'Published Reading V2',
+      compositionId: 'canonical-composition-v2',
+      publishedSnapshotVersionId: 'snapshot-version-v2',
+    };
+    mocks.dbReads[readingV2StoragePaths.fullTestCompositions('canonical-composition-v2')] = {
+      compositionId: 'canonical-composition-v2',
+      testMaterialId: 'material-v2',
+      title: 'Published Reading V2',
+      ownerId: 'teacher-1',
+      visibility: 'public',
+      publishedVersionId: 'snapshot-version-v2',
+      passageRefs: [
+        { refId: 'ref-a', passageMaterialId: 'passage-a', snapshotVersionId: 'snapshot-a', titleSnapshot: 'Passage A', questionCountSnapshot: 13, order: 1 },
+        { refId: 'ref-b', passageMaterialId: 'passage-b', snapshotVersionId: 'snapshot-b', titleSnapshot: 'Passage B', questionCountSnapshot: 14, order: 2 },
+      ],
+    };
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Edit' }));
+
+    await waitFor(() => {
+      expect(mocks.masterModalProps.at(-1)?.master?.passageRefs).toHaveLength(2);
+    });
+    expect(mocks.masterModalProps.at(-1).master).toEqual(expect.objectContaining({
+      compositionId: 'canonical-composition-v2',
+      compositionLoadState: 'ready',
+    }));
+  });
+
   it('shows a shared toast after republishing a published Reading V2 master', async () => {
     const user = userEvent.setup();
     mocks.tests = [

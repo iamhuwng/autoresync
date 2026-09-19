@@ -118,6 +118,10 @@ function normalizeHomeworkAssignment(homework: HomeworkAssignment): HomeworkAssi
 
     return {
         ...homework,
+        config: {
+            ...homework.config,
+            maxAttempts: homework.config?.maxAttempts ?? null,
+        },
         tags: homework.tags ?? [],
         archived: homework.archived ?? false,
         studentOverrides: homework.studentOverrides ?? {},

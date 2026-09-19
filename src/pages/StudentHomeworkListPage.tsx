@@ -492,7 +492,12 @@ export const StudentHomeworkListPage: React.FC = () => {
                 console.error('Failed to start homework:', submissionError);
                 alert('Unable to start homework. Please try again.');
             }
+            return;
         }
+
+        navigateTo('STUDENT_HOMEWORK_DETAIL', { homeworkId: homework.id }, {
+            reason: 'student_homework_detail_from_list',
+        });
     };
 
     const getTabItems = (): StudentHomeworkItem[] => {

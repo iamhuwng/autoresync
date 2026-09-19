@@ -227,6 +227,36 @@ describe('StudentHomeworkListPage', () => {
     }));
   });
 
+  it('opens homework detail instead of no-op when the list row cannot start directly', () => {
+    const blockedItem = makeHomeworkItem({
+      canSubmit: false,
+      attemptsRemaining: 0,
+      status: 'not_started',
+    });
+
+    useResolvedStudentHomeworkListMock.mockReturnValue({
+      homeworkItems: [blockedItem],
+      isLoading: false,
+      error: null,
+      refreshData: vi.fn(),
+      notStarted: [blockedItem],
+      inProgress: [],
+      completed: [],
+      overdue: [],
+    });
+
+    render(<StudentHomeworkListPage />);
+
+    fireEvent.click(screen.getByText('View Details'));
+
+    expect(createSubmissionMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith(
+      'STUDENT_HOMEWORK_DETAIL',
+      { homeworkId: 'hw-1' },
+      { reason: 'student_homework_detail_from_list' },
+    );
+  });
+
   it('creates a submission and navigates into practice for a new attempt', async () => {
     const notStartedItem = makeHomeworkItem();
 
