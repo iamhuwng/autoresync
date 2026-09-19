@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '../../test/test-utils';
 import userEvent from '@testing-library/user-event';
-import { MantineProvider } from '@mantine/core';
 import WritingTestEditModal from './WritingTestEditModal';
 import type { WritingTestDraft } from '../../types/ielts-writing.types';
 
@@ -75,16 +74,14 @@ function renderModal(props: Partial<Parameters<typeof WritingTestEditModal>[0]> 
     const onPublished = vi.fn();
 
     render(
-        <MantineProvider>
-            <WritingTestEditModal
-                draft={baseDraft}
-                isOpen={true}
-                onClose={onClose}
-                onSaved={onSaved}
-                onPublished={onPublished}
-                {...props}
-            />
-        </MantineProvider>
+        <WritingTestEditModal
+            draft={baseDraft}
+            isOpen={true}
+            onClose={onClose}
+            onSaved={onSaved}
+            onPublished={onPublished}
+            {...props}
+        />
     );
 
     return { onClose, onSaved, onPublished };
@@ -114,6 +111,48 @@ describe('WritingTestEditModal', () => {
         await user.click(screen.getByRole('button', { name: /context & resources/i }));
 
         expect(await screen.findByRole('heading', { name: /test metadata/i })).toBeInTheDocument();
+    });
+
+    it('disables the task that is not part of a single-task writing format and publishes only the active task', async () => {
+        const user = userEvent.setup();
+        const task1OnlyDraft: WritingTestDraft = {
+            ...baseDraft,
+            metadata: {
+                ...baseDraft.metadata,
+                duration: 20,
+                format: 'task1-only',
+            },
+            tasks: [baseDraft.tasks[0]],
+        };
+
+        renderModal({ draft: task1OnlyDraft });
+        publishWritingTestMock.mockResolvedValue({
+            success: true,
+            testId: 'test-1',
+            draftId: 'writing-draft-1',
+        });
+
+        expect(await screen.findByDisplayValue('Describe the chart.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /task 2/i })).toBeDisabled();
+
+        await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+        await waitFor(() => {
+            expect(publishWritingTestMock).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    metadata: expect.objectContaining({ format: 'task1-only' }),
+                    tasks: [
+                        expect.objectContaining({
+                            taskNumber: 1,
+                            promptText: 'Describe the chart.',
+                        }),
+                    ],
+                })
+            );
+        });
+        expect(vi.mocked(globalThis.alert)).not.toHaveBeenCalledWith(
+            'Please fix all validation errors before publishing.'
+        );
     });
 
     it('publishes a published writing test from the primary save action', async () => {

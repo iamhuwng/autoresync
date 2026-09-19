@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDoc, setDoc } from 'firebase/firestore';
-import { push, update as updateDatabaseValue } from 'firebase/database';
+import { get, push, update as updateDatabaseValue } from 'firebase/database';
 import {
   saveWritingDraft,
   publishWritingTest,
@@ -29,6 +29,7 @@ vi.mock('firebase/firestore', () => ({
 vi.mock('firebase/database', () => ({
   ref: vi.fn((_: unknown, path: string) => path),
   set: vi.fn(),
+  get: vi.fn(),
   push: vi.fn(),
   update: vi.fn(),
 }));
@@ -132,6 +133,142 @@ describe('writingTestService', () => {
     expect(getDoc).not.toHaveBeenCalled();
     expect(setDoc).toHaveBeenCalledOnce();
     expect(updateDatabaseValue).toHaveBeenCalledOnce();
+  });
+
+  it('hydrates a summary-backed writing material from the canonical published test before creating an editable draft', async () => {
+    (get as any).mockResolvedValue({
+      exists: () => true,
+      val: () => ({
+        id: 'test-1',
+        testType: 'IELTS',
+        skill: 'Writing',
+        metadata: {
+          title: 'Task 1 Published Test',
+          duration: 20,
+          format: 'task1-only',
+        },
+        tasks: [
+          {
+            taskNumber: 1,
+            taskType: 'line-graph',
+            promptText: 'Describe the published chart.',
+            promptImageUrl: 'https://example.com/chart.png',
+            wordMinimum: 150,
+            recommendedTimeMinutes: 20,
+            showModelAnswerToStudent: false,
+          },
+        ],
+        createdBy: 'teacher-1',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_500,
+      }),
+    });
+
+    const result = await ensureWritingEditableDraft({
+      id: 'test-1',
+      testType: 'IELTS',
+      skill: 'Writing',
+      title: 'Task 1 Published Test',
+      duration: 20,
+      metadata: {
+        title: 'Task 1 Published Test',
+        duration: 20,
+      },
+    } as any, 'teacher-1');
+
+    expect(result.success).toBe(true);
+    expect(get).toHaveBeenCalledWith('tests/test-1');
+    expect(setDoc).toHaveBeenCalledWith(
+      expect.stringMatching(/^writing_drafts\//),
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          title: 'Task 1 Published Test',
+          duration: 20,
+          format: 'task1-only',
+        }),
+        tasks: [
+          expect.objectContaining({
+            taskNumber: 1,
+            promptText: 'Describe the published chart.',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('repairs an already-linked blank edit draft from the canonical published writing test', async () => {
+    (get as any).mockResolvedValue({
+      exists: () => true,
+      val: () => ({
+        id: 'test-1',
+        testType: 'IELTS',
+        skill: 'Writing',
+        sourceDraftId: 'blank-draft-1',
+        metadata: {
+          title: 'Task 2 Published Test',
+          duration: 40,
+          format: 'task2-only',
+        },
+        tasks: [
+          {
+            taskNumber: 2,
+            taskType: 'opinion',
+            promptText: 'Discuss the published topic.',
+            wordMinimum: 250,
+            recommendedTimeMinutes: 40,
+            showModelAnswerToStudent: false,
+          },
+        ],
+        createdBy: 'teacher-1',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_500,
+      }),
+    });
+    (getDoc as any).mockResolvedValue({
+      exists: () => true,
+      data: () => ({
+        id: 'blank-draft-1',
+        userId: 'teacher-1',
+        metadata: {
+          title: 'Task 2 Published Test',
+          duration: 40,
+          format: 'full-test',
+        },
+        tasks: [],
+        status: 'published',
+        publishedTestId: 'test-1',
+      }),
+    });
+
+    const result = await ensureWritingEditableDraft({
+      id: 'test-1',
+      testType: 'IELTS',
+      skill: 'Writing',
+      title: 'Task 2 Published Test',
+      duration: 40,
+      metadata: {
+        title: 'Task 2 Published Test',
+        duration: 40,
+      },
+    } as any, 'teacher-1');
+
+    expect(result).toEqual({ success: true, draftId: 'blank-draft-1' });
+    expect(setDoc).toHaveBeenCalledWith(
+      'writing_drafts/blank-draft-1',
+      expect.objectContaining({
+        metadata: expect.objectContaining({ format: 'task2-only' }),
+        tasks: [
+          expect.objectContaining({
+            taskNumber: 2,
+            promptText: 'Discuss the published topic.',
+          }),
+        ],
+      }),
+    );
   });
 
   it('still reads Firestore when updating an existing draft', async () => {

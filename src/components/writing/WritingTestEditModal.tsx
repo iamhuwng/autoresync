@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { Modal } from '@mantine/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { WritingTask, WritingTestDraft, WritingTestMetadata } from '../../types/ielts-writing.types';
 import { Button, Card } from '../modern';
@@ -106,6 +105,7 @@ export default function WritingTestEditModal({
         setInitialSignature(buildSignature(nextMetadata, nextTask1, nextTask2, Boolean(draft.isPublic)));
     }, [draft, isOpen]);
 
+    const allTasks = useMemo(() => [task1, task2], [task1, task2]);
     const activeTasks = useMemo(() => {
         if (metadata.format === 'task1-only') {
             return [task1];
@@ -113,8 +113,8 @@ export default function WritingTestEditModal({
         if (metadata.format === 'task2-only') {
             return [task2];
         }
-        return [task1, task2];
-    }, [metadata.format, task1, task2]);
+        return allTasks;
+    }, [allTasks, metadata.format, task1, task2]);
 
     const resourceCount = useMemo(
         () => activeTasks.filter((task) => Boolean(task.promptImageUrl)).length,
@@ -326,20 +326,30 @@ export default function WritingTestEditModal({
     };
 
     return (
-        <Modal
-            opened={isOpen}
-            onClose={handleCloseRequest}
-            size="auto"
-            padding={0}
-            withCloseButton={false}
-            centered
-            aria-label="Edit Writing Test"
-            styles={{
-                body: { padding: 0, background: 'transparent' },
-                content: { background: 'transparent', boxShadow: 'none' },
-                inner: { padding: 0 },
+        <div
+            role="presentation"
+            onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                    handleCloseRequest();
+                }
+            }}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 200,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '5vh 1rem',
+                background: 'rgba(15, 23, 42, 0.45)',
             }}
         >
+            <section
+                role="dialog"
+                aria-modal="true"
+                aria-label="Edit Writing Test"
+                style={{ background: 'transparent', maxWidth: '100%', maxHeight: '100%' }}
+            >
                 <EditTestFrame {...frameProps}>
                     {activeTab === 'questions' && (
                         <div
@@ -381,13 +391,16 @@ export default function WritingTestEditModal({
                                             overflow: 'auto',
                                         }}
                                     >
-                                        {activeTasks.map((task) => {
-                                            const isSelected = selectedTaskNumber === task.taskNumber;
+                                        {allTasks.map((task) => {
+                                            const isActive = activeTasks.some((activeTask) => activeTask.taskNumber === task.taskNumber);
+                                            const isSelected = isActive && selectedTaskNumber === task.taskNumber;
                                             return (
                                                 <button
                                                     key={task.taskNumber}
                                                     type="button"
                                                     onClick={() => setSelectedTaskNumber(task.taskNumber)}
+                                                    disabled={!isActive}
+                                                    aria-disabled={!isActive}
                                                     style={{
                                                         width: '100%',
                                                         textAlign: 'left',
@@ -399,15 +412,16 @@ export default function WritingTestEditModal({
                                                         background: isSelected
                                                             ? 'linear-gradient(135deg, rgba(245, 243, 255, 0.98) 0%, rgba(237, 233, 254, 0.9) 100%)'
                                                             : 'rgba(255, 255, 255, 0.94)',
-                                                        cursor: 'pointer',
+                                                        cursor: isActive ? 'pointer' : 'not-allowed',
+                                                        opacity: isActive ? 1 : 0.55,
                                                     }}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                                                         <span style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>
                                                             Task {task.taskNumber}
                                                         </span>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#7c3aed' }}>
-                                                            {task.taskType}
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isActive ? '#7c3aed' : '#64748b' }}>
+                                                            {isActive ? task.taskType : 'Not included'}
                                                         </span>
                                                     </div>
                                                     <div style={{ marginTop: '0.55rem', fontSize: '0.85rem', color: '#475569' }}>
@@ -496,6 +510,7 @@ export default function WritingTestEditModal({
                         to { opacity: 1; transform: translateX(0); }
                     }
                 `}</style>
-        </Modal>
+            </section>
+        </div>
     );
 }
