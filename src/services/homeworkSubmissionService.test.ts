@@ -320,6 +320,43 @@ describe('homeworkSubmissionService', () => {
         });
     });
 
+    it('notifies the assigning teacher when a student submits class homework', async () => {
+        mockGetHomeworkById.mockResolvedValue(buildHomework({
+            materialTitle: 'Class Writing Homework',
+            target: {
+                type: 'class',
+                classId: 'class-1',
+                className: 'Class 1',
+            },
+        }));
+        seedSubmission(buildSubmission({
+            id: 'class-writing-submission',
+            teacherId: 'teacher-1',
+            studentName: 'Student One',
+        }));
+
+        await submitHomework(
+            'class-writing-submission',
+            'writing-result-1',
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            900,
+        );
+
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            producerFamily: 'homework',
+            authorityRecordId: mockHomeworkId,
+            recipientId: 'teacher-1',
+            operationKey: 'homework-submitted:teacher:class-writing-submission',
+            type: 'info',
+            title: 'Homework Submitted',
+            message: 'Student One submitted \"Class Writing Homework\".',
+            link: `/teacher/homework/${mockHomeworkId}`,
+        });
+    });
+
     it('creates a submitted homework row for an external Writing import', async () => {
         mockGetEffectiveHomeworkDueDate.mockReturnValue(Date.now() + 60_000);
 

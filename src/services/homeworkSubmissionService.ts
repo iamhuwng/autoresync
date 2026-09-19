@@ -475,6 +475,38 @@ export async function submitHomework(
 
     // Update homework stats
     await updateHomeworkStats(submission.homeworkId, 'submitted', isLate);
+
+    // Notify the canonical homework owner that a student submitted work.
+    // This belongs at the homework submission seam so every runtime (Writing,
+    // THCS, Reading, and generic tests) gets the same teacher event.
+    const authorityHomeworkId = homework?.id === submission.homeworkId ? homework.id : undefined;
+    const teacherRecipientId = homework?.createdBy;
+    if (
+        authorityHomeworkId
+        && isTrustedNotificationIdentifier(authorityHomeworkId)
+        && isTrustedNotificationIdentifier(teacherRecipientId)
+    ) {
+        try {
+            const notificationResult = await createTrustedNotification({
+                producerFamily: 'homework',
+                authorityRecordId: authorityHomeworkId,
+                recipientId: teacherRecipientId,
+                operationKey: `homework-submitted:teacher:${submissionId}`,
+                type: 'info',
+                title: 'Homework Submitted',
+                message: `${submission.studentName?.trim() || 'A student'} submitted \"${homework.title || homework.materialTitle || 'Homework'}\".`,
+                link: buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: authorityHomeworkId }),
+            });
+            if (!notificationResult.success) {
+                console.warn(
+                    '[HomeworkSubmission] Teacher submission notification was not created:',
+                    notificationResult.error || 'unknown_notification_error',
+                );
+            }
+        } catch (error) {
+            console.warn('[HomeworkSubmission] Teacher submission notification failed:', error);
+        }
+    }
 }
 
 /**

@@ -369,14 +369,7 @@ describe('WritingPracticeView', () => {
             undefined,
             expect.any(Number),
         );
-        expect(mockCreateTrustedNotification).toHaveBeenNthCalledWith(2, expect.objectContaining({
-            producerFamily: 'writing',
-            authorityRecordId: 'result-1',
-            recipientId: 'teacher-1',
-            operationKey: 'writing-submitted:teacher:result-1',
-            message: 'Student One submitted a homework essay for "Homework IELTS Writing".',
-            link: '/teacher/grading/writing/result-1',
-        }));
+        expect(mockCreateTrustedNotification).toHaveBeenCalledTimes(1);
         expect(mockNavigate).toHaveBeenCalledWith('/student/homework', { replace: true });
     });
 

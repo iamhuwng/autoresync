@@ -649,7 +649,9 @@ export default function WritingPracticeView({
                 link: buildRoute('STUDENT_ACADEMIC_RECORD'),
             }).catch(err => console.warn('[WritingPracticeView] Notification failed:', err));
 
-            if (assignedTeacherId && (isHomework || data.teacherId)) {
+            // Homework teacher notifications are emitted by submitHomework() from
+            // canonical homework authority. Solo practice keeps its Writing-specific event here.
+            if (!isHomework && assignedTeacherId && data.teacherId) {
                 void createTrustedNotification({
                     producerFamily: 'writing',
                     authorityRecordId: resultId,
