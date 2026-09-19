@@ -6,8 +6,9 @@
  * Disables "Send Reminder" if: student already submitted, reminderCount >= 3, or within 24h cooldown.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { AnchoredMenuPortal } from './AnchoredMenuPortal';
 
 const REMINDER_LIMIT = 3;
 const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -62,17 +63,12 @@ const triggerStyle: CSSProperties = {
 };
 
 const dropdownStyle: CSSProperties = {
-    position: 'absolute',
-    top: '100%',
-    right: 0,
-    marginTop: '0.35rem',
     minWidth: '200px',
     borderRadius: '0.9rem',
     background: '#fff',
     border: '1px solid rgba(148,163,184,0.18)',
     boxShadow: '0 12px 24px rgba(15,23,42,0.1), 0 4px 8px rgba(15,23,42,0.05)',
     padding: '0.35rem',
-    zIndex: 30,
     animation: 'scaleIn 0.15s ease-out',
 };
 
@@ -106,33 +102,21 @@ export default function StudentActionMenu({
     onSendReminder,
 }: StudentActionMenuProps) {
     const [open, setOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const closeMenu = useCallback(() => setOpen(false), []);
 
     const reminderDisableReason = getReminderDisableReason(hasSubmitted, reminderCount, lastRemindedAt);
     const isReminderDisabled = reminderDisableReason !== null;
 
-    const handleClickOutside = useCallback((event: MouseEvent) => {
-        if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-            setOpen(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (open) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [handleClickOutside, open]);
-
     const handleAction = useCallback((action: () => void) => {
-        setOpen(false);
+        closeMenu();
         action();
-    }, []);
+    }, [closeMenu]);
 
     return (
-        <div ref={containerRef} style={{ position: 'relative', display: 'inline-flex' }}>
+        <div style={{ position: 'relative', display: 'inline-flex' }}>
             <button
+                ref={triggerRef}
                 type="button"
                 aria-label={`Actions for ${studentName}`}
                 aria-expanded={open}
@@ -158,11 +142,14 @@ export default function StudentActionMenu({
                 ⋮
             </button>
 
-            {open ? (
-                <>
-                {/* Mobile backdrop (Task 17.2) — visible only via CSS media query */}
-                <div className="action-menu-backdrop" onClick={() => setOpen(false)} />
-                <div className="action-menu-dropdown" style={dropdownStyle}>
+            <AnchoredMenuPortal
+                open={open}
+                anchorRef={triggerRef}
+                onClose={closeMenu}
+                className="action-menu-dropdown"
+                style={dropdownStyle}
+                backdropClassName="action-menu-backdrop"
+            >
                     {/* Mobile header label */}
                     <div style={{ padding: '0.5rem 0.7rem 0.25rem', fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}>
                         {studentName}
@@ -233,9 +220,7 @@ export default function StudentActionMenu({
                             </span>
                         ) : null}
                     </button>
-                </div>
-                </>
-            ) : null}
+            </AnchoredMenuPortal>
         </div>
     );
 }

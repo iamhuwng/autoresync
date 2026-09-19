@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   KebabMenuIcon,
   EditIcon,
@@ -10,6 +10,7 @@ import {
   PermanentDeleteIcon,
 } from './HomeworkIcons';
 import type { HomeworkAssignment } from '../../types/homework.types';
+import { AnchoredMenuPortal } from './AnchoredMenuPortal';
 import './KebabActionMenu.css';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -38,45 +39,42 @@ export function KebabActionMenu({
   onResetComplete,
 }: KebabActionMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close on outside click (MUST include cleanup per Task 5.2)
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [isOpen]);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => setIsOpen(false), []);
 
   const handleAction = (action: (hw: HomeworkAssignment) => void) => {
     action(homework);
-    setIsOpen(false);
+    closeMenu();
   };
 
   return (
-    <div className="kebab-menu" ref={menuRef}>
+    <div className="kebab-menu">
       <button
+        ref={triggerRef}
         className="kebab-menu__trigger"
         type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
         onClick={(e) => {
           e.stopPropagation();
-          setIsOpen(!isOpen);
+          setIsOpen((current) => !current);
         }}
         title="More actions"
       >
         <KebabMenuIcon size={16} />
       </button>
 
-      {isOpen && (
-        <div className="kebab-menu__dropdown">
-          {/* Standard actions */}
+      <AnchoredMenuPortal
+        open={isOpen}
+        anchorRef={triggerRef}
+        onClose={closeMenu}
+        className="kebab-menu__dropdown"
+      >
+        <div role="menu" aria-label={'Actions for ' + (homework.title || homework.materialTitle)}>
           <button
             className="kebab-menu__item"
             type="button"
+            role="menuitem"
             onClick={(e) => { e.stopPropagation(); handleAction(onEdit); }}
           >
             <span className="kebab-menu__item-icon"><EditIcon size={16} /></span>
@@ -86,6 +84,7 @@ export function KebabActionMenu({
           <button
             className="kebab-menu__item"
             type="button"
+            role="menuitem"
             onClick={(e) => { e.stopPropagation(); handleAction(onDuplicate); }}
           >
             <span className="kebab-menu__item-icon"><DuplicateIcon size={16} /></span>
@@ -95,6 +94,7 @@ export function KebabActionMenu({
           <button
             className="kebab-menu__item"
             type="button"
+            role="menuitem"
             onClick={(e) => { e.stopPropagation(); handleAction(onExtendDeadline); }}
           >
             <span className="kebab-menu__item-icon"><ExtendIcon size={16} /></span>
@@ -105,6 +105,7 @@ export function KebabActionMenu({
             <button
               className="kebab-menu__item"
               type="button"
+              role="menuitem"
               onClick={(e) => { e.stopPropagation(); handleAction(onResetComplete); }}
             >
               <span className="kebab-menu__item-icon"><ResetIcon size={16} /></span>
@@ -114,12 +115,12 @@ export function KebabActionMenu({
 
           <div className="kebab-menu__separator" />
 
-          {/* Archive/Delete */}
           {homework.archived && onRestore ? (
             <>
               <button
                 className="kebab-menu__item"
                 type="button"
+                role="menuitem"
                 onClick={(e) => { e.stopPropagation(); handleAction(onRestore); }}
               >
                 <span className="kebab-menu__item-icon"><RestoreIcon size={16} /></span>
@@ -129,6 +130,7 @@ export function KebabActionMenu({
                 <button
                   className="kebab-menu__item kebab-menu__item--danger"
                   type="button"
+                  role="menuitem"
                   onClick={(e) => { e.stopPropagation(); handleAction(onPermanentDelete); }}
                 >
                   <span className="kebab-menu__item-icon"><PermanentDeleteIcon size={16} /></span>
@@ -140,6 +142,7 @@ export function KebabActionMenu({
             <button
               className="kebab-menu__item kebab-menu__item--danger"
               type="button"
+              role="menuitem"
               onClick={(e) => { e.stopPropagation(); handleAction(onDelete); }}
             >
               <span className="kebab-menu__item-icon"><DeleteIcon size={16} /></span>
@@ -147,7 +150,7 @@ export function KebabActionMenu({
             </button>
           )}
         </div>
-      )}
+      </AnchoredMenuPortal>
     </div>
   );
 }
