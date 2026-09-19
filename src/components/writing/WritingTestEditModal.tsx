@@ -198,7 +198,7 @@ export default function WritingTestEditModal({
         }
     }, [buildDraftTasks, draft, isPublic, metadata, onSaved, refreshInitialSignature, trackAction]);
 
-    const handlePublish = useCallback(async () => {
+    const handlePublish = useCallback(async ({ confirmWarnings = true } = {}) => {
         if (!draft) {
             return;
         }
@@ -208,7 +208,7 @@ export default function WritingTestEditModal({
             return;
         }
 
-        if (validationState.warnings.length > 0) {
+        if (confirmWarnings && validationState.warnings.length > 0) {
             const proceed = window.confirm(
                 `There are ${validationState.warnings.length} warning(s):\n\n`
                 + `${validationState.warnings.join('\n')}\n\nContinue publishing?`
@@ -271,7 +271,7 @@ export default function WritingTestEditModal({
 
     const handleSave = useCallback(() => {
         if (isPublishedDraft) {
-            void handlePublish();
+            void handlePublish({ confirmWarnings: false });
             return;
         }
 
@@ -298,7 +298,7 @@ export default function WritingTestEditModal({
         extraActions: !isPublishedDraft ? (
             <Button
                 variant="glass"
-                onClick={handlePublish}
+                onClick={() => { void handlePublish(); }}
                 disabled={saving || publishing || validationState.errors.length > 0}
             >
                 {publishing ? 'Publishing...' : 'Publish Test'}

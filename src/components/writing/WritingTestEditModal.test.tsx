@@ -155,9 +155,16 @@ describe('WritingTestEditModal', () => {
         );
     });
 
-    it('publishes a published writing test from the primary save action', async () => {
+    it('publishes a published writing test from the primary save action without warning confirmation', async () => {
         const user = userEvent.setup();
-        const { onClose, onPublished } = renderModal();
+        const draftWithWarning: WritingTestDraft = {
+            ...baseDraft,
+            tasks: [
+                baseDraft.tasks[0],
+                { ...baseDraft.tasks[1], modelAnswer: undefined },
+            ],
+        };
+        const { onClose, onPublished } = renderModal({ draft: draftWithWarning });
 
         publishWritingTestMock.mockResolvedValue({
             success: true,
@@ -180,6 +187,7 @@ describe('WritingTestEditModal', () => {
         });
 
         expect(saveWritingDraftMock).not.toHaveBeenCalled();
+        expect(vi.mocked(globalThis.confirm)).not.toHaveBeenCalled();
         expect(onPublished).toHaveBeenCalledWith('test-1', 'writing-draft-1');
         expect(onClose).toHaveBeenCalled();
         expect(trackActionMock).toHaveBeenCalledWith(
