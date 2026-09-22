@@ -635,6 +635,42 @@ describe('readingV2TeacherComposition.service', () => {
     )).toEqual([]);
   });
 
+  it('publishes master edits when Firebase omitted an empty interaction review label', async () => {
+    const updates: Record<string, unknown> = {};
+    const snapshotWithoutReviewLabel = snapshotFor('passage-a', 'snapshot-a');
+    const [interactionId, interaction] = Object.entries(snapshotWithoutReviewLabel.document.interactions)[0] as [string, any];
+    delete interaction.reviewLabel;
+    const sourceSnapshots = {
+      [readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')]: snapshotWithoutReviewLabel,
+      [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
+        snapshotFor('passage-b', 'snapshot-b'),
+    };
+    const existing = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages,
+      now: '2026-06-02T00:00:00.000Z',
+    });
+
+    const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
+      teacherId: 'teacher-1',
+      composition: existing,
+      passages,
+      repository: {
+        read: vi.fn(async (path: string) => sourceSnapshots[path]),
+        update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
+          Object.assign(updates, nextUpdates);
+        }),
+      },
+      now: '2026-06-16T00:00:00.000Z',
+    });
+
+    const publishedSnapshot = updates[readingV2StoragePaths.publishedSnapshots(
+      existing.testMaterialId,
+      result.composition.publishedVersionId,
+    )] as ReadingV2PublishedSnapshot;
+    expect(publishedSnapshot.document.interactions[`passage-1:${interactionId}`]?.reviewLabel.displayNumber).toBe(1);
+  });
+
   it('rejects selected rows that are missing frozen published snapshots', () => {
     expect(() => buildReadingV2TeacherSelectedPassageComposition({
       teacherId: 'teacher-1',
