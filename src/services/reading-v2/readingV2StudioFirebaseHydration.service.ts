@@ -76,7 +76,15 @@ const normalizeFirebaseDocumentRoundTrip = (document: ReadingV2Document): Readin
       },
     ]),
   ),
-  interactions: document.interactions ?? {},
+  interactions: Object.fromEntries(
+    Object.entries(document.interactions ?? {}).map(([interactionId, interaction]) => [
+      interactionId,
+      {
+        ...interaction,
+        reviewLabel: interaction.reviewLabel ?? {},
+      },
+    ]),
+  ),
   optionSets: document.optionSets ?? {},
   validationState: {
     ...document.validationState,
