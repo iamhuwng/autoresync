@@ -518,6 +518,9 @@ describe('Class Manager - Student Enrollment', () => {
     expect(classData?.students[TEST_STUDENT_UID].uid).toBe(TEST_STUDENT_UID);
     expect(classData?.students[TEST_STUDENT_UID].name).toBe('Test Student');
     expect(classData?.students[TEST_STUDENT_UID].email).toBe('student@test.com');
+
+    const legacyPlayer = await get(ref(database, `game_sessions/${testClassId}/players/${TEST_STUDENT_UID}`));
+    expect(legacyPlayer.exists()).toBe(false);
   });
 
   it('should prevent duplicate enrollment', async () => {

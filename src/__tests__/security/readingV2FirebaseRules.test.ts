@@ -403,6 +403,8 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(surfaceRules['.read']).toContain("$surface === 'teacher-lobby'");
     expect(surfaceRules['.read']).toContain("query.orderByChild === 'ownerId'");
     expect(surfaceRules['.read']).toContain('query.equalTo === auth.uid');
+    expect(surfaceRules['.read']).toContain("$surface === 'library-listing'");
+    expect(surfaceRules['.read']).toContain("query.equalTo === 'student-safe-projection'");
     expect(rowRules['.indexOn']).toBeUndefined();
   });
 
@@ -486,6 +488,50 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
     await assertFails(
       teacher.database().ref('reading_v2/relationship_indexes/teacher-lobby').once('value'),
     );
+  });
+
+  it('allows students to query only the student-safe public library relationship index', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref('reading_v2/relationship_indexes/library-listing').set({
+        'material-safe': {
+          surface: 'library-listing',
+          materialId: 'material-safe',
+          snapshotVersionId: 'snapshot-safe',
+          source: 'student-safe-projection',
+          ownerId: 'teacher-1',
+          deliveryEngine: 'reading-v2',
+        },
+        'material-private': {
+          surface: 'library-listing',
+          materialId: 'material-private',
+          snapshotVersionId: 'snapshot-private',
+          source: 'published-metadata',
+          ownerId: 'teacher-1',
+          deliveryEngine: 'reading-v2',
+        },
+      });
+    });
+
+    const { admin, student, teacher, unauthenticated } = makeReadingV2RuleContexts();
+    const libraryIndex = 'reading_v2/relationship_indexes/library-listing';
+    const studentSafeQuery = student.database().ref(libraryIndex)
+      .orderByChild('source')
+      .equalTo('student-safe-projection');
+    const safeSnapshot = await assertSucceeds(studentSafeQuery.once('value'));
+
+    expect(Object.keys(safeSnapshot.val() ?? {})).toEqual(['material-safe']);
+    await assertFails(student.database().ref(libraryIndex).once('value'));
+    await assertFails(
+      teacher.database().ref(libraryIndex)
+        .orderByChild('source')
+        .equalTo('student-safe-projection')
+        .once('value'),
+    );
+    await assertFails(unauthenticated.database().ref(libraryIndex)
+      .orderByChild('source')
+      .equalTo('student-safe-projection')
+      .once('value'));
+    await assertSucceeds(admin.database().ref(libraryIndex).once('value'));
   });
 
   it('allows teacher-owned canonical drafts but denies students and other teachers', async () => {

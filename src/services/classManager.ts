@@ -928,12 +928,6 @@ export async function enrollStudent(
 
     await update(ref(database), {
       [`${CLASSES_REF}/${classCode}/students/${studentUid}`]: student,
-      [`${GAME_SESSIONS_REF}/${classCode}/players/${studentUid}`]: {
-        name: studentName,
-        score: 0,
-        joinedAt: now,
-        uid: studentUid,
-      },
       [`${STUDENT_CLASSES_REF}/${studentUid}/${classCode}`]: buildStudentClassMembershipRow(student),
     });
 

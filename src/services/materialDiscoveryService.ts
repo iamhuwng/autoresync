@@ -97,7 +97,12 @@ async function getReadingV2PublicLibraryMaterials(
     }
 
     const indexRootPath = readingV2StoragePaths.relationshipIndexes('library-listing', '');
-    const indexSnapshot = await get(ref(database, indexRootPath));
+    const studentSafeIndexQuery = query(
+        ref(database, indexRootPath),
+        orderByChild('source'),
+        equalTo('student-safe-projection'),
+    );
+    const indexSnapshot = await get(studentSafeIndexQuery);
 
     if (!indexSnapshot.exists()) {
         return [];

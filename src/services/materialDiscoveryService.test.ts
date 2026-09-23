@@ -278,7 +278,7 @@ describe('materialDiscoveryService', () => {
                 },
                 [`reading_v2/projections/student_safe_tests/material-v2:${projection.sourceSnapshotVersionId}`]: projection,
             };
-            const value = valueByPath[path];
+            const value = valueByPath[path?.baseRef ?? path];
             return {
                 exists: () => value !== null && value !== undefined,
                 val: () => value,
@@ -331,7 +331,7 @@ describe('materialDiscoveryService', () => {
                 },
                 [`reading_v2/projections/student_safe_tests/material-v2:${projection.sourceSnapshotVersionId}`]: projection,
             };
-            const value = valueByPath[path];
+            const value = valueByPath[path?.baseRef ?? path];
             return {
                 exists: () => value !== null && value !== undefined,
                 val: () => value,
@@ -358,6 +358,11 @@ describe('materialDiscoveryService', () => {
             'reading_v2/material_metadata/material-v2',
             `reading_v2/projections/student_safe_tests/material-v2:${projection.sourceSnapshotVersionId}`,
         ]));
+        expect(query).toHaveBeenCalledWith(
+            'reading_v2/relationship_indexes/library-listing/',
+            { type: 'orderByChild', child: 'source' },
+            { type: 'equalTo', value: 'student-safe-projection' },
+        );
     });
 
     it('keeps public Reading V2 library rows hidden while rollout is default closed', async () => {
@@ -372,7 +377,10 @@ describe('materialDiscoveryService', () => {
             throw new Error(`Unexpected default-closed Reading V2 library read: ${path}`);
         });
 
-        const materials = await getLibraryMaterials({ source: 'public', skill: 'reading-v2' });
+        const materials = await getLibraryMaterials(
+            { source: 'public', skill: 'reading-v2' },
+            { readingV2RolloutMode: 'off' }
+        );
 
         expect(materials).toEqual([]);
         expect(vi.mocked(ref).mock.calls.map(call => call[1])).not.toContain(

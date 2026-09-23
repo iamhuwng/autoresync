@@ -1600,7 +1600,7 @@
       },
       "relationship_indexes": {
         "$surface": {
-          ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($surface === 'teacher-lobby' && query.orderByChild === 'ownerId' && query.equalTo === auth.uid))",
+          ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($surface === 'teacher-lobby' && query.orderByChild === 'ownerId' && query.equalTo === auth.uid) || ($surface === 'library-listing' && root.child('users').child(auth.uid).child('role').val() === 'student' && query.orderByChild === 'source' && query.equalTo === 'student-safe-projection'))",
           ".indexOn": [
             "snapshotVersionId",
             "source",
