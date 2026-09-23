@@ -9,8 +9,6 @@ import { getStudentResults as getCanonicalStudentResults } from './testResults.s
 import type { EnhancedTestResultRecord } from '../types/results.types';
 import type { LibraryMaterial } from '../types/solo.types';
 import { equalTo, get, orderByChild, query, ref } from 'firebase/database';
-import { READING_V2_ENGINE } from '../config/readingV2FeatureFlags';
-import { READING_V2_PROJECTION_FIXTURES } from './reading-v2/fixtures/readingV2ProjectionFixtures';
 
 vi.mock('firebase/database', () => ({
     equalTo: vi.fn((value) => ({ type: 'equalTo', value })),
@@ -248,35 +246,51 @@ describe('materialDiscoveryService', () => {
         expect(enriched[1].studentHistory).toBeUndefined();
     });
 
-    it('loads canonically public Reading V2 library rows from approved relationship indexes, metadata, and student-safe projections', async () => {
-        const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
+    it('loads only launchable Reading V2 full tests from the public summary index', async () => {
+        const summary = {
+            schemaVersion: 1,
+            materialId: 'material-v2',
+            producerId: 'reading-v2-full-test',
+            materialKind: 'full-test',
+            surfaceFamily: 'assessment',
+            ownerId: 'teacher-1',
+            title: 'Published Reading V2',
+            description: 'Public V2 material',
+            visibility: 'public',
+            lifecycleState: 'active',
+            skillId: 'reading-v2',
+            primaryTestTypeId: 'ielts',
+            testTypeIds: ['ielts'],
+            testTypeMembership: { ielts: true },
+            tags: ['reading'],
+            questionCount: 2,
+            durationMinutes: 55,
+            sourceSnapshotVersionId: 'snapshot-v2',
+            hasStudentSafeProjection: true,
+            deliveryProjectionReady: true,
+            studentSafeProjectionReady: true,
+            passageRefCount: 1,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        };
         vi.mocked(get).mockImplementation(async (path: any) => {
             const valueByPath: Record<string, unknown> = {
-                tests: null,
-                'reading_v2/relationship_indexes/library-listing/': {
-                    'material-v2': {
-                        materialId: 'material-v2',
-                        snapshotVersionId: projection.sourceSnapshotVersionId,
-                        source: 'student-safe-projection',
+                'material_catalog/material_summary_indexes/v1/by_visibility/public': {
+                    'material-v2': summary,
+                    'passage-v2': {
+                        ...summary,
+                        materialId: 'passage-v2',
+                        producerId: 'reading-v2-passage',
+                        materialKind: 'reading-passage',
+                        surfaceFamily: 'passage',
+                    },
+                    'unready-v2': {
+                        ...summary,
+                        materialId: 'unready-v2',
+                        hasStudentSafeProjection: false,
+                        deliveryProjectionReady: false,
+                        studentSafeProjectionReady: false,
                     },
                 },
-                'reading_v2/material_metadata/material-v2': {
-                    materialId: 'material-v2',
-                    ownerId: 'teacher-1',
-                    deliveryEngine: READING_V2_ENGINE,
-                    productLabel: 'Reading V2',
-                    title: 'Published Reading V2',
-                    materialKind: 'full-test',
-                    durationMinutes: 55,
-                    difficulty: 'intermediate',
-                    description: 'Public V2 material',
-                    tags: ['reading'],
-                    visibility: 'public',
-                    publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
-                    updatedAt: '2026-01-01T00:00:00.000Z',
-                    relationshipSurfaces: ['library-listing'],
-                },
-                [`reading_v2/projections/student_safe_tests/material-v2:${projection.sourceSnapshotVersionId}`]: projection,
             };
             const value = valueByPath[path?.baseRef ?? path];
             return {
@@ -299,70 +313,15 @@ describe('materialDiscoveryService', () => {
             questionCount: 2,
             source: { type: 'public' },
         });
-    });
-
-    it('keeps legacy library-eligible Reading V2 library rows readable until migration', async () => {
-        const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
-        vi.mocked(get).mockImplementation(async (path: any) => {
-            const valueByPath: Record<string, unknown> = {
-                tests: null,
-                'reading_v2/relationship_indexes/library-listing/': {
-                    'material-v2': {
-                        materialId: 'material-v2',
-                        snapshotVersionId: projection.sourceSnapshotVersionId,
-                        source: 'student-safe-projection',
-                    },
-                },
-                'reading_v2/material_metadata/material-v2': {
-                    materialId: 'material-v2',
-                    ownerId: 'teacher-1',
-                    deliveryEngine: READING_V2_ENGINE,
-                    productLabel: 'Reading V2',
-                    title: 'Published Reading V2',
-                    materialKind: 'full-test',
-                    durationMinutes: 55,
-                    difficulty: 'intermediate',
-                    description: 'Public V2 material',
-                    tags: ['reading'],
-                    visibility: 'library-eligible',
-                    publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
-                    updatedAt: '2026-01-01T00:00:00.000Z',
-                    relationshipSurfaces: ['library-listing'],
-                },
-                [`reading_v2/projections/student_safe_tests/material-v2:${projection.sourceSnapshotVersionId}`]: projection,
-            };
-            const value = valueByPath[path?.baseRef ?? path];
-            return {
-                exists: () => value !== null && value !== undefined,
-                val: () => value,
-            } as any;
-        });
-
-        const materials = await getLibraryMaterials(
-            { source: 'public', skill: 'reading' },
-            { readingV2RolloutMode: 'public' }
+        expect(vi.mocked(ref).mock.calls.map(call => call[1])).toContain(
+            'material_catalog/material_summary_indexes/v1/by_visibility/public',
         );
-
-        expect(materials).toHaveLength(1);
-        expect(materials[0]).toMatchObject({
-            id: 'material-v2',
-            title: 'Published Reading V2',
-            skill: 'reading-v2',
-            type: 'test',
-            questionCount: 2,
-            source: { type: 'public' },
-        });
-        expect(vi.mocked(ref).mock.calls.map(call => call[1])).toEqual(expect.arrayContaining([
-            'tests',
-            'reading_v2/relationship_indexes/library-listing/',
+        expect(vi.mocked(ref).mock.calls.map(call => call[1])).not.toContain(
             'reading_v2/material_metadata/material-v2',
-            `reading_v2/projections/student_safe_tests/material-v2:${projection.sourceSnapshotVersionId}`,
-        ]));
-        expect(query).toHaveBeenCalledWith(
-            'reading_v2/relationship_indexes/library-listing/',
-            { type: 'orderByChild', child: 'source' },
-            { type: 'equalTo', value: 'student-safe-projection' },
         );
+        expect(vi.mocked(ref).mock.calls.some((call) =>
+            String(call[1]).startsWith('reading_v2/relationship_indexes/library-listing/'),
+        )).toBe(false);
     });
 
     it('keeps public Reading V2 library rows hidden while rollout is default closed', async () => {

@@ -365,6 +365,7 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(ownerBucket['.indexOn']).toContain('updatedAt');
     expect(publicBucket['.read']).toContain("$visibility === 'public'");
     expect(publicBucket['.read']).toContain("role').val() === 'teacher'");
+    expect(publicBucket['.read']).toContain("role').val() === 'student'");
     expect(byIdRule['.read']).toContain("data.child('lifecycleState').val() === 'active'");
     expect(byIdRule['.validate']).toContain("newData.child('schemaVersion').val() === 1");
     expect(byIdRule['.validate']).toContain("newData.child('materialId').val() === $materialId");
@@ -571,8 +572,11 @@ describeEmulator('Material Catalog Firebase rule emulator behavior', () => {
       ),
     );
     await assertSucceeds(otherTeacher.database().ref(publicPath).once('value'));
-    await assertFails(student.database().ref(publicPath).once('value'));
+    await assertSucceeds(student.database().ref(publicPath).once('value'));
     await assertFails(unauthenticated.database().ref(publicPath).once('value'));
+    await assertFails(student.database().ref(
+      'material_catalog/material_summary_indexes/v1/by_visibility/private',
+    ).once('value'));
     await assertFails(
       teacher.database().ref(privateInPublicPath).set(
         universalMaterialSummary('material-private-in-public'),

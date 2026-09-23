@@ -638,7 +638,7 @@
           },
           "by_visibility": {
             "$visibility": {
-              ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+              ".read": "auth != null && (($visibility === 'public' && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'student')) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
               ".indexOn": [
                 "updatedAt"
               ],
@@ -1600,7 +1600,7 @@
       },
       "relationship_indexes": {
         "$surface": {
-          ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($surface === 'teacher-lobby' && query.orderByChild === 'ownerId' && query.equalTo === auth.uid) || ($surface === 'library-listing' && root.child('users').child(auth.uid).child('role').val() === 'student' && query.orderByChild === 'source' && query.equalTo === 'student-safe-projection'))",
+          ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($surface === 'teacher-lobby' && query.orderByChild === 'ownerId' && query.equalTo === auth.uid))",
           ".indexOn": [
             "snapshotVersionId",
             "source",

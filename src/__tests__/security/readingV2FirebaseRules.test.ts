@@ -403,8 +403,8 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(surfaceRules['.read']).toContain("$surface === 'teacher-lobby'");
     expect(surfaceRules['.read']).toContain("query.orderByChild === 'ownerId'");
     expect(surfaceRules['.read']).toContain('query.equalTo === auth.uid');
-    expect(surfaceRules['.read']).toContain("$surface === 'library-listing'");
-    expect(surfaceRules['.read']).toContain("query.equalTo === 'student-safe-projection'");
+    expect(surfaceRules['.read']).not.toContain("$surface === 'library-listing'");
+    expect(surfaceRules['.read']).not.toContain("role').val() === 'student'");
     expect(rowRules['.indexOn']).toBeUndefined();
   });
 

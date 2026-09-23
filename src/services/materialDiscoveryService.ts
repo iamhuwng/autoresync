@@ -20,18 +20,7 @@ import {
     isReadingV2PublicRollout,
     type ReadingV2RolloutMode,
 } from '../config/readingV2FeatureFlags';
-import {
-    buildReadingV2LaunchReadPlan,
-    createReadingV2LibraryMaterial,
-    isReadingV2LaunchCandidate,
-    resolveReadingV2LaunchDecision,
-} from './reading-v2/readingV2LaunchIntegration.service';
-import type { ReadingV2DerivedProjection } from './reading-v2/readingV2Projection.service';
-import {
-    isReadingV2PublicVisibility,
-    type ReadingV2MaterialMetadata,
-} from './reading-v2/readingV2MaterialMetadata.service';
-import { readingV2StoragePaths } from './reading-v2/readingV2StoragePaths.service';
+import { listActiveMaterialSummaries } from './materialCatalog/materialSummaryPort.service';
 
 type StudentMaterialHistory = NonNullable<LibraryMaterial['studentHistory']>;
 
@@ -96,83 +85,63 @@ async function getReadingV2PublicLibraryMaterials(
         return [];
     }
 
-    const indexRootPath = readingV2StoragePaths.relationshipIndexes('library-listing', '');
-    const studentSafeIndexQuery = query(
-        ref(database, indexRootPath),
-        orderByChild('source'),
-        equalTo('student-safe-projection'),
+    const summaries = await listActiveMaterialSummaries(
+        { scope: 'public' },
+        {
+            async read(path) {
+                const snapshot = await get(ref(database, path));
+                return snapshot.exists() ? snapshot.val() : null;
+            },
+        },
     );
-    const indexSnapshot = await get(studentSafeIndexQuery);
 
-    if (!indexSnapshot.exists()) {
-        return [];
-    }
+    return summaries
+        .filter((summary) =>
+            summary.producerId === 'reading-v2-full-test' &&
+            summary.materialKind === 'full-test' &&
+            summary.hasStudentSafeProjection === true &&
+            summary.deliveryProjectionReady === true &&
+            summary.studentSafeProjectionReady === true &&
+            Boolean(summary.sourceSnapshotVersionId) &&
+            summary.hasBrokenRefs !== true &&
+            (summary.brokenRefCount ?? 0) === 0,
+        )
+        .map((summary) => {
+            const material: LibraryMaterial & { metadata: Record<string, unknown> } = {
+                id: summary.materialId,
+                title: summary.title,
+                type: 'test',
+                skill: 'reading-v2',
+                estimatedDuration: summary.durationMinutes,
+                questionCount: summary.questionCount ?? 0,
+                source: { type: 'public' },
+                soloConfig: {
+                    soloEnabled: true,
+                    defaults: {
+                        timerMinutes: summary.durationMinutes ?? null,
+                        feedbackTiming: 'after_completion',
+                        suggestedAttempts: 1,
+                    },
+                    contexts: {
+                        selfStudy: { enabled: true, publicLibrary: true },
+                        homework: { enabled: true, allowTeacherOverride: true },
+                        courseMaterial: { canMarkRequired: true },
+                    },
+                },
+                metadata: {
+                    deliveryEngine: 'reading-v2',
+                    productLabel: 'Reading V2',
+                    materialKind: summary.materialKind,
+                    visibility: summary.visibility,
+                    description: summary.description,
+                    tags: summary.tags,
+                    sourceSnapshotVersionId: summary.sourceSnapshotVersionId,
+                },
+            };
 
-    const indexEntries = Object.values(indexSnapshot.val() ?? {}) as Array<{
-        materialId?: string;
-        snapshotVersionId?: string;
-        source?: string;
-    }>;
-
-    const materials = await Promise.all(indexEntries.map(async (entry) => {
-        if (!entry.materialId || entry.source !== 'student-safe-projection') {
-            return null;
-        }
-
-        const readPlan = buildReadingV2LaunchReadPlan({
-            surface: 'public-library',
-            materialId: entry.materialId,
-            snapshotVersionId: entry.snapshotVersionId,
-        });
-
-        const metadataSnapshot = await get(ref(database, readPlan.metadataPath));
-        const metadata = metadataSnapshot.exists()
-            ? metadataSnapshot.val() as ReadingV2MaterialMetadata
-            : null;
-
-        if (
-            !metadata ||
-            !isReadingV2LaunchCandidate(metadata) ||
-            !isReadingV2PublicVisibility(metadata.visibility)
-        ) {
-            return null;
-        }
-
-        const projectionSnapshot = await get(ref(database, readPlan.projectionPath));
-        const projection = projectionSnapshot.exists()
-            ? projectionSnapshot.val() as ReadingV2DerivedProjection
-            : null;
-
-        const launchDecision = resolveReadingV2LaunchDecision({
-            surface: 'public-library',
-            metadata,
-            projection,
-            rolloutMode,
-        });
-
-        if (launchDecision.status !== 'runtime') {
-            return null;
-        }
-
-        const material = createReadingV2LibraryMaterial({
-            metadata,
-            projection: launchDecision.projection,
-            source: { type: 'public' },
-        });
-
-        (material as any).metadata = {
-            deliveryEngine: metadata.deliveryEngine,
-            productLabel: metadata.productLabel,
-            materialKind: metadata.materialKind,
-            description: metadata.description,
-            tags: metadata.tags,
-            sourceSnapshotVersionId: entry.snapshotVersionId,
-        };
-
-        return matchesReadingV2LibraryFilters(material, filters) ? material : null;
-    }));
-
-    return materials.filter((material): material is LibraryMaterial => material !== null);
+            return matchesReadingV2LibraryFilters(material, filters) ? material : null;
+        })
+        .filter((material): material is LibraryMaterial => material !== null);
 }
 
 function buildStudentMaterialHistoryMap(results: Awaited<ReturnType<typeof getCanonicalStudentResults>>): Map<string, StudentMaterialHistory> {
