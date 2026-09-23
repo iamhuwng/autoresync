@@ -119,10 +119,7 @@ test('contract is executable, generic, and self-describing', () => {
   assert.equal(HARNESS_CONTRACT.dependencyCacheProtocolVersion, 3);
   assert.equal(HARNESS_CONTRACT.authority.genericSkill.name, 'run-windows-arm64-tools');
   assert.equal(HARNESS_CONTRACT.authority.genericSkill.revision, '4.0.0');
-  assert.equal(HARNESS_CONTRACT.authority.repositoryGuidance.name, 'luyentap-windows-arm64-harness-contract');
   assert.equal(HARNESS_CONTRACT.authority.wsl.sourcePolicy, 'selected-windows-checkout');
-  const repositoryGuidance = fs.readFileSync(path.join(repositoryRoot, HARNESS_CONTRACT.authority.repositoryGuidance.path), 'utf8');
-  assert.match(repositoryGuidance, /^name: luyentap-windows-arm64-harness-contract$/mu);
   assert.match(remediationFor('BROWSER_RUNTIME_MISSING', 'web', 'playwright').stages.verify[0], /--doctor web playwright/u);
   assert.equal(wranglerDependencyCacheIdentity({ version: '4.0.0', nodeVersion: 'v22.17.1', nodeAbi: '127', architecture: 'x64', npmVersion: '10.9.2', manifestSha256: 'b'.repeat(64), lockSha256: 'a'.repeat(64) }), '4.0.0-nodev22.17.1-abi127-x64-npm10.9.2-manifestbbbbbbbbbbbb-lockaaaaaaaaaaaa-protocol3');
   for (const code of ['WSL_WRANGLER_CACHE_INVALID', 'WSL_WRANGLER_CACHE_INCOMPLETE', 'WSL_WRANGLER_INSTALL_FAILED', 'WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', 'WSL_WRANGLER_PROTOCOL_INVALID']) {
@@ -130,21 +127,16 @@ test('contract is executable, generic, and self-describing', () => {
   }
 });
 
-test('repository skill authority rejects generic collisions and stale adapters', () => {
+test('repository skill authority rejects generic collisions', () => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-skill-authority-'));
-  const adapter = path.join(temporary, HARNESS_CONTRACT.authority.repositoryGuidance.path);
   const writeSkill = (file, name) => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `---\nname: ${name}\ndescription: focused test skill\n---\n`);
   };
   try {
-    writeSkill(adapter, HARNESS_CONTRACT.authority.repositoryGuidance.name);
-    assert.equal(assertRepositorySkillAuthority(temporary).repositoryGuidance.source, fs.realpathSync.native(adapter));
+    assert.equal(assertRepositorySkillAuthority(temporary).genericSkill.name, HARNESS_CONTRACT.authority.genericSkill.name);
     const collision = path.join(temporary, '.agents', 'skills', 'collision', 'SKILL.md');
     writeSkill(collision, HARNESS_CONTRACT.authority.genericSkill.name);
-    assert.throws(() => assertRepositorySkillAuthority(temporary), { code: 'HARNESS_CONTRACT_MISMATCH' });
-    fs.rmSync(path.dirname(collision), { recursive: true, force: true });
-    writeSkill(adapter, 'stale-repository-adapter');
     assert.throws(() => assertRepositorySkillAuthority(temporary), { code: 'HARNESS_CONTRACT_MISMATCH' });
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
@@ -159,9 +151,8 @@ test('authority report and Codex prompt parsing expose one generic source and se
   assert.equal(report.selectedExecutionBoundary.auditSourceMode, 'live');
   assert.equal(report.selectedExecutionBoundary.wslRole, 'execution-substrate-only');
   const genericSource = path.join(os.tmpdir(), 'user-skills', 'run-windows-arm64-tools', 'SKILL.md');
-  const promptInput = [{ content: [{ type: 'input_text', text: `<skills_instructions>\n- run-windows-arm64-tools: generic (file: ${genericSource})\n- luyentap-windows-arm64-harness-contract: repository (file: ${report.repositoryGuidance.source})\n</skills_instructions>` }] }];
+  const promptInput = [{ content: [{ type: 'input_text', text: `<skills_instructions>\n- run-windows-arm64-tools: generic (file: ${genericSource})\n</skills_instructions>` }] }];
   assert.deepEqual(skillSourcesFromPromptInput(promptInput, 'run-windows-arm64-tools'), [path.resolve(genericSource)]);
-  assert.deepEqual(skillSourcesFromPromptInput(promptInput, 'luyentap-windows-arm64-harness-contract'), [report.repositoryGuidance.source]);
 });
 
 test('active generic skill selection fails closed on stale revision', () => {

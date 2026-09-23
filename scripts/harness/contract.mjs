@@ -8,7 +8,6 @@ export const HARNESS_CONTRACT = Object.freeze({
   authority: Object.freeze({
     sourceAuthority: 'windows-checkout',
     genericSkill: Object.freeze({ name: 'run-windows-arm64-tools', scope: 'user', revision: '4.0.0' }),
-    repositoryGuidance: Object.freeze({ name: 'luyentap-windows-arm64-harness-contract', path: '.agents/skills/luyentap-windows-arm64-harness-contract/SKILL.md' }),
     wsl: Object.freeze({ role: 'execution-substrate-only', sourcePolicy: 'selected-windows-checkout' }),
   }),
   resolutionOrder: Object.freeze(['discover', 'reuse', 'adapt', 'install', 'verify']),
@@ -37,7 +36,7 @@ export const HARNESS_CONTRACT = Object.freeze({
     'product_failure',
   ]),
   remediations: Object.freeze({
-    HARNESS_CONTRACT_MISMATCH: { summary: 'Restore one coherent repository harness generation and distinct skill authorities.', actions: ['Require the user-scoped run-windows-arm64-tools skill, the repository luyentap-windows-arm64-harness-contract guidance, and every scripts/harness component from one checkout lineage; never borrow a runner or select another WSL clone.'], verify: 'node scripts/harness/run-tool.mjs --contract' },
+    HARNESS_CONTRACT_MISMATCH: { summary: 'Restore one coherent repository harness generation and skill authority.', actions: ['Require the user-scoped run-windows-arm64-tools skill and every scripts/harness component from one checkout lineage; never borrow a runner or select another WSL clone.'], verify: 'node scripts/harness/run-tool.mjs --contract' },
     DISPATCH_PROTOCOL_MISSING: { summary: 'Enter through the repository dispatcher instead of invoking an internal runner.', actions: ['Use run-tool.mjs with the documented tool/project grammar; internal environment payloads are harness-owned.'], verify: 'node scripts/harness/run-tool.mjs --contract' },
     DISPATCH_PROTOCOL_MISMATCH: { summary: 'The dispatcher and isolated runner are from different harness generations.', actions: ['Restore run-tool.mjs, run-isolated.mjs, contract.mjs, adapters, and tests from the same repository commit before retrying.'], verify: 'node scripts/harness/run-tool.mjs --contract' },
     X64_NODE_PREREQUISITE_MISSING: { summary: 'Find and reuse a Windows x64 Node runtime before installing another copy.', discover: ['Probe CODEX_X64_NODE, %USERPROFILE%\\Tools\\node-x64\\node.exe, PATH, and standard user/system Node locations; accept only process.arch=x64.'], reuse: ['Set CODEX_X64_NODE to a compatible discovered node.exe for the current shell.'], adapt: ['Prefer a user-local x64 Node path that leaves the ARM64 host installation unchanged.'], install: ['Only when discovery finds no compatible runtime, obtain authorization and install or unpack official Windows x64 Node outside the repository.'], verify: '& $env:CODEX_X64_NODE -p "process.platform + \' \' + process.arch"' },

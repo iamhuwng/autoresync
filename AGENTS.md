@@ -74,7 +74,6 @@ When the task involves Google Cloud, Gemini, Vertex AI, Google AI Studio, Google
 - Start by checking active auth and project context with `gcloud auth list` and `gcloud config get-value project`.
 - For API-key problems, inspect restrictions and targets with `gcloud services api-keys list`, `describe`, and `get-key-string` before assuming the key value itself is bad.
 - For service availability problems, inspect enablement with `gcloud services list --enabled` before changing code or rotating secrets.
-- Load `.agent/skills/google-cloud-cli-first/SKILL.md` and keep the mirrored `.agents/skills/google-cloud-cli-first/SKILL.md` in sync when this rule evolves.
 
 ### Universal Integration Safety Rules
 
@@ -121,4 +120,3 @@ this pause is an instruction lookup, not a request for user confirmation.
 ## Repo Skills
 
 - Observability/page-action work: load `.agent/skills/observability-tracking/SKILL.md` so feature registry and tracking stay synchronized.
-- Google Cloud, Gemini, Vertex AI, API key, service enablement, or MCP auth troubleshooting: load `.agent/skills/google-cloud-cli-first/SKILL.md` and keep the mirrored `.agents/skills/google-cloud-cli-first/SKILL.md` synchronized.

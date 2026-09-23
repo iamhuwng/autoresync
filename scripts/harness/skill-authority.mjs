@@ -51,12 +51,7 @@ export function assertRepositorySkillAuthority(repositoryRoot, authority = HARNE
   if (genericCollisions.length) {
     throw failure('HARNESS_CONTRACT_MISMATCH', `repository skill collides with the user-scoped generic skill ${authority.genericSkill.name}: ${genericCollisions.map((skill) => skill.file).join(', ')}`);
   }
-  const expectedAdapter = path.resolve(root, authority.repositoryGuidance.path);
-  const adapters = skills.filter((skill) => skill.name === authority.repositoryGuidance.name);
-  if (adapters.length !== 1 || adapters[0].file !== expectedAdapter) {
-    throw failure('HARNESS_CONTRACT_MISMATCH', `repository guidance must be exactly ${authority.repositoryGuidance.name} at ${expectedAdapter}`);
-  }
-  return { authoritativeCheckoutRoot: root, genericSkill: authority.genericSkill, repositoryGuidance: { ...authority.repositoryGuidance, source: expectedAdapter } };
+  return { authoritativeCheckoutRoot: root, genericSkill: authority.genericSkill };
 }
 
 function stringsIn(value, strings = []) {
@@ -140,8 +135,6 @@ export function actualSkillAuthorityReport(repositoryRoot, toolName, options = {
   try { promptInput = JSON.parse(result.stdout); }
   catch (error) { throw failure('HARNESS_CONTRACT_MISMATCH', `Codex skill discovery returned invalid JSON: ${error.message}`); }
   const genericSources = skillSourcesFromPromptInput(promptInput, HARNESS_CONTRACT.authority.genericSkill.name);
-  const adapterSources = skillSourcesFromPromptInput(promptInput, HARNESS_CONTRACT.authority.repositoryGuidance.name);
-  if (adapterSources.length !== 1 || adapterSources[0] !== report.repositoryGuidance.source) throw failure('HARNESS_CONTRACT_MISMATCH', `Codex did not resolve the expected repository guidance: ${adapterSources.join(', ')}`);
   return { ...report, activeGenericSkill: assertActiveGenericSkill(genericSources, report.authoritativeCheckoutRoot) };
 }
 
