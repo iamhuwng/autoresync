@@ -2586,7 +2586,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    zIndex: 1001,
+                    zIndex: 1200,
                 }}
                 onClick={() => setShowCloseConfirmation(false)}
             >
@@ -2636,6 +2636,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
     return (
         <>
+            {opened && <style>{'.mantine-Select-dropdown { z-index: 1150 !important; }'}</style>}
             <Modal
                 opened={opened}
                 onClose={handleCloseRequest}
