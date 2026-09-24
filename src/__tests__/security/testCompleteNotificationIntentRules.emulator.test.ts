@@ -68,6 +68,10 @@ describeEmulator('ordinary test completion notification intent RTDB rules', () =
     await assertFails(student.ref('test_results/legacy-result/testCompleteNotificationIntent').set(intent(studentId, 'student', 'legacy-result')));
     await assertFails(student.ref('test_results/thcs-result/testCompleteNotificationIntent').set(intent(studentId, 'student', 'thcs-result')));
     const resultRef = student.ref(`test_results/${resultId}`);
+    await assertSucceeds(resultRef.set({
+      resultId, studentId, submittedAt, testType: 'reading', testTitle: 'Test',
+      testCompleteNotificationIntent: intent(studentId, 'student'),
+    }));
     await assertFails(resultRef.child('testCompleteNotificationIntent/attempts').set(1));
     await assertFails(resultRef.child('testCompleteNotificationIntent').remove());
     await assertFails(resultRef.remove());
