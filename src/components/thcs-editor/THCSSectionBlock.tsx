@@ -1,7 +1,7 @@
 /**
  * THCSSectionBlock — Section editor with questions, reorder, instruction (PRD-0027 Task 4.3)
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
     DndContext, closestCenter, PointerSensor, KeyboardSensor,
     useSensor, useSensors,
@@ -16,6 +16,10 @@ import THCSQuestionBlock from './THCSQuestionBlock';
 import { THCSBulkPasteModal } from './THCSBulkPasteModal';
 import { Button } from '../modern';
 import './THCSSectionBlock.css';
+
+const QUESTION_BATCH_SIZE = 20;
+const QUESTION_LOAD_THRESHOLD = 240;
+const sectionQuestionViewState = new Map<string, { revealedCount: number; scrollTop: number }>();
 
 // ── Sortable Question Wrapper (Task 9.3) ──
 function SortableQuestionItem({ id, children }: { id: string; children: React.ReactNode }) {
@@ -72,6 +76,37 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
     const [showBulkPaste, setShowBulkPaste] = useState(false);
     const [showPassage, setShowPassage] = useState(false);
     const [editingRawText, setEditingRawText] = useState(false);
+    const questionListRef = useRef<HTMLDivElement>(null);
+    const restoredQuestionSectionId = useRef<string | null>(null);
+    const [revealedQuestionCount, setRevealedQuestionCount] = useState(() =>
+        Math.max(QUESTION_BATCH_SIZE, sectionQuestionViewState.get(section.id)?.revealedCount ?? 0),
+    );
+
+    useLayoutEffect(() => {
+        const list = questionListRef.current;
+        if (!list || restoredQuestionSectionId.current === section.id) return;
+        const saved = sectionQuestionViewState.get(section.id);
+        const savedCount = Math.max(QUESTION_BATCH_SIZE, saved?.revealedCount ?? 0);
+        if (revealedQuestionCount !== savedCount) {
+            setRevealedQuestionCount(savedCount);
+            return;
+        }
+        list.scrollTop = saved?.scrollTop ?? 0;
+        restoredQuestionSectionId.current = section.id;
+    }, [section.id, revealedQuestionCount]);
+
+    const visibleQuestions = section.questions.slice(0, revealedQuestionCount);
+
+    const handleQuestionListScroll = (event: React.UIEvent<HTMLDivElement>) => {
+        const list = event.currentTarget;
+        let nextCount = revealedQuestionCount;
+        if (list.scrollHeight - list.clientHeight - list.scrollTop <= QUESTION_LOAD_THRESHOLD
+            && revealedQuestionCount < section.questions.length) {
+            nextCount = Math.min(revealedQuestionCount + QUESTION_BATCH_SIZE, section.questions.length);
+            setRevealedQuestionCount(nextCount);
+        }
+        sectionQuestionViewState.set(section.id, { revealedCount: nextCount, scrollTop: list.scrollTop });
+    };
 
     useEffect(() => {
         const dialog = deleteDialogRef.current;
@@ -86,6 +121,15 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
     const hasReadingIntents = section.questions.some(q => READING_INTENTS.includes(q.type));
 
     // Question management
+    const revealAppendedQuestions = (nextCount: number) => {
+        setRevealedQuestionCount(nextCount);
+        sectionQuestionViewState.set(section.id, { revealedCount: nextCount, scrollTop: questionListRef.current?.scrollTop ?? 0 });
+        requestAnimationFrame(() => {
+            const list = questionListRef.current;
+            if (list) list.scrollTop = list.scrollHeight;
+        });
+    };
+
     const handleAddQuestion = () => {
         const lastQ = section.questions[section.questions.length - 1];
         const defaultType: THCSQuestionType = lastQ ? lastQ.type : 'mcq-grammar';
@@ -101,6 +145,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
             correctAnswer: '' as any,
         };
 
+        revealAppendedQuestions(section.questions.length + 1);
         onUpdate({ ...section, questions: [...section.questions, newQ] });
     };
 
@@ -472,8 +517,8 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                     onDragEnd={(event: DragEndEvent) => {
                         const { active, over } = event;
                         if (!over || active.id === over.id) return;
-                        const oldIdx = section.questions.findIndex(q => q.id === active.id);
-                        const newIdx = section.questions.findIndex(q => q.id === over.id);
+                        const oldIdx = visibleQuestions.findIndex(q => q.id === active.id);
+                        const newIdx = visibleQuestions.findIndex(q => q.id === over.id);
                         if (oldIdx === -1 || newIdx === -1) return;
                         // Task 9.5: Re-number after reorder
                         requestAnimationFrame(() => {
@@ -485,28 +530,41 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                         });
                     }}
                 >
-                    <SortableContext items={section.questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingLeft: 24 }}>
-                            {section.questions.map((q, qi) => (
-                                <SortableQuestionItem key={q.id} id={q.id}>
-                                    <THCSQuestionBlock
-                                        question={q}
-                                        questionIndex={qi}
-                                        globalNumber={globalQuestionOffset + qi + 1}
-                                        sectionPointMode={section.pointMode}
-                                        draftId={draftId}
-                                        onUpdate={(updated) => handleUpdateQuestion(qi, updated)}
-                                        onDelete={() => handleDeleteQuestion(qi)}
-                                        onMoveUp={() => handleMoveQuestion(qi, -1)}
-                                        onMoveDown={() => handleMoveQuestion(qi, 1)}
-                                        canMoveUp={qi > 0}
-                                        canMoveDown={qi < section.questions.length - 1}
-                                    />
-                                </SortableQuestionItem>
-                            ))}
+                    <SortableContext items={visibleQuestions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                        <div
+                            ref={questionListRef}
+                            className="thcs-question-list"
+                            role="region"
+                            aria-label={`${section.name} questions`}
+                            onScroll={handleQuestionListScroll}
+                        >
+                            <div className="thcs-question-list__items">
+                                {visibleQuestions.map((q, qi) => (
+                                    <SortableQuestionItem key={q.id} id={q.id}>
+                                        <THCSQuestionBlock
+                                            question={q}
+                                            questionIndex={qi}
+                                            globalNumber={globalQuestionOffset + qi + 1}
+                                            sectionPointMode={section.pointMode}
+                                            draftId={draftId}
+                                            onUpdate={(updated) => handleUpdateQuestion(qi, updated)}
+                                            onDelete={() => handleDeleteQuestion(qi)}
+                                            onMoveUp={() => handleMoveQuestion(qi, -1)}
+                                            onMoveDown={() => handleMoveQuestion(qi, 1)}
+                                            canMoveUp={qi > 0}
+                                            canMoveDown={qi < section.questions.length - 1}
+                                        />
+                                    </SortableQuestionItem>
+                                ))}
+                            </div>
                         </div>
                     </SortableContext>
                 </DndContext>
+                {visibleQuestions.length < section.questions.length && (
+                    <div className="thcs-question-list__count" aria-live="polite">
+                        Showing {visibleQuestions.length} of {section.questions.length} questions. Scroll down to load more.
+                    </div>
+                )}
 
                 {/* Add Question buttons */}
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -541,6 +599,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                         correctAnswer: '' as any,
                                     });
                                 }
+                                revealAppendedQuestions(section.questions.length + n);
                                 onUpdate({ ...section, questions: [...section.questions, ...newQuestions] });
                             }}
                             style={{
