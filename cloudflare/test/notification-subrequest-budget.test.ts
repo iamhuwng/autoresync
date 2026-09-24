@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FirebaseRestNotificationCommandRepository } from '../src/upload-worker/notifications/repository.ts';
+import { FirebaseThcsNotificationStorage } from '../src/upload-worker/notifications/thcs-notification-store.ts';
 
 const pem = (bytes: ArrayBuffer): string => {
   const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
@@ -7,7 +8,7 @@ const pem = (bytes: ArrayBuffer): string => {
 };
 
 describe('notification inbox external subrequests', () => {
-  it('uses one OAuth exchange and two RTDB requests per new recipient in a ten-recipient pass', async () => {
+  it('shares one OAuth exchange across a THCS due scan and ten recipient writes', async () => {
     const key = await crypto.subtle.generateKey({
       name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
       publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256',
@@ -21,18 +22,20 @@ describe('notification inbox external subrequests', () => {
       if (url === 'https://oauth2.googleapis.com/token') {
         return new Response(JSON.stringify({ access_token: 'test-token', expires_in: 3600 }));
       }
+      if (url.startsWith('https://firestore.googleapis.com/')) return new Response('[]');
       if (init?.method === 'GET') return new Response('null', { headers: { etag: '"0"' } });
       if (init?.method === 'PUT') return new Response('null');
       throw new Error(`unexpected ${init?.method} ${url}`);
     };
-    const repository = new FirebaseRestNotificationCommandRepository({
-      env: {
-        FIREBASE_DB_URL: 'https://temp-a1437-default-rtdb.firebaseio.com',
-        FIREBASE_PROJECT_ID: 'temp-a1437',
-        NOTIFICATION_COMMAND_SERVICE_IDENTITY: identity,
-        NOTIFICATION_COMMAND_GOOGLE_SA_KEY: sa,
-      }, fetchImpl,
-    });
+    const env = {
+      FIREBASE_DB_URL: 'https://temp-a1437-default-rtdb.firebaseio.com',
+      FIREBASE_PROJECT_ID: 'temp-a1437',
+      NOTIFICATION_COMMAND_SERVICE_IDENTITY: identity,
+      NOTIFICATION_COMMAND_GOOGLE_SA_KEY: sa,
+    };
+    const storage = new FirebaseThcsNotificationStorage(env, fetchImpl);
+    expect(await storage.dueIntents(1_800_000_000_000, 1)).toEqual([]);
+    const repository = new FirebaseRestNotificationCommandRepository({ env, fetchImpl });
     for (let index = 0; index < 10; index += 1) {
       await repository.create({
         operationId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
@@ -42,8 +45,9 @@ describe('notification inbox external subrequests', () => {
       });
     }
     expect(calls.filter((call) => call.startsWith('POST https://oauth2.googleapis.com/token'))).toHaveLength(1);
-    expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(10);
+    expect(calls.filter((call) => call.startsWith('POST https://firestore.googleapis.com/'))).toHaveLength(1);
+    expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(11);
     expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(10);
-    expect(calls).toHaveLength(21);
+    expect(calls).toHaveLength(23);
   });
 });

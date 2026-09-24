@@ -460,6 +460,10 @@ export class FirebaseRtdbRestClient {
 
   private async accessToken(request: FirebaseRtdbAuthRequest): Promise<string> {
     if (this.options.getAccessToken) return this.options.getAccessToken(request);
+    return this.getAccessToken();
+  }
+
+  getAccessToken(): Promise<string> {
     const saKey = this.options.env.GOOGLE_SA_KEY?.trim();
     if (!saKey) throw new Error('missing_google_sa_key');
     return getTokenCache(saKey, this.options.fetchImpl).getToken();
