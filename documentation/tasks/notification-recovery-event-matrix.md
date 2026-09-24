@@ -42,7 +42,7 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree. Thes
 
 ## Remaining release evidence
 
-- RTDB and Firestore rule tests need a Linux emulator run; the Windows RTDB emulator cannot bind its loopback transport here. The GitHub Actions workflow contains these checks, but it has not run on a pushed branch.
+- Linux CI run 35984381971 passed RTDB rules (33/33), Firestore rules (26/26), Workerd (60/60), and the Wrangler dry-run bundle. The Windows RTDB emulator still cannot bind its loopback transport here.
 - The local Worker tests and bundle prove source behavior only. Cloudflare authentication, Firestore role for the Worker service account, required Worker API key secret, and live RTDB rule reconciliation remain release gates.
-- Historical backfill is not executed. The Hosting file history narrows possible exposure, but does not prove each missed recipient or a continuous outage interval. The preview script currently covers class and homework only.
+- Historical backfill is not executed. The [35-row reconciliation](notification-recovery-historical-backfill.md) records each variant's evidence gate. The Hosting file history narrows possible exposure, but does not prove each missed recipient or a continuous outage interval. The read-only preview script currently covers class and homework only.
 - Live browser flows and combined Hosting source have not been verified or deployed from this branch.
