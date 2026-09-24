@@ -163,6 +163,16 @@
                     "order": "DESCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "writing_notification_intents",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "dueAt",
+                    "order": "ASCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []

@@ -76,12 +76,14 @@ describe('notificationProducerClient', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(2);
     });
 
-    it('fails closed when the trusted route is not configured', async () => {
-        const fetchImpl = vi.fn();
+    it('uses the shared notification Worker origin by default', async () => {
+        const fetchImpl = vi.fn(responseFor);
         await expect(createTrustedNotification(notification, {
             getIdToken: async () => 'token',
             fetchImpl,
-        })).resolves.toEqual({ success: false, error: 'notification_command_unavailable' });
-        expect(fetchImpl).not.toHaveBeenCalled();
+        })).resolves.toMatchObject({ success: true });
+        expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+            'https://luyentap-notification-command.iamhuwng.workers.dev/book-notifications/commands',
+        );
     });
 });

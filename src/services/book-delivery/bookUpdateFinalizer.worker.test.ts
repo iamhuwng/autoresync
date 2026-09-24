@@ -169,4 +169,23 @@ describe('#110 ticket-38C notification adapter', () => {
     await expect(adapter.emit(input)).resolves.toMatchObject({ status: 'emitted', created: 1, replayed: 0 });
     await expect(adapter.emit(input)).resolves.toMatchObject({ status: 'emitted', created: 0, replayed: 1 });
   });
+
+  it('keeps hidden answer and PDF text out of the notification body', async () => {
+    const repository = new InMemoryNotificationCommandRepository();
+    const adapter = createBookUpdateNotificationEmissionAdapter({ repository, enabled: true });
+    const hiddenAnswer = 'Hidden answer: the correct option is C.';
+    const hiddenPdfText = 'PDF extract: private accommodation details.';
+
+    await adapter.emit({
+      actionId: 'action-2',
+      committedAt: '2026-08-10T00:02:00.000Z',
+      plan: plan({ actionSummary: `${hiddenAnswer} ${hiddenPdfText}` }),
+    });
+
+    const rows = Object.values(repository.snapshot());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.message).toBe('A Book homework update is ready.');
+    expect(rows[0]?.message).not.toContain(hiddenAnswer);
+    expect(rows[0]?.message).not.toContain(hiddenPdfText);
+  });
 });

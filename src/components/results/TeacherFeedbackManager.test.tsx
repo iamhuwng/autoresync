@@ -11,16 +11,12 @@ const {
     mockSaveOverallFeedback,
     mockGetAllQuestionFeedback,
     mockGetOverallFeedback,
-    mockGetTestResult,
-    mockCreateTrustedNotification,
 } = vi.hoisted(() => ({
     mockCanTeacherEditFeedback: vi.fn(),
     mockSaveQuestionFeedback: vi.fn(),
     mockSaveOverallFeedback: vi.fn(),
     mockGetAllQuestionFeedback: vi.fn(),
     mockGetOverallFeedback: vi.fn(),
-    mockGetTestResult: vi.fn(),
-    mockCreateTrustedNotification: vi.fn(),
 }));
 
 vi.mock('@/services/feedbackService', () => ({
@@ -29,14 +25,6 @@ vi.mock('@/services/feedbackService', () => ({
     saveOverallFeedback: (...args: unknown[]) => mockSaveOverallFeedback(...args),
     getAllQuestionFeedback: (...args: unknown[]) => mockGetAllQuestionFeedback(...args),
     getOverallFeedback: (...args: unknown[]) => mockGetOverallFeedback(...args),
-}));
-
-vi.mock('@/services/testResults.service', () => ({
-    getTestResult: (...args: unknown[]) => mockGetTestResult(...args),
-}));
-
-vi.mock('@/services/notificationProducerClient', () => ({
-    createTrustedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
 }));
 
 vi.mock('../feedback/FeedbackEditor', () => ({
@@ -68,7 +56,7 @@ const renderManager = () => renderWithProviders(
     />,
 );
 
-describe('TeacherFeedbackManager trusted notification producer', () => {
+describe('TeacherFeedbackManager', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockCanTeacherEditFeedback.mockResolvedValue(true);
@@ -76,40 +64,23 @@ describe('TeacherFeedbackManager trusted notification producer', () => {
         mockSaveOverallFeedback.mockResolvedValue(undefined);
         mockGetAllQuestionFeedback.mockResolvedValue({});
         mockGetOverallFeedback.mockResolvedValue(null);
-        mockGetTestResult.mockResolvedValue({
-            resultId: 'result-1',
-            studentId: 'canonical-student',
-            testTitle: 'Trusted Test',
-        });
-        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
     });
 
     afterEach(() => {
         cleanup();
     });
 
-    it('uses the canonical result recipient and stable feedback authority', async () => {
+    it('routes question feedback saves through the trusted feedback service', async () => {
         renderManager();
 
         fireEvent.click(await screen.findByTestId('save-question-feedback-question-1'));
 
-        await waitFor(() => expect(mockCreateTrustedNotification).toHaveBeenCalledWith(expect.objectContaining({
-            producerFamily: 'feedback',
-            authorityRecordId: 'result-1',
-            recipientId: 'canonical-student',
-            operationKey: 'feedback-question:result-1:question-1',
-            type: 'feedback',
-            title: 'New Feedback Available',
-            message: 'Teacher One has provided feedback on "Trusted Test"',
-            link: '/result/result-1',
-        })));
-        expect(mockCreateTrustedNotification).not.toHaveBeenCalledWith(expect.objectContaining({
-            recipientId: 'caller-supplied-student',
-        }));
+        await waitFor(() => expect(mockSaveQuestionFeedback).toHaveBeenCalledWith(
+            'result-1', 'question-1', 'Question feedback', 'teacher-1', 'Teacher One',
+        ));
     });
 
-    it('keeps feedback saves successful when the trusted producer fails', async () => {
-        mockCreateTrustedNotification.mockRejectedValueOnce(new Error('command unavailable'));
+    it('routes overall feedback saves through the trusted feedback service', async () => {
         renderManager();
 
         fireEvent.click(await screen.findByTestId('save-overall-feedback'));
@@ -120,16 +91,5 @@ describe('TeacherFeedbackManager trusted notification producer', () => {
             'teacher-1',
             'Teacher One',
         ));
-        await waitFor(() => expect(mockCreateTrustedNotification).toHaveBeenCalledTimes(1));
-    });
-
-    it('does not emit when the canonical result has no recipient authority', async () => {
-        mockGetTestResult.mockResolvedValueOnce({ resultId: 'result-1', studentId: '' });
-        renderManager();
-
-        fireEvent.click(await screen.findByTestId('save-question-feedback-question-1'));
-
-        await waitFor(() => expect(mockSaveQuestionFeedback).toHaveBeenCalled());
-        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
     });
 });

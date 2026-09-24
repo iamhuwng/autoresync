@@ -10,6 +10,7 @@ import {
     where,
     deleteField,
     writeBatch,
+    increment,
 } from 'firebase/firestore';
 // @ts-ignore - JS service file
 import { firestore as db } from './firebase';
@@ -190,6 +191,17 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
                 ...DEFAULT_STATS,
                 totalAssigned,
             },
+            ...(materialType === 'thcs-test' ? {
+                notificationIntent: {
+                    schemaVersion: 1,
+                    actionId: homeworkRef.id,
+                    kind: 'homework-assigned',
+                    occurredAt: now,
+                    dueAt: now + 60 * 60 * 1000,
+                    attempts: 0,
+                    state: 'pending',
+                },
+            } : {}),
             // Phase 3: THCS-specific configuration (only included when materialType is 'thcs-test')
             // Firestore rejects undefined field values, so strip them before writing
             ...(data.materialType === 'thcs-test' && data.thcsConfig
@@ -489,6 +501,34 @@ export async function updateStudentOverride(
 
     const homeworkRef = doc(db, HOMEWORK_COLLECTION, homeworkId);
     await updateDoc(homeworkRef, updates);
+}
+
+/** Persist the teacher action and its immutable retry authority atomically. */
+export async function recordManualHomeworkReminder(
+    homeworkId: string,
+    studentId: string,
+    actorUid: string,
+    eventId: string,
+    occurredAt: number,
+): Promise<void> {
+    const batch = writeBatch(db);
+    const assignmentRef = doc(db, HOMEWORK_COLLECTION, homeworkId);
+    const intentRef = doc(db, 'homework_manual_reminder_intents', eventId);
+    batch.update(assignmentRef, {
+        [`studentOverrides.${studentId}.reminderCount`]: increment(1),
+        [`studentOverrides.${studentId}.lastRemindedAt`]: occurredAt,
+    });
+    batch.set(intentRef, {
+        eventId,
+        homeworkId,
+        studentId,
+        actorUid,
+        occurredAt,
+        state: 'pending',
+        attempts: 0,
+        dueAt: occurredAt + 60 * 60 * 1000,
+    });
+    await batch.commit();
 }
 
 /**

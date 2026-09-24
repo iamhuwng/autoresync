@@ -11,10 +11,11 @@
  */
 
 import { ref, set, get, push, update } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 // @ts-ignore
 import { database } from './firebase';
-import { buildRoute } from '../constants/routes';
-import { createTrustedNotification } from './notificationProducerClient';
+import { markResultReviewed } from './resultReviewActionClient';
+import { dispatchTestCompleteNotification } from './testCompleteNotificationClient';
 import { TestMarkingResult } from './autoMarking.service';
 import {
   ReMarkEntry,
@@ -158,6 +159,27 @@ export interface TestResultRecord {
     scaledScore: number; // 10-point scale (e.g., 8.3)
     sectionResults: SectionResult[]; // Full SectionResult[] from thcs-test.types.ts — includes intentBreakdown per section
     intentBreakdown: Record<string, { correct: number; total: number }>; // Merged intent breakdown across ALL sections
+    gradingStatus?: string;
+  };
+  notificationIntent?: {
+    schemaVersion: 1;
+    actionId: string;
+    kind: 'fully-graded';
+    occurredAt: number;
+    dueAt: number;
+    attempts: 0;
+    state: 'pending';
+  };
+  testCompleteNotificationIntent?: {
+    schemaVersion: 1;
+    actionId: string;
+    kind: 'test-completed';
+    actorUid: string;
+    actorRole: 'student' | 'teacher';
+    occurredAt: number;
+    dueAt: number;
+    attempts: 0;
+    state: 'pending';
   };
 
   /** PRD-0039: IELTS passage breakdown */
@@ -839,6 +861,39 @@ export async function saveTestResult(
     if (context) resultRecord.context = context;
     if (submissionOperationId) resultRecord.submissionOperationId = submissionOperationId;
     if (thcsData) (resultRecord as any).thcsData = thcsData;
+    if (thcsData?.gradingStatus === 'fully-graded') {
+      resultRecord.notificationIntent = {
+        schemaVersion: 1,
+        actionId: resultId,
+        kind: 'fully-graded',
+        occurredAt: Number(resultRecord.submittedAt),
+        dueAt: Number(resultRecord.submittedAt) + 60 * 60 * 1000,
+        attempts: 0,
+        state: 'pending',
+      };
+    }
+    const actorUid = getAuth()?.currentUser?.uid;
+    const actorRole = actorUid === studentId
+      ? 'student'
+      : context?.type === 'class_session'
+        && context.configApplied?.source === 'teacher_override'
+        && actorUid === teacherId
+        ? 'teacher'
+        : null;
+    if (!isGuest && !thcsData && String(testMetadata.type).toUpperCase() !== 'THCS-THPT'
+      && actorUid && actorRole && isTrustedNotificationIdentifier(actorUid)) {
+      resultRecord.testCompleteNotificationIntent = {
+        schemaVersion: 1,
+        actionId: resultId,
+        kind: 'test-completed',
+        actorUid,
+        actorRole,
+        occurredAt: Number(resultRecord.submittedAt),
+        dueAt: Number(resultRecord.submittedAt),
+        attempts: 0,
+        state: 'pending',
+      };
+    }
     if (ieltsData) resultRecord.ieltsData = ieltsData; // PRD-0039
     resultRecord.feedbackGenerationMeta = {
       kind: classifySavedResultFeedbackKind(resultRecord as TestResultRecord),
@@ -876,27 +931,8 @@ export async function saveTestResult(
 
     console.log(`💾 Test result saved: ${resultId}`);
 
-    // PRD-0002: Dashboard feed notification (non-guest only). The canonical
-    // persisted result is the authority for both recipient and content.
-    const notificationRecipientId = persistedResultRecord.studentId;
-    const notificationAuthorityId = persistedResultRecord.resultId;
-    if (
-      !persistedResultRecord.isGuest
-      && isTrustedNotificationIdentifier(notificationRecipientId)
-      && isTrustedNotificationIdentifier(notificationAuthorityId)
-      && typeof persistedResultRecord.testTitle === 'string'
-      && persistedResultRecord.testTitle.trim()
-    ) {
-      await createTrustedNotification({
-        producerFamily: 'result',
-        authorityRecordId: notificationAuthorityId,
-        recipientId: notificationRecipientId,
-        operationKey: `test-complete:${notificationAuthorityId}`,
-        type: 'success',
-        title: '\u2705 Test Complete',
-        message: `You completed "${persistedResultRecord.testTitle}". Score: ${persistedResultRecord.totalScore}/${persistedResultRecord.maxScore}`,
-        link: buildRoute('RESULT_DETAIL', { resultId: notificationAuthorityId }),
-      }).catch((notifError) => {
+    if (persistedResultRecord.testCompleteNotificationIntent) {
+      void dispatchTestCompleteNotification(resultId).catch((notifError) => {
         console.warn('⚠️ [TestResults] Failed to send test-complete notification (non-blocking):', notifError);
       });
     }
@@ -1271,51 +1307,19 @@ export async function markAsReviewed(
     if (!result) {
       throw new Error('Result not found');
     }
+    if (result.resultId !== resultId) {
+      throw new Error('Result authority mismatch');
+    }
 
     // Only allow marking as reviewed if currently pending
     if (result.markingStatus !== 'pending-review') {
       throw new Error(`Cannot mark as reviewed: current status is '${result.markingStatus}'`);
     }
 
-    // Update the marking status
-    const resultRef = ref(database, `test_results/${resultId}`);
-    await update(resultRef, {
-      markingStatus: 'reviewed',
-      reviewedAt: Date.now(),
-      reviewedBy: reviewedBy,
-      updatedAt: Date.now(),
-    });
-
+    // The Worker commits the review fields and durable notification intent together.
+    // It derives actor, recipient, content, and destination from saved records.
+    await markResultReviewed(resultId);
     console.log(`✅ Result ${resultId} marked as reviewed by ${reviewedBy}`);
-
-    // PRD-0015: Phase 7 & 8 - Emit a trusted command. The canonical result
-    // supplies the recipient and authority; a review retry reuses its key.
-    const notificationRecipientId = result.studentId;
-    const notificationAuthorityId = result.resultId === resultId ? result.resultId : undefined;
-    const notificationSkill = typeof result.testSkill === 'string' ? result.testSkill : '';
-    if (
-      notificationAuthorityId
-      && isTrustedNotificationIdentifier(notificationRecipientId)
-      && isTrustedNotificationIdentifier(notificationAuthorityId)
-      && typeof result.testTitle === 'string'
-      && result.testTitle.trim()
-      && notificationSkill.trim()
-    ) {
-      const skillCapitalized = notificationSkill.charAt(0).toUpperCase() + notificationSkill.slice(1);
-      await createTrustedNotification({
-        producerFamily: 'result',
-        authorityRecordId: notificationAuthorityId,
-        recipientId: notificationRecipientId,
-        operationKey: `result-reviewed:${notificationAuthorityId}`,
-        type: 'success',
-        title: `${skillCapitalized} Test Reviewed`,
-        message: `${reviewedBy ? `${reviewedBy} has` : 'Your teacher has'} reviewed your ${notificationSkill} test "${result.testTitle}". View your score.`,
-        link: buildRoute('RESULT_DETAIL', { resultId: notificationAuthorityId }),
-      }).catch((notifError) => {
-        // Don't fail the whole operation if notification fails
-        console.error('Failed to send reviewed notification:', notifError);
-      });
-    }
   } catch (error) {
     console.error('Error marking result as reviewed:', error);
     throw error;

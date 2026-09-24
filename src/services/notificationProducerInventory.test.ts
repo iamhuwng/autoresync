@@ -4,133 +4,103 @@ import { describe, expect, it } from 'vitest';
 
 const root = process.cwd();
 const sourceRoot = join(root, 'src');
-const inventoryPath = join(
-    root,
-    'documentation',
-    'tasks',
-    'PRD0062',
-    'evidence',
-    'notification-producer-inventory.md',
-);
+const inventoryPath = join(root, 'documentation', 'tasks', 'PRD0062', 'evidence', 'notification-producer-inventory.md');
 const sourceExtensions = /\.(?:js|jsx|ts|tsx)$/u;
 const testFile = /\.(?:test|spec)\.[^.]+$/u;
-const producerCall = /\b(?:createNotification|createBulkNotifications|createTrustedNotification|createTrustedBulkNotifications|send[A-Z]\w*Notification|send(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
-const legacyNotificationProducerCall = /\b(?:createNotification|createBulkNotifications|send(?!Trusted)[A-Z]\w*Notification|send(?!Trusted)(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
+const genericCall = /\bcreateTrusted(?:Bulk)?Notifications?\s*\(/u;
+const producerCall = /\b(?:createTrusted(?:Bulk)?Notifications?|commitClassAction|createCourseAnnouncementAction|wakeCourseTypeDecisionDelivery|wakeAssignmentNotification|wakeCourseRequestNotification|saveFeedbackAction|recordManualHomeworkReminder|dispatchHomeworkResetNotification|markResultReviewed|dispatchWritingNotification|buildSessionNotificationWrites|deliverSessionNotificationNow|dispatchThcsNotificationAction|submitManualThcsGrade)\s*\(/u;
+const adapters = new Set([
+    'src/services/assignmentActionClient.ts',
+    'src/services/classActionClient.ts',
+    'src/services/courseAnnouncementActionClient.ts',
+    'src/services/courseTypeDecisionClient.ts',
+    'src/services/enrollmentActionClient.ts',
+    'src/services/feedbackActionClient.ts',
+    'src/services/homeworkResetNotificationClient.ts',
+    'src/services/manualThcsGradeClient.ts',
+    'src/services/notificationProducerClient.ts',
+    'src/services/sessionNotificationActionClient.ts',
+    'src/services/thcsNotificationActionClient.ts',
+    'src/services/writingNotificationClient.ts',
+    'src/services/resultReviewActionClient.ts',
+]);
+
+interface InventoryRow {
+    path: string;
+    owner: string;
+    family: string;
+    status: string;
+}
 
 const filesUnder = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
         const path = join(directory, entry.name);
-        if (entry.isDirectory()) {
-            return entry.name === 'backups' ? [] : filesUnder(path);
-        }
+        if (entry.isDirectory()) return entry.name === 'backups' ? [] : filesUnder(path);
         return sourceExtensions.test(entry.name) && !testFile.test(entry.name) ? [path] : [];
     });
 
 const relativePath = (path: string): string => relative(root, path).replaceAll('\\', '/');
+const sources = (): Map<string, string> => new Map(filesUnder(sourceRoot).map((path) => [relativePath(path), readFileSync(path, 'utf8')]));
+const inventoryRows = (): InventoryRow[] => [...readFileSync(inventoryPath, 'utf8').matchAll(
+    /^\| `([^`]+)` \| (#95|#96|#97) \| ([^|]+) \| ([^|]+) \|$/gmu,
+) ].map((match) => ({ path: match[1]!, owner: match[2]!, family: match[3]!.trim(), status: match[4]!.trim() }));
 
-const inventoryRows = (): Array<{ path: string; owner: string }> => {
-    const markdown = readFileSync(inventoryPath, 'utf8');
-    return [...markdown.matchAll(/^\| `([^`]+)` \| #(95|96|97) \|/gmu)]
-        .map((match) => ({ path: match[1]!, owner: match[2]! }));
-};
-
-describe('Ticket 38B1 notification producer inventory', () => {
-    it('assigns every static and dynamic notification producer exactly once', () => {
-        const actual = filesUnder(sourceRoot)
-            .filter((path) => {
-                const source = readFileSync(path, 'utf8');
-                return (source.includes('notificationService') || source.includes('notificationProducerClient'))
-                    && producerCall.test(source);
-            })
-            .map(relativePath)
+describe('PRD0062 notification producer inventory', () => {
+    it('inventories each current producer callsite exactly once', () => {
+        const source = sources();
+        const actual = [...source]
+            .filter(([path, text]) => !adapters.has(path) && producerCall.test(text))
+            .map(([path]) => path)
             .sort();
         const rows = inventoryRows();
         const assigned = rows.map((row) => row.path).sort();
-
         expect(new Set(assigned).size).toBe(assigned.length);
         expect(assigned).toEqual(actual);
-        expect(new Set(rows.map((row) => row.owner))).toEqual(new Set(['95', '96', '97']));
+        expect(new Set(rows.map((row) => row.owner))).toEqual(new Set(['#95', '#96', '#97']));
     });
 
-    it('keeps raw notification-content writes inside owned compatibility paths', () => {
+    it('lists every live generic trusted call as an explicit gap', () => {
+        const source = sources();
+        const actualGenericCalls = [...source]
+            .filter(([path, text]) => path !== 'src/services/notificationProducerClient.ts' && genericCall.test(text))
+            .map(([path]) => path)
+            .sort();
+        const documentedGaps = inventoryRows()
+            .filter((row) => row.status.includes('GAP'))
+            .map((row) => row.path)
+            .sort();
+        expect(documentedGaps).toEqual(actualGenericCalls);
+        for (const path of actualGenericCalls) {
+            expect(inventoryRows().find((row) => row.path === path)?.status, path).toMatch(/GAP/u);
+        }
+    });
+
+    it('keeps dormant generic producers labeled dormant and unreferenced', () => {
+        const source = sources();
+        const rows = inventoryRows().filter((row) => row.status.startsWith('Dormant'));
+        expect(rows.map((row) => row.path).sort()).toEqual([
+            'src/services/deadlineReminderService.ts',
+            'src/services/enrollmentManager.ts',
+        ]);
+        for (const row of rows) {
+            const identifier = row.path.endsWith('deadlineReminderService.ts') ? 'processStudentReminders' : 'sendExpirationWarning';
+            const callers = [...source]
+                .filter(([path, text]) => path !== row.path && new RegExp(`\\b${identifier}\\s*\\(`, 'u').test(text))
+                .map(([path]) => path);
+            expect(callers, identifier).toEqual([]);
+        }
+    });
+
+    it('keeps raw inbox-content writes confined to the legacy adapter and account cleanup', () => {
         const allowed = new Set([
             'src/services/accountDeletionService.ts',
             'src/services/notificationService.ts',
         ]);
-        const rawNotificationPaths = filesUnder(sourceRoot)
-            .filter((path) => {
-                const source = readFileSync(path, 'utf8');
-                return /(?:NOTIFICATIONS_REF|notifications\/\$\{|['"`]notifications\/)/u.test(source)
-                    && /\b(?:push|set|update|remove)\s*\(/u.test(source);
-            })
-            .map(relativePath)
+        const rawNotificationPaths = [...sources()]
+            .filter(([, text]) => /(?:NOTIFICATIONS_REF|notifications\/\$\{|['"`]notifications\/)/u.test(text)
+                && /\b(?:push|set|update|remove)\s*\(/u.test(text))
+            .map(([path]) => path)
             .sort();
-
         expect(rawNotificationPaths).toEqual([...allowed].sort());
-    });
-
-    it('requires #95 producers to use the trusted seam with explicit authority', () => {
-        const owned = [
-            ['src/components/course/RequestReviewList.tsx', 'enrollment'],
-            ['src/services/assignmentManager.ts', 'assignment'],
-            ['src/services/classManager.ts', 'class'],
-            ['src/services/courseAnnouncementService.ts', 'course-announcement'],
-            ['src/services/courseManager.ts', 'course'],
-            ['src/services/deadlineReminderService.ts', 'deadline'],
-            ['src/services/enrollmentManager.ts', 'enrollment'],
-            ['src/pages/TeacherHomeworkDetailPage.tsx', 'deadline'],
-        ];
-        for (const [relativeFile, producerFamily] of owned) {
-            const source = readFileSync(join(root, relativeFile), 'utf8');
-            expect(source, relativeFile).not.toContain('notificationService');
-            expect(source, relativeFile).toContain('notificationProducerClient');
-            if (relativeFile.endsWith('TeacherHomeworkDetailPage.tsx')) {
-                expect(source, relativeFile).toContain('sendTrustedHomeworkReminderNotification');
-            } else {
-                expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
-                expect(source, relativeFile).toContain('producerFamily');
-                expect(source, relativeFile).toContain('authorityRecordId');
-                expect(source, relativeFile).toContain('operationKey');
-            }
-        }
-    });
-
-    it('requires #96 producers to use the trusted seam with explicit authority', () => {
-        const owned = [
-            ['src/components/results/TeacherFeedbackManager.tsx', 'feedback'],
-            ['src/components/thcs-grading/InlineWritingGrader.tsx', 'result'],
-            ['src/services/homeworkSubmissionService.ts', 'homework'],
-            ['src/services/testResults.service.ts', 'result'],
-        ];
-        for (const [relativeFile, producerFamily] of owned) {
-            const source = readFileSync(join(root, relativeFile), 'utf8');
-            expect(source, relativeFile).not.toContain('notificationService');
-            expect(source, relativeFile).not.toMatch(legacyNotificationProducerCall);
-            expect(source, relativeFile).toContain('notificationProducerClient');
-            expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
-            expect(source, relativeFile).toContain('authorityRecordId');
-            expect(source, relativeFile).toContain('operationKey');
-        }
-    });
-
-    it('requires #97 producers to use the trusted seam with explicit authority', () => {
-        const owned = [
-            ['src/services/writingSubmissionService.ts', 'writing'],
-            ['src/services/thcsWritingGrading.service.ts', 'thcs-grading'],
-            ['src/hooks/monitor/useMonitorControls.ts', 'monitor'],
-            ['src/services/sessionManager.js', 'session'],
-            ['src/components/writing-practice/WritingPracticeView.tsx', 'writing'],
-            ['src/components/practice/THCSPracticeView.tsx', 'thcs-practice'],
-            ['src/components/thcs-student/THCSTestLayout.tsx', 'thcs-practice'],
-            ['src/components/thcs-editor/THCSHomeworkAssignDialog.tsx', 'thcs-practice'],
-        ];
-        for (const [relativeFile, producerFamily] of owned) {
-            const source = readFileSync(join(root, relativeFile), 'utf8');
-            expect(source, relativeFile).not.toContain('notificationService');
-            expect(source, relativeFile).toContain('notificationProducerClient');
-            expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
-            expect(source, relativeFile).toContain('authorityRecordId');
-            expect(source, relativeFile).toContain('operationKey');
-        }
     });
 });

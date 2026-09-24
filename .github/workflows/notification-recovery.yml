@@ -1,0 +1,110 @@
+name: Notification Recovery
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/notification-recovery]
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'cloudflare/**'
+      - 'database.rules.json'
+      - 'firestore.rules'
+      - '.github/workflows/notification-recovery.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      VITE_FIREBASE_API_KEY: test-key
+      VITE_FIREBASE_AUTH_DOMAIN: localhost
+      VITE_FIREBASE_DATABASE_URL: http://localhost:9000?ns=demo-notification-recovery
+      VITE_FIREBASE_PROJECT_ID: demo-notification-recovery
+      VITE_FIREBASE_STORAGE_BUCKET: demo-notification-recovery.appspot.com
+      VITE_FIREBASE_MESSAGING_SENDER_ID: '123456789'
+      VITE_FIREBASE_APP_ID: '1:123456789:web:test'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install app dependencies
+        run: npm ci
+      - name: Verify notification services
+        run: >-
+          npx vitest run
+          src/services/notificationProducerClient.test.ts
+          src/services/notificationProducerInventory.test.ts
+          src/services/homeworkSubmissionService.test.ts
+          src/services/manualHomeworkReminderClient.test.ts
+          src/services/testResults.service.test.ts
+          src/services/thcsWritingGrading.service.test.ts
+          src/services/feedbackService.test.ts
+          src/services/assignmentManager.test.ts
+          src/services/courseRequestManager.test.ts
+          src/services/writingSubmissionService.test.ts
+          src/services/writingGradeNotificationAuthority.test.ts
+          src/services/writingNotificationWorker.test.ts
+          src/services/sessionManager.lifecycle.test.ts
+          src/hooks/monitor/useMonitorControls.test.ts
+          src/pages/TeacherCourseProfilePage.test.tsx
+          src/components/thcs-grading/InlineWritingGrader.test.tsx
+          src/components/practice/THCSPracticeView.test.tsx
+          src/components/thcs-student/THCSTestLayout.test.tsx
+          src/services/book-delivery/bookUpdateFinalizer.worker.test.ts
+          --maxWorkers=1
+      - name: Verify RTDB notification authority rules
+        run: >-
+          npx firebase-tools emulators:exec --only database
+          "npx vitest run
+          src/__tests__/security/classNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/courseRequestNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/courseTypeNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/assignmentNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/resultReviewNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/feedbackNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/courseAnnouncementAuthorityRules.emulator.test.ts
+          src/__tests__/security/thcsFullyGradedNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/sessionNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/testCompleteNotificationIntentRules.emulator.test.ts
+          --maxWorkers=1"
+      - name: Verify Firestore notification authority rules
+        run: >-
+          npx firebase-tools emulators:exec --only firestore
+          "npx vitest run
+          src/__tests__/security/homeworkFirestoreRules.test.ts
+          src/__tests__/security/homeworkResetNotificationIntentRules.emulator.test.ts
+          src/__tests__/security/writingNotificationIntentRules.emulator.test.ts
+          --maxWorkers=1"
+      - name: Install locked Worker dependencies
+        run: npm ci --prefix cloudflare
+      - name: Verify notification Worker actions under workerd
+        working-directory: cloudflare
+        run: >-
+          npx vitest run
+          test/notification-class-action.test.ts
+          test/enrollment-action.test.ts
+          test/assignment-action.test.ts
+          test/course-type-decision-notification.test.ts
+          test/course-type-decision-delivery.test.ts
+          test/course-type-decision-store.test.ts
+          test/result-review-action.test.ts
+          test/feedback-notification-action.test.ts
+          test/deadline-action.test.ts
+          test/course-announcement-action.test.ts
+          test/homework-reset-action.test.ts
+          test/thcs-notification-action.test.ts
+          test/session-notification-action.test.ts
+          test/writing-notification-worker.test.ts
+          test/notification-subrequest-budget.test.ts
+          test/notification-scheduled-handler.test.ts
+          test/test-complete-notification-action.test.ts
+          test/grade-notification-action.test.ts
+          --config vitest.config.mjs --maxWorkers=1
+      - name: Bundle notification Worker
+        working-directory: cloudflare
+        run: npx wrangler deploy --dry-run --config wrangler.notifications.jsonc --outdir /tmp/notification-worker-bundle

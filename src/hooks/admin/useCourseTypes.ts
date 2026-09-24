@@ -19,12 +19,12 @@ import {
     getCourseTypes,
     getPendingTypeRequests,
     approveCourseType,
-    rejectCourseType
-} from '../../services/courseTypeService';
-import type { UseCourseTypesReturn, CourseType, PendingTypeRequest } from '../../types/admin.types';
+    rejectCourseType,
+} from '../../services/courseManager';
+import type { UseCourseTypesReturn, PendingTypeRequest } from '../../types/admin.types';
 
 export function useCourseTypes(): UseCourseTypesReturn {
-    const [courseTypes, setCourseTypes] = useState<CourseType[]>([]);
+    const [courseTypes, setCourseTypes] = useState<string[]>([]);
     const [pendingRequests, setPendingRequests] = useState<PendingTypeRequest[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export function useCourseTypes(): UseCourseTypesReturn {
         setError(null);
         try {
             const types = await getCourseTypes();
-            setCourseTypes(types);
+            setCourseTypes(types.map(({ name }) => name));
         } catch (err) {
             console.error('Error loading course types:', err);
             setError('Failed to load course types');
@@ -56,7 +56,15 @@ export function useCourseTypes(): UseCourseTypesReturn {
         setError(null);
         try {
             const pending = await getPendingTypeRequests();
-            setPendingRequests(pending);
+            setPendingRequests(pending.map(({ id, typeName, teacherId, requestedAt, status }) => ({
+                id,
+                name: typeName,
+                createdBy: teacherId,
+                createdAt: requestedAt,
+                requestedBy: teacherId,
+                requestedAt,
+                status,
+            })));
         } catch (err) {
             console.error('Error loading pending type requests:', err);
             setError('Failed to load pending requests');

@@ -8,6 +8,11 @@ import {
 import { get, set, ref, push, query, update } from 'firebase/database';
 
 vi.mock('firebase/database');
+vi.mock('firebase/auth', () => ({
+    getAuth: () => ({ currentUser: { uid: 't1', getIdToken: async () => 'token' } }),
+    GoogleAuthProvider: class { setCustomParameters() {} },
+}));
+vi.mock('./enrollmentActionClient', () => ({ wakeCourseRequestNotification: vi.fn() }));
 
 describe('courseRequestManager', () => {
     beforeEach(() => {
@@ -68,9 +73,21 @@ describe('courseRequestManager', () => {
 
     describe('processCourseRequest', () => {
         it('should update request status to approved', async () => {
+            (get as any).mockResolvedValue({
+                exists: () => true,
+                val: () => ({
+                    id: 'req1', studentId: 's1', courseId: 'c1', teacherId: 't1',
+                    type: 'join', status: 'pending', requestedAt: Date.now() - 1000,
+                    expiresAt: Date.now() + 60_000,
+                }),
+            });
             const result = await processCourseRequest('req1', 'approved', 't1');
             expect(result.success).toBe(true);
-            expect(update).toHaveBeenCalled();
+            expect(update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                status: 'approved', processedBy: 't1', notificationIntent: expect.objectContaining({
+                    actionId: 'req1', kind: 'course-request-decision', attempts: 0, state: 'pending',
+                }),
+            }));
         });
     });
 

@@ -1,6 +1,7 @@
-import { ref, set, get, update, push } from 'firebase/database';
+import { ref, set, get, update } from 'firebase/database';
 import { database } from '@/services/firebase';
 import { classifyTeacherResultVisibility } from './resultVisibility.service';
+import { saveFeedbackAction } from './feedbackActionClient';
 
 /**
  * Teacher Feedback Service
@@ -31,6 +32,7 @@ export interface OverallFeedback {
 }
 
 export interface FeedbackHistoryEntry {
+    eventId?: string;
     timestamp: number;
     teacherId: string;
     teacherName?: string;
@@ -61,16 +63,6 @@ type CanonicalResultRecord = {
 
 function normalizeFeedbackKey(value: string | number | null | undefined): string {
     return String(value ?? '').trim();
-}
-
-function resolveTeacherIdentity(teacherId: string, teacherName?: string) {
-    const updatedByName = teacherName?.trim() || null;
-
-    return {
-        updatedById: teacherId,
-        updatedByName,
-        compatibilityLabel: updatedByName || teacherId,
-    };
 }
 
 function getTeacherIdentityFromCanonicalResult(result: CanonicalResultRecord | null | undefined) {
@@ -178,60 +170,6 @@ function resultHasAnyFeedback(result: CanonicalResultRecord | null): boolean {
     });
 }
 
-async function syncCanonicalQuestionFeedback(
-    resultId: string,
-    questionId: string,
-    feedback: string,
-    teacherId: string,
-    teacherName?: string,
-    updatedAt?: number
-): Promise<void> {
-    try {
-        const canonicalResult = await getCanonicalResult(resultId);
-        const questionIndex = findQuestionResultIndex(canonicalResult, questionId);
-        const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
-
-        if (questionIndex === -1) {
-            return;
-        }
-
-        const resultRef = ref(database, `test_results/${resultId}`);
-        await update(resultRef, {
-            [`questionResults/${questionIndex}/teacherFeedback`]: feedback,
-            feedbackUpdatedAt: updatedAt ?? Date.now(),
-            feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
-            feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
-            feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
-            hasFeedback: true
-        });
-    } catch (error) {
-        console.warn('Failed to sync canonical question feedback:', error);
-    }
-}
-
-async function syncCanonicalOverallFeedback(
-    resultId: string,
-    feedback: string,
-    teacherId: string,
-    teacherName?: string,
-    updatedAt?: number
-): Promise<void> {
-    try {
-        const resultRef = ref(database, `test_results/${resultId}`);
-        const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
-        await update(resultRef, {
-            overallFeedback: feedback,
-            feedbackUpdatedAt: updatedAt ?? Date.now(),
-            feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
-            feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
-            feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
-            hasFeedback: true
-        });
-    } catch (error) {
-        console.warn('Failed to sync canonical overall feedback:', error);
-    }
-}
-
 async function clearCanonicalQuestionFeedback(resultId: string, questionId: string): Promise<void> {
     try {
         const canonicalResult = await getCanonicalResult(resultId);
@@ -311,46 +249,13 @@ export async function saveQuestionFeedback(
     questionId: string,
     feedback: string,
     teacherId: string,
-    teacherName?: string
+    _teacherName?: string
 ): Promise<void> {
     if (!resultId || !questionId || !teacherId) {
         throw new Error('Missing required parameters: resultId, questionId, or teacherId');
     }
 
-    const normalizedFeedback = feedback.trim();
-    const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
-    const feedbackData: QuestionFeedback = {
-        questionId,
-        feedback: normalizedFeedback,
-        updatedAt: Date.now(),
-        updatedBy: teacherIdentity.compatibilityLabel,
-        updatedById: teacherIdentity.updatedById,
-        ...(teacherIdentity.updatedByName ? { updatedByName: teacherIdentity.updatedByName } : {}),
-        ...(teacherIdentity.updatedByName ? { teacherName: teacherIdentity.updatedByName } : {})
-    };
-
-    // Save to test_results/{resultId}/questionFeedback/{questionId}
-    const feedbackRef = ref(database, `test_results/${resultId}/questionFeedback/${questionId}`);
-    await set(feedbackRef, feedbackData);
-
-    // Also save to feedback history
-    await saveFeedbackHistory(resultId, {
-        timestamp: feedbackData.updatedAt,
-        teacherId,
-        teacherName,
-        type: 'question',
-        questionId,
-        feedback: normalizedFeedback
-    });
-
-    await syncCanonicalQuestionFeedback(
-        resultId,
-        questionId,
-        normalizedFeedback,
-        teacherId,
-        teacherName,
-        feedbackData.updatedAt
-    );
+    await saveFeedbackAction({ resultId, feedbackKind: 'question', questionId, feedback: feedback.trim() });
 }
 
 /**
@@ -459,53 +364,13 @@ export async function saveOverallFeedback(
     resultId: string,
     feedback: string,
     teacherId: string,
-    teacherName?: string
+    _teacherName?: string
 ): Promise<void> {
     if (!resultId || !teacherId) {
         throw new Error('Missing required parameters: resultId or teacherId');
     }
 
-    const normalizedFeedback = feedback.trim();
-    const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
-    const feedbackData: OverallFeedback = {
-        feedback: normalizedFeedback,
-        updatedAt: Date.now(),
-        updatedBy: teacherIdentity.compatibilityLabel,
-        updatedById: teacherIdentity.updatedById,
-        ...(teacherIdentity.updatedByName ? { updatedByName: teacherIdentity.updatedByName } : {}),
-        ...(teacherIdentity.updatedByName ? { teacherName: teacherIdentity.updatedByName } : {})
-    };
-
-    // Save to test_results/{resultId}/overallFeedback
-    const feedbackRef = ref(database, `test_results/${resultId}/overallFeedback`);
-    await set(feedbackRef, feedbackData);
-
-    // Update feedbackUpdatedAt and feedbackUpdatedBy at result level
-    const resultRef = ref(database, `test_results/${resultId}`);
-    await update(resultRef, {
-        feedbackUpdatedAt: feedbackData.updatedAt,
-        feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
-        feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
-        feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
-        hasFeedback: true
-    });
-
-    // Also save to feedback history
-    await saveFeedbackHistory(resultId, {
-        timestamp: feedbackData.updatedAt,
-        teacherId,
-        teacherName,
-        type: 'overall',
-        feedback: normalizedFeedback
-    });
-
-    await syncCanonicalOverallFeedback(
-        resultId,
-        normalizedFeedback,
-        teacherId,
-        teacherName,
-        feedbackData.updatedAt
-    );
+    await saveFeedbackAction({ resultId, feedbackKind: 'overall', feedback: feedback.trim() });
 }
 
 /**
@@ -547,15 +412,6 @@ export async function getOverallFeedback(
  * @param entry - The feedback history entry
  * @returns Promise that resolves when history is saved
  */
-async function saveFeedbackHistory(
-    resultId: string,
-    entry: FeedbackHistoryEntry
-): Promise<void> {
-    const historyRef = ref(database, `test_results/${resultId}/feedbackHistory`);
-    const newEntryRef = push(historyRef);
-    await set(newEntryRef, entry);
-}
-
 /**
  * Get feedback history for a result
  * 

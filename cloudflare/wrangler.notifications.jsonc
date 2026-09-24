@@ -8,6 +8,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": true },
+  "triggers": { "crons": ["* * * * *", "*/2 * * * *"] },
   "ratelimits": [
     {
       "name": "NOTIFICATION_RATE_LIMITER",

@@ -26,7 +26,18 @@ export interface CourseTypeRequest {
     status: 'pending' | 'approved' | 'rejected';
     approvedBy?: string;
     approvedAt?: number;
+    handledBy?: string;
+    handledAt?: number;
     rejectionReason?: string;
+    notificationIntent?: {
+        eventKind: 'course-type-approved' | 'course-type-rejected';
+        authorityRecordId: string;
+        occurrenceId: string;
+        occurredAt: number;
+        dueAt: number;
+        attempts: 0 | 1 | 2;
+        state: 'due' | 'sending' | 'retry_due' | 'retrying' | 'done' | 'failed';
+    };
 }
 
 // Main Course Interface
@@ -169,4 +180,13 @@ export interface CourseRequest {
     rejectionReason?: string;
     processedAt?: number;
     processedBy?: string;
+    notificationIntent?: {
+        schemaVersion: 1;
+        actionId: string;
+        kind: 'course-request-decision';
+        occurredAt: number;
+        dueAt: number;
+        attempts: 0 | 1 | 2;
+        state: 'pending' | 'sending' | 'retry_due' | 'retrying' | 'done' | 'failed';
+    };
 }

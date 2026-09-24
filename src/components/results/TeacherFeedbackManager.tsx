@@ -8,52 +8,6 @@ import {
     getOverallFeedback,
     canTeacherEditFeedback
 } from '@/services/feedbackService';
-import { buildRoute } from '@/constants/routes';
-import { getTestResult } from '@/services/testResults.service';
-import { createTrustedNotification } from '@/services/notificationProducerClient';
-
-const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
-const isTrustedNotificationIdentifier = (value: unknown): value is string =>
-    typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
-
-const notifyStudentOfFeedback = async (
-    resultId: string,
-    testName: string,
-    teacherName: string | undefined,
-    operationKey: string,
-): Promise<void> => {
-    try {
-        const result = await getTestResult(resultId);
-        const recipientId = result?.studentId;
-        const authorityRecordId = result?.resultId;
-        if (
-            !result
-            || authorityRecordId !== resultId
-            || !isTrustedNotificationIdentifier(recipientId)
-            || !isTrustedNotificationIdentifier(authorityRecordId)
-            || typeof testName !== 'string'
-            || !testName.trim()
-        ) {
-            console.warn('Skipped feedback notification: trusted recipient or authority was unavailable.');
-            return;
-        }
-
-        await createTrustedNotification({
-            producerFamily: 'feedback',
-            authorityRecordId,
-            recipientId,
-            operationKey,
-            type: 'feedback',
-            title: 'New Feedback Available',
-            message: `${teacherName ? `${teacherName} has` : 'Your teacher has'} provided feedback on "${testName}"`,
-            link: buildRoute('RESULT_DETAIL', { resultId: authorityRecordId }),
-        }).catch((error) => {
-            console.warn('Feedback notification failed (non-blocking):', error);
-        });
-    } catch (error) {
-        console.warn('Feedback notification authority lookup failed (non-blocking):', error);
-    }
-};
 
 /**
  * TeacherFeedbackManager Component
@@ -101,7 +55,7 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
     teacherId,
     teacherName,
     courseId: _courseId,
-    notifyStudentOnSave = false,
+    notifyStudentOnSave: _notifyStudentOnSave = false,
 }) => {
     const [loading, setLoading] = useState(true);
     const [canEdit, setCanEdit] = useState(false);
@@ -160,16 +114,6 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
                 teacherName
             );
 
-            // Send notification to student
-            if (notifyStudentOnSave) {
-                await notifyStudentOfFeedback(
-                    resultId,
-                    testName,
-                    teacherName,
-                    `feedback-question:${resultId}:${questionId}`,
-                );
-            }
-
             // Reload feedback to get updated data
             const updatedFeedback = await getAllQuestionFeedback(resultId);
             setQuestionFeedback(updatedFeedback);
@@ -192,16 +136,6 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
                 teacherId,
                 teacherName
             );
-
-            // Send notification to student
-            if (notifyStudentOnSave) {
-                await notifyStudentOfFeedback(
-                    resultId,
-                    testName,
-                    teacherName,
-                    `feedback-overall:${resultId}`,
-                );
-            }
 
             // Reload feedback to get updated data
             const updatedFeedback = await getOverallFeedback(resultId);

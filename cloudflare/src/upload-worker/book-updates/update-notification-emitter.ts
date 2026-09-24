@@ -11,11 +11,7 @@ const deadlineClass = (plan: BookUpdateNotificationPlan, now: number) => {
   return Date.parse(plan.deadlineAt) < now ? 'overdue' as const : 'upcoming' as const;
 };
 
-const messageFor = (plan: BookUpdateNotificationPlan): string => (
-  plan.deadlineAt
-    ? `${plan.actionSummary} Deadline: ${new Date(plan.deadlineAt).toLocaleString('en-US', { timeZone: 'UTC' })}.`
-    : plan.actionSummary
-);
+const messageFor = (): string => 'A Book homework update is ready.';
 
 export const createBookUpdateNotificationEmissionAdapter = (options: {
   readonly repository: NotificationCommandRepository;
@@ -39,7 +35,7 @@ export const createBookUpdateNotificationEmissionAdapter = (options: {
       notification: {
         type: 'info' as const,
         title: 'Book activity updated',
-        message: messageFor(input.plan),
+        message: messageFor(),
         link: destination,
         metadata: {
           schemaVersion: 1 as const,

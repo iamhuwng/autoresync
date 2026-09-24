@@ -7,7 +7,8 @@ import TeacherCourseProfilePage from './TeacherCourseProfilePage';
 import { getCourse } from '../services/courseManager';
 import { getRequestsByCourse } from '../services/courseRequestManager';
 import { getClasses } from '../services/classManager';
-import { getCourseAnnouncements } from '../services/courseAnnouncementService';
+import { createCourseAnnouncement, getCourseAnnouncements } from '../services/courseAnnouncementService';
+import { ToastContainer } from '../components/modern';
 
 // Mock dependencies
 vi.mock('react-router-dom', async () => {
@@ -26,6 +27,7 @@ vi.mock('../services/courseAnnouncementService', async () => {
     const actual = await vi.importActual('../services/courseAnnouncementService');
     return {
         ...actual,
+        createCourseAnnouncement: vi.fn(),
         getCourseAnnouncements: vi.fn(),
     };
 });
@@ -58,6 +60,7 @@ describe('TeacherCourseProfilePage - Requests Tab', () => {
         (getCourse as any).mockResolvedValue(mockCourse);
         (getRequestsByCourse as any).mockResolvedValue([mockRequest]);
         (getClasses as any).mockResolvedValue([]);
+        (createCourseAnnouncement as any).mockResolvedValue({ success: true });
         (getCourseAnnouncements as any).mockResolvedValue([]);
     });
 
@@ -66,6 +69,7 @@ describe('TeacherCourseProfilePage - Requests Tab', () => {
             <BrowserRouter>
                 <MantineProvider>
                     <TeacherCourseProfilePage />
+                    <ToastContainer />
                 </MantineProvider>
             </BrowserRouter>
         );
@@ -99,5 +103,21 @@ describe('TeacherCourseProfilePage - Requests Tab', () => {
             expect(screen.getByText('Student X')).toBeInTheDocument();
             expect(screen.getByText('Enrollment')).toBeInTheDocument();
         });
+    });
+
+    it('says notifications are queued after saving an announcement', async () => {
+        renderPage();
+
+        await waitFor(() => expect(screen.getByText('Test Course')).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('tab', { name: 'Announcements' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Post Announcement' }));
+        fireEvent.change(screen.getByPlaceholderText('e.g., Midterm Exam Schedule Change'), { target: { value: 'Schedule update' } });
+        fireEvent.change(screen.getByPlaceholderText('Write your announcement here...'), { target: { value: 'The exam starts at 9.' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Post Announcement' }));
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+            'Announcement saved. Student notifications are queued for delivery in the background.'
+        );
+        expect(createCourseAnnouncement).toHaveBeenCalledTimes(1);
     });
 });

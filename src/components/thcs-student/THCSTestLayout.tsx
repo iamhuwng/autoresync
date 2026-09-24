@@ -65,7 +65,7 @@ import THCSSubmitConfirmation from './THCSSubmitConfirmation';
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service';
 import { saveTestResult } from '../../services/testResults.service';
-import { createTrustedNotification } from '../../services/notificationProducerClient';
+import { dispatchThcsNotificationAction } from '../../services/thcsNotificationActionClient';
 import { resolveSessionMutationFailure } from '../../services/sessionActionError';
 import { Button, toast } from '../modern';
 import { buildThcsSessionResultContext } from './thcsSessionResultContext';
@@ -613,16 +613,8 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                 }).catch(err => console.warn('Failed to load academicRecordService:', err));
 
                 // Phase 3 Task 3.3: Notify student that test is fully graded
-                void createTrustedNotification({
-                    producerFamily: 'thcs-practice',
-                    authorityRecordId: resultId,
-                    recipientId: user.uid,
-                    operationKey: `thcs-fully-graded:${resultId}`,
-                    type: 'success',
-                    title: '✅ Test Fully Graded',
-                    message: `All answers in "${testData.metadata.title}" have been graded. Your score: ${gradingResult.scaledScore}/10.`,
-                    link: buildRoute('RESULT_DETAIL', { resultId }),
-                }).catch(err => console.warn('[THCS] Fully graded notification failed:', err));
+                void dispatchThcsNotificationAction('fully-graded', resultId)
+                    .catch(err => console.warn('[THCS] Fully graded notification failed:', err));
             }
 
             // Task 5.7: Fire-and-forget writing grading trigger

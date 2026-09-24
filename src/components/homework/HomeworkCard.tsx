@@ -1,4 +1,7 @@
 import React, { useState, useCallback } from 'react';
+import { toast } from '../modern/ToastNotification';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 import { HomeworkTagChips } from './HomeworkTagChips';
 import { HomeworkStatusBadge } from './HomeworkStatusBadge';
 import type { HomeworkAssignment, HomeworkTagConfig } from '../../types/homework.types';
@@ -35,6 +38,7 @@ export function HomeworkCard({
     availableTags = [],
     onResetComplete,
 }: HomeworkCardProps) {
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
     // Use scheduling object for dates (timestamps in milliseconds)
     const dueDate = new Date(homework.scheduling.dueDate);
     const availableFrom = new Date(homework.scheduling.availableFrom || homework.createdAt);
@@ -119,7 +123,6 @@ export function HomeworkCard({
     const [loadingSubmissions, setLoadingSubmissions] = useState(false);
     const [resetTarget, setResetTarget] = useState<{ studentId: string; studentName: string } | null>(null);
     const [isResetting, setIsResetting] = useState(false);
-    const [resetMessage, setResetMessage] = useState<{ success: boolean; text: string } | null>(null);
 
     // Deduplicate submissions by studentId (show latest per student)
     const studentSubmissions = React.useMemo(() => {
@@ -137,7 +140,6 @@ export function HomeworkCard({
         e.stopPropagation();
         setShowResetModal(true);
         setResetTarget(null);
-        setResetMessage(null);
         setLoadingSubmissions(true);
         try {
             const subs = await getHomeworkSubmissions(homework.id);
@@ -153,17 +155,19 @@ export function HomeworkCard({
     const handleResetConfirm = useCallback(async () => {
         if (!resetTarget) return;
         setIsResetting(true);
-        setResetMessage(null);
+        trackAction('resetHomework', { homeworkId: homework.id, studentId: resetTarget.studentId });
         try {
-            const result = await resetStudentHomework(
-                homework.id,
-                resetTarget.studentId,
-                homework.title || homework.materialTitle
-            );
-            setResetMessage({
-                success: true,
-                text: `✅ Reset complete: ${result.submissionsDeleted} submission(s) and ${result.resultsDeleted} result(s) deleted.`
-            });
+            const result = await resetStudentHomework(homework.id, resetTarget.studentId);
+            const notificationStatus = result.notificationStatus === 'delivered'
+                ? 'Student notification delivered.'
+                : result.notificationStatus === 'retry_scheduled'
+                    ? 'Student notification queued for retry.'
+                    : 'Student notification remains in the recovery queue.';
+            if (result.resultCleanupComplete) {
+                toast.success(`Reset ${result.submissionsDeleted} submission(s) and removed ${result.resultsDeleted} linked result(s). ${notificationStatus}`);
+            } else {
+                toast.warning(`Reset ${result.submissionsDeleted} submission(s), but only ${result.resultsDeleted} linked result(s) could be removed. Contact support to remove the remaining result record(s). ${notificationStatus}`);
+            }
             // Remove the reset student from the local list
             setSubmissions(prev => prev.filter(s => s.studentId !== resetTarget.studentId));
             setResetTarget(null);
@@ -172,10 +176,7 @@ export function HomeworkCard({
                 setTimeout(() => onResetComplete(), 1000);
             }
         } catch (err) {
-            setResetMessage({
-                success: false,
-                text: `❌ Reset failed: ${err instanceof Error ? err.message : 'Unknown error'}`
-            });
+            toast.error(`Homework reset failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
             setIsResetting(false);
         }
@@ -413,12 +414,6 @@ export function HomeworkCard({
                         <p className="reset-modal-subtitle">
                             Select a student to reset their homework for <strong>{homework.title || homework.materialTitle}</strong>
                         </p>
-
-                        {resetMessage && (
-                            <div className={`reset-message ${resetMessage.success ? 'success' : 'error'}`}>
-                                {resetMessage.text}
-                            </div>
-                        )}
 
                         {resetTarget ? (
                             <div className="reset-confirm-section">

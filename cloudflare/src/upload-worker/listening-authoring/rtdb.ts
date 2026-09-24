@@ -13,6 +13,7 @@ export interface RepositoryEnv {
 export interface FirebaseRtdbQuery {
   readonly orderBy: '$key' | string;
   readonly equalTo?: string | number | boolean | null;
+  readonly startAt?: string | number | boolean | null;
   readonly limitToFirst?: number;
   readonly limitToLast?: number;
 }
@@ -353,6 +354,7 @@ const withQuery = (
   if (query) {
     parameters.set('orderBy', JSON.stringify(query.orderBy));
     if (query.equalTo !== undefined) parameters.set('equalTo', JSON.stringify(query.equalTo));
+    if (query.startAt !== undefined) parameters.set('startAt', JSON.stringify(query.startAt));
     if (query.limitToFirst !== undefined) parameters.set('limitToFirst', String(query.limitToFirst));
     if (query.limitToLast !== undefined) parameters.set('limitToLast', String(query.limitToLast));
   }

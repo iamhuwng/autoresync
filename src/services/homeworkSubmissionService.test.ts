@@ -22,6 +22,7 @@ const mockGetStudentOverride = vi.hoisted(() => vi.fn(() => ({})));
 const mockIsStudentExemptedFromHomework = vi.hoisted(() => vi.fn(() => false));
 const mockDeleteTestResult = vi.hoisted(() => vi.fn());
 const mockCreateTrustedNotification = vi.hoisted(() => vi.fn());
+const mockDispatchHomeworkResetNotification = vi.hoisted(() => vi.fn());
 
 vi.mock('firebase/firestore', () => {
     const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -57,6 +58,28 @@ vi.mock('firebase/firestore', () => {
                 data: () => clone(value),
             };
         }),
+        runTransaction: vi.fn(async (_db: unknown, callback: (transaction: {
+            get: (ref: { path: string }) => Promise<{ exists: () => boolean; data: () => Record<string, unknown> }>;
+            update: (ref: { path: string }, updates: Record<string, unknown>) => void;
+            set: (ref: { path: string }, value: Record<string, unknown>) => void;
+            delete: (ref: { path: string }) => void;
+        }) => Promise<unknown>) => {
+            const writes: Array<() => void> = [];
+            const result = await callback({
+                get: async (ref) => {
+                    const value = firestoreHarness.store.get(ref.path);
+                    return { exists: () => value !== undefined, data: () => clone(value ?? {}) };
+                },
+                update: (ref, updates) => writes.push(() => {
+                    const currentValue = firestoreHarness.store.get(ref.path) ?? {};
+                    firestoreHarness.store.set(ref.path, applyUpdates(currentValue, updates));
+                }),
+                set: (ref, value) => writes.push(() => firestoreHarness.store.set(ref.path, clone(value))),
+                delete: (ref) => writes.push(() => firestoreHarness.store.delete(ref.path)),
+            });
+            writes.forEach((write) => write());
+            return result;
+        }),
         getDocs: (...args: unknown[]) => mockGetDocs(...args),
         updateDoc: vi.fn(async (ref: { path: string }, updates: Record<string, unknown>) => {
             const currentValue = firestoreHarness.store.get(ref.path) ?? {};
@@ -86,6 +109,7 @@ vi.mock('firebase/firestore', () => {
 
 vi.mock('./firebase', () => ({
     firestore: { name: 'mock-firestore' },
+    auth: { currentUser: { uid: 'teacher-1' } },
 }));
 
 vi.mock('./homeworkManager', () => ({
@@ -103,6 +127,10 @@ vi.mock('./testResults.service', () => ({
 
 vi.mock('./notificationProducerClient', () => ({
     createTrustedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
+}));
+
+vi.mock('./homeworkResetNotificationClient', () => ({
+    dispatchHomeworkResetNotification: (...args: unknown[]) => mockDispatchHomeworkResetNotification(...args),
 }));
 
 import {
@@ -191,6 +219,13 @@ const seedSubmission = (submission: HomeworkSubmission) => {
     );
 };
 
+const seedCanonicalHomework = (homework: HomeworkAssignment = buildHomework()) => {
+    firestoreHarness.store.set(
+        `homework_assignments/${homework.id}`,
+        JSON.parse(JSON.stringify(homework)) as Record<string, unknown>,
+    );
+};
+
 describe('homeworkSubmissionService', () => {
     beforeEach(() => {
         firestoreHarness.reset();
@@ -227,6 +262,7 @@ describe('homeworkSubmissionService', () => {
         mockIsStudentExemptedFromHomework.mockReturnValue(false);
         mockDeleteTestResult.mockResolvedValue(undefined);
         mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
+        mockDispatchHomeworkResetNotification.mockResolvedValue('delivered');
         mockUpdateHomework.mockResolvedValue(undefined);
     });
 
@@ -321,14 +357,16 @@ describe('homeworkSubmissionService', () => {
     });
 
     it('notifies the assigning teacher when a student submits class homework', async () => {
-        mockGetHomeworkById.mockResolvedValue(buildHomework({
+        const homework = buildHomework({
             materialTitle: 'Class Writing Homework',
             target: {
                 type: 'class',
                 classId: 'class-1',
                 className: 'Class 1',
             },
-        }));
+        });
+        mockGetHomeworkById.mockResolvedValue(homework);
+        seedCanonicalHomework(homework);
         seedSubmission(buildSubmission({
             id: 'class-writing-submission',
             teacherId: 'teacher-1',
@@ -352,10 +390,35 @@ describe('homeworkSubmissionService', () => {
             operationKey: 'homework-submitted:teacher:writing-result-1',
             type: 'info',
             title: 'Homework Submitted',
-            message: 'Student One submitted \"Class Writing Homework\".',
+            message: 'A student submitted homework.',
             link: `/teacher/homework/${mockHomeworkId}`,
-        }, {
-            workerOrigin: 'https://luyentap-notification-command.iamhuwng.workers.dev',
+        });
+        expect(firestoreHarness.store.get('homework_submissions/class-writing-submission')).toMatchObject({
+            status: 'submitted',
+            notificationIntent: {
+                schemaVersion: 1,
+                eventId: 'homework-submitted:writing-result-1',
+                resultId: 'writing-result-1',
+                homeworkId: mockHomeworkId,
+                studentId: mockStudentId,
+                teacherId: 'teacher-1',
+            },
+            notificationDelivery: { state: 'retry_due', attempts: 1 },
+        });
+    });
+
+    it('keeps the submission committed when immediate notification delivery fails', async () => {
+        seedSubmission(buildSubmission({ id: 'notification-failure-submission' }));
+        seedCanonicalHomework();
+        mockCreateTrustedNotification.mockRejectedValue(new Error('worker unavailable'));
+
+        await expect(submitHomework('notification-failure-submission', 'result-retry-1')).resolves.toBeUndefined();
+
+        expect(firestoreHarness.store.get('homework_submissions/notification-failure-submission')).toMatchObject({
+            status: 'submitted',
+            resultId: 'result-retry-1',
+            notificationIntent: { eventId: 'homework-submitted:result-retry-1' },
+            notificationDelivery: { state: 'retry_due', attempts: 1 },
         });
     });
 
@@ -462,6 +525,7 @@ describe('homeworkSubmissionService', () => {
     });
 
     it('resets homework attempts, linked results, and stats for a student', async () => {
+        seedCanonicalHomework();
         mockGetHomeworkById.mockResolvedValue(buildHomework({
             stats: {
                 totalAssigned: 4,
@@ -490,13 +554,25 @@ describe('homeworkSubmissionService', () => {
             percentage: 90,
         }));
 
-        const summary = await resetStudentHomework(mockHomeworkId, mockStudentId, 'Protected Homework');
+        const summary = await resetStudentHomework(mockHomeworkId, mockStudentId);
 
         expect(summary).toEqual({
             submissionsDeleted: 2,
             resultsDeleted: 2,
+            resultCleanupComplete: true,
+            notificationStatus: 'delivered',
         });
-        expect(firestoreHarness.store.size).toBe(0);
+        expect(firestoreHarness.store.has('homework_submissions/reset-old-submission')).toBe(false);
+        expect(firestoreHarness.store.has('homework_submissions/reset-new-submission')).toBe(false);
+        const [resetEvent] = [...firestoreHarness.store.entries()].filter(([path]) => path.startsWith('homework_reset_notification_intents/'));
+        expect(resetEvent?.[1]).toMatchObject({
+            schemaVersion: 1,
+            homeworkId: mockHomeworkId,
+            studentId: mockStudentId,
+            actorUid: 'teacher-1',
+            state: 'retry_due',
+            attempts: 0,
+        });
         expect(mockDeleteTestResult).toHaveBeenCalledTimes(2);
         expect(mockDeleteTestResult).toHaveBeenCalledWith('result-1');
         expect(mockDeleteTestResult).toHaveBeenCalledWith('result-2');
@@ -509,19 +585,10 @@ describe('homeworkSubmissionService', () => {
                 completionRate: 0,
             },
         });
-        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-            producerFamily: 'homework',
-            authorityRecordId: mockHomeworkId,
-            recipientId: mockStudentId,
-            operationKey: `homework-reset:${mockHomeworkId}`,
-            type: 'warning',
-            title: '\uD83D\uDD04 Homework Reset',
-            message: 'Your homework "Protected Homework" has been reset by your teacher. You can now retake it.',
-            link: `/student/homework/${mockHomeworkId}`,
-        });
+        expect(mockDispatchHomeworkResetNotification).toHaveBeenCalledWith(resetEvent?.[0].split('/')[1]);
     });
 
-    it('skips the reset notification when the homework authority is unavailable', async () => {
+    it('does not delete submissions when homework authority is unavailable', async () => {
         seedSubmission(buildSubmission({
             id: 'missing-authority-submission',
             status: 'submitted',
@@ -530,9 +597,11 @@ describe('homeworkSubmissionService', () => {
         }));
         mockGetHomeworkById.mockResolvedValue(undefined);
 
-        await resetStudentHomework(mockHomeworkId, mockStudentId, 'Protected Homework');
+        await expect(resetStudentHomework(mockHomeworkId, mockStudentId))
+            .rejects.toMatchObject({ code: 'RESET_FORBIDDEN' });
 
-        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+        expect(firestoreHarness.store.has('homework_submissions/missing-authority-submission')).toBe(true);
+        expect(mockDispatchHomeworkResetNotification).not.toHaveBeenCalled();
     });
 
     it('reads trusted Book progress without mapping completion into legacy score fields', async () => {

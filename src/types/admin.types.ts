@@ -86,6 +86,8 @@ export interface PendingTypeRequest {
     id: string;
     name: string;
     description?: string;
+    createdBy: string;
+    createdAt: number;
     requestedBy: string;
     requestedAt: number;
     status: 'pending' | 'approved' | 'rejected';
@@ -227,7 +229,7 @@ export interface UseStudentRequestsReturn {
 
 export interface UseCourseTypesReturn {
     // State
-    courseTypes: CourseType[];
+    courseTypes: string[];
     pendingRequests: PendingTypeRequest[];
     loading: boolean;
     error: string | null;

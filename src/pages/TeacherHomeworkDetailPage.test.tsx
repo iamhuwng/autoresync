@@ -325,6 +325,8 @@ describe('TeacherHomeworkDetailPage', () => {
     resetStudentHomeworkMock.mockResolvedValue({
       submissionsDeleted: 1,
       resultsDeleted: 1,
+      resultCleanupComplete: true,
+      notificationStatus: 'delivered',
     });
 
     updateStudentOverrideMock.mockResolvedValue(undefined);

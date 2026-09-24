@@ -219,7 +219,34 @@
       ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
       "$resultId": {
         ".read": "data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('visibility').child('ownershipResolved').val() === true && (data.child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid || (data.child('visibility').child('contextType').val() === 'solo_practice' && root.child('student_teacher_links').child(auth.uid).child(data.child('studentId').val()).val() === true)))",
-        ".write": "auth != null"
+        ".write": "auth != null && (data.exists() ? (data.child('testCompleteNotificationIntent').exists() ? (newData.child('testCompleteNotificationIntent').child('schemaVersion').val() === data.child('testCompleteNotificationIntent').child('schemaVersion').val() && newData.child('testCompleteNotificationIntent').child('actionId').val() === data.child('testCompleteNotificationIntent').child('actionId').val() && newData.child('testCompleteNotificationIntent').child('kind').val() === data.child('testCompleteNotificationIntent').child('kind').val() && newData.child('testCompleteNotificationIntent').child('actorUid').val() === data.child('testCompleteNotificationIntent').child('actorUid').val() && newData.child('testCompleteNotificationIntent').child('actorRole').val() === data.child('testCompleteNotificationIntent').child('actorRole').val() && newData.child('testCompleteNotificationIntent').child('occurredAt').val() === data.child('testCompleteNotificationIntent').child('occurredAt').val() && newData.child('testCompleteNotificationIntent').child('dueAt').val() === data.child('testCompleteNotificationIntent').child('dueAt').val() && newData.child('testCompleteNotificationIntent').child('attempts').val() === data.child('testCompleteNotificationIntent').child('attempts').val() && newData.child('testCompleteNotificationIntent').child('state').val() === data.child('testCompleteNotificationIntent').child('state').val()) : !newData.child('testCompleteNotificationIntent').exists()) : true) && ((!data.child('notificationIntent').exists() && (!newData.child('notificationIntent').exists() || !data.exists())) || (data.child('notificationIntent').exists() && newData.exists() && newData.child('notificationIntent').child('schemaVersion').val() === data.child('notificationIntent').child('schemaVersion').val() && newData.child('notificationIntent').child('actionId').val() === data.child('notificationIntent').child('actionId').val() && newData.child('notificationIntent').child('kind').val() === data.child('notificationIntent').child('kind').val() && newData.child('notificationIntent').child('occurredAt').val() === data.child('notificationIntent').child('occurredAt').val() && newData.child('notificationIntent').child('dueAt').val() === data.child('notificationIntent').child('dueAt').val() && newData.child('notificationIntent').child('attempts').val() === data.child('notificationIntent').child('attempts').val() && newData.child('notificationIntent').child('state').val() === data.child('notificationIntent').child('state').val())) && (!data.exists() || (!newData.exists() && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (!data.child('questionFeedback').exists() && !data.child('overallFeedback').exists() && !data.child('feedbackHistory').exists() && !data.child('feedbackUpdatedAt').exists() && !data.child('feedbackUpdatedBy').exists() && !data.child('feedbackUpdatedByTeacherId').exists() && !data.child('feedbackUpdatedByTeacherName').exists() && !data.child('hasFeedback').exists()))) || (!data.child('questionFeedback').exists() && !newData.child('questionFeedback').exists() && !data.child('overallFeedback').exists() && !newData.child('overallFeedback').exists() && !data.child('feedbackHistory').exists() && !newData.child('feedbackHistory').exists() && !data.child('feedbackUpdatedAt').exists() && !newData.child('feedbackUpdatedAt').exists() && !data.child('feedbackUpdatedBy').exists() && !newData.child('feedbackUpdatedBy').exists() && !data.child('feedbackUpdatedByTeacherId').exists() && !newData.child('feedbackUpdatedByTeacherId').exists() && !data.child('feedbackUpdatedByTeacherName').exists() && !newData.child('feedbackUpdatedByTeacherName').exists() && !data.child('hasFeedback').exists() && !newData.child('hasFeedback').exists() && newData.child('markingStatus').val() === data.child('markingStatus').val() && newData.child('reviewedAt').val() === data.child('reviewedAt').val() && newData.child('reviewedBy').val() === data.child('reviewedBy').val()) || (auth.token.notificationResultReview === true && auth.uid === 'notification-result-review:' + auth.token.eventId && auth.token.resultId === $resultId && data.child('markingStatus').val() === 'pending-review' && newData.child('markingStatus').val() === 'reviewed' && newData.child('reviewedBy').val() === auth.token.actorUid && newData.child('reviewedAt').val() === auth.token.occurredAt && newData.child('studentId').val() === data.child('studentId').val() && data.child('studentId').val() === auth.token.studentId) || (auth.token.notificationFeedbackAction === true && auth.uid === 'notification-feedback-action:' + auth.token.eventId && auth.token.resultId === $resultId && auth.token.studentId === data.child('studentId').val() && newData.child('studentId').val() === data.child('studentId').val() && newData.child('markingStatus').val() === data.child('markingStatus').val() && newData.child('reviewedAt').val() === data.child('reviewedAt').val() && newData.child('reviewedBy').val() === data.child('reviewedBy').val() && newData.child('feedbackUpdatedAt').val() === auth.token.occurredAt && (root.child('users').child(auth.token.actorUid).child('role').val() === 'super_admin' || (root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && (data.child('teacherId').val() === auth.token.actorUid || (data.child('visibility').child('ownershipResolved').val() === true && data.child('visibility').child('visibilityOwnerTeacherId').val() === auth.token.actorUid) || root.child('courses').child(data.child('courseId').val()).child('createdBy').val() === auth.token.actorUid)))))",
+        "$resultField": {
+          ".write": "auth != null && $resultField !== 'questionFeedback' && $resultField !== 'overallFeedback' && $resultField !== 'feedbackHistory' && $resultField !== 'feedbackUpdatedAt' && $resultField !== 'feedbackUpdatedBy' && $resultField !== 'feedbackUpdatedByTeacherId' && $resultField !== 'feedbackUpdatedByTeacherName' && $resultField !== 'hasFeedback' && $resultField !== 'questionResults' && $resultField !== 'notificationIntent' && $resultField !== 'testCompleteNotificationIntent' && $resultField !== 'markingStatus' && $resultField !== 'reviewedAt' && $resultField !== 'reviewedBy'"
+        },
+        "testCompleteNotificationIntent": {
+          ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'actionId', 'kind', 'actorUid', 'actorRole', 'occurredAt', 'dueAt', 'attempts', 'state']) && newData.child('schemaVersion').val() === 1 && newData.child('actionId').val() === $resultId && newData.child('kind').val() === 'test-completed' && newData.parent().child('testType').val() !== 'THCS-THPT' && !newData.parent().child('thcsData').exists() && newData.child('actorUid').val() === auth.uid && newData.child('occurredAt').val() === newData.parent().child('submittedAt').val() && newData.child('dueAt').val() === newData.child('occurredAt').val() && newData.child('attempts').val() === 0 && newData.child('state').val() === 'pending' && (newData.child('actorRole').val() === 'student' ? (newData.parent().child('studentId').val() === auth.uid && root.child('users').child(auth.uid).child('role').val() === 'student') : (newData.child('actorRole').val() === 'teacher' && newData.parent().child('teacherId').val() === auth.uid && newData.parent().child('context').child('type').val() === 'class_session' && newData.parent().child('context').child('configApplied').child('source').val() === 'teacher_override' && root.child('users').child(auth.uid).child('role').val() === 'teacher' && (root.child('game_sessions').child(newData.parent().child('sessionCode').val()).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child(newData.parent().child('sessionCode').val()).child('createdBy').val() === auth.uid || root.child('game_sessions').child(newData.parent().child('sessionCode').val()).child('teacherId').val() === auth.uid))))",
+          "schemaVersion": { ".validate": "newData.val() === 1" },
+          "actionId": { ".validate": "newData.val() === $resultId" },
+          "kind": { ".validate": "newData.val() === 'test-completed'" },
+          "actorUid": { ".validate": "newData.val() === auth.uid" },
+          "actorRole": { ".validate": "newData.val() === 'student' || newData.val() === 'teacher'" },
+          "occurredAt": { ".validate": "newData.isNumber()" },
+          "dueAt": { ".validate": "newData.isNumber()" },
+          "attempts": { ".validate": "newData.val() === 0 || newData.val() === 1 || newData.val() === 2" },
+          "state": { ".validate": "newData.val() === 'pending' || newData.val() === 'sending' || newData.val() === 'retry_due' || newData.val() === 'retrying' || newData.val() === 'done' || newData.val() === 'failed'" },
+          "$other": { ".validate": false }
+        },
+        "notificationIntent": {
+          ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'actionId', 'kind', 'occurredAt', 'dueAt', 'attempts', 'state']) && newData.child('schemaVersion').val() === 1 && newData.child('actionId').val() === $resultId && newData.child('kind').val() === 'fully-graded' && newData.child('occurredAt').val() === newData.parent().child('submittedAt').val() && newData.child('dueAt').isNumber() && newData.child('attempts').isNumber() && newData.child('attempts').val() >= 0 && newData.child('attempts').val() <= 2 && (newData.child('state').val() === 'pending' || newData.child('state').val() === 'sending' || newData.child('state').val() === 'retry_due' || newData.child('state').val() === 'retrying' || newData.child('state').val() === 'done' || newData.child('state').val() === 'failed') && (data.exists() ? newData.child('schemaVersion').val() === data.child('schemaVersion').val() && newData.child('actionId').val() === data.child('actionId').val() && newData.child('kind').val() === data.child('kind').val() && newData.child('occurredAt').val() === data.child('occurredAt').val() && newData.child('dueAt').val() === data.child('dueAt').val() && newData.child('attempts').val() === data.child('attempts').val() && newData.child('state').val() === data.child('state').val() : (!data.parent().exists() && newData.child('dueAt').val() === newData.child('occurredAt').val() + 3600000 && newData.child('attempts').val() === 0 && newData.child('state').val() === 'pending' && newData.parent().child('studentId').val() === auth.uid && newData.parent().child('testType').val() === 'THCS-THPT' && newData.parent().child('thcsData').child('gradingStatus').val() === 'fully-graded'))) ",
+          "schemaVersion": { ".validate": "newData.val() === 1" },
+          "actionId": { ".validate": "newData.val() === $resultId" },
+          "kind": { ".validate": "newData.val() === 'fully-graded'" },
+          "occurredAt": { ".validate": "newData.isNumber()" },
+          "dueAt": { ".validate": "newData.isNumber()" },
+          "attempts": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 2" },
+          "state": { ".validate": "newData.val() === 'pending' || newData.val() === 'sending' || newData.val() === 'retry_due' || newData.val() === 'retrying' || newData.val() === 'done' || newData.val() === 'failed'" },
+          "$other": { ".validate": false }
+        }
       },
       ".indexOn": [
         "studentId",
@@ -227,7 +254,9 @@
         "courseId",
         "classId",
         "moduleId",
-        "submittedAt"
+        "submittedAt",
+        "notificationIntent/dueAt",
+        "testCompleteNotificationIntent/dueAt"
       ]
     },
     "test_results_by_teacher": {
@@ -388,34 +417,83 @@
     },
     "student_requests": {
       ".read": "auth != null",
-      ".write": "auth != null",
       ".indexOn": [
         "teacherId",
         "studentEmail",
-        "status"
-      ]
+        "status",
+        "notificationIntent/dueAt"
+      ],
+      "$requestId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('id').val() === $requestId && newData.child('teacherId').val() === auth.uid && root.child('users').child(auth.uid).child('role').val() === 'teacher' && newData.child('status').val() === 'pending' && !newData.child('notificationIntent').exists()) || (data.child('status').val() === 'pending' && data.child('teacherId').val() === newData.child('teacherId').val() && data.child('studentEmail').val() === newData.child('studentEmail').val() && data.child('requestedAt').val() === newData.child('requestedAt').val() && root.child('users').child(auth.uid).child('role').val() === 'super_admin' && auth.uid === newData.child('reviewedBy').val() && newData.child('reviewedAt').isNumber() && newData.child('reviewedAt').val() <= now && ((newData.child('status').val() === 'denied' && !newData.child('notificationIntent').exists()) || (newData.child('status').val() === 'approved' && newData.child('studentId').isString() && newData.child('assignmentId').isString() && newData.child('notificationIntent').child('schemaVersion').val() === 1 && newData.child('notificationIntent').child('actionId').val() === $requestId && newData.child('notificationIntent').child('kind').val() === 'assignment-request-approved' && newData.child('notificationIntent').child('occurredAt').val() === newData.child('reviewedAt').val() && newData.child('notificationIntent').child('dueAt').val() === newData.child('reviewedAt').val() + 3600000 && newData.child('notificationIntent').child('attempts').val() === 0 && newData.child('notificationIntent').child('state').val() === 'pending' && !data.child('notificationIntent').exists()))))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'teacherId', 'studentEmail', 'requestedAt', 'status']) && newData.child('id').val() === $requestId && newData.child('teacherId').isString() && newData.child('studentEmail').isString() && newData.child('requestedAt').isNumber() && (newData.child('status').val() === 'pending' || newData.child('status').val() === 'approved' || newData.child('status').val() === 'denied' || newData.child('status').val() === 'expired') && (!newData.child('reviewedBy').exists() || newData.child('reviewedBy').isString()) && (!newData.child('reviewedAt').exists() || newData.child('reviewedAt').isNumber()) && (!newData.child('studentId').exists() || newData.child('studentId').isString()) && (!newData.child('assignmentId').exists() || newData.child('assignmentId').isString()) && (!newData.child('notificationIntent').exists() || (newData.child('notificationIntent').hasChildren(['schemaVersion', 'actionId', 'kind', 'occurredAt', 'dueAt', 'attempts', 'state']) && newData.child('notificationIntent').child('schemaVersion').val() === 1 && newData.child('notificationIntent').child('actionId').val() === $requestId && newData.child('notificationIntent').child('kind').val() === 'assignment-request-approved' && newData.child('notificationIntent').child('occurredAt').isNumber() && newData.child('notificationIntent').child('dueAt').isNumber() && newData.child('notificationIntent').child('attempts').val() === 0 && newData.child('notificationIntent').child('state').val() === 'pending')))",
+        "id": { ".validate": "newData.isString() && newData.val() === $requestId" },
+        "teacherId": { ".validate": "newData.isString()" },
+        "studentEmail": { ".validate": "newData.isString()" },
+        "requestedAt": { ".validate": "newData.isNumber()" },
+        "status": { ".validate": "newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'denied' || newData.val() === 'expired'" },
+        "reviewedBy": { ".validate": "newData.isString()" },
+        "reviewedAt": { ".validate": "newData.isNumber()" },
+        "studentId": { ".validate": "newData.isString()" },
+        "assignmentId": { ".validate": "newData.isString()" },
+        "notificationIntent": {
+          "schemaVersion": { ".validate": "newData.val() === 1" },
+          "actionId": { ".validate": "newData.isString() && newData.val() === $requestId" },
+          "kind": { ".validate": "newData.val() === 'assignment-request-approved'" },
+          "occurredAt": { ".validate": "newData.isNumber()" },
+          "dueAt": { ".validate": "newData.isNumber()" },
+          "attempts": { ".validate": "newData.val() === 0" },
+          "state": { ".validate": "newData.val() === 'pending'" },
+          "$other": { ".validate": false }
+        },
+        "$other": { ".validate": false }
+      }
     },
     "course_announcements": {
       ".read": "auth != null",
-      ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
       ".indexOn": [
-        "courseId"
+        "courseId",
+        "notificationIntent/dueAt"
       ]
     },
     "course_requests": {
       ".read": "auth != null",
-      ".write": "auth != null",
-      "$requestId": {
-        ".read": "auth != null",
-        ".write": "auth != null"
-      },
       ".indexOn": [
         "studentId",
         "teacherId",
         "courseId",
         "status",
-        "expiresAt"
-      ]
+        "expiresAt",
+        "notificationIntent/dueAt"
+      ],
+      "$requestId": {
+        ".read": "auth != null && (data.child('studentId').val() === auth.uid || data.child('teacherId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+        ".write": "auth != null && ((!data.exists() && newData.child('id').val() === $requestId && newData.child('studentId').val() === auth.uid && newData.child('status').val() === 'pending' && !newData.child('notificationIntent').exists() && newData.child('teacherId').val() === root.child('courses').child(newData.child('courseId').val()).child('ownerId').val()) || (!newData.exists() && data.child('status').val() === 'pending' && data.child('studentId').val() === auth.uid) || (data.child('status').val() === 'pending' && newData.child('status').val() === 'expired' && data.child('expiresAt').val() <= now && newData.child('studentId').val() === data.child('studentId').val() && newData.child('courseId').val() === data.child('courseId').val() && newData.child('teacherId').val() === data.child('teacherId').val() && newData.child('type').val() === data.child('type').val() && newData.child('requestedAt').val() === data.child('requestedAt').val() && newData.child('expiresAt').val() === data.child('expiresAt').val() && !newData.child('notificationIntent').exists()) || ((auth.uid === data.child('teacherId').val() && root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('courses').child(data.child('courseId').val()).child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && data.child('status').val() === 'pending' && data.child('expiresAt').val() > now && (newData.child('status').val() === 'approved' || newData.child('status').val() === 'denied') && newData.child('processedBy').val() === auth.uid && newData.child('processedAt').isNumber() && newData.child('processedAt').val() > data.child('requestedAt').val() && newData.child('processedAt').val() <= now && newData.child('notificationIntent').child('schemaVersion').val() === 1 && newData.child('notificationIntent').child('actionId').val() === $requestId && newData.child('notificationIntent').child('kind').val() === 'course-request-decision' && newData.child('notificationIntent').child('occurredAt').val() === newData.child('processedAt').val() && newData.child('notificationIntent').child('dueAt').val() === newData.child('processedAt').val() + 3600000 && newData.child('notificationIntent').child('attempts').val() === 0 && newData.child('notificationIntent').child('state').val() === 'pending' && !data.child('notificationIntent').exists() && newData.child('studentId').val() === data.child('studentId').val() && newData.child('studentName').val() === data.child('studentName').val() && newData.child('courseId').val() === data.child('courseId').val() && newData.child('courseName').val() === data.child('courseName').val() && newData.child('teacherId').val() === data.child('teacherId').val() && newData.child('type').val() === data.child('type').val() && newData.child('requestedAt').val() === data.child('requestedAt').val() && newData.child('expiresAt').val() === data.child('expiresAt').val())",
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'studentId', 'courseId', 'teacherId', 'type', 'status', 'requestedAt', 'expiresAt']) && newData.child('id').val() === $requestId && (newData.child('type').val() === 'join' || newData.child('type').val() === 'unenroll') && (newData.child('status').val() === 'pending' || newData.child('status').val() === 'approved' || newData.child('status').val() === 'denied' || newData.child('status').val() === 'expired') && newData.child('requestedAt').isNumber() && newData.child('expiresAt').isNumber() && (!newData.child('studentName').exists() || newData.child('studentName').isString()) && (!newData.child('courseName').exists() || newData.child('courseName').isString()) && (!newData.child('processedAt').exists() || newData.child('processedAt').isNumber()) && (!newData.child('processedBy').exists() || newData.child('processedBy').isString()) && (!newData.child('rejectionReason').exists() || newData.child('rejectionReason').isString()) && (!newData.child('notificationIntent').exists() || (newData.child('notificationIntent').hasChildren(['schemaVersion', 'actionId', 'kind', 'occurredAt', 'dueAt', 'attempts', 'state']) && newData.child('notificationIntent').child('schemaVersion').val() === 1 && newData.child('notificationIntent').child('actionId').val() === $requestId && newData.child('notificationIntent').child('kind').val() === 'course-request-decision' && newData.child('notificationIntent').child('occurredAt').isNumber() && newData.child('notificationIntent').child('dueAt').isNumber() && newData.child('notificationIntent').child('attempts').val() === 0 && newData.child('notificationIntent').child('state').val() === 'pending')))",
+        "id": { ".validate": "newData.isString() && newData.val() === $requestId" },
+        "studentId": { ".validate": "newData.isString()" },
+        "studentName": { ".validate": "newData.isString()" },
+        "courseId": { ".validate": "newData.isString()" },
+        "courseName": { ".validate": "newData.isString()" },
+        "teacherId": { ".validate": "newData.isString()" },
+        "type": { ".validate": "newData.val() === 'join' || newData.val() === 'unenroll'" },
+        "status": { ".validate": "newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'denied' || newData.val() === 'expired'" },
+        "requestedAt": { ".validate": "newData.isNumber()" },
+        "expiresAt": { ".validate": "newData.isNumber()" },
+        "processedBy": { ".validate": "newData.isString()" },
+        "processedAt": { ".validate": "newData.isNumber()" },
+        "rejectionReason": { ".validate": "newData.isString()" },
+        "notificationIntent": {
+          "schemaVersion": { ".validate": "newData.val() === 1" },
+          "actionId": { ".validate": "newData.isString() && newData.val() === $requestId" },
+          "kind": { ".validate": "newData.val() === 'course-request-decision'" },
+          "occurredAt": { ".validate": "newData.isNumber()" },
+          "dueAt": { ".validate": "newData.isNumber()" },
+          "attempts": { ".validate": "newData.val() === 0" },
+          "state": { ".validate": "newData.val() === 'pending'" },
+          "$other": { ".validate": false }
+        },
+        "$other": { ".validate": false }
+      }
     },
     "course_types": {
       ".read": "auth != null",
@@ -1138,9 +1216,40 @@
     },
     "course_type_requests": {
       ".read": "auth != null",
-      ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+      ".write": false,
+      "$requestId": {
+        ".write": "auth != null && ((!data.exists() && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && newData.child('id').val() === $requestId && newData.child('teacherId').val() === auth.uid && newData.child('status').val() === 'pending') || (data.exists() && root.child('users').child(auth.uid).child('role').val() === 'super_admin' && data.child('status').val() === 'pending' && newData.child('id').val() === data.child('id').val() && newData.child('teacherId').val() === data.child('teacherId').val() && newData.child('typeName').val() === data.child('typeName').val() && newData.child('requestedAt').val() === data.child('requestedAt').val() && ((newData.child('status').val() === 'approved' && newData.child('approvedBy').val() === auth.uid && newData.child('approvedAt').isNumber() && newData.child('notificationIntent').child('eventKind').val() === 'course-type-approved' && newData.child('notificationIntent').child('authorityRecordId').val() === $requestId && newData.child('notificationIntent').child('occurrenceId').val() === $requestId + '_approved' && newData.child('notificationIntent').child('occurredAt').val() === newData.child('approvedAt').val() && newData.child('notificationIntent').child('dueAt').val() === newData.child('approvedAt').val() && newData.child('notificationIntent').child('attempts').val() === 0 && newData.child('notificationIntent').child('state').val() === 'due') || (newData.child('status').val() === 'rejected' && newData.child('handledBy').val() === auth.uid && newData.child('handledAt').isNumber() && newData.child('notificationIntent').child('eventKind').val() === 'course-type-rejected' && newData.child('notificationIntent').child('authorityRecordId').val() === $requestId && newData.child('notificationIntent').child('occurrenceId').val() === $requestId + '_rejected' && newData.child('notificationIntent').child('occurredAt').val() === newData.child('handledAt').val() && newData.child('notificationIntent').child('dueAt').val() === newData.child('handledAt').val() && newData.child('notificationIntent').child('attempts').val() === 0 && newData.child('notificationIntent').child('state').val() === 'due'))))",
+        ".validate": "newData.hasChildren(['id', 'teacherId', 'typeName', 'requestedAt', 'status']) && newData.child('id').val() === $requestId && newData.child('teacherId').isString() && newData.child('typeName').isString() && newData.child('requestedAt').isNumber() && ((!data.exists() && newData.child('status').val() === 'pending' && !newData.child('notificationIntent').exists()) || (data.exists() && data.child('status').val() === 'pending' && newData.child('teacherId').val() === data.child('teacherId').val() && newData.child('typeName').val() === data.child('typeName').val() && newData.child('requestedAt').val() === data.child('requestedAt').val() && ((newData.child('status').val() === 'approved' && newData.child('approvedBy').val() === auth.uid && newData.child('approvedAt').isNumber() && newData.child('notificationIntent').child('eventKind').val() === 'course-type-approved' && newData.child('notificationIntent').child('occurredAt').val() === newData.child('approvedAt').val()) || (newData.child('status').val() === 'rejected' && newData.child('handledBy').val() === auth.uid && newData.child('handledAt').isNumber() && newData.child('notificationIntent').child('eventKind').val() === 'course-type-rejected' && newData.child('notificationIntent').child('occurredAt').val() === newData.child('handledAt').val())) && newData.child('notificationIntent').child('authorityRecordId').val() === $requestId && newData.child('notificationIntent').child('occurrenceId').val() === $requestId + '_' + newData.child('status').val() && newData.child('notificationIntent').child('dueAt').val() === newData.child('notificationIntent').child('occurredAt').val() && newData.child('notificationIntent').child('attempts').val() === 0 && newData.child('notificationIntent').child('state').val() === 'due'))",
+        "id": { ".validate": "newData.isString()" },
+        "teacherId": { ".validate": "newData.isString()" },
+        "typeName": { ".validate": "newData.isString()" },
+        "requestedAt": { ".validate": "newData.isNumber()" },
+        "status": { ".validate": "newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'rejected'" },
+        "approvedBy": { ".validate": "newData.isString()" },
+        "approvedAt": { ".validate": "newData.isNumber()" },
+        "handledBy": { ".validate": "newData.isString()" },
+        "handledAt": { ".validate": "newData.isNumber()" },
+        "rejectionReason": { ".validate": "newData.isString()" },
+        "notificationIntent": {
+          ".validate": "newData.hasChildren(['eventKind', 'authorityRecordId', 'occurrenceId', 'occurredAt', 'dueAt', 'attempts', 'state'])",
+          "eventKind": { ".validate": "newData.isString()" },
+          "authorityRecordId": { ".validate": "newData.isString()" },
+          "occurrenceId": { ".validate": "newData.isString()" },
+          "occurredAt": { ".validate": "newData.isNumber()" },
+          "dueAt": { ".validate": "newData.isNumber()" },
+          "attempts": { ".validate": "newData.isNumber()" },
+          "state": { ".validate": "newData.isString()" },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      },
       ".indexOn": [
-        "status"
+        "status",
+        "notificationIntent/dueAt"
       ]
     },
     "classes": {
@@ -1149,7 +1258,7 @@
         ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
         "students": {
           "$studentId": {
-            ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (auth != null && auth.token.notificationClassAction === true && auth.uid === 'notification-class-action:' + auth.token.actionId && auth.token.classId === $classId && auth.token.studentId === $studentId && (auth.token.actorUid === root.child('classes').child($classId).child('createdBy').val() || (auth.token.actionKind === 'join-pending' && auth.token.actorUid === $studentId) || root.child('users').child(auth.token.actorUid).child('role').val() === 'super_admin') && root.child('classes').child($classId).child('status').val() === 'active' && ((auth.token.actionKind === 'join-pending' && !data.exists() && newData.child('status').val() === 'pending_approval' && true) || (auth.token.actionKind === 'direct-add' && !data.exists() && newData.child('status').val() === 'active' && true) || (auth.token.actionKind === 'approve' && data.child('status').val() === 'pending_approval' && newData.child('status').val() === 'active') || (auth.token.actionKind === 'reject' && data.child('status').val() === 'pending_approval' && !newData.exists())))"
           }
         },
         "book_locks": {
@@ -1168,9 +1277,78 @@
       "$studentId": {
         ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
         "$classId": {
-          ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid)",
+          ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid) || (auth != null && auth.token.notificationClassAction === true && auth.uid === 'notification-class-action:' + auth.token.actionId && auth.token.classId === $classId && auth.token.studentId === $studentId && (auth.token.actorUid === root.child('classes').child($classId).child('createdBy').val() || (auth.token.actionKind === 'join-pending' && auth.token.actorUid === $studentId) || root.child('users').child(auth.token.actorUid).child('role').val() === 'super_admin') && root.child('classes').child($classId).child('status').val() === 'active' && ((auth.token.actionKind === 'join-pending' && !data.exists() && newData.child('status').val() === 'pending_approval' && true) || (auth.token.actionKind === 'direct-add' && !data.exists() && newData.child('status').val() === 'active' && true) || (auth.token.actionKind === 'approve' && data.child('status').val() === 'pending_approval' && newData.child('status').val() === 'active') || (auth.token.actionKind === 'reject' && data.child('status').val() === 'pending_approval' && !newData.exists())))",
           ".validate": "!newData.exists() || (newData.hasChildren(['joinedAt']) && newData.child('joinedAt').isNumber() && (!newData.child('status').exists() || newData.child('status').isString()))"
         }
+      }
+    },
+    "notification_intents": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": [
+        "dueAt"
+      ],
+      "$actionId": {
+        ".write": "auth != null && auth.token.notificationClassAction === true && auth.uid === 'notification-class-action:' + auth.token.actionId && auth.token.actionId === $actionId && !data.exists() && newData.child('actionId').val() === $actionId && newData.child('kind').val() === auth.token.actionKind && newData.child('classId').val() === auth.token.classId && newData.child('studentId').val() === auth.token.studentId && newData.child('actorUid').val() === auth.token.actorUid && newData.child('teacherId').val() === root.child('classes').child(auth.token.classId).child('createdBy').val() && newData.child('attempts').val() === 1 && newData.child('state').val() === 'retry_due' && newData.child('occurredAt').isNumber() && newData.child('dueAt').val() === newData.child('occurredAt').val() + 3600000 && (auth.token.actionKind === 'join-pending' || auth.token.actionKind === 'direct-add' || auth.token.actionKind === 'approve' || auth.token.actionKind === 'reject')",
+        ".validate": "newData.hasChildren(['actionId', 'kind', 'classId', 'studentId', 'actorUid', 'teacherId', 'occurredAt', 'dueAt', 'attempts', 'state']) && newData.child('occurredAt').isNumber() && newData.child('dueAt').isNumber() && newData.child('attempts').val() === 1 && newData.child('state').val() === 'retry_due'",
+        "actionId": { ".validate": "newData.isString() && newData.val() === $actionId" },
+        "kind": { ".validate": "newData.isString()" },
+        "classId": { ".validate": "newData.isString()" },
+        "studentId": { ".validate": "newData.isString()" },
+        "actorUid": { ".validate": "newData.isString()" },
+        "teacherId": { ".validate": "newData.isString()" },
+        "occurredAt": { ".validate": "newData.isNumber()" },
+        "dueAt": { ".validate": "newData.isNumber()" },
+        "attempts": { ".validate": "newData.val() === 1" },
+        "state": { ".validate": "newData.val() === 'retry_due'" },
+        "className": { ".validate": "newData.isString()" },
+        "studentName": { ".validate": "newData.isString()" },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "result_review_notification_intents": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": ["dueAt"],
+      "$eventId": {
+        ".write": "auth != null && auth.token.notificationResultReview === true && auth.uid === 'notification-result-review:' + $eventId && auth.token.eventId === $eventId && auth.token.actionKind === 'result-reviewed' && !data.exists() && newData.child('schemaVersion').val() === 1 && newData.child('eventId').val() === $eventId && newData.child('kind').val() === 'result-reviewed' && newData.child('resultId').val() === auth.token.resultId && newData.child('actorUid').val() === auth.token.actorUid && newData.child('studentId').val() === auth.token.studentId && newData.child('occurredAt').val() === auth.token.occurredAt && newData.child('dueAt').val() === auth.token.occurredAt + 3600000 && newData.child('attempts').val() === 1 && newData.child('state').val() === 'retry_due' && root.child('test_results').child(auth.token.resultId).child('markingStatus').val() === 'pending-review' && root.child('test_results').child(auth.token.resultId).child('studentId').val() === auth.token.studentId && (root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' || root.child('users').child(auth.token.actorUid).child('role').val() === 'super_admin')",
+        ".validate": "newData.hasChildren(['schemaVersion', 'eventId', 'kind', 'resultId', 'actorUid', 'studentId', 'occurredAt', 'dueAt', 'attempts', 'state']) && newData.child('occurredAt').isNumber() && newData.child('dueAt').isNumber()",
+        "schemaVersion": { ".validate": "newData.val() === 1" },
+        "eventId": { ".validate": "newData.isString() && newData.val() === $eventId" },
+        "kind": { ".validate": "newData.val() === 'result-reviewed'" },
+        "resultId": { ".validate": "newData.isString()" },
+        "actorUid": { ".validate": "newData.isString()" },
+        "studentId": { ".validate": "newData.isString()" },
+        "occurredAt": { ".validate": "newData.isNumber()" },
+        "dueAt": { ".validate": "newData.isNumber()" },
+        "attempts": { ".validate": "newData.val() === 1" },
+        "state": { ".validate": "newData.val() === 'retry_due'" },
+        "$other": { ".validate": false }
+      }
+    },
+    "feedback_notification_intents": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": [
+        "dueAt"
+      ],
+      "$eventId": {
+        ".write": "auth != null && auth.token.notificationFeedbackAction === true && auth.uid === 'notification-feedback-action:' + auth.token.eventId && auth.token.eventId === $eventId && !data.exists() && newData.child('eventId').val() === $eventId && newData.child('kind').val() === 'feedback-' + auth.token.feedbackKind && newData.child('resultId').val() === auth.token.resultId && newData.child('actorUid').val() === auth.token.actorUid && newData.child('studentId').val() === auth.token.studentId && newData.child('questionId').val() === auth.token.questionId && newData.child('occurredAt').val() === auth.token.occurredAt && newData.child('attempts').val() === 1 && newData.child('state').val() === 'retry_due' && newData.child('dueAt').val() === auth.token.occurredAt + 3600000 && (auth.token.feedbackKind === 'overall' || auth.token.feedbackKind === 'question')",
+        ".validate": "newData.hasChildren(['schemaVersion', 'eventId', 'kind', 'resultId', 'actorUid', 'studentId', 'occurredAt', 'dueAt', 'attempts', 'state']) && newData.child('schemaVersion').val() === 1 && newData.child('eventId').val() === $eventId && newData.child('kind').isString() && newData.child('resultId').isString() && newData.child('actorUid').isString() && newData.child('studentId').isString() && newData.child('occurredAt').isNumber() && newData.child('dueAt').isNumber() && newData.child('attempts').val() === 1 && newData.child('state').val() === 'retry_due'",
+        "schemaVersion": { ".validate": "newData.val() === 1" },
+        "eventId": { ".validate": "newData.isString() && newData.val() === $eventId" },
+        "kind": { ".validate": "newData.val() === 'feedback-question' || newData.val() === 'feedback-overall'" },
+        "resultId": { ".validate": "newData.isString()" },
+        "actorUid": { ".validate": "newData.isString()" },
+        "studentId": { ".validate": "newData.isString()" },
+        "questionId": { ".validate": "newData.isString()" },
+        "occurredAt": { ".validate": "newData.isNumber()" },
+        "dueAt": { ".validate": "newData.isNumber()" },
+        "attempts": { ".validate": "newData.val() === 1" },
+        "state": { ".validate": "newData.val() === 'retry_due'" },
+        "$other": { ".validate": false }
       }
     },
     "game_sessions": {
@@ -1203,6 +1381,27 @@
               ".validate": false
             }
           }
+        },
+        "notificationEvents": {
+          "$eventId": {
+            ".validate": "newData.hasChildren(['eventId', 'kind', 'sessionCode', 'actorUid', 'classId', 'className', 'testName', 'occurredAt', 'recipientCount']) && newData.child('eventId').val() === $eventId && newData.child('sessionCode').val() === newData.parent().parent().child('sessionCode').val() && newData.child('actorUid').val() === auth.uid && newData.child('actorUid').val() === newData.parent().parent().child('createdByUserId').val() && newData.child('classId').val() === newData.parent().parent().child('linkedClassId').val() && (root.child('classes').child(newData.child('classId').val()).child('createdBy').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && newData.child('className').val() === (root.child('classes').child(newData.child('classId').val()).child('name').isString() ? root.child('classes').child(newData.child('classId').val()).child('name').val() : newData.child('classId').val()) && newData.child('recipientCount').val() <= 500 && ((newData.child('kind').val() === 'session-opened' && newData.child('occurredAt').val() === newData.parent().parent().child('createdAt').val() && newData.parent().parent().child('status').val() === 'waiting') || (newData.child('kind').val() === 'test-started' && newData.child('testId').val() === newData.parent().parent().child('testId').val() && newData.child('occurredAt').val() === newData.parent().parent().child('startTime').val() && newData.parent().parent().child('status').val() === 'in-progress') || (newData.child('kind').val() === 'test-ended' && newData.child('testId').val() === newData.parent().parent().child('lastTestId').val() && newData.child('occurredAt').val() === newData.parent().parent().child('lastTestCompletedAt').val() && newData.parent().parent().child('status').val() === 'waiting' && !newData.parent().parent().child('testId').exists())) && newData.child('testName').val() === (newData.child('testId').isString() ? (root.child('tests').child(newData.child('testId').val()).child('title').isString() ? root.child('tests').child(newData.child('testId').val()).child('title').val() : (root.child('tests').child(newData.child('testId').val()).child('metadata').child('title').isString() ? root.child('tests').child(newData.child('testId').val()).child('metadata').child('title').val() : newData.child('testId').val())) : 'Test')",
+            "eventId": { ".validate": "newData.isString() && newData.val() === $eventId" },
+            "kind": { ".validate": "newData.val() === 'session-opened' || newData.val() === 'test-started' || newData.val() === 'test-ended'" },
+            "sessionCode": { ".validate": "newData.isString()" },
+            "actorUid": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+            "classId": { ".validate": "newData.isString()" },
+            "className": { ".validate": "newData.isString()" },
+            "testId": { ".validate": "!newData.exists() || newData.isString()" },
+            "testName": { ".validate": "newData.isString()" },
+            "occurredAt": { ".validate": "newData.isNumber()" },
+            "recipientCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
+            "recipients": {
+              "$studentId": {
+                ".validate": "newData.val() === true && root.child('classes').child(newData.parent().parent().child('classId').val()).child('students').child($studentId).exists()"
+              }
+            },
+            "$other": { ".validate": false }
+          }
         }
       },
       ".indexOn": [
@@ -1212,6 +1411,52 @@
         "createdBy",
         "createdAt"
       ]
+    },
+    "grade_notification_intents": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": ["dueAt"]
+    },
+    "session_notification_intents": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": ["dueAt"],
+      "$eventId": {
+        ".write": "auth != null && !data.exists() && newData.child('eventId').val() === $eventId && newData.child('actorUid').val() === auth.uid && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('classes').child(newData.child('classId').val()).child('createdBy').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['eventId', 'sessionCode', 'classId', 'actorUid', 'occurredAt', 'dueAt', 'recipientCount', 'event', 'attempts', 'initialCursor', 'retryCursor', 'state']) && newData.child('eventId').val() === $eventId && newData.child('sessionCode').isString() && newData.child('classId').isString() && newData.child('actorUid').val() === auth.uid && newData.child('event').child('eventId').val() === $eventId && newData.child('event').child('sessionCode').val() === newData.child('sessionCode').val() && newData.child('event').child('classId').val() === newData.child('classId').val() && newData.child('event').child('actorUid').val() === newData.child('actorUid').val() && newData.child('event').child('occurredAt').val() === newData.child('occurredAt').val() && newData.child('event').child('recipientCount').val() === newData.child('recipientCount').val() && newData.child('event').child('recipientCount').val() <= 500 && newData.child('occurredAt').isNumber() && newData.child('dueAt').val() === newData.child('occurredAt').val() && newData.child('recipientCount').isNumber() && newData.child('recipientCount').val() >= 0 && newData.child('recipientCount').val() <= 500 && newData.child('attempts').val() === 1 && newData.child('initialCursor').val() === 0 && newData.child('retryCursor').val() === 0 && newData.child('state').val() === 'initial_due'",
+        "eventId": { ".validate": "newData.isString() && newData.val() === $eventId" },
+        "sessionCode": { ".validate": "newData.isString()" },
+        "classId": { ".validate": "newData.isString()" },
+        "actorUid": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+        "occurredAt": { ".validate": "newData.isNumber()" },
+        "dueAt": { ".validate": "newData.isNumber()" },
+            "recipientCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
+        "attempts": { ".validate": "newData.val() === 1" },
+        "initialCursor": { ".validate": "newData.val() === 0" },
+        "retryCursor": { ".validate": "newData.val() === 0" },
+        "retryRecipientIds": {
+          "$index": { ".validate": "newData.isString() && root.child('classes').child(newData.parent().parent().child('classId').val()).child('students').child(newData.val()).exists()" }
+        },
+        "state": { ".validate": "newData.val() === 'initial_due'" },
+        "event": {
+          ".validate": "newData.hasChildren(['eventId', 'kind', 'sessionCode', 'actorUid', 'classId', 'className', 'testName', 'occurredAt', 'recipientCount']) && newData.child('eventId').val() === newData.parent().child('eventId').val() && newData.child('sessionCode').val() === newData.parent().child('sessionCode').val() && newData.child('actorUid').val() === auth.uid && newData.child('classId').val() === newData.parent().child('classId').val() && newData.child('className').val() === (root.child('classes').child(newData.child('classId').val()).child('name').isString() ? root.child('classes').child(newData.child('classId').val()).child('name').val() : newData.child('classId').val()) && newData.child('recipientCount').val() <= 500 && newData.child('testName').val() === (newData.child('testId').isString() ? (root.child('tests').child(newData.child('testId').val()).child('title').isString() ? root.child('tests').child(newData.child('testId').val()).child('title').val() : (root.child('tests').child(newData.child('testId').val()).child('metadata').child('title').isString() ? root.child('tests').child(newData.child('testId').val()).child('metadata').child('title').val() : newData.child('testId').val())) : 'Test')",
+          "eventId": { ".validate": "newData.isString()" },
+          "kind": { ".validate": "newData.val() === 'session-opened' || newData.val() === 'test-started' || newData.val() === 'test-ended'" },
+          "sessionCode": { ".validate": "newData.isString()" },
+          "actorUid": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+          "classId": { ".validate": "newData.isString()" },
+          "className": { ".validate": "newData.isString()" },
+          "testId": { ".validate": "!newData.exists() || newData.isString()" },
+          "testName": { ".validate": "newData.isString()" },
+          "occurredAt": { ".validate": "newData.isNumber()" },
+          "recipientCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
+          "recipients": {
+            "$studentId": { ".validate": "newData.val() === true && root.child('classes').child(newData.parent().parent().child('classId').val()).child('students').child($studentId).exists()" }
+          },
+          "$other": { ".validate": false }
+        },
+        "$other": { ".validate": false }
+      }
     },
     "owner_session_index": {
       "$ownerId": {
@@ -1385,6 +1630,7 @@
         ".write": true,
         ".indexOn": [
           "submittedAt",
+        "notificationIntent/dueAt",
           "guestName"
         ]
       }

@@ -1,81 +1,56 @@
 # PRD0062 notification producer inventory
 
-Ticket 38B1 inventory. Reader-only consumers (`NotificationBell`,
-`StudentDashboardPage`) are excluded. Legacy migration and account-deletion
-cleanup are not content producers.
+Ticket 38B1 inventory. This table follows current source callsites for the
+specialized trusted action clients. Reader-only consumers are excluded.
+`GAP` means the source still calls the generic trusted notification API and
+does not yet commit a durable, source-authorized notification intent. The
+generic adapter alone does not establish that authority or the recovery
+behavior required by the notification recovery plan.
 
-| Producer path | Migration owner | Family |
-|---|---:|---|
-| `src/components/course/RequestReviewList.tsx` | #95 | enrollment |
-| `src/services/assignmentManager.ts` | #95 | assignment |
-| `src/services/classManager.ts` | #95 | class |
-| `src/services/courseAnnouncementService.ts` | #95 | course-announcement |
-| `src/services/courseManager.ts` | #95 | course |
-| `src/services/deadlineReminderService.ts` | #95 | deadline |
-| `src/services/enrollmentManager.ts` | #95 | enrollment |
-| `src/pages/TeacherHomeworkDetailPage.tsx` | #95 | deadline |
-| `src/components/results/TeacherFeedbackManager.tsx` | #96 | feedback |
-| `src/components/thcs-grading/InlineWritingGrader.tsx` | #96 | result |
-| `src/services/homeworkSubmissionService.ts` | #96 | homework |
-| `src/services/testResults.service.ts` | #96 | result |
-| `src/components/practice/THCSPracticeView.tsx` | #97 | thcs-practice |
-| `src/components/thcs-editor/THCSHomeworkAssignDialog.tsx` | #97 | thcs-practice |
-| `src/components/thcs-student/THCSTestLayout.tsx` | #97 | thcs-practice |
-| `src/components/writing-practice/WritingPracticeView.tsx` | #97 | writing |
-| `src/hooks/monitor/useMonitorControls.ts` | #97 | monitor |
-| `src/services/sessionManager.js` | #97 | session |
-| `src/services/thcsWritingGrading.service.ts` | #97 | thcs-grading |
-| `src/services/writingSubmissionService.ts` | #97 | writing |
+| Producer path | Migration owner | Family | Current status |
+|---|---:|---|---|
+| `src/components/practice/THCSPracticeView.tsx` | #97 | thcs-practice | Specialized trusted action |
+| `src/components/thcs-editor/THCSHomeworkAssignDialog.tsx` | #97 | thcs-practice | Specialized trusted action |
+| `src/components/thcs-grading/InlineWritingGrader.tsx` | #96 | result | Specialized manual grade action |
+| `src/components/thcs-student/THCSTestLayout.tsx` | #97 | thcs-practice | Specialized trusted action |
+| `src/hooks/monitor/useMonitorControls.ts` | #97 | session | Specialized trusted action |
+| `src/pages/TeacherHomeworkDetailPage.tsx` | #95 | deadline | Manual reminder action caller |
+| `src/services/assignmentManager.ts` | #95 | assignment | Specialized trusted action |
+| `src/services/classManager.ts` | #95 | class | Specialized trusted action |
+| `src/services/courseAnnouncementService.ts` | #95 | course-announcement | Specialized trusted action |
+| `src/services/courseManager.ts` | #95 | course-decision | Specialized trusted action |
+| `src/services/courseRequestManager.ts` | #95 | enrollment | Specialized trusted action |
+| `src/services/deadlineReminderService.ts` | #95 | deadline | Dormant GAP: generic call remains; no external caller found |
+| `src/services/enrollmentManager.ts` | #95 | enrollment | Dormant GAP: generic call remains; no external caller found |
+| `src/services/feedbackService.ts` | #96 | feedback | Specialized trusted action |
+| `src/services/homeworkManager.ts` | #95 | deadline | Durable manual reminder intent producer |
+| `src/services/homeworkSubmissionService.ts` | #96 | homework | Specialized reset action + generic GAP: submission notification call remains |
+| `src/services/sessionManager.js` | #97 | session | Specialized trusted action |
+| `src/services/testResults.service.ts` | #96 | result | Specialized review action and durable test-complete intent |
+| `src/services/writingSubmissionService.ts` | #97 | writing | Specialized trusted action |
 
-## Trusted producer seam and adapter ownership
+## Current trusted action coverage
 
-- #95 producer paths use `src/services/notificationProducerClient.ts`, which
-  emits bounded commands through #94 `notificationCommandClient.ts`.
-- No #95 producer sends arbitrary legacy metadata. Existing legacy metadata is
-  still readable; visible title/message/link semantics are retained while the
-  disabled route fails closed until #59/#134 activate the approved surface.
+Specialized source-side clients commit or wake a bounded action handled by the
+Worker. Their recipient and message content are resolved from saved source
+records. The generic calls marked `GAP` still pass through the legacy generic
+adapter and are not evidence of durable source-action authority or scheduled
+retry coverage. `deadlineReminderService.ts` and `enrollmentManager.ts` have no
+external caller in the current source tree; their generic calls are inventoried
+as dormant code, not as active notification behavior.
 
-## Destination-owned integrated proof
+The specialized producers include assignment, class, course announcement,
+course decision, course request, feedback, homework reset, result review,
+session, THCS, and writing actions. Manual homework reminder intent is created
+by `homeworkManager.ts` and invoked from `TeacherHomeworkDetailPage.tsx`.
 
-The earlier staging/integrated browser requirement is destination-owned by
-#134: it covers bounded persistence/readback for every #95 producer family,
-deterministic replay, authenticated role rendering, safe destination
-resolution, own read-state mutation, active configuration readback, cleanup,
-and producer-command rollback. #95 retains local adapter, command-shape,
-recipient-authority, negative, compatible-reader, and disabled-route proof and
-does not claim deployed or activated notification behavior.
+## Raw inbox-write boundary
 
-## Existing adapter helper ownership
-
-- #95: `sendHomeworkAssignedNotification`,
-  `sendHomeworkDueSoonNotification`, `sendHomeworkReminderNotification`.
-- #95 trusted migration: `sendTrustedHomeworkReminderNotification` and the
-  generic `createTrustedNotification`/`createTrustedBulkNotifications` calls
-  in the owned producer paths.
-- #96: `sendFeedbackNotification`, `sendReviewedNotification`,
-  `sendGradeUpdatedNotification`, `sendHomeworkSubmittedNotification`,
-  `sendHomeworkGradedNotification`, `sendHomeworkResetNotification`.
-- #97: `sendSessionOpenedNotifications`, `sendTestStartedNotifications`,
-  `sendTestEndedNotifications`, every `sendThcs*` helper except the generic
-  #96 `sendGradeUpdatedNotification`, and every `notifyWriting*` helper.
-- Generic `createNotification` and `createBulkNotifications` remain temporary
-  38B1-compatible legacy entry points. Their callers are assigned above.
-
-## Ownership gap
-
-`src/pages/TeacherHomeworkDetailPage.tsx` emits Homework reminders and belongs
-to #95's published deadline/reminder family, but was absent from #95's owned
-paths. It was added to #95 destination-first on 2026-07-29 and remains assigned
-exactly once here.
-
-## Raw-write boundary
-
-- `src/services/notificationService.ts` remains the legacy compatible
-  read/read-state/write adapter until #95-#98 complete.
-- `src/services/migrations/migrateNotifications.ts` is operator migration
-  work owned by #98.
-- `src/services/accountDeletionService.ts` deletes a departing user's own
-  notification subtree; it creates no notification content.
-- New producer code must use `notificationProducerClient.ts` and therefore
-  `notificationCommandClient.ts`. No other application path may write
-  notification content directly.
+- `src/services/notificationService.ts` remains the legacy notification adapter
+  and the only application service that writes inbox content directly.
+- `src/services/accountDeletionService.ts` removes the departing account's
+  notification subtree; it does not create notification content.
+- `src/services/migrations/migrateNotifications.ts` is not a current raw inbox
+  writer. Migration ownership remains with #98 if that path is reintroduced.
+- No other current application source path may write notification content
+  directly.

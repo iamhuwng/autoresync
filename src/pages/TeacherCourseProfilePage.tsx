@@ -26,16 +26,19 @@ import CourseAnnouncementEditor from '../components/course/CourseAnnouncementEdi
 import { ModuleSessionModal } from '../components/session/ModuleSessionModal';
 import { PracticeSettingsModal } from '../components/PracticeSettingsModal';
 import { useAuth } from '../hooks/useAuth';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { notifications } from '@mantine/notifications';
 
 // Modern Components
-import { Card, CardBody, Button } from '../components/modern';
+import { Card, CardBody, Button, toast } from '../components/modern';
 
 const TeacherCourseProfilePage = () => {
     const { courseId } = useParams<{ courseId: string }>();
     const navigate = useNavigate();
 
     const { user, profile } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.courses);
     const [course, setCourse] = useState<Course | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -90,6 +93,7 @@ const TeacherCourseProfilePage = () => {
     const handleCreateAnnouncement = async (data: { title: string; content: string; attachments: any[]; targetClassIds: string[] }) => {
         if (!course || !user?.uid) return;
 
+        trackAction('addAnnouncement', { courseId: course.id });
         setIsSubmittingAnnouncement(true);
         try {
             const result = await createCourseAnnouncement({
@@ -104,11 +108,7 @@ const TeacherCourseProfilePage = () => {
             });
 
             if (result.success) {
-                notifications.show({
-                    title: 'Announcement Sent',
-                    message: 'Your announcement has been posted and students notified.',
-                    color: 'green'
-                });
+                toast.success('Announcement saved. Student notifications are queued for delivery in the background.');
                 setIsCreatingAnnouncement(false);
                 // Refresh list
                 const updated = await getCourseAnnouncements(course.id);
@@ -117,11 +117,7 @@ const TeacherCourseProfilePage = () => {
                 throw new Error(result.error);
             }
         } catch (err: any) {
-            notifications.show({
-                title: 'Error',
-                message: err.message || 'Failed to send announcement',
-                color: 'red'
-            });
+            toast.error(`Could not save announcement: ${err.message || 'Please try again.'}`);
         } finally {
             setIsSubmittingAnnouncement(false);
         }

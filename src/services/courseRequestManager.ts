@@ -1,6 +1,8 @@
 import { ref, push, set, get, update, query, orderByChild, equalTo } from 'firebase/database';
 import { database } from './firebase';
 import type { CourseRequest } from '../types/course.types';
+import { getAuth } from 'firebase/auth';
+import { wakeCourseRequestNotification } from './enrollmentActionClient';
 
 const REQUESTS_REF = 'course_requests';
 
@@ -125,14 +127,45 @@ export async function processCourseRequest(
     rejectionReason?: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const updates: Partial<CourseRequest> = {
+        const requestRef = ref(database, `${REQUESTS_REF}/${requestId}`);
+        const snapshot = await get(requestRef);
+        if (!snapshot.exists()) return { success: false, error: 'Request not found' };
+        const request = snapshot.val() as CourseRequest;
+        const actorUid = getAuth().currentUser?.uid;
+        if (!actorUid || actorUid !== processedBy) {
+            return { success: false, error: 'Only the authenticated course owner can process this request' };
+        }
+        if (request.status !== 'pending' || request.expiresAt <= now()) {
+            return { success: false, error: 'Request is no longer pending' };
+        }
+        if (request.type !== 'join' && request.type !== 'unenroll') {
+            return { success: false, error: 'Request type is invalid' };
+        }
+
+        const processedAt = now();
+        const notificationIntent: CourseRequest['notificationIntent'] = {
+            schemaVersion: 1,
+            actionId: requestId,
+            kind: 'course-request-decision',
+            occurredAt: processedAt,
+            dueAt: processedAt + 60 * 60 * 1000,
+            attempts: 0,
+            state: 'pending',
+        };
+        const updates: Record<string, unknown> = {
             status,
-            processedAt: now(),
+            processedAt,
             processedBy,
-            rejectionReason: status === 'denied' ? rejectionReason : undefined
+            rejectionReason: status === 'denied' ? rejectionReason || null : null,
+            notificationIntent,
         };
 
-        await update(ref(database, `${REQUESTS_REF}/${requestId}`), updates);
+        await update(requestRef, updates);
+        try {
+            await wakeCourseRequestNotification(requestId);
+        } catch (wakeError) {
+            console.warn('Course request was processed; notification will use its saved retry intent', wakeError);
+        }
         return { success: true };
     } catch (error) {
         console.error('Error processing request:', error);

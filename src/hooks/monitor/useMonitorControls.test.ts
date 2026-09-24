@@ -10,7 +10,7 @@ const {
   autoSubmitDisconnectedStudentsMock,
   identifyDisconnectedStudentsMock,
   identifyUnsubmittedStudentsMock,
-  createTrustedBulkNotificationsMock,
+  deliverSessionNotificationNowMock,
 } = vi.hoisted(() => ({
   mockNavigateTo: vi.fn(),
   getMock: vi.fn(),
@@ -19,7 +19,7 @@ const {
   autoSubmitDisconnectedStudentsMock: vi.fn(),
   identifyDisconnectedStudentsMock: vi.fn(),
   identifyUnsubmittedStudentsMock: vi.fn(),
-  createTrustedBulkNotificationsMock: vi.fn(),
+  deliverSessionNotificationNowMock: vi.fn(),
 }));
 
 vi.mock('../useNavigation', () => ({
@@ -45,10 +45,14 @@ vi.mock('../../utils/monitor', () => ({
   identifyDisconnectedStudents: (...args: any[]) => identifyDisconnectedStudentsMock(...args),
   identifyUnsubmittedStudents: (...args: any[]) => identifyUnsubmittedStudentsMock(...args),
 }));
-
-vi.mock('../../services/notificationProducerClient', () => ({
-  createTrustedBulkNotifications: (...args: any[]) => createTrustedBulkNotificationsMock(...args),
+vi.mock('../../services/testStorage', () => ({
+  cacheSessionStudentSafeTestData: vi.fn(async () => ({ success: true })),
 }));
+
+vi.mock('../../services/sessionNotificationActionClient', async () => {
+  const actual = await vi.importActual<typeof import('../../services/sessionNotificationActionClient')>('../../services/sessionNotificationActionClient');
+  return { ...actual, deliverSessionNotificationNow: (...args: unknown[]) => deliverSessionNotificationNowMock(...args) };
+});
 
 const TEST_DATA = {
   title: 'Canonical Test',
@@ -70,7 +74,7 @@ describe('useMonitorControls', () => {
     autoSubmitDisconnectedStudentsMock.mockResolvedValue([]);
     identifyDisconnectedStudentsMock.mockReturnValue([]);
     identifyUnsubmittedStudentsMock.mockReturnValue([]);
-    createTrustedBulkNotificationsMock.mockResolvedValue({ success: true });
+    deliverSessionNotificationNowMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -89,22 +93,22 @@ describe('useMonitorControls', () => {
     });
 
     expect(updateMock).toHaveBeenCalledWith(
-      { path: 'game_sessions/SESSION123' },
-      expect.objectContaining({
-        reviewReleaseState: 'review-released',
-      })
+      { path: undefined },
+      expect.objectContaining({ 'game_sessions/SESSION123/reviewReleaseState': 'review-released' })
     );
   });
 
   it('uses monitor authority and stable retry identity for end-session notifications', async () => {
-    getMock.mockResolvedValue({
+    getMock.mockImplementation(async (reference: { path: string }) => ({
       exists: () => true,
-      val: () => ({ 'student-1': { uid: 'student-1' }, 'student-2': { uid: 'student-2' } }),
-    });
+      val: () => reference.path === 'classes/class-1'
+        ? { name: 'Class 1', students: { 'student-1': { uid: 'student-1' }, 'student-2': { uid: 'student-2' } } }
+        : { title: 'Monitor Test' },
+    }));
 
     const { result } = renderHook(() => useMonitorControls(
       'SESSION-END-1',
-      { linkedClassId: 'class-1', testId: 'test-1', startTime: 1722220000000 } as any,
+      { linkedClassId: 'class-1', testId: 'test-1', startTime: 1722220000000, createdByUserId: 'teacher-1' } as any,
       { ...TEST_DATA, title: 'Monitor Test' } as any,
       null,
     ));
@@ -113,18 +117,14 @@ describe('useMonitorControls', () => {
       await result.current.endFullSession(false, true);
     });
 
-    await waitFor(() => expect(createTrustedBulkNotificationsMock).toHaveBeenCalledWith(
-      ['student-1', 'student-2'],
-      {
-        producerFamily: 'monitor',
-        authorityRecordId: 'SESSION-END-1',
-        operationKey: 'test-ended:SESSION-END-1:test-1:1722220000000',
-        type: 'success',
-        title: '✅ Test Completed',
-        message: '"Monitor Test" session has ended. View your results.',
-        link: '/student/academic-record',
-      },
-    ));
+    const rootPatch = updateMock.mock.calls.find(([target]) => target.path === undefined)?.[1];
+    const eventPath = Object.keys(rootPatch).find((path) => path.startsWith('game_sessions/SESSION-END-1/notificationEvents/'));
+    expect(eventPath).toBeDefined();
+    const eventId = eventPath!.split('/').at(-1)!;
+    expect(rootPatch[eventPath!]).toMatchObject({ kind: 'test-ended', recipientCount: 2, classId: 'class-1' });
+    expect(Object.keys(rootPatch[`session_notification_intents/${eventId}`].event.recipients).sort())
+      .toEqual(['student-1', 'student-2']);
+    expect(deliverSessionNotificationNowMock).toHaveBeenCalledWith(eventId);
   });
 
   it('preserves feedback-released when the session is already fully released', async () => {
@@ -147,11 +147,31 @@ describe('useMonitorControls', () => {
     });
 
     expect(updateMock).toHaveBeenCalledWith(
-      { path: 'game_sessions/SESSION456' },
-      expect.objectContaining({
-        reviewReleaseState: 'feedback-released',
-      })
+      { path: undefined },
+      expect.objectContaining({ 'game_sessions/SESSION456/reviewReleaseState': 'feedback-released' })
     );
+  });
+
+  it('commits test start and its trusted roster intent together', async () => {
+    getMock.mockImplementation(async (reference: { path: string }) => ({
+      exists: () => true,
+      val: () => reference.path === 'classes/class-start'
+        ? { name: 'Class Start', students: { 'student-1': { uid: 'student-1' } } }
+        : { title: 'Started Test' },
+    }));
+    const { result } = renderHook(() => useMonitorControls('SESSION-START-1', {
+      linkedClassId: 'class-start', testId: 'test-start', createdByUserId: 'teacher-1',
+    } as any, null, null));
+
+    await act(async () => { await result.current.startTest(); });
+
+    const rootPatch = updateMock.mock.calls.find(([target]) => target.path === undefined)?.[1];
+    expect(rootPatch['game_sessions/SESSION-START-1/status']).toBe('in-progress');
+    const eventPath = Object.keys(rootPatch).find((path) => path.startsWith('game_sessions/SESSION-START-1/notificationEvents/'));
+    expect(rootPatch[eventPath!]).toMatchObject({ kind: 'test-started', recipientCount: 1, testName: 'Started Test' });
+    const eventId = eventPath!.split('/').at(-1)!;
+    expect(rootPatch[`session_notification_intents/${eventId}`].event.recipients).toEqual({ 'student-1': true });
+    expect(deliverSessionNotificationNowMock).toHaveBeenCalledWith(eventId);
   });
 
   it('routes disconnected base-student auto-submit through canonical result saving after fetching test data', async () => {
