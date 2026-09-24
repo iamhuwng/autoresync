@@ -8,7 +8,7 @@
         ".read": "auth != null",
         ".write": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
         "role": {
-          ".validate": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && !data.exists())"
+          ".validate": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && !data.exists() && (newData.val() === 'student' || newData.val() === 'teacher'))"
         },
         "status": {
           ".validate": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && !data.exists())"
