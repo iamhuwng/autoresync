@@ -42,6 +42,7 @@ jobs:
           src/services/homeworkSubmissionService.test.ts
           src/services/manualHomeworkReminderClient.test.ts
           src/services/testResults.service.test.ts
+          src/services/thcsWritingGrading.service.test.ts
           src/services/feedbackService.test.ts
           src/services/assignmentManager.test.ts
           src/services/courseRequestManager.test.ts

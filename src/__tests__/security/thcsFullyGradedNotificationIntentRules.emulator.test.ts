@@ -76,4 +76,20 @@ describeEmulator('THCS fully graded notification intent RTDB rules', () => {
     });
     await assertFails(student.ref(`test_results/${resultId}/notificationIntent`).set(intent));
   });
+
+  it('denies the legacy student-side auto-grade source write for session and practice paths', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref('game_sessions/session-grade').set({
+        createdByUserId: 'thcs-teacher',
+        results: { [studentId]: { questionResults: { 1: { pointsMax: 1, pointsEarned: 0 } } } },
+      });
+    });
+    const student = testEnv.authenticatedContext(studentId).database();
+    await assertFails(student.ref(`game_sessions/session-grade/results/${studentId}/questionResults/1`).update({
+      pointsEarned: 1,
+    }));
+    await assertFails(student.ref(`game_sessions/practice_material/results/${studentId}/questionResults/1`).update({
+      pointsEarned: 1,
+    }));
+  });
 });

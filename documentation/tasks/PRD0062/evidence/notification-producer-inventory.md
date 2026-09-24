@@ -27,7 +27,6 @@ behavior required by the notification recovery plan.
 | `src/services/homeworkSubmissionService.ts` | #96 | homework | Specialized reset action + generic GAP: submission notification call remains |
 | `src/services/sessionManager.js` | #97 | session | Specialized trusted action |
 | `src/services/testResults.service.ts` | #96 | result | Specialized review action and durable test-complete intent |
-| `src/services/thcsWritingGrading.service.ts` | #97 | thcs-grading | Generic GAP: direct trusted notification call remains |
 | `src/services/writingSubmissionService.ts` | #97 | writing | Specialized trusted action |
 
 ## Current trusted action coverage

@@ -52,7 +52,12 @@ const writingWorker = createWritingNotificationWorker();
 const testCompleteWorker = createTestCompleteNotificationWorker();
 const gradeWorker = createGradeNotificationWorker();
 const retryRepository = (env) => new FirebaseRestNotificationCommandRepository({ env });
-const retryFamilies = [
+const bulkRetryFamilies = [
+  retryDueCourseAnnouncementNotifications,
+  retryDueThcsNotificationsForEnv,
+  retryDueSessionNotifications,
+];
+const smallRetryFamilies = [
   retryDueClassNotifications,
   retryDueHomeworkNotifications,
   retryDueResultReviewNotifications,
@@ -65,10 +70,7 @@ const retryFamilies = [
     new FirebaseCourseRequestNotificationStorage(env), retryRepository(env)),
   (env) => retryDueAssignmentNotifications(
     new FirebaseAssignmentNotificationStorage(env), retryRepository(env)),
-  retryDueCourseAnnouncementNotifications,
   retryDueHomeworkResetNotifications,
-  retryDueThcsNotificationsForEnv,
-  retryDueSessionNotifications,
   retryDueWritingNotificationsForEnv,
   retryDueTestCompleteNotificationsForEnv,
   retryDueGradeNotificationsForEnv,
@@ -107,7 +109,10 @@ export default {
     return worker.fetch(request, env);
   },
   scheduled(event, env, context) {
-    const slot = Math.floor(event.scheduledTime / 60_000) % retryFamilies.length;
-    context.waitUntil(retryFamilies[slot](env));
+    const bulk = event.cron === '* * * * *';
+    const families = bulk ? bulkRetryFamilies : smallRetryFamilies;
+    const minute = Math.floor(event.scheduledTime / 60_000);
+    const slot = Math.floor(minute / (bulk ? 1 : 2)) % families.length;
+    context.waitUntil(families[slot](env));
   },
 };

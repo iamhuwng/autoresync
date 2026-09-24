@@ -1355,8 +1355,7 @@
             "recipients": {
               "$studentId": {
                 ".validate": "newData.val() === true && root.child('classes').child(newData.parent().parent().child('classId').val()).child('students').child($studentId).exists()"
-              },
-              "$other": { ".validate": false }
+              }
             },
             "$other": { ".validate": false }
           }
@@ -1409,8 +1408,7 @@
           "testName": { ".validate": "newData.isString()" },
           "occurredAt": { ".validate": "newData.isNumber()" },
           "recipients": {
-            "$studentId": { ".validate": "newData.val() === true && root.child('classes').child(newData.parent().parent().child('classId').val()).child('students').child($studentId).exists()" },
-            "$other": { ".validate": false }
+            "$studentId": { ".validate": "newData.val() === true && root.child('classes').child(newData.parent().parent().child('classId').val()).child('students').child($studentId).exists()" }
           },
           "$other": { ".validate": false }
         },
