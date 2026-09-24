@@ -37,8 +37,10 @@ test('THCS section delete dialog stays topmost and supports cancel and delete wi
     await expect.poll(() => confirmation.evaluate((dialog) => {
       if (!(dialog instanceof HTMLDialogElement) || !dialog.matches(':modal')) return false;
       const rect = dialog.getBoundingClientRect();
+      const centered = Math.abs(rect.left + rect.width / 2 - window.innerWidth / 2) < 2
+        && Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2) < 2;
       const topmost = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      return topmost === dialog || dialog.contains(topmost);
+      return centered && (topmost === dialog || dialog.contains(topmost));
     })).toBe(true);
     return confirmation;
   };

@@ -31,46 +31,74 @@
 .thcs-section-icon--delete { color: #dc2626; }
 
 .thcs-delete-dialog {
+    position: fixed;
+    inset: 0;
+    margin: auto;
     width: min(400px, calc(100vw - 32px));
     max-width: none;
-    border: 0;
-    border-radius: 10px;
-    padding: 20px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0;
     color: #1e293b;
     background: #fff;
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
 }
 
 .thcs-delete-dialog::backdrop {
-    background: rgba(15, 23, 42, 0.55);
+    background: rgba(15, 23, 42, 0.3);
 }
 
 .thcs-delete-dialog h2 {
-    margin: 0 0 12px;
-    font-size: 1.125rem;
+    margin: 0;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid #ede9fe;
+    background: #faf9ff;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.4;
 }
 
 .thcs-delete-dialog p {
-    margin: 0 0 20px;
+    margin: 0;
+    padding: 18px 20px 20px;
     font-size: 0.875rem;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.thcs-delete-dialog p strong {
+    color: #1e293b;
 }
 
 .thcs-delete-dialog__actions {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+    padding: 0 20px 20px;
 }
 
 .thcs-delete-dialog__actions button {
-    border: 0;
+    min-height: 40px;
+    border: 1px solid #dbe1ea;
     border-radius: 6px;
-    padding: 8px 14px;
-    background: #f1f5f9;
+    padding: 8px 16px;
+    background: #fff;
     color: #334155;
     cursor: pointer;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.thcs-delete-dialog__actions button:focus-visible {
+    outline: 2px solid #7c3aed;
+    outline-offset: 2px;
 }
 
 .thcs-delete-dialog__actions .thcs-delete-dialog__confirm {
+    border-color: #dc2626;
     background: #dc2626;
     color: #fff;
 }
