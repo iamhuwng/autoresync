@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   deleteDraft: vi.fn(),
   openEditTest: vi.fn(),
   openEditThcsTest: vi.fn(),
+  loadThcsTest: vi.fn(),
   openTestCreation: vi.fn(),
   openUseAsIs: vi.fn(),
   openHwDialog: vi.fn(),
@@ -89,6 +90,10 @@ vi.mock('firebase/database', () => ({
 
 vi.mock('../services/firebase', () => ({
   database: {},
+}));
+
+vi.mock('../services/thcsTestStorage', () => ({
+  getThcsTestFromFirebase: (...args) => mocks.loadThcsTest(...args),
 }));
 
 vi.mock('../services/homeworkAssignmentClient', () => ({
@@ -495,12 +500,60 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.listBookNodes.mockResolvedValue([]);
     mocks.createBookDraft.mockReset();
     mocks.updateBookMetadata.mockReset();
+    mocks.loadThcsTest.mockReset();
     mocks.deleteTest.mockReset();
     mocks.deleteDraft.mockReset();
     mocks.refreshTests.mockReset();
     mocks.refreshDrafts.mockReset();
     mocks.confirm.mockReturnValue(true);
     vi.spyOn(window, 'confirm').mockImplementation(mocks.confirm);
+  });
+
+  it('loads the full THCS test before opening its editor from a material summary', async () => {
+    const user = userEvent.setup();
+    const fullTest = {
+      id: 'thcs-summary-1',
+      testType: 'THCS-THPT',
+      metadata: { title: 'Existing THCS test', duration: 45 },
+      sections: [{ id: 'section-1', name: 'Reading', questions: [{ id: 'question-1' }] }],
+      questionCount: 1,
+    };
+    mocks.tests = [{
+      id: fullTest.id,
+      testType: fullTest.testType,
+      metadata: fullTest.metadata,
+      questionCount: 1,
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+    }];
+    mocks.loadThcsTest.mockResolvedValue({ success: true, data: fullTest });
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId('material-list-row-thcs-summary-1')).getByRole('button', { name: 'Edit' }));
+
+    await waitFor(() => expect(mocks.openEditThcsTest).toHaveBeenCalledWith(fullTest));
+    expect(mocks.loadThcsTest).toHaveBeenCalledWith('thcs-summary-1');
+  });
+
+  it('keeps the THCS editor closed when its stored sections cannot be loaded', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [{
+      id: 'thcs-missing-sections',
+      testType: 'THCS-THPT',
+      metadata: { title: 'Incomplete THCS test' },
+      questionCount: 40,
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+    }];
+    mocks.loadThcsTest.mockResolvedValue({ success: true, data: { ...mocks.tests[0], sections: [] } });
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId('material-list-row-thcs-missing-sections')).getByRole('button', { name: 'Edit' }));
+
+    await screen.findByText('This test has no editable sections in its stored record.');
+    expect(mocks.openEditThcsTest).not.toHaveBeenCalled();
   });
 
   it('opens standard homework modal for assignable IELTS materials with normalized contentRef', async () => {
