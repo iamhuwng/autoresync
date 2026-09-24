@@ -13,7 +13,7 @@ const {
     mockThcsResultToTestMarkingResult,
     mockSaveTestResult,
     mockGradeWritingQuestions,
-    mockCreateTrustedNotification,
+    mockDispatchThcsNotificationAction,
     mockTriggerFormativeFeedbackForSavedResult,
     mockUpdateThcsProgress,
     mockShuffleTest,
@@ -28,7 +28,7 @@ const {
     mockThcsResultToTestMarkingResult: vi.fn(),
     mockSaveTestResult: vi.fn(),
     mockGradeWritingQuestions: vi.fn(),
-    mockCreateTrustedNotification: vi.fn(),
+    mockDispatchThcsNotificationAction: vi.fn(),
     mockTriggerFormativeFeedbackForSavedResult: vi.fn(),
     mockUpdateThcsProgress: vi.fn(),
     mockShuffleTest: vi.fn(),
@@ -100,8 +100,8 @@ vi.mock('../../services/testResults.service', () => ({
     saveTestResult: (...args: unknown[]) => mockSaveTestResult(...args),
 }));
 
-vi.mock('../../services/notificationProducerClient', () => ({
-    createTrustedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
+vi.mock('../../services/thcsNotificationActionClient', () => ({
+    dispatchThcsNotificationAction: (...args: unknown[]) => mockDispatchThcsNotificationAction(...args),
 }));
 
 vi.mock('../../services/resultFeedbackGeneration.service', () => ({
@@ -208,7 +208,7 @@ describe('THCSTestLayout', () => {
         });
         mockSaveTestResult.mockResolvedValue('result-session-1');
         mockGradeWritingQuestions.mockResolvedValue(undefined);
-        mockCreateTrustedNotification.mockResolvedValue({ success: true });
+        mockDispatchThcsNotificationAction.mockResolvedValue({ status: 'delivered' });
         mockTriggerFormativeFeedbackForSavedResult.mockResolvedValue(undefined);
         mockUpdateThcsProgress.mockResolvedValue(undefined);
     });
@@ -276,16 +276,7 @@ describe('THCSTestLayout', () => {
                 }),
             }),
         );
-        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-            producerFamily: 'thcs-practice',
-            authorityRecordId: 'result-session-1',
-            recipientId: 'student-1',
-            operationKey: 'thcs-fully-graded:result-session-1',
-            type: 'success',
-            title: '✅ Test Fully Graded',
-            message: 'All answers in "THCS Session Test" have been graded. Your score: 8.5/10.',
-            link: '/result/result-session-1',
-        });
+        expect(mockDispatchThcsNotificationAction).toHaveBeenCalledWith('fully-graded', 'result-session-1');
     });
 
     it('does not forward testData.createdBy when saving class-session THCS results', async () => {

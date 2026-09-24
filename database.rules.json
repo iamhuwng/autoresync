@@ -1392,8 +1392,7 @@
         "initialCursor": { ".validate": "newData.val() === 0" },
         "retryCursor": { ".validate": "newData.val() === 0" },
         "retryRecipientIds": {
-          "$index": { ".validate": "newData.isString() && root.child('classes').child(newData.parent().parent().child('classId').val()).child('students').child(newData.val()).exists()" },
-          "$other": { ".validate": false }
+          "$index": { ".validate": "newData.isString() && root.child('classes').child(newData.parent().parent().child('classId').val()).child('students').child(newData.val()).exists()" }
         },
         "state": { ".validate": "newData.val() === 'initial_due'" },
         "event": {

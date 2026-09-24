@@ -53,6 +53,8 @@ jobs:
           src/hooks/monitor/useMonitorControls.test.ts
           src/pages/TeacherCourseProfilePage.test.tsx
           src/components/thcs-grading/InlineWritingGrader.test.tsx
+          src/components/practice/THCSPracticeView.test.tsx
+          src/components/thcs-student/THCSTestLayout.test.tsx
           src/services/book-delivery/bookUpdateFinalizer.worker.test.ts
           --maxWorkers=1
       - name: Verify RTDB notification authority rules
