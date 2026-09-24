@@ -45,6 +45,7 @@ beforeEach(() => {
     probe.response = null;
     probe.aiText = null;
     probe.gemini.mockResolvedValue({ success: true, value: 'Gemini fallback text' });
+    vi.stubEnv('VITE_THCS_GEMMA_WORKER_URL', 'https://example-gemma.workers.dev/');
 });
 
 it('does not try every Groq key when the model is unavailable', async () => {
@@ -69,9 +70,19 @@ it('uses Cloudflare Gemma after Groq fails, before Gemini', async () => {
 
     expect(probe.create).toHaveBeenCalledOnce();
     expect(probe.cloudflareFetch).toHaveBeenCalledOnce();
-    expect(probe.cloudflareFetch.mock.calls[0]?.[0]).toBe('https://thcs-gemma.iamhuwng.workers.dev/thcs/gemma');
+    expect(probe.cloudflareFetch.mock.calls[0]?.[0]).toBe('https://example-gemma.workers.dev/thcs/gemma');
     expect(probe.gemini).not.toHaveBeenCalled();
     expect(probe.response).toBe('Cloudflare restructured THCS text.');
+});
+
+it('skips Cloudflare when this installation has no Worker configured', async () => {
+    vi.stubEnv('VITE_THCS_GEMMA_WORKER_URL', '');
+    probe.create.mockRejectedValue(new Error('413 Request too large on input tokens per minute (ITPM): Limit 7000, Requested 8940'));
+
+    await parseThcsText('TITLE: English Test\nGRADE: 8\nPart A [TYPE: mcq-grammar]\nQuestion 1. Choose the best answer.');
+
+    expect(probe.cloudflareFetch).not.toHaveBeenCalled();
+    expect(probe.gemini).toHaveBeenCalledOnce();
 });
 
 it('continues to the next key when only one Groq key is invalid', async () => {

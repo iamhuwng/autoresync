@@ -290,6 +290,7 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
    # Cloudflare R2 / Listening Worker endpoints
    # Use the deployed Worker URL for local dev and production builds.
    VITE_R2_UPLOAD_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+   VITE_THCS_GEMMA_WORKER_URL=https://<your-thcs-gemma-worker>.<your-account>.workers.dev
    VITE_LISTENING_AUTHORING_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
    VITE_LISTENING_UPLOAD_SESSION_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
    VITE_LISTENING_LIVE_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
@@ -297,6 +298,13 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
    VITE_LISTENING_RESULT_REVIEW_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
 
    ```
+
+   To enable the optional THCS Cloudflare fallback, deploy `cloudflare/thcs-gemma-worker.js`
+   with `cloudflare/wrangler.thcs-gemma.jsonc` in your Cloudflare account. Set that
+   Wrangler config's Firebase project ID and database URL to this installation's
+   Firebase project, then set `VITE_THCS_GEMMA_WORKER_URL` to the deployed Worker URL
+   when building the app. Leave it empty to use Groq followed by Gemini. The Worker
+   uses a Workers AI binding; do not put a Cloudflare API token in a `VITE_` variable.
 
 4. Start development server:
    ```bash

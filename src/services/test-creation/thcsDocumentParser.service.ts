@@ -1133,11 +1133,11 @@ async function callCloudflareDirectPlainText(
     temperature = 0.1,
 ): Promise<string | null> {
     try {
+        const baseUrl = import.meta.env.VITE_THCS_GEMMA_WORKER_URL?.trim().replace(/\/+$/, '');
+        if (!baseUrl) return null;
         const { getAuth } = await import('firebase/auth');
         const user = getAuth().currentUser;
         if (!user) return null;
-        const baseUrl = import.meta.env.VITE_THCS_GEMMA_WORKER_URL?.trim().replace(/\/+$/, '')
-            || 'https://thcs-gemma.iamhuwng.workers.dev';
         const response = await fetch(`${baseUrl}/thcs/gemma`, {
             method: 'POST',
             headers: {
