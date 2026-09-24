@@ -90,6 +90,7 @@ describeEmulator('writing grade notification intent Firestore rules', () => {
   });
 
   it('allows student intents only with the new source submission and one stable event key', async () => {
+    await testEnv.clearFirestore();
     const student = testEnv.authenticatedContext(studentId).firestore();
     const batch = student.batch();
     batch.set(student.doc(`writing_submissions/${submissionId}`), submission);
