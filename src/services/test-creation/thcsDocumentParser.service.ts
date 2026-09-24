@@ -38,7 +38,7 @@ export interface ParseProgress {
 
 export interface ParseWarning {
     type: 'missing-answer' | 'skipped-content' | 'ambiguous-type' | 'no-sections' | 'images-detected' | 'multi-variant'
-    | 'confidence-mismatch' | 'skipped-section' | 'compromised-section';
+    | 'confidence-mismatch' | 'skipped-section' | 'compromised-section' | 'answer-key-restored';
     message: string;
     line?: number;
 }
@@ -814,7 +814,7 @@ export async function parseThcsText(
             const groqResult = await callGroqDirectPlainText(prompt, systemMessage);
             if (groqResult) return groqResult;
             // Groq failed — fall back to Gemini
-            console.warn('[Pass1] All Groq keys failed — falling back to Gemini');
+            console.warn('[Pass1] Groq could not process this input — falling back to Gemini');
             return callGeminiDirectPlainText(prompt, systemMessage);
         };
 
@@ -969,6 +969,18 @@ export async function parseThcsText(
             return { success: false, error: 'Regex parsing succeeded but returned no data.' };
         }
         const parsedTest = parsedResult.data;
+        const sourceAnswerKey = extractAnswerKey(cleaned.split('\n'));
+        let restoredAnswers = 0;
+        for (const [questionNumber, answer] of Object.entries(sourceAnswerKey)) {
+            if (parsedTest.answerKey[Number(questionNumber)] !== answer) restoredAnswers++;
+            parsedTest.answerKey[Number(questionNumber)] = answer;
+        }
+        if (restoredAnswers > 0) {
+            warnings.push({
+                type: 'answer-key-restored',
+                message: `AI formatting lost or changed ${restoredAnswers} answer(s); restored them from the original answer key. Review converted questions.`,
+            });
+        }
         const repairStats = repairParsedSectionStructure(parsedTest.sections, cleaned);
         if (repairStats.mergedOrphanReadingSections > 0 || repairStats.backfilledQuestionTexts > 0) {
             console.log('[parseThcsText] Structural repair:', repairStats);
@@ -983,7 +995,9 @@ export async function parseThcsText(
         // Apply answer key to questions (safety net)
         for (const section of parsedTest.sections) {
             for (const q of section.questions) {
-                if (parsedTest.answerKey[q.questionNumber] && !q.correctAnswer) {
+                if (sourceAnswerKey[q.questionNumber]) {
+                    q.correctAnswer = sourceAnswerKey[q.questionNumber];
+                } else if (parsedTest.answerKey[q.questionNumber] && !q.correctAnswer) {
                     q.correctAnswer = parsedTest.answerKey[q.questionNumber];
                 }
             }
@@ -1181,7 +1195,11 @@ async function callGroqDirectPlainText(
                     }
                     const limit = Number(msg.match(/\bLimit:?\s*([\d,]+)/i)?.[1]?.replaceAll(',', ''));
                     const requested = Number(msg.match(/\bRequested:?\s*([\d,]+)/i)?.[1]?.replaceAll(',', ''));
-                    const oversized = /\b413\b|request too large|reduce your message size/i.test(msg)
+                    if (/\b413\b/.test(msg) || (/input tokens per minute|\bITPM\b/i.test(msg) && requested > limit)) {
+                        console.warn(`[callGroqDirectPlainText] Groq input is too large${Number.isFinite(limit) && Number.isFinite(requested) ? ` (${requested} requested, ${limit} limit)` : ''} — falling back`);
+                        return null;
+                    }
+                    const oversized = /request too large|reduce your message size/i.test(msg)
                         || (/tokens per minute|\btpm\b/i.test(msg)
                             && Number.isFinite(limit) && Number.isFinite(requested) && requested > limit);
                     if (oversized) {
