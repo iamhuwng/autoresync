@@ -38,6 +38,11 @@ const claims = (overrides: Record<string, unknown> = {}) => ({
 const atomicSave = (intentValue: unknown = intent) => ({
   [`test_results/${resultId}/questionFeedback/q1`]: { questionId: 'q1', feedback: 'Good work', updatedById: actorUid, updatedAt: occurredAt, eventId },
   [`test_results/${resultId}/feedbackHistory/${eventId}`]: { eventId, teacherId: actorUid, type: 'question', questionId: 'q1', timestamp: occurredAt, feedback: 'Good work' },
+  [`test_results/${resultId}/feedbackUpdatedAt`]: occurredAt,
+  [`test_results/${resultId}/feedbackUpdatedBy`]: actorUid,
+  [`test_results/${resultId}/feedbackUpdatedByTeacherId`]: actorUid,
+  [`test_results/${resultId}/hasFeedback`]: true,
+  [`test_results/${resultId}/questionResults/0/teacherFeedback`]: 'Good work',
   [`feedback_notification_intents/${eventId}`]: intentValue,
 });
 

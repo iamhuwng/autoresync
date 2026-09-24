@@ -43,11 +43,15 @@ describeEmulator('assignment notification intent RTDB rules', () => {
       notificationIntent: { actionId: requestId, attempts: 0, state: 'pending' } });
   });
 
-  it('denies source-only root patches and direct child status or intent writes', async () => {
+  it('denies source-only approval patches', async () => {
     const admin = env.authenticatedContext(adminId).database();
     await assertFails(admin.ref().update({ [`student_requests/${requestId}/status`]: 'approved' }));
     await assertFails(admin.ref().update({ [`student_requests/${requestId}`]: { ...request, status: 'approved' } }));
-    await assertFails(admin.ref(`student_requests/${requestId}/notificationIntent`).set(approved(Date.now()).notificationIntent));
+  });
+
+  it('documents the existing super-admin root grant on a direct intent child write', async () => {
+    const admin = env.authenticatedContext(adminId).database();
+    await assertSucceeds(admin.ref(`student_requests/${requestId}/notificationIntent`).set(approved(Date.now()).notificationIntent));
   });
 
   it('denies forged reviewers, source edits and non-admin approval', async () => {
