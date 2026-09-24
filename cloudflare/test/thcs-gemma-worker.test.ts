@@ -1,8 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createUploadWorker } from '../worker.js';
+import { createThcsGemmaWorker } from '../thcs-gemma-worker.js';
 
-const makeWorker = () => createUploadWorker({
-  bookRouter: { fetch: async () => null },
+const makeWorker = () => createThcsGemmaWorker({
   firebaseVerifier: {
     verifyAuthorizationHeader: async (header: string | null) =>
       header === 'Bearer valid-token' ? { valid: true, uid: 'teacher-1' } : { valid: false },
@@ -19,7 +18,7 @@ const aiRun = vi.fn();
 const env = {
   FIREBASE_DB_URL: 'https://example.firebaseio.test',
   AI: { run: aiRun },
-  UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
+  THCS_RATE_LIMITER: { limit: async () => ({ success: true }) },
 };
 
 afterEach(() => {

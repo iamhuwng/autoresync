@@ -26,7 +26,6 @@ import { createRetrySession, THCS_GROQ_MODEL } from './thcs-retry-manager';
 import type { RetryStep } from './thcs-retry-manager';
 import type { RepairAuditEntry } from './thcs-prompt-builder';
 import { executeGeminiWithKeyRotation } from '../ai/gemini-key-rotation.service';
-import { DEFAULT_R2_UPLOAD_WORKER_URL } from '../r2WorkerEndpoint';
 
 
 // -- Types --
@@ -1137,8 +1136,8 @@ async function callCloudflareDirectPlainText(
         const { getAuth } = await import('firebase/auth');
         const user = getAuth().currentUser;
         if (!user) return null;
-        const baseUrl = import.meta.env.VITE_R2_UPLOAD_WORKER_URL?.trim().replace(/\/+$/, '')
-            || DEFAULT_R2_UPLOAD_WORKER_URL;
+        const baseUrl = import.meta.env.VITE_THCS_GEMMA_WORKER_URL?.trim().replace(/\/+$/, '')
+            || 'https://thcs-gemma.iamhuwng.workers.dev';
         const response = await fetch(`${baseUrl}/thcs/gemma`, {
             method: 'POST',
             headers: {

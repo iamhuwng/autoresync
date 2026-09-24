@@ -23,6 +23,7 @@ interface ImportMetaEnv {
 
   // Groq
   readonly VITE_GROQ_API_KEY?: string;
+  readonly VITE_THCS_GEMMA_WORKER_URL?: string;
 
   // Admin
   readonly VITE_ADMIN_USERNAME?: string;

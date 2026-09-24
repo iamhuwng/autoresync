@@ -8,9 +8,6 @@
   ],
   "workers_dev": true,
   "preview_urls": false,
-  "ai": {
-    "binding": "AI"
-  },
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",

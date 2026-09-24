@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "thcs-gemma",
+  "main": "thcs-gemma-worker.js",
+  "compatibility_date": "2026-01-20",
+  "workers_dev": true,
+  "preview_urls": false,
+  "ai": { "binding": "AI" },
+  "ratelimits": [
+    {
+      "name": "THCS_RATE_LIMITER",
+      "namespace_id": "205513",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "temp-a1437",
+    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com"
+  }
+}

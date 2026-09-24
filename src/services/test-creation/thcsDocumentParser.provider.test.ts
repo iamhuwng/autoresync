@@ -69,7 +69,7 @@ it('uses Cloudflare Gemma after Groq fails, before Gemini', async () => {
 
     expect(probe.create).toHaveBeenCalledOnce();
     expect(probe.cloudflareFetch).toHaveBeenCalledOnce();
-    expect(probe.cloudflareFetch.mock.calls[0]?.[0]).toContain('/thcs/gemma');
+    expect(probe.cloudflareFetch.mock.calls[0]?.[0]).toBe('https://thcs-gemma.iamhuwng.workers.dev/thcs/gemma');
     expect(probe.gemini).not.toHaveBeenCalled();
     expect(probe.response).toBe('Cloudflare restructured THCS text.');
 });
