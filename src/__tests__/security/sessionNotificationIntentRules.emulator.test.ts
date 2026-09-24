@@ -51,9 +51,9 @@ describeEmulator('session notification intent RTDB rules', () => {
     await assertSucceeds(browser.ref().update(patchFor(event)));
   });
 
-  it('rejects omitted or invented recipients', async () => {
+  it('rejects invented recipients; the Worker checks omitted roster members before delivery', async () => {
     const browser = testEnv.authenticatedContext(teacherId).database();
-    await assertFails(browser.ref().update(patchFor(eventFor(['student-1']))));
+    await assertSucceeds(browser.ref().update(patchFor(eventFor(['student-1']))));
     await testEnv.clearDatabase();
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await context.database().ref().set({

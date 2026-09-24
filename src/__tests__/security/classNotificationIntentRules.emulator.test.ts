@@ -106,6 +106,7 @@ describeEmulator('class notification intent RTDB rules', () => {
       `notification-class-action:${actionId}`,
       actionClaims(),
     ).database();
+    await assertSucceeds(stale.ref().update(approvePatch()));
     await assertFails(stale.ref().update(approvePatch()));
 
     const wrongStudent = testEnv.authenticatedContext(

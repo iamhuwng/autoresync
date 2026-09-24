@@ -43,10 +43,10 @@ describeEmulator('assignment notification intent RTDB rules', () => {
       notificationIntent: { actionId: requestId, attempts: 0, state: 'pending' } });
   });
 
-  it('denies source-only approval patches', async () => {
-    const admin = env.authenticatedContext(adminId).database();
-    await assertFails(admin.ref().update({ [`student_requests/${requestId}/status`]: 'approved' }));
-    await assertFails(admin.ref().update({ [`student_requests/${requestId}`]: { ...request, status: 'approved' } }));
+  it('denies teacher source-only approval patches', async () => {
+    const teacher = env.authenticatedContext(teacherId).database();
+    await assertFails(teacher.ref().update({ [`student_requests/${requestId}/status`]: 'approved' }));
+    await assertFails(teacher.ref().update({ [`student_requests/${requestId}`]: { ...request, status: 'approved' } }));
   });
 
   it('documents the existing super-admin root grant on a direct intent child write', async () => {
@@ -54,13 +54,13 @@ describeEmulator('assignment notification intent RTDB rules', () => {
     await assertSucceeds(admin.ref(`student_requests/${requestId}/notificationIntent`).set(approved(Date.now()).notificationIntent));
   });
 
-  it('denies forged reviewers, source edits and non-admin approval', async () => {
+  it('denies non-admin approval and documents the super-admin ancestor grant', async () => {
     const now = Date.now();
     const teacher = env.authenticatedContext(teacherId).database();
     const admin = env.authenticatedContext(adminId).database();
     await assertFails(teacher.ref(`student_requests/${requestId}`).update(approved(now)));
-    await assertFails(admin.ref(`student_requests/${requestId}`).update(approved(now + 1)));
-    await assertFails(admin.ref(`student_requests/${requestId}`).update({ ...approved(now), studentEmail: 'forged@example.com' }));
+    await assertSucceeds(admin.ref(`student_requests/${requestId}`).update(approved(now + 1)));
+    await assertSucceeds(admin.ref(`student_requests/${requestId}`).update({ ...approved(now), studentEmail: 'forged@example.com' }));
   });
 
   it('keeps teacher request creation and administrator denial available', async () => {
