@@ -23,6 +23,7 @@ export interface SessionNotificationQueueRecord {
   readonly occurredAt: number;
   readonly dueAt: number;
   readonly recipientCount: number;
+  readonly rosterVerifiedAt?: number;
   readonly event: SessionNotificationEvent;
   readonly attempts: number;
   readonly initialCursor: number;

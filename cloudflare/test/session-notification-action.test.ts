@@ -1,9 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildSessionNotificationWrites } from '../../src/services/sessionNotificationActionClient.ts';
-import { deliverSessionIntentBatch, SESSION_NOTIFICATION_RECIPIENTS_PER_PASS } from '../src/upload-worker/notifications/session-notification-action.ts';
+import { deliverSessionIntentBatch, sessionRosterMatches, SESSION_NOTIFICATION_RECIPIENTS_PER_PASS } from '../src/upload-worker/notifications/session-notification-action.ts';
 import type { NotificationCommandRepository } from '../src/upload-worker/notifications/repository.ts';
 
 describe('session notification bounded delivery', () => {
+  it('rejects omitted or forged recipients before the first pass', () => {
+    const event = buildSessionNotificationWrites({
+      kind: 'session-opened', sessionCode: 'SESSION1', actorUid: 'teacher-1', classId: 'class-1',
+      className: 'Class', testId: 'test-1', testName: 'Test', marker: 1000,
+      recipientIds: ['student-1', 'student-2'],
+    }).event;
+    const canonicalClass = { createdBy: 'teacher-1', students: { 'student-1': true, 'student-2': true } };
+    expect(sessionRosterMatches(event, canonicalClass)).toBe(true);
+    expect(sessionRosterMatches({ ...event, recipients: { 'student-1': true }, recipientCount: 1 }, canonicalClass)).toBe(false);
+    expect(sessionRosterMatches({ ...event, recipients: { 'student-1': true, 'student-3': true } }, canonicalClass)).toBe(false);
+  });
+
   it('advances in batches of ten and retries only first-pass failures once', async () => {
     const recipientIds = Array.from({ length: 25 }, (_, index) => `student-${index}`);
     const { event, queue } = buildSessionNotificationWrites({

@@ -22,6 +22,16 @@ export const SESSION_NOTIFICATION_RECIPIENTS_PER_PASS = 10;
 const record = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 
+export const sessionRosterMatches = (event: SessionNotificationEvent, classValue: unknown): boolean => {
+  const classRecord = record(classValue);
+  const students = record(classRecord?.students) ?? {};
+  const recipients = record(event.recipients) ?? {};
+  return classRecord?.createdBy === event.actorUid
+    && Object.keys(students).length === event.recipientCount
+    && Object.keys(recipients).length === event.recipientCount
+    && Object.keys(students).every((id) => recipients[id] === true);
+};
+
 const hash32 = (value: string, seed: number): number => {
   let result = (2166136261 ^ seed) >>> 0;
   for (let index = 0; index < value.length; index += 1) result = Math.imul(result ^ value.charCodeAt(index), 16777619) >>> 0;
@@ -133,11 +143,15 @@ export const performSessionNotificationAction = async (input: {
     || Object.keys(recipients).some((id) => !ID.test(id))) {
     return { status: 409, body: { code: 'session_notification_event_invalid' } };
   }
+  if (!queue.rosterVerifiedAt && !sessionRosterMatches(event,
+    await storage.read(`classes/${event.classId}`))) {
+    return { status: 409, body: { code: 'session_notification_roster_invalid' } };
+  }
   if (queue.state === 'done') return { status: 200, body: { status: 'replayed', eventId, notificationStatus: 'delivered' } };
   const claimed = await storage.claimInitial(eventId, Date.now());
   if (!claimed) return { status: 200, body: { status: 'committed', eventId, notificationStatus: 'in_progress' } };
   const progress = await deliverSessionIntentBatch(claimed, input.repository, Date.now());
-  await storage.updateIntent(progress);
+  await storage.updateIntent({ ...progress, rosterVerifiedAt: queue.rosterVerifiedAt ?? Date.now() });
   return { status: 200, body: { status: 'committed', eventId,
     notificationStatus: progress.state === 'done' ? 'delivered' : progress.state === 'failed' ? 'failed' : 'in_progress' } };
 };

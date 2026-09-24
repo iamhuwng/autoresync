@@ -36,9 +36,9 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree. Thes
 | 30 | THCS fully graded from practice view | RTDB fully graded result intent; result student | Specialized Worker, bounded retry |
 | 31 | THCS fully graded from student layout | Same canonical result/intent and deterministic inbox ID as row 30 | Same path; converges on one item |
 | 32 | THCS writing auto grade updated | Student client attempts a write under teacher-only `game_sessions` rule | Source write is denied, so no committed event is provable. Removed its unsupported generic notice call; trusted grading remains future source work |
-| 33 | Session opened | RTDB session transition and event-time class roster intent | Specialized Worker, at most 10 recipients per pass, bounded retry |
-| 34 | Test started | Same session/roster authority for start transition | Same bounded path |
-| 35 | Test ended | Same session/roster authority for end transition | Same bounded path |
+| 33 | Session opened | RTDB session transition and saved roster intent; Worker checks the roster against the class before first delivery | Specialized Worker, at most 10 recipients per pass, bounded retry |
+| 34 | Test started | Same session/roster validation for start transition | Same bounded path |
+| 35 | Test ended | Same session/roster validation for end transition | Same bounded path |
 
 ## Remaining release evidence
 

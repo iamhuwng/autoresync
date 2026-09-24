@@ -1,5 +1,6 @@
 import {
   deliverSessionIntentBatch,
+  sessionRosterMatches,
 } from './session-notification-action.ts';
 import {
   FirebaseSessionNotificationActionStorage,
@@ -30,13 +31,16 @@ const eventFor = async (
     .every((key) => (event[key] ?? null) === (saved[key] ?? null));
   const recipients = record(event.recipients) ?? {};
   const savedRecipients = record(saved.recipients) ?? {};
-  return sameSnapshot
+  const matchesSavedEvent = sameSnapshot
     && Object.keys(recipients).sort().join(',') === Object.keys(savedRecipients).sort().join(',')
     && event.eventId === queue.eventId && event.actorUid === queue.actorUid
     && event.sessionCode === queue.sessionCode && event.classId === queue.classId
     && event.occurredAt === queue.occurredAt && event.recipientCount === queue.recipientCount
     && Object.keys(recipients).length === queue.recipientCount
     ? event as unknown as SessionNotificationEvent : null;
+  if (!matchesSavedEvent) return null;
+  return queue.rosterVerifiedAt || sessionRosterMatches(matchesSavedEvent,
+    await read(`classes/${matchesSavedEvent.classId}`)) ? matchesSavedEvent : null;
 };
 
 /** One bounded pass advances at most ten first attempts or ten one-time retries per event. */
@@ -63,7 +67,7 @@ export const retryDueSessionNotifications = async (
       continue;
     }
     const progress = await deliverSessionIntentBatch({ ...claimed, event }, repository, now);
-    await storage.updateIntent(progress);
+    await storage.updateIntent({ ...progress, rosterVerifiedAt: claimed.rosterVerifiedAt ?? now });
     if (progress.state === 'failed') await storage.reportFailure(event, progress.finalFailedRecipientIds.length, now);
   }
 };
