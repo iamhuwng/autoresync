@@ -40,6 +40,7 @@ import {
 } from '../services/materialCatalog/materialBooks.service';
 import { createBookSuccessorClient } from '../services/materialCatalog/bookSuccessor.service';
 import { database } from '../services/firebase';
+import { getThcsTestFromFirebase } from '../services/thcsTestStorage';
 import {
   archiveReadingV2PassageMaterial,
   listTeacherReadingPassages,
@@ -1304,7 +1305,20 @@ const TeacherLobbyPage = () => {
         skill: 'thcs',
         testId: test.id,
       });
-      modals.openEditThcsTest(test);
+      void getThcsTestFromFirebase(test.id)
+        .then((result) => {
+          if (!result.success || !result.data) {
+            throw new Error(result.error || 'Could not load the test.');
+          }
+          if (!Array.isArray(result.data.sections) || result.data.sections.length === 0) {
+            throw new Error('This test has no editable sections in its stored record.');
+          }
+          modals.openEditThcsTest(result.data);
+        })
+        .catch((error) => {
+          console.error('Failed to load THCS test for editing:', error);
+          toast.error(error instanceof Error ? error.message : 'Could not load the test.');
+        });
       return;
     }
 
