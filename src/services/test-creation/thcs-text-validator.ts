@@ -75,6 +75,8 @@ interface SectionBoundary {
 
 /** Regex matching section headers: Roman numerals or Part/Section/Exercise labels. */
 const SECTION_HEADER_RE = /^(?:(?:I{1,3}|IV|V|VI{0,3}|IX|X{0,3})\.?\s+|(?:Part|Section|Exercise|Phần)\s+\w+[\.:]\s*)/i;
+const ANSWER_KEY_RE = /^(?:ANSWER KEY|ĐÁP ÁN|KEY|Đáp án)/i;
+const ANSWER_KEY_BOUNDARY_RE = /^(?:(?:I{1,3}|IV|V|VI{0,3}|IX|X{0,3})\.?\s+)?(?:ANSWER KEY|ĐÁP ÁN)\b|\[TYPE:\s*answer-?key\s*\]|^===\s*\d+\.\s*ANSWER KEY\s*===/i;
 
 /** Extract [TYPE: xxx] tag from a line. */
 function extractTypeTag(line: string): string | null {
@@ -89,6 +91,11 @@ export function detectSectionBoundaries(lines: string[]): SectionBoundary[] {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
+
+        if (ANSWER_KEY_BOUNDARY_RE.test(line)) {
+            if (boundaries.length > 0) boundaries[boundaries.length - 1].endLine = i;
+            break;
+        }
 
         const isHeader = SECTION_HEADER_RE.test(line) || extractTypeTag(line) !== null;
         if (isHeader) {
@@ -113,7 +120,6 @@ export function detectSectionBoundaries(lines: string[]): SectionBoundary[] {
 
 const QUESTION_RE = /^(?:Question|Câu|Q)\s*(\d+)\s*[.:]/i;
 const OPTION_RE = /^[A-D]\.\s/;
-const ANSWER_KEY_RE = /^(?:ANSWER KEY|ĐÁP ÁN|KEY|Đáp án)/i;
 const ANSWER_LINE_RE = /^\s*(\d+)\s*[.:]\s*[A-Da-d]\b/;
 const COMPRESSED_KEY_RE = /\d+\s*[-–]\s*\d+\s*[:：]\s*[A-Da-d]{2,}/i;
 

@@ -254,7 +254,7 @@ describe('executeExternalRetry', () => {
         );
 
         expect(providers).toEqual([
-            'groq/llama-3.3-70b-versatile',
+            'groq/qwen/qwen3.8-27b',
             'gemini/gemini-2.5-flash',
         ]);
     });

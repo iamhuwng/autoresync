@@ -16,6 +16,7 @@ import { validateRestructuredText } from './thcs-text-validator';
 import { buildRepairPrompt, parseAIRepairResponse, createAuditEntry } from './thcs-prompt-builder';
 import type { RepairAuditEntry, ReasoningEntry } from './thcs-prompt-builder';
 import { executeRetryChain, REPAIR_CHAIN } from './thcs-retry-manager';
+import { THCS_GROQ_MODEL } from './thcs-retry-manager';
 import type { RetrySession, RetryStep, AICallOutcome } from './thcs-retry-manager';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ export type AICallFn = (system: string, prompt: string, step: RetryStep) => Prom
 // ── Crossfix Steps (escalating model/temperature) ─────────────
 
 const CROSSFIX_STEPS: RetryStep[] = [
-    { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.1 },
+    { provider: 'groq', model: THCS_GROQ_MODEL, temperature: 0.1 },
     { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.2 },
     { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.3 },
 ];
@@ -119,7 +120,7 @@ export async function executeCrossfixLoop(
             repairPrompt,
             step,
         );
-        if (!rawResponse) break; // AI failed, use bestText
+        if (!rawResponse) continue; // Try the next provider; keep bestText.
 
         // 5. Parse response
         const parsed = parseAIRepairResponse(rawResponse);

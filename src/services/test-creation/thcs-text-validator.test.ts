@@ -55,6 +55,12 @@ describe('detectSectionBoundaries', () => {
         const secs = makeSections('I. PHONETICS\nContent');
         expect(secs[0].typeTag).toBeNull();
     });
+
+    it('ends the last exercise before a plain answer key', () => {
+        const secs = makeSections('I. MATCHING [TYPE: matching]\nQuestion 3. Match items\nANSWER KEY\n3. A');
+        expect(secs).toHaveLength(1);
+        expect(secs[0].endLine).toBe(2);
+    });
 });
 
 // ── Individual Detectors ──────────────────────────────────────

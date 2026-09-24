@@ -291,6 +291,7 @@ ${template.example}
 === CONSTRAINTS ===
 ${template.constraint}
 Fields to preserve: ${template.preserveFields.join(', ')}
+Keep original question numbers. If the original input has an answer key, preserve each correct answer and keep its letter aligned with the converted options; the answer key itself is outside the section to convert.
 
 === OUTPUT FORMAT ===
 [COMPROMISED: ${sourceType} → ${template.targetType}]

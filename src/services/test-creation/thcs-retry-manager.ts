@@ -56,12 +56,14 @@ export interface AICallOutcome<T> {
     issueCount: number;
 }
 
+export const THCS_GROQ_MODEL = 'qwen/qwen3.8-27b';
+
 // ── Built-in Chains (FR-8) ────────────────────────────────────
 
-/** Repair chain: Groq llama (temp 0.1) → Gemini Flash (temp 0.2) → teacher. */
+/** Repair chain: Groq → Gemini Flash → teacher. */
 export const REPAIR_CHAIN: RetryChainConfig = {
     steps: [
-        { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.1 },
+        { provider: 'groq', model: THCS_GROQ_MODEL, temperature: 0.1 },
         { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.2 },
     ],
     fallback: 'teacher',
@@ -70,7 +72,7 @@ export const REPAIR_CHAIN: RetryChainConfig = {
 /** Compromise chain: Groq → Flash (temp 0.15) → Flash (temp 0.3) → skip. */
 export const COMPROMISE_CHAIN: RetryChainConfig = {
     steps: [
-        { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.15 },
+        { provider: 'groq', model: THCS_GROQ_MODEL, temperature: 0.15 },
         { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.15 },
         { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.3 },
     ],

@@ -160,18 +160,18 @@ describe('executeCrossfixLoop', () => {
         expect(result.wasRepaired).toBe(false);
     });
 
-    it('handles AI returning null — exits loop early', async () => {
+    it('tries Gemini after the Groq repair fails', async () => {
         mockValidate.mockReturnValue(makeReport({
             formatConfidence: 55,
             issues: [makeIssue('MERGED_QUESTIONS')],
         }));
 
-        const callAI: AICallFn = vi.fn().mockResolvedValue(null);
+        const callAI: AICallFn = vi.fn().mockResolvedValueOnce(null).mockResolvedValue(MOCK_REPAIR_RESPONSE);
         const result = await executeCrossfixLoop('input', 'original', 50, callAI);
 
         expect(result.bestText).toBe('input');
         expect(result.wasRepaired).toBe(false);
-        expect(callAI).toHaveBeenCalledTimes(1);
+        expect(callAI.mock.calls[1]![2].provider).toBe('gemini');
     });
 
     it('runs up to 3 rounds maximum', async () => {
