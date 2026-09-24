@@ -318,6 +318,14 @@ describe('Homework Firestore rule contract', () => {
     expect(firestoreRules).toContain('request.resource.data.revision == resource.data.revision + 1');
     expect(firestoreRules).toContain('request.resource.data.bookManifest.context == resource.data.bookManifest.context');
   });
+
+  it('keeps manual reminder intents immutable and bound to the teacher source action', () => {
+    expect(firestoreRules).toContain('match /homework_manual_reminder_intents/{eventId}');
+    expect(firestoreRules).toContain("request.resource.data.state == 'pending'");
+    expect(firestoreRules).toContain('request.resource.data.dueAt == request.resource.data.occurredAt + 3600000');
+    expect(firestoreRules).toContain('getAfter(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId))');
+    expect(firestoreRules).toContain('allow update, delete: if false;');
+  });
 });
 
 describeEmulator('Homework Firestore rule emulator behavior', () => {
@@ -337,6 +345,32 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     if (testEnv) {
       await testEnv.cleanup();
     }
+  });
+
+  it('allows only an atomic teacher reminder event and rejects forged or mutable intents', async () => {
+    const teacher = testEnv.authenticatedContext('teacher-1').firestore();
+    const intentId = 'e0f4bd82-4693-4c85-a384-7a949e1216da';
+    const assignment = teacher.doc('homework_assignments/assignment-1');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('homework_assignments/assignment-1').set({
+        ...baseHomeworkAssignment({ target: { type: 'students', studentIds: ['student-1'] } }),
+        id: 'assignment-1', createdBy: 'teacher-1', studentOverrides: {},
+      });
+    });
+    const occurredAt = Date.now();
+    const actionBatch = teacher.batch();
+    actionBatch.update(assignment, {
+      'studentOverrides.student-1.reminderCount': 1,
+      'studentOverrides.student-1.lastRemindedAt': occurredAt,
+    });
+    actionBatch.set(teacher.doc(`homework_manual_reminder_intents/${intentId}`), {
+      eventId: intentId, homeworkId: 'assignment-1', studentId: 'student-1', actorUid: 'teacher-1',
+      occurredAt, state: 'pending', attempts: 0, dueAt: occurredAt + 3600000,
+    });
+    await assertSucceeds(actionBatch.commit());
+    await assertFails(teacher.doc(`homework_manual_reminder_intents/${intentId}`).update({ state: 'done' }));
+    await assertFails(testEnv.authenticatedContext('teacher-2').firestore()
+      .doc(`homework_manual_reminder_intents/${intentId}`).get());
   });
 
   it('allows teacher-created Reading Passage homework and rejects malformed cross-type payloads', async () => {
@@ -380,6 +414,31 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
         }),
       ),
     );
+  });
+
+  it('requires an atomic THCS homework assignment intent and freezes it for browser updates', async () => {
+    const teacher = testEnv.authenticatedContext('teacher-1').firestore();
+    const assignmentId = 'thcs-assignment-1';
+    const createdAt = Date.now();
+    const payload = {
+      id: assignmentId, createdBy: 'teacher-1', createdAt, updatedAt: createdAt,
+      materialType: 'thcs-test', materialTitle: 'Saved title', title: 'Saved title',
+      target: { type: 'students', studentIds: ['student-1'] },
+      scheduling: { dueDate: createdAt + 86_400_000 },
+      notificationIntent: {
+        schemaVersion: 1, actionId: assignmentId, kind: 'homework-assigned',
+        occurredAt: createdAt, dueAt: createdAt + 3_600_000, attempts: 0, state: 'pending',
+      },
+    };
+    const assignmentRef = teacher.doc(`homework_assignments/${assignmentId}`);
+    await assertSucceeds(assignmentRef.set(payload));
+    await assertFails(assignmentRef.update({ notificationIntent: { ...payload.notificationIntent, state: 'done' } }));
+    await assertFails(teacher.doc('homework_assignments/thcs-assignment-forged').set({
+      ...payload,
+      id: 'thcs-assignment-forged',
+      notificationIntent: { ...payload.notificationIntent, actionId: assignmentId },
+    }));
+    await assertSucceeds(assignmentRef.update({ title: 'Edited title' }));
   });
 
   it('allows authenticated homework projection reads but rejects unauthenticated reads', async () => {
@@ -713,5 +772,36 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertSucceeds(
       retryOneService.firestore().doc(`homework_assignments/${authorityId}`).get(),
     );
+  });
+
+  it('allows one atomic student submission intent and keeps intent and delivery fields immutable to clients', async () => {
+    const submittedAt = Date.now();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('homework_submissions/submission-intent-1').set({
+        studentId: 'student-1', homeworkId: 'assignment-1', teacherId: 'teacher-1', status: 'in_progress',
+      });
+      await context.firestore().doc('homework_submissions/already-submitted').set({
+        studentId: 'student-1', homeworkId: 'assignment-1', teacherId: 'teacher-1', status: 'submitted',
+      });
+    });
+    const student = testEnv.authenticatedContext('student-1').firestore();
+    const intent = {
+      schemaVersion: 1,
+      eventId: 'homework-submitted:result-1',
+      resultId: 'result-1',
+      homeworkId: 'assignment-1',
+      studentId: 'student-1',
+      teacherId: 'teacher-1',
+      submittedAt,
+    };
+    const delivery = { state: 'retry_due', attempts: 1, dueAt: submittedAt + 60 * 60 * 1000 };
+    const submissionRef = student.doc('homework_submissions/submission-intent-1');
+
+    await assertSucceeds(submissionRef.update({ status: 'submitted', resultId: 'result-1', submittedAt, notificationIntent: intent, notificationDelivery: delivery }));
+    await assertFails(submissionRef.update({ notificationIntent: { ...intent, teacherId: 'student-1' } }));
+    await assertFails(submissionRef.update({ notificationDelivery: { ...delivery, state: 'done' } }));
+    await assertFails(student.doc('homework_submissions/already-submitted').update({
+      resultId: 'result-1', submittedAt, notificationIntent: intent, notificationDelivery: delivery,
+    }));
   });
 });

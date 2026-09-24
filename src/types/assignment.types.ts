@@ -64,6 +64,23 @@ export interface AssignmentRequest {
     /** Timestamp when request was responded to */
     respondedAt?: number;
 
+    /** Student resolved when the approval action was committed. */
+    studentId?: string;
+
+    /** Active assignment row authorizing approval notifications. */
+    assignmentId?: string;
+
+    /** Immutable notice intent committed with the approved assignment. */
+    notificationIntent?: {
+        schemaVersion: 1;
+        actionId: string;
+        kind: 'assignment-request-approved';
+        occurredAt: number;
+        dueAt: number;
+        attempts: 0 | 1 | 2;
+        state: 'pending' | 'sending' | 'retry_due' | 'retrying' | 'done' | 'failed';
+    };
+
     /** Reason for denial (if denied) */
     denialReason?: string;
 }

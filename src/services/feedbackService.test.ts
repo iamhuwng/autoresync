@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ref, set, get, update, push } from 'firebase/database';
+import { saveFeedbackAction } from './feedbackActionClient';
 import {
     saveQuestionFeedback,
     getQuestionFeedback,
@@ -18,6 +19,7 @@ import {
 
 // Mock Firebase
 vi.mock('firebase/database');
+vi.mock('./feedbackActionClient', () => ({ saveFeedbackAction: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/services/firebase', () => ({
     database: {}
 }));
@@ -33,69 +35,18 @@ describe('feedbackService', () => {
     });
 
     describe('saveQuestionFeedback', () => {
-        it('should save question feedback with all required fields', async () => {
-            const mockSet = vi.mocked(set);
-            const mockPush = vi.mocked(push);
-            const mockUpdate = vi.mocked(update);
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
-
-            mockRef.mockImplementation((_database, path) => ({ path } as any));
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-            mockUpdate.mockResolvedValue(undefined);
-            mockGet.mockResolvedValue({
-                exists: () => true,
-                val: () => ({
-                    questionResults: [
-                        { questionNumber: 1, questionId: 'q1' },
-                        { questionNumber: 2, questionId: 'q2' }
-                    ],
-                    overallFeedback: null,
-                    feedbackUpdatedAt: null,
-                    feedbackUpdatedBy: null,
-                    hasFeedback: false
-                })
-            } as any);
-
+        it('routes the trimmed feedback save through the trusted action', async () => {
             await saveQuestionFeedback('result123', 'q1', 'Great answer!', 'teacher456', 'Mr. Smith');
-
-            expect(mockSet).toHaveBeenCalled();
-            const feedbackData = mockSet.mock.calls[0][1] as QuestionFeedback;
-
-            expect(feedbackData.questionId).toBe('q1');
-            expect(feedbackData.feedback).toBe('Great answer!');
-            expect(feedbackData.updatedBy).toBe('Mr. Smith');
-            expect(feedbackData.updatedById).toBe('teacher456');
-            expect(feedbackData.updatedByName).toBe('Mr. Smith');
-            expect(feedbackData.teacherName).toBe('Mr. Smith');
-            expect(feedbackData.updatedAt).toBeTypeOf('number');
-
-            expect(mockUpdate).toHaveBeenCalledWith(
-                expect.objectContaining({ path: 'test_results/result123' }),
-                expect.objectContaining({
-                    'questionResults/0/teacherFeedback': 'Great answer!',
-                    feedbackUpdatedBy: 'Mr. Smith',
-                    feedbackUpdatedByTeacherId: 'teacher456',
-                    feedbackUpdatedByTeacherName: 'Mr. Smith',
-                    hasFeedback: true
-                })
-            );
+            expect(saveFeedbackAction).toHaveBeenCalledWith({
+                resultId: 'result123', feedbackKind: 'question', questionId: 'q1', feedback: 'Great answer!',
+            });
         });
 
         it('should trim feedback text', async () => {
-            const mockSet = vi.mocked(set);
-            const mockPush = vi.mocked(push);
-            const mockRef = vi.mocked(ref);
-
-            mockRef.mockReturnValue({} as any);
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-
             await saveQuestionFeedback('result123', 'q1', '  Needs improvement  ', 'teacher456');
-
-            const feedbackData = mockSet.mock.calls[0][1] as QuestionFeedback;
-            expect(feedbackData.feedback).toBe('Needs improvement');
+            expect(saveFeedbackAction).toHaveBeenCalledWith({
+                resultId: 'result123', feedbackKind: 'question', questionId: 'q1', feedback: 'Needs improvement',
+            });
         });
 
         it('should throw error if required parameters are missing', async () => {
@@ -247,51 +198,11 @@ describe('feedbackService', () => {
     });
 
     describe('saveOverallFeedback', () => {
-        it('should save overall feedback and update result flags', async () => {
-            const mockSet = vi.mocked(set);
-            const mockUpdate = vi.mocked(update);
-            const mockPush = vi.mocked(push);
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
-
-            mockRef.mockImplementation((_database, path) => ({ path } as any));
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-            mockUpdate.mockResolvedValue(undefined);
-            mockGet.mockResolvedValue({
-                exists: () => true,
-                val: () => ({
-                    questionResults: [],
-                    overallFeedback: null,
-                    feedbackUpdatedAt: null,
-                    feedbackUpdatedBy: null,
-                    hasFeedback: false
-                })
-            } as any);
-
+        it('routes the trimmed overall save through the trusted action', async () => {
             await saveOverallFeedback('result123', 'Overall great work!', 'teacher456', 'Mr. Smith');
-
-            expect(mockSet).toHaveBeenCalled();
-            expect(mockUpdate).toHaveBeenCalledTimes(2);
-
-            const feedbackData = mockSet.mock.calls[0][1] as OverallFeedback;
-            expect(feedbackData.feedback).toBe('Overall great work!');
-            expect(feedbackData.updatedBy).toBe('Mr. Smith');
-            expect(feedbackData.updatedById).toBe('teacher456');
-            expect(feedbackData.updatedByName).toBe('Mr. Smith');
-
-            const updateData = mockUpdate.mock.calls[0][1] as any;
-            expect(updateData.hasFeedback).toBe(true);
-            expect(updateData.feedbackUpdatedBy).toBe('Mr. Smith');
-            expect(updateData.feedbackUpdatedByTeacherId).toBe('teacher456');
-            expect(updateData.feedbackUpdatedByTeacherName).toBe('Mr. Smith');
-
-            const canonicalUpdateData = mockUpdate.mock.calls[1][1] as any;
-            expect(canonicalUpdateData.overallFeedback).toBe('Overall great work!');
-            expect(canonicalUpdateData.feedbackUpdatedBy).toBe('Mr. Smith');
-            expect(canonicalUpdateData.feedbackUpdatedByTeacherId).toBe('teacher456');
-            expect(canonicalUpdateData.feedbackUpdatedByTeacherName).toBe('Mr. Smith');
-            expect(canonicalUpdateData.hasFeedback).toBe(true);
+            expect(saveFeedbackAction).toHaveBeenCalledWith({
+                resultId: 'result123', feedbackKind: 'overall', feedback: 'Overall great work!',
+            });
         });
 
         it('should throw error if required parameters are missing', async () => {
@@ -587,14 +498,6 @@ describe('feedbackService', () => {
 
     describe('bulkSaveQuestionFeedback', () => {
         it('should save feedback for multiple questions', async () => {
-            const mockSet = vi.mocked(set);
-            const mockPush = vi.mocked(push);
-            const mockRef = vi.mocked(ref);
-
-            mockRef.mockReturnValue({} as any);
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-
             const feedbackMap = {
                 q1: 'Good answer',
                 q2: 'Excellent work',
@@ -603,19 +506,13 @@ describe('feedbackService', () => {
 
             await bulkSaveQuestionFeedback('result123', feedbackMap, 'teacher456', 'Mr. Smith');
 
-            // Should be called for each question + history entries
-            expect(mockSet).toHaveBeenCalled();
+            expect(saveFeedbackAction).toHaveBeenCalledTimes(3);
+            expect(saveFeedbackAction).toHaveBeenNthCalledWith(1, {
+                resultId: 'result123', feedbackKind: 'question', questionId: 'q1', feedback: 'Good answer',
+            });
         });
 
         it('should skip empty feedback', async () => {
-            const mockSet = vi.mocked(set);
-            const mockPush = vi.mocked(push);
-            const mockRef = vi.mocked(ref);
-
-            mockRef.mockReturnValue({} as any);
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-
             const feedbackMap = {
                 q1: 'Good answer',
                 q2: '',  // Empty
@@ -624,8 +521,10 @@ describe('feedbackService', () => {
 
             await bulkSaveQuestionFeedback('result123', feedbackMap, 'teacher456');
 
-            // Should only save for q1 (+ history)
-            expect(mockSet.mock.calls.length).toBeGreaterThan(0);
+            expect(saveFeedbackAction).toHaveBeenCalledTimes(1);
+            expect(saveFeedbackAction).toHaveBeenCalledWith({
+                resultId: 'result123', feedbackKind: 'question', questionId: 'q1', feedback: 'Good answer',
+            });
         });
 
         it('should throw error if required parameters are missing', async () => {

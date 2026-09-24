@@ -5,9 +5,9 @@
  */
 
 import { ref, push, set, get, update, query, orderByChild, equalTo, remove } from 'firebase/database';
-import { database } from './firebase';
+import { auth, database } from './firebase';
+import { wakeCourseTypeDecisionDelivery } from './courseTypeDecisionClient';
 import type { Course, Module, CourseMaterial, StudentCourseProgress } from '../types/course.types';
-import { createTrustedBulkNotifications, createTrustedNotification } from './notificationProducerClient';
 import { logCreate, logUpdate, logDelete } from './auditService';
 
 const COURSES_REF = 'courses';
@@ -290,29 +290,6 @@ export async function archiveCourse(courseId: string): Promise<{ success: boolea
             hardDeleteAt: hardDeleteDate
         });
 
-        // Task 26.8: Notify enrolled students
-        if (snapshot.exists()) {
-            const enrollments = Object.values(snapshot.val()) as any[];
-            const studentIds = enrollments
-                .filter(e => e.status === 'active')
-                .map(e => e.studentId);
-
-            if (studentIds.length > 0) {
-                // Get course name for notification
-                const courseSnap = await get(ref(database, `${COURSES_REF}/${courseId}`));
-                const courseName = courseSnap.val()?.name || 'Untitled Course';
-
-                await createTrustedBulkNotifications(studentIds, {
-                    producerFamily: 'course',
-                    authorityRecordId: courseId,
-                    operationKey: `course-archived:${courseId}`,
-                    title: 'Course Archived',
-                    message: `The course "${courseName}" has been archived by the teacher and is no longer accessible.`,
-                    type: 'info',
-                });
-            }
-        }
-
         return { success: true };
     } catch (error) {
         console.error('Error archiving course:', error);
@@ -461,7 +438,7 @@ export async function getPendingTypeRequests(): Promise<CourseTypeRequest[]> {
 /**
  * Approve a course type request
  */
-export async function approveCourseType(requestId: string, approvedBy: string): Promise<{ success: boolean; error?: string }> {
+export async function approveCourseType(requestId: string): Promise<{ success: boolean; error?: string }> {
     try {
         // 1. Get the request
         const requestSnapshot = await get(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`));
@@ -473,41 +450,37 @@ export async function approveCourseType(requestId: string, approvedBy: string): 
         if (request.status !== 'pending') {
             return { success: false, error: 'Request is handled' };
         }
+        const approvedBy = auth.currentUser?.uid;
+        if (!approvedBy) return { success: false, error: 'Admin is not signed in' };
 
         // 2. Create the course type
         const typeId = generateId(COURSE_TYPES_REF);
         if (!typeId) return { success: false, error: 'Failed to generate type ID' };
 
+        const handledAt = now();
         const newType: CourseTypeDefinition = {
             id: typeId,
             name: request.typeName,
             isSystem: false,
             createdBy: request.teacherId,
-            createdAt: now()
+            createdAt: handledAt
         };
 
-        await set(ref(database, `${COURSE_TYPES_REF}/${typeId}`), newType);
-
-        await update(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`), {
+        const notificationIntent = courseTypeDecisionIntent(requestId, 'approved', handledAt);
+        const updatedRequest: CourseTypeRequest = {
+            ...request,
             status: 'approved',
             approvedBy,
-            approvedAt: now()
-        });
+            approvedAt: handledAt,
+            notificationIntent,
+        };
 
-        // Send notification to teacher
-        try {
-            await createTrustedNotification({
-                producerFamily: 'course',
-                authorityRecordId: requestId,
-                recipientId: request.teacherId,
-                operationKey: `course-type-approved:${requestId}`,
-                type: 'success',
-                title: 'Course Type Approved',
-                message: `Your request for course type "${request.typeName}" has been approved. You can now use it when creating courses.`,
-                link: '/teacher/courses' // Or to create page?
-            });
-        } catch (notifyErr) {
-            console.error('Failed to send approval notification', notifyErr);
+        await update(ref(database), {
+            [`${COURSE_TYPES_REF}/${typeId}`]: newType,
+            [`${COURSE_TYPE_REQUESTS_REF}/${requestId}`]: updatedRequest,
+        });
+        if (!await wakeCourseTypeDecisionDelivery(requestId)) {
+            console.warn('Course type approved; immediate notification delivery wake failed.');
         }
 
         return { success: true };
@@ -522,41 +495,47 @@ export async function approveCourseType(requestId: string, approvedBy: string): 
  */
 export async function rejectCourseType(requestId: string, reason?: string): Promise<{ success: boolean; error?: string }> {
     try {
-        // Send notification to teacher
-        try {
-            // Get original request details if needed, but we don't have it here unless queried again 
-            // or passed in. Usually good to get request first. But update doesn't need read first?
-            // Wait, we need teacherId to notify. The update call didn't fetch the request.
-            // Let's refactor slightly to read first.
-            const requestSnapshot = await get(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`));
-            if (requestSnapshot.exists()) {
-                const request = requestSnapshot.val() as CourseTypeRequest;
-                await createTrustedNotification({
-                    producerFamily: 'course',
-                    authorityRecordId: requestId,
-                    recipientId: request.teacherId,
-                    operationKey: `course-type-rejected:${requestId}`,
-                    type: 'error',
-                    title: 'Course Type Rejected',
-                    message: `Your request for course type "${request.typeName}" was rejected${reason ? ': ' + reason : '.'}`,
-                    link: '/teacher/courses'
-                });
-            }
-        } catch (notifyErr) {
-            console.error('Failed to send rejection notification', notifyErr);
-        }
-
-        await update(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`), {
+        const requestSnapshot = await get(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`));
+        if (!requestSnapshot.exists()) return { success: false, error: 'Request not found' };
+        const request = requestSnapshot.val() as CourseTypeRequest;
+        if (request.status !== 'pending') return { success: false, error: 'Request is handled' };
+        const handledBy = auth.currentUser?.uid;
+        if (!handledBy) return { success: false, error: 'Admin is not signed in' };
+        const handledAt = now();
+        const updatedRequest: CourseTypeRequest = {
+            ...request,
             status: 'rejected',
             rejectionReason: reason || 'Admin rejected',
-            approvedAt: now() // using approvedAt as 'handledAt' essentially
+            handledBy,
+            handledAt,
+            notificationIntent: courseTypeDecisionIntent(requestId, 'rejected', handledAt),
+        };
+        await update(ref(database), {
+            [`${COURSE_TYPE_REQUESTS_REF}/${requestId}`]: updatedRequest,
         });
+        if (!await wakeCourseTypeDecisionDelivery(requestId)) {
+            console.warn('Course type rejected; immediate notification delivery wake failed.');
+        }
         return { success: true };
     } catch (error) {
         console.error('Error rejecting course type:', error);
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 }
+
+const courseTypeDecisionIntent = (
+    requestId: string,
+    decision: 'approved' | 'rejected',
+    occurredAt: number,
+): NonNullable<CourseTypeRequest['notificationIntent']> => ({
+    eventKind: decision === 'approved' ? 'course-type-approved' : 'course-type-rejected',
+    authorityRecordId: requestId,
+    occurrenceId: `${requestId}_${decision}`,
+    occurredAt,
+    dueAt: occurredAt,
+    attempts: 0,
+    state: 'due',
+});
 
 // ============================================================================
 // MODULE MANAGEMENT

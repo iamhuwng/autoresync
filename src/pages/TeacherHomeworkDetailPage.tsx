@@ -27,8 +27,8 @@ import {
 } from '../services/homeworkSubmissionService';
 import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import { isBookHomeworkAssignment } from '../services/book-homework/bookHomeworkManifest.service';
-import { updateHomework, updateStudentOverride } from '../services/homeworkManager';
-import { sendTrustedHomeworkReminderNotification } from '../services/notificationProducerClient';
+import { recordManualHomeworkReminder, updateHomework, updateStudentOverride } from '../services/homeworkManager';
+import { wakeManualHomeworkReminder } from '../services/manualHomeworkReminderClient';
 import { reportingService } from '../services/reportingService';
 import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 import { database } from '../services/firebase';
@@ -353,7 +353,6 @@ function TeacherHomeworkDetailPage() {
     const { students, loading: rosterLoading, error: rosterError } = useClassRoster(classId);
     const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
     const [resetTarget, setResetTarget] = useState<HomeworkSubmissionTableRow | null>(null);
-    const [resetMessage, setResetMessage] = useState<string | null>(null);
     const [isResetting, setIsResetting] = useState(false);
     const [showThcsConfig, setShowThcsConfig] = useState(false);
     const [isRefreshingReadingV2Assignment, setIsRefreshingReadingV2Assignment] = useState(false);
@@ -687,25 +686,27 @@ function TeacherHomeworkDetailPage() {
         }
 
         setIsResetting(true);
-        setResetMessage(null);
+        trackAction('resetHomework', { homeworkId, studentId: resetTarget.studentId });
 
         try {
-            const result = await resetStudentHomework(
-                homeworkId,
-                resetTarget.studentId,
-                homework.title || homework.materialTitle
-            );
+            const result = await resetStudentHomework(homeworkId, resetTarget.studentId);
+            const notificationStatus = result.notificationStatus === 'delivered'
+                ? 'Student notification delivered.'
+                : result.notificationStatus === 'retry_scheduled'
+                    ? 'Student notification queued for retry.'
+                    : 'Student notification remains in the recovery queue.';
 
-            setResetMessage(
-                `Reset complete: ${result.submissionsDeleted} submission(s) and ${result.resultsDeleted} result(s) removed.`
-            );
+            if (result.resultCleanupComplete) {
+                toast.success(`Reset ${result.submissionsDeleted} submission(s) and removed ${result.resultsDeleted} linked result(s). ${notificationStatus}`);
+            } else {
+                toast.warning(`Reset ${result.submissionsDeleted} submission(s), but only ${result.resultsDeleted} linked result(s) could be removed. Contact support to remove the remaining result record(s). ${notificationStatus}`);
+            }
             await refetch();
             setTimeout(() => {
                 setResetTarget(null);
-                setResetMessage(null);
             }, 1200);
         } catch (resetError) {
-            setResetMessage(resetError instanceof Error ? resetError.message : 'Failed to reset homework');
+            toast.error(`Homework reset failed: ${resetError instanceof Error ? resetError.message : 'Unknown error'}`);
         } finally {
             setIsResetting(false);
         }
@@ -849,7 +850,7 @@ function TeacherHomeworkDetailPage() {
 
     // PRD-0034 Task 11.5: Send reminder handler
     const handleSendReminder = useCallback(async (row: HomeworkSubmissionTableRow) => {
-        if (!homework || !homeworkId) return;
+        if (!homework || !homeworkId || !user?.uid) return;
 
         // Double-check disable conditions (already enforced by UI, but safety)
         const hasSubmitted = row.status === 'submitted' || row.status === 'graded';
@@ -859,30 +860,22 @@ function TeacherHomeworkDetailPage() {
 
         try {
             const reminderAt = Date.now();
-            await updateStudentOverride(homeworkId, row.studentId, {
-                reminderCount: (row.reminderCount ?? 0) + 1,
-                lastRemindedAt: reminderAt,
-            });
-            // PRD-0034 Task 16.0: Send actual notification to student
-            await sendTrustedHomeworkReminderNotification(
-                row.studentId,
-                homeworkId,
-                homework.title || homework.materialTitle,
-                profile?.displayName ?? undefined,
-                String(reminderAt),
-            );
-            toast.success(`Reminder sent to ${row.studentName}`);
+            const eventId = crypto.randomUUID();
+            await recordManualHomeworkReminder(homeworkId, row.studentId, user!.uid, eventId, reminderAt);
+            await wakeManualHomeworkReminder(eventId);
+            trackAction('sendHomeworkReminder', { homeworkId, studentId: row.studentId });
+            toast.success(`Reminder queued for ${row.studentName}`);
             await refetch();
         } catch (err) {
             console.error('[SendReminder] Failed:', err);
             toast.error('Failed to send reminder');
         }
-    }, [homework, homeworkId, profile, refetch]);
+    }, [homework, homeworkId, user, trackAction, refetch]);
 
     // PRD-0034 Task 16.3: Remind All bulk action
     const [remindAllLoading, setRemindAllLoading] = useState(false);
     const handleRemindAll = useCallback(async () => {
-        if (!homework || !homeworkId) return;
+        if (!homework || !homeworkId || !user?.uid) return;
 
         // Filter eligible students: not submitted, < 3 reminders, not in 24h cooldown, not exempted
         const eligible = rows.filter((row) => {
@@ -900,6 +893,7 @@ function TeacherHomeworkDetailPage() {
         }
 
         setRemindAllLoading(true);
+        trackAction('remindAllHomework', { homeworkId, recipientCount: eligible.length });
         let sentCount = 0;
         let failCount = 0;
 
@@ -907,18 +901,9 @@ function TeacherHomeworkDetailPage() {
             const promises = eligible.map(async (row) => {
                 try {
                     const reminderAt = Date.now();
-                    await updateStudentOverride(homeworkId, row.studentId, {
-                        reminderCount: (row.reminderCount ?? 0) + 1,
-                        lastRemindedAt: reminderAt,
-                    });
-                    // Non-blocking notification
-                    sendTrustedHomeworkReminderNotification(
-                        row.studentId,
-                        homeworkId,
-                        homework.title || homework.materialTitle,
-                        profile?.displayName ?? undefined,
-                        String(reminderAt),
-                    ).catch((err) => console.warn('[RemindAll] Notification failed for', row.studentId, err));
+                    const eventId = crypto.randomUUID();
+                    await recordManualHomeworkReminder(homeworkId, row.studentId, user!.uid, eventId, reminderAt);
+                    await wakeManualHomeworkReminder(eventId);
                     sentCount++;
                 } catch (err) {
                     console.error('[RemindAll] Failed for', row.studentId, err);
@@ -927,7 +912,7 @@ function TeacherHomeworkDetailPage() {
             });
             await Promise.all(promises);
 
-            const parts = [`Reminders sent to ${sentCount} student${sentCount !== 1 ? 's' : ''}.`];
+            const parts = [`Reminders queued for ${sentCount} student${sentCount !== 1 ? 's' : ''}.`];
             if (skippedCount > 0) parts.push(`${skippedCount} skipped (already submitted, limit reached, or cooldown).`);
             if (failCount > 0) parts.push(`${failCount} failed.`);
             toast.success(parts.join(' '));
@@ -938,7 +923,7 @@ function TeacherHomeworkDetailPage() {
         } finally {
             setRemindAllLoading(false);
         }
-    }, [homework, homeworkId, rows, refetch, profile]);
+    }, [homework, homeworkId, rows, refetch, user, trackAction]);
 
     // PRD-0034 Task 11.0: Student action callbacks for the submission table
     const studentActions = useMemo(() => ({
@@ -1536,7 +1521,6 @@ function TeacherHomeworkDetailPage() {
                     onClick={() => {
                         if (!isResetting) {
                             setResetTarget(null);
-                            setResetMessage(null);
                         }
                     }}
                 >
@@ -1560,25 +1544,12 @@ function TeacherHomeworkDetailPage() {
                             Reset <strong>{resetTarget.studentName}</strong>'s homework for{' '}
                             <strong>{homework.title || homework.materialTitle}</strong>? This removes all attempts and linked results.
                         </div>
-                        {resetMessage ? (
-                            <div
-                                style={{
-                                    borderRadius: '0.9rem',
-                                    padding: '0.8rem 0.9rem',
-                                    background: 'rgba(241,245,249,0.9)',
-                                    color: '#334155',
-                                }}
-                            >
-                                {resetMessage}
-                            </div>
-                        ) : null}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
                             <Button
                                 variant="outline"
                                 disabled={isResetting}
                                 onClick={() => {
                                     setResetTarget(null);
-                                    setResetMessage(null);
                                 }}
                             >
                                 Cancel

@@ -4,10 +4,9 @@
  * Phase 7: Course Announcements & Notifications
  */
 
-import { ref, push, set, get, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, get, query, orderByChild, equalTo } from 'firebase/database';
 import { database } from './firebase';
-import { createTrustedBulkNotifications } from './notificationProducerClient';
-import { getEnrollmentsByCourse } from './enrollmentManager';
+import { createCourseAnnouncementAction } from './courseAnnouncementActionClient';
 
 const ANNOUNCEMENTS_REF = 'course_announcements';
 
@@ -27,7 +26,7 @@ export interface CourseAnnouncement {
         size: number;
     }[];
     createdAt: number;
-    sentToStudentIds: string[]; // Track who received the notification
+    sentToStudentIds: string[]; // Immutable active-enrollment snapshot used for notification delivery
 }
 
 /**
@@ -39,74 +38,22 @@ export async function createCourseAnnouncement(
     announcement: Omit<CourseAnnouncement, 'id' | 'createdAt' | 'sentToStudentIds'>
 ): Promise<{ success: boolean; announcementId?: string; notificationIds?: string[]; error?: string }> {
     try {
-        // Validate required fields
-        if (!announcement.courseId || !announcement.teacherId || !announcement.title || !announcement.content) {
+        if (!announcement.courseId || !announcement.title || !announcement.content
+            || !Array.isArray(announcement.targetClassIds)) {
             return { success: false, error: 'Missing required fields' };
         }
-
-        // Get all enrollments for the course
-        const enrollments = await getEnrollmentsByCourse(announcement.courseId);
-
-        // Filter students based on target classes (if specified)
-        let targetStudentIds: string[] = [];
-
-        if (announcement.targetClassIds.length > 0) {
-            // Only students in specified classes
-            targetStudentIds = enrollments
-                .filter(e =>
-                    e.status === 'active' &&
-                    e.sourceClassId &&
-                    announcement.targetClassIds.includes(e.sourceClassId)
-                )
-                .map(e => e.studentId);
-        } else {
-            // All enrolled students
-            targetStudentIds = enrollments
-                .filter(e => e.status === 'active')
-                .map(e => e.studentId);
-        }
-
-        if (targetStudentIds.length === 0) {
-            return { success: false, error: 'No students found to send announcement to' };
-        }
-
-        // Create announcement record
-        const announcementRef = push(ref(database, ANNOUNCEMENTS_REF));
-        const announcementId = announcementRef.key!;
-
-        const announcementData: CourseAnnouncement = {
-            ...announcement,
-            id: announcementId,
-            createdAt: Date.now(),
-            sentToStudentIds: targetStudentIds,
-        };
-
-        await set(announcementRef, announcementData);
-
-        // Create notifications for all target students
-        const notificationResult = await createTrustedBulkNotifications(
-            targetStudentIds,
-            {
-                producerFamily: 'course-announcement',
-                authorityRecordId: announcementId,
-                operationKey: `course-announcement:${announcementId}`,
-                type: 'info',
-                title: `📢 ${announcement.courseName}: ${announcement.title}`,
-                message: stripHtml(announcement.content).substring(0, 200) + '...', // Preview
-                link: `/courses/${announcement.courseId}/announcements/${announcementId}`,
-            }
-        );
-
-        if (!notificationResult.success) {
-            console.warn('Announcement created but notifications failed:', notificationResult.error);
-        }
-
-        console.log(`✅ [Announcement] Created for course ${announcement.courseId}, sent to ${targetStudentIds.length} students`);
+        const result = await createCourseAnnouncementAction({
+            courseId: announcement.courseId,
+            targetClassIds: announcement.targetClassIds,
+            title: announcement.title,
+            content: announcement.content,
+            attachments: announcement.attachments,
+        });
 
         return {
             success: true,
-            announcementId,
-            notificationIds: notificationResult.notificationIds,
+            announcementId: result.announcementId,
+            notificationIds: result.notificationIds,
         };
     } catch (error) {
         console.error('Error creating course announcement:', error);
@@ -204,15 +151,4 @@ export async function getStudentAnnouncements(studentId: string): Promise<Course
         console.error('Error getting student announcements:', error);
         return [];
     }
-}
-
-/**
- * Helper function to strip HTML tags from content
- * @param html - HTML string
- * @returns Plain text
- */
-function stripHtml(html: string): string {
-    const tmp = document.createElement('DIV');
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
 }

@@ -3,6 +3,7 @@ import { buildRoute } from '../constants/routes';
 import type { NotificationType } from '../types/notification.types';
 import {
     createNotificationCommandClient,
+    DEFAULT_NOTIFICATION_WORKER_ORIGIN,
     NotificationCommandClientError,
     type NotificationCommandProducerFamily,
 } from './notificationCommandClient';
@@ -55,8 +56,8 @@ const defaultGetIdToken = async (forceRefresh = false): Promise<string> => {
 
 const createClient = (options: TrustedProducerClientOptions) => {
     const workerOrigin = options.workerOrigin?.trim()
-        || import.meta.env.VITE_NOTIFICATION_COMMAND_WORKER_URL?.trim();
-    if (!workerOrigin) return null;
+        || import.meta.env.VITE_NOTIFICATION_COMMAND_WORKER_URL?.trim()
+        || DEFAULT_NOTIFICATION_WORKER_ORIGIN;
     return createNotificationCommandClient({
         workerOrigin,
         getIdToken: options.getIdToken ?? defaultGetIdToken,
@@ -70,7 +71,6 @@ export async function createTrustedNotification(
 ): Promise<TrustedProducerNotificationResult> {
     try {
         const client = createClient(options);
-        if (!client) return { success: false, error: 'notification_command_unavailable' };
         const operationId = notificationOperationId(`${input.operationKey}:${input.recipientId}`);
         const result = await client.create({
             schemaVersion: 1,

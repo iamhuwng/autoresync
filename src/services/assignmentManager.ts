@@ -9,14 +9,15 @@
  */
 
 import { ref, get, set, update, push, onValue } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 import { database } from './firebase';
 import type {
     StudentTeacherAssignment,
     AssignmentRequest,
     AssignmentHistory
 } from '../types/assignment.types';
-import { getUserByEmail, getUserById } from './userService';
-import { createTrustedNotification } from './notificationProducerClient';
+import { getUserByEmail } from './userService';
+import { wakeAssignmentNotification } from './assignmentActionClient';
 import { logCreate, logDelete } from './auditService';
 
 // ============================================================================
@@ -613,6 +614,9 @@ export async function approveStudentRequest(
     approvedBy: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!approvedBy || getAuth().currentUser?.uid !== approvedBy) {
+            return { success: false, error: 'Approver does not match the signed-in user' };
+        }
         // 1. Get request
         const requestRef = ref(database, `${ASSIGNMENT_REQUESTS_REF}/${requestId}`);
         const snapshot = await get(requestRef);
@@ -633,58 +637,64 @@ export async function approveStudentRequest(
             return { success: false, error: `Student with email ${request.studentEmail} not found` };
         }
 
-        // 3. Create assignment
-        const assignResult = await createAssignment(student.uid, request.teacherId, approvedBy);
-
-        if (!assignResult.success) {
-            // If assignment already exists, we should still mark request as approved/completed to clean up
-            if (assignResult.error && assignResult.error.includes('already exists')) {
-                // Proceed to update request status
-            } else {
-                return { success: false, error: assignResult.error };
-            }
+        // Commit assignment, link, history and the source-bound intent together.
+        const currentAssignments = await get(ref(database, ASSIGNMENTS_REF));
+        const assignments = currentAssignments.exists()
+            ? Object.values(currentAssignments.val() as Record<string, StudentTeacherAssignment>)
+            : [];
+        const existing = assignments.find((item) => item.studentId === student.uid
+            && item.teacherId === request.teacherId && item.status === 'active');
+        const timestamp = now();
+        const assignmentId = existing?.id || generateId();
+        const historyId = existing ? null : push(ref(database, ASSIGNMENT_HISTORY_REF)).key;
+        const notificationIntent: NonNullable<AssignmentRequest['notificationIntent']> = {
+            schemaVersion: 1,
+            actionId: requestId,
+            kind: 'assignment-request-approved',
+            occurredAt: timestamp,
+            dueAt: timestamp + 60 * 60 * 1000,
+            attempts: 0,
+            state: 'pending',
+        };
+        const patch: Record<string, unknown> = {
+            [`${ASSIGNMENT_REQUESTS_REF}/${requestId}`]: {
+                ...request,
+                status: 'approved',
+                reviewedBy: approvedBy,
+                reviewedAt: timestamp,
+                studentId: student.uid,
+                assignmentId,
+                notificationIntent,
+            },
+        };
+        if (!existing) {
+            patch[`${ASSIGNMENTS_REF}/${assignmentId}`] = {
+                id: assignmentId,
+                studentId: student.uid,
+                teacherId: request.teacherId,
+                assignedBy: approvedBy,
+                assignedAt: timestamp,
+                unassignedAt: null,
+                coursesEnrolled: [],
+                status: 'active',
+            } satisfies StudentTeacherAssignment;
+            patch[`${ASSIGNMENT_LINKS_REF}/${request.teacherId}/${student.uid}`] = true;
+            if (historyId) patch[`${ASSIGNMENT_HISTORY_REF}/${historyId}`] = {
+                id: historyId,
+                studentId: student.uid,
+                teacherId: request.teacherId,
+                action: 'assigned',
+                performedBy: approvedBy,
+                timestamp,
+                coursesEnrolled: [],
+            };
         }
-
-        // 4. Update request status
-        await update(requestRef, {
-            status: 'approved',
-            reviewedBy: approvedBy,
-            reviewedAt: now()
+        await update(ref(database), patch);
+        // Keep auditing best-effort; the assignment/request update is already committed.
+        if (!existing) logCreate(null, 'assignment', assignmentId, {
+            studentId: student.uid, teacherId: request.teacherId, assignedBy: approvedBy,
         });
-
-        // 5. Send notifications
-        // Notify Teacher
-        try {
-            const studentName = student.displayName || student.email;
-            await createTrustedNotification({
-                producerFamily: 'assignment',
-                authorityRecordId: requestId,
-                recipientId: request.teacherId,
-                operationKey: `assignment-request-approved:teacher:${requestId}`,
-                type: 'success',
-                title: 'Student Request Approved',
-                message: `Your request for student ${studentName} has been approved.`,
-                link: '/teacher/students'
-            });
-
-            // Notify Student
-            const teacher = await getUserById(request.teacherId);
-            const teacherName = teacher?.displayName || teacher?.email || 'Unknown Teacher';
-
-            await createTrustedNotification({
-                producerFamily: 'assignment',
-                authorityRecordId: requestId,
-                recipientId: student.uid,
-                operationKey: `assignment-request-approved:student:${requestId}`,
-                type: 'info',
-                title: 'New Teacher Assigned',
-                message: `You have been assigned to ${teacherName}.`,
-                link: '/student/dashboard'
-            });
-        } catch (notifyError) {
-            console.error('Error sending notifications:', notifyError);
-            // Non-blocking error
-        }
+        await wakeAssignmentNotification(requestId);
 
         return { success: true };
     } catch (error) {

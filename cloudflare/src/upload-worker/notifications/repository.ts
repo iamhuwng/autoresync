@@ -30,6 +30,7 @@ export interface NotificationCommandWriteResult {
 
 export interface NotificationCommandRepository {
   create(input: NotificationCommandWrite): Promise<NotificationCommandWriteResult>;
+  exists?(recipientId: string, operationId: string): Promise<boolean>;
 }
 
 type StoredNotification = Omit<Notification, 'metadata'> & {
@@ -97,6 +98,10 @@ export class InMemoryNotificationCommandRepository implements NotificationComman
     return { status: 'created', notificationId: input.operationId };
   }
 
+  async exists(recipientId: string, operationId: string): Promise<boolean> {
+    return this.rows.has(pathFor(recipientId, operationId));
+  }
+
   snapshot(): Record<string, StoredNotification> {
     return Object.fromEntries([...this.rows].map(([key, value]) => [key, clone(value)]));
   }
@@ -161,5 +166,11 @@ export class FirebaseRestNotificationCommandRepository implements NotificationCo
       }
     }
     throw new Error('notification_command_cas_retries_exhausted');
+  }
+
+  async exists(recipientId: string, operationId: string): Promise<boolean> {
+    if (!ID.test(recipientId)) throw new Error('invalid_notification_recipient');
+    const current = await this.rtdb.readValue(pathFor(recipientId, operationId));
+    return validStored(current, operationId);
   }
 }

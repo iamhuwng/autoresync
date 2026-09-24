@@ -15,6 +15,7 @@ import {
     getDocFromServer,
     getDocs,
     updateDoc,
+    writeBatch,
     deleteDoc,
     collection,
     query,
@@ -22,6 +23,7 @@ import {
     orderBy,
 } from 'firebase/firestore';
 import { ref, get, push, set, update } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 // @ts-ignore — JS service file
 import { database, firestore as db } from './firebase';
 import { buildRoute } from '../constants/routes';
@@ -39,7 +41,7 @@ import type {
     WritingTaskGradingResult,
     IELTSWritingTest,
 } from '../types/ielts-writing.types';
-import { createTrustedNotification } from './notificationProducerClient';
+import { dispatchWritingNotification } from './writingNotificationClient';
 import { markHomeworkSubmissionGraded } from './homeworkSubmissionService';
 import type { ResultContext } from '../types/solo.types';
 import { resolveResultOwnership } from './resultOwnershipResolver';
@@ -82,6 +84,28 @@ const WRITING_RESET_RTDB_ROOTS = [
 const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
 const isTrustedNotificationIdentifier = (value: unknown): value is string =>
     typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
+const WRITING_NOTIFICATION_INTENTS = 'writing_notification_intents';
+const WRITING_NOTIFICATION_RETRY_DELAY_MS = 60 * 60 * 1000;
+
+const submissionNotificationIntent = (
+    submission: WritingSubmission,
+    recipientKind: 'student' | 'teacher',
+    actorUid: string,
+) => {
+    const eventId = `writing-${submission.id}-submitted-${recipientKind}`;
+    return {
+        schemaVersion: 1,
+        eventId,
+        kind: `writing-submitted-${recipientKind}`,
+        authorityRecordId: submission.id,
+        occurrenceId: eventId,
+        actorUid,
+        occurredAt: submission.submittedAt,
+        dueAt: submission.submittedAt + WRITING_NOTIFICATION_RETRY_DELAY_MS,
+        attempts: 1,
+        state: 'retry_due',
+    } as const;
+};
 
 type WritingResultAcademicContext = {
     courseId?: string | null;
@@ -927,7 +951,28 @@ export const createSubmission = withRestoreGuard<{ success: boolean; error?: str
 ): Promise<{ success: boolean; error?: string }> => {
     try {
         const sanitized = deepRemoveUndefined(data);
-        await setDoc(doc(db, SUBMISSIONS_COLLECTION, data.id), sanitized);
+        const actorUid = getAuth().currentUser?.uid;
+        const intents = data.context.type === 'solo-practice'
+            && actorUid === data.studentId && isTrustedNotificationIdentifier(data.id)
+            ? [
+                submissionNotificationIntent(data, 'student', actorUid),
+                ...(data.context.type === 'solo-practice'
+                    && isTrustedNotificationIdentifier(data.context.selectedTeacherId)
+                    ? [submissionNotificationIntent(data, 'teacher', actorUid)]
+                    : []),
+            ]
+            : [];
+        const batch = writeBatch(db);
+        batch.set(doc(db, SUBMISSIONS_COLLECTION, data.id), sanitized);
+        for (const intent of intents) {
+            batch.set(doc(db, WRITING_NOTIFICATION_INTENTS, intent.eventId), intent);
+        }
+        await batch.commit();
+        for (const intent of intents) {
+            void dispatchWritingNotification(data.id, intent.eventId).catch((error) => {
+                console.warn('[WritingSubmission] Non-blocking writing submission notification failed', error);
+            });
+        }
         console.log('✅ Writing submission created:', data.id);
         return { success: true };
     } catch (error) {
@@ -1239,12 +1284,36 @@ export const publishGrading = withRestoreGuard<{
             previousScores: buildAuditScoreSnapshot(currentPublished),
         };
 
-        await updateDoc(getSubmissionRef(submissionId), deepRemoveUndefined({
+        const canNotify = !options.skipNotification
+            && isTrustedNotificationIdentifier(submission.studentId)
+            && isTrustedNotificationIdentifier(submission.id)
+            && isTrustedNotificationIdentifier(normalizedInputDraft.ownerTeacherId);
+        const eventId = `writing-${submission.id}-graded-${publishedGrading.auditVersion}`;
+        const notificationIntent = canNotify ? {
+            schemaVersion: 1,
+            eventId,
+            kind: 'writing-graded',
+            authorityRecordId: submission.id,
+            occurrenceId: eventId,
+            actorUid: normalizedInputDraft.ownerTeacherId,
+            auditVersion: publishedGrading.auditVersion,
+            occurredAt: now,
+            dueAt: now + 60 * 60 * 1000,
+            attempts: 1,
+            state: 'retry_due',
+        } as const : null;
+
+        const batch = writeBatch(db);
+        batch.update(getSubmissionRef(submissionId), deepRemoveUndefined({
             publishedGrading,
             markingStatus: 'graded',
             gradingDraftMeta: null,
             auditTrail: [...(submission.auditTrail || []), auditEntry],
         }));
+        if (notificationIntent) {
+            batch.set(doc(db, 'writing_notification_intents', eventId), notificationIntent);
+        }
+        await batch.commit();
         await deleteDoc(getGradingDraftRef(submissionId)).catch(() => undefined);
 
         const updatedSubmission: WritingSubmission = {
@@ -1263,23 +1332,8 @@ export const publishGrading = withRestoreGuard<{
             });
         }
 
-        if (
-            !options.skipNotification
-            && isTrustedNotificationIdentifier(submission.studentId)
-            && isTrustedNotificationIdentifier(submission.id)
-            && typeof submission.testMeta.testTitle === 'string'
-            && submission.testMeta.testTitle.trim()
-        ) {
-            await createTrustedNotification({
-                producerFamily: 'writing',
-                authorityRecordId: submission.id,
-                recipientId: submission.studentId,
-                operationKey: `writing-graded:${submission.id}:${publishedGrading.auditVersion}`,
-                type: 'success',
-                title: '\uD83D\uDCCA Writing Graded',
-                message: `${publishedGrading.teacherName ? `${publishedGrading.teacherName} has` : 'Your teacher has'} graded your essay "${submission.testMeta.testTitle}". Overall Band: ${publishedGrading.overallBand.toFixed(1)}`,
-                link: buildRoute('STUDENT_ACADEMIC_RECORD'),
-            }).catch((error) => {
+        if (notificationIntent) {
+            await dispatchWritingNotification(submission.id, eventId).catch((error) => {
                 console.warn('[WritingSubmission] Non-blocking writing graded notification failed', error);
             });
         }
@@ -1842,7 +1896,17 @@ export const autoSubmitFromRTDB = withRestoreGuard(
         };
 
         const sanitized = deepRemoveUndefined(submission);
-        await setDoc(doc(db, SUBMISSIONS_COLLECTION, resultId), sanitized);
+        const actorUid = getAuth().currentUser?.uid;
+        const studentIntent = actorUid && submission.context.type === 'live-session'
+            && isTrustedNotificationIdentifier(resultId)
+            && isTrustedNotificationIdentifier(studentUid)
+            && (actorUid === studentUid || actorUid === submission.context.assigningTeacherId)
+            ? submissionNotificationIntent(submission, 'student', actorUid)
+            : null;
+        const batch = writeBatch(db);
+        batch.set(doc(db, SUBMISSIONS_COLLECTION, resultId), sanitized);
+        if (studentIntent) batch.set(doc(db, WRITING_NOTIFICATION_INTENTS, studentIntent.eventId), studentIntent);
+        await batch.commit();
         const materializeResult = await materializeSubmissionResult(submission);
         if (!materializeResult.success) {
             console.error('❌ Failed to materialize writing auto-submit result:', materializeResult.error);
@@ -1870,23 +1934,10 @@ export const autoSubmitFromRTDB = withRestoreGuard(
 
         console.log('✅ Writing auto-submitted:', resultId, 'for student:', studentName);
 
-        // Fire notification (non-blocking)
-        if (
-            isTrustedNotificationIdentifier(studentUid)
-            && isTrustedNotificationIdentifier(resultId)
-            && typeof testData.metadata.title === 'string'
-            && testData.metadata.title.trim()
-        ) {
-            void createTrustedNotification({
-                producerFamily: 'writing',
-                authorityRecordId: resultId,
-                recipientId: studentUid,
-                operationKey: `writing-submitted:${resultId}`,
-                type: 'success',
-                title: '\u270D\uFE0F Writing Submitted',
-                message: `Your class session essay for "${testData.metadata.title}" has been submitted. A teacher will review it soon.`,
-                link: buildRoute('STUDENT_ACADEMIC_RECORD'),
-            }).catch(err => console.warn('[autoSubmitFromRTDB] Notification failed:', err));
+        if (studentIntent) {
+            void dispatchWritingNotification(resultId, studentIntent.eventId).catch((error) => {
+                console.warn('[autoSubmitFromRTDB] Non-blocking writing submission notification failed:', error);
+            });
         }
     } catch (error) {
         console.error('❌ Failed to auto-submit writing:', error);

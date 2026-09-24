@@ -28,20 +28,16 @@ import {
   ownerSessionIndexPath,
   resolveSessionOwnerId,
 } from './sessionOwnerIndex';
-import { buildRoute } from '../constants/routes';
-import { createTrustedBulkNotifications } from './notificationProducerClient';
+import {
+  buildSessionNotificationWrites,
+  deliverSessionNotificationNow,
+  sessionNotificationEventId,
+} from './sessionNotificationActionClient';
 
 // Session expiration time (24 hours in milliseconds)
 const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
 const MAX_EXTENSION_HOURS = 24 * 7;
 const MAX_EXPIRY_FROM_NOW_MS = 30 * 24 * 60 * 60 * 1000;
-
-const getClassStudentIds = async (classId) => {
-  const snapshot = await get(ref(database, `classes/${classId}/students`));
-  if (!snapshot.exists()) return [];
-  const students = snapshot.val();
-  return students && typeof students === 'object' ? Object.keys(students).filter(Boolean) : [];
-};
 
 const addOwnerIndexUpdate = (updates, sessionCode, session, now) => {
   const ownerId = resolveSessionOwnerId(session);
@@ -205,7 +201,31 @@ export async function createSession({ testId, mode = SessionMode.TEST, settings 
       sessionData.testId = contentId;
     }
 
-    // Save to Firebase under game_sessions/{sessionCode}
+    // Snapshot the full class roster into the same session creation commit.
+    let notificationEvent;
+    if (classId) {
+      if (!createdBy) throw new Error('session_notification_actor_missing');
+      const [classSnapshot, testSnapshot] = await Promise.all([
+        get(ref(database, `classes/${classId}`)),
+        hasContent ? get(ref(database, `tests/${contentId}`)) : Promise.resolve(null),
+      ]);
+      if (!classSnapshot.exists()) throw new Error('session_notification_class_missing');
+      const classData = classSnapshot.val();
+      const testData = testSnapshot?.exists() ? testSnapshot.val() : null;
+      const recipientIds = classData?.students && typeof classData.students === 'object'
+        ? Object.keys(classData.students) : [];
+      notificationEvent = buildSessionNotificationWrites({
+        kind: 'session-opened', sessionCode, actorUid: createdBy, classId,
+        className: typeof classData.name === 'string' ? classData.name : classId,
+        testId: hasContent ? contentId : null,
+        testName: !hasContent ? 'Test' : typeof testData?.title === 'string' ? testData.title
+          : typeof testData?.metadata?.title === 'string' ? testData.metadata.title : contentId || 'Test',
+        marker: now, recipientIds,
+      });
+      if (notificationEvent) sessionData.notificationEvents = { [notificationEvent.event.eventId]: notificationEvent.event };
+    }
+
+    // Save session, owner index, class projection, event snapshot, and queue atomically.
     const updates = {};
     updates[`game_sessions/${sessionCode}`] = sessionData;
     if (typeof createdBy === 'string' && createdBy.trim()) {
@@ -213,13 +233,12 @@ export async function createSession({ testId, mode = SessionMode.TEST, settings 
         ...sessionData,
         createdByUserId: createdBy,
       }, now);
-      if (indexRecord) {
-        updates[ownerSessionIndexPath(createdBy, sessionCode)] = indexRecord;
-      }
+      if (indexRecord) updates[ownerSessionIndexPath(createdBy, sessionCode)] = indexRecord;
     }
-
-    // If linked to a class, add to classes/{classId}/activeSessions
     if (classId) {
+      if (notificationEvent) {
+        updates[`session_notification_intents/${notificationEvent.queue.eventId}`] = notificationEvent.queue;
+      }
       updates[`classes/${classId}/activeSessions/${sessionCode}`] = {
         mode,
         status: SessionStatus.WAITING,
@@ -246,26 +265,9 @@ export async function createSession({ testId, mode = SessionMode.TEST, settings 
     if (classId) console.log(`   Linked to Class: ${classId}`);
     if (courseId) console.log(`   Course Context: ${courseId}${moduleId ? ` / Module: ${moduleId}` : ''}`);
 
-    // Fire-and-forget: notify enrolled class students that a new session is available
     if (classId) {
-      const classNamePromise = get(ref(database, `classes/${classId}/name`))
-        .then(snapshot => snapshot.exists() ? snapshot.val() : 'Your class')
-        .catch(() => 'Your class');
-      void Promise.all([
-        classNamePromise,
-        getClassStudentIds(classId),
-      ]).then(async ([className, studentIds]) => {
-        if (studentIds.length === 0) return;
-        await createTrustedBulkNotifications(studentIds, {
-          producerFamily: 'session',
-          authorityRecordId: sessionCode,
-          operationKey: `session-opened:${sessionCode}`,
-          type: 'info',
-          title: '📚 New Session Available',
-          message: `${className} has a new test session ready. Join with code ${sessionCode}.`,
-          link: buildRoute('STUDENT_WAITING', { gameSessionId: sessionCode }),
-        });
-      }).catch(err => console.warn('[Session] Feed notification failed (non-blocking):', err));
+      const eventId = sessionNotificationEventId('session-opened', sessionCode, now);
+      void deliverSessionNotificationNow(eventId).catch(err => console.warn('[Session] Feed notification failed (non-blocking):', err));
     }
 
     return {

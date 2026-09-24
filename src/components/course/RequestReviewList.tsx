@@ -4,9 +4,10 @@ import {
 } from '@tabler/icons-react';
 import { getRequestsByCourse, processCourseRequest } from '../../services/courseRequestManager';
 import { enrollStudentInCourse, unenrollStudent } from '../../services/enrollmentManager';
-import { createTrustedNotification } from '../../services/notificationProducerClient';
 import type { CourseRequest } from '../../types/course.types';
 import { useAuth } from '../../hooks/useAuth';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 import { toast } from '../modern';
 
 interface RequestReviewListProps {
@@ -14,8 +15,9 @@ interface RequestReviewListProps {
     courseName?: string;
 }
 
-export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId, courseName }) => {
+export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId }) => {
     const { user } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.courses);
     const [requests, setRequests] = useState<CourseRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId, 
 
     const handleApprove = async (request: CourseRequest) => {
         if (!user) return;
+        trackAction('approveCourseRequest', { requestId: request.id });
         setProcessing(request.id);
         try {
             // 1. Update Database (Actual Enrollment/Unenrollment)
@@ -63,24 +66,11 @@ export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId, 
             }
 
             // 2. Mark request as approved
-            await processCourseRequest(request.id, 'approved', user.uid);
+            const processed = await processCourseRequest(request.id, 'approved', user.uid);
+            if (!processed.success) throw new Error(processed.error || 'Could not process request');
 
-            // 3. Send Notification
-            await createTrustedNotification({
-                producerFamily: 'enrollment',
-                authorityRecordId: request.id,
-                recipientId: request.studentId,
-                operationKey: `course-request-approved:${request.id}`,
-                type: 'success',
-                title: request.type === 'join' ? 'Enrollment Approved' : 'Unenrollment Approved',
-                message: request.type === 'join'
-                    ? `You have been enrolled in ${courseName || request.courseName || 'the course'}.`
-                    : `Your unenrollment from ${courseName || request.courseName || 'the course'} has been approved.`,
-                link: request.type === 'join' ? `/student/courses/${request.courseId}` : '/student/courses'
-            });
-
-            // 4. Update UI
             setRequests(prev => prev.filter(r => r.id !== request.id));
+            toast.success('Course request approved.');
         } catch (err) {
             toast.error('Failed to approve request: ' + (err instanceof Error ? err.message : 'Unknown error'));
         } finally {
@@ -90,24 +80,16 @@ export const RequestReviewList: React.FC<RequestReviewListProps> = ({ courseId, 
 
     const handleDeny = async () => {
         if (!user || !denialRequest) return;
+        trackAction('denyCourseRequest', { requestId: denialRequest.id });
         setProcessing(denialRequest.id);
         try {
-            await processCourseRequest(denialRequest.id, 'denied', user.uid, rejectionReason);
-
-            // Send Notification
-            await createTrustedNotification({
-                producerFamily: 'enrollment',
-                authorityRecordId: denialRequest.id,
-                recipientId: denialRequest.studentId,
-                operationKey: `course-request-denied:${denialRequest.id}`,
-                type: 'info',
-                title: denialRequest.type === 'join' ? 'Enrollment Denied' : 'Unenrollment Denied',
-                message: `Your ${denialRequest.type} request for ${courseName || denialRequest.courseName || 'the course'} was denied.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`
-            });
+            const processed = await processCourseRequest(denialRequest.id, 'denied', user.uid, rejectionReason);
+            if (!processed.success) throw new Error(processed.error || 'Could not process request');
 
             setRequests(prev => prev.filter(r => r.id !== denialRequest.id));
             setDenialRequest(null);
             setRejectionReason('');
+            toast.success('Course request denied.');
         } catch (err) {
             toast.error('Failed to deny request');
         } finally {

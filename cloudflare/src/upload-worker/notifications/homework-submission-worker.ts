@@ -8,8 +8,26 @@ import {
   FirebaseRestNotificationCommandRepository,
   type NotificationCommandRepository,
 } from './repository.ts';
+import { parseClassAction, performClassAction, type ClassActionStorage } from './class-action.ts';
+import { FirebaseClassActionStorage } from './class-action-store.ts';
+import { markHomeworkNotificationDelivered } from './homework-retry.ts';
+import {
+  createCourseTypeDecisionHandlers,
+  readCourseTypeDecisionDispatchRequest,
+} from './course-type-decision-delivery.ts';
+import { FirebaseCourseTypeDecisionStorage } from './course-type-decision-store.ts';
+import { handleDeadlineNotificationAction } from './deadline-notification-worker.ts';
+import { parseEnrollmentAction, performEnrollmentAction } from './enrollment-action.ts';
+import { FirebaseCourseRequestNotificationStorage } from './enrollment-action-store.ts';
+import { parseAssignmentAction, performAssignmentAction } from './assignment-action.ts';
+import { FirebaseAssignmentNotificationStorage } from './assignment-action-store.ts';
 
 const COMMAND_PATH = '/book-notifications/commands';
+const CLASS_ACTION_PATH = '/class-notifications/actions';
+const COURSE_TYPE_PATH = '/notifications/course-type-decisions/dispatch';
+const DEADLINE_ACTION_PATH = '/deadline-notifications/actions';
+const ENROLLMENT_ACTION_PATH = '/enrollment-notifications/actions';
+const ASSIGNMENT_ACTION_PATH = '/assignment-notifications/actions';
 const ALLOWED_ORIGINS = new Set([
   'https://kahut1.web.app',
   'http://localhost:5173',
@@ -27,6 +45,7 @@ export interface HomeworkSubmissionNotificationWorkerOptions {
   readonly firebaseVerifier?: FirebaseVerifier;
   readonly repositoryFactory?: (env: WorkerEnv) => NotificationCommandRepository;
   readonly readDatabaseValue?: (env: WorkerEnv, path: string) => Promise<unknown>;
+  readonly classStorageFactory?: (env: WorkerEnv) => ClassActionStorage;
   readonly now?: () => number;
 }
 
@@ -128,8 +147,6 @@ const trustedHomeworkSubmission = (
   },
 ): {
   readonly homeworkId: string;
-  readonly studentName: string;
-  readonly sourceTitle: string;
 } | null => {
   const record = asRecord(result);
   const context = asRecord(record?.context);
@@ -146,16 +163,7 @@ const trustedHomeworkSubmission = (
   const homeworkId = visibility.homeworkId;
   if (typeof homeworkId !== 'string' || !SAFE_ID.test(homeworkId)) return null;
 
-  const studentName = typeof record.studentName === 'string' && record.studentName.trim()
-    ? record.studentName.trim()
-    : 'A student';
-  const sourceTitle = typeof record.testTitle === 'string' && record.testTitle.trim()
-    ? record.testTitle.trim()
-    : typeof visibility.sourceNameSnapshot === 'string' && visibility.sourceNameSnapshot.trim()
-      ? visibility.sourceNameSnapshot.trim()
-      : 'Homework';
-
-  return { homeworkId, studentName, sourceTitle };
+  return { homeworkId };
 };
 
 const limiterFrom = (env: WorkerEnv): RateLimiter | null => {
@@ -171,12 +179,16 @@ export const createHomeworkSubmissionNotificationWorker = (
   const firebaseVerifier = options.firebaseVerifier ?? createFirebaseVerifier();
   const repositoryFactory = options.repositoryFactory ?? defaultRepositoryFactory;
   const readDatabaseValue = options.readDatabaseValue ?? defaultReadDatabaseValue;
+  const classStorageFactory = options.classStorageFactory ?? ((env: WorkerEnv) => new FirebaseClassActionStorage(env));
   const now = options.now ?? Date.now;
 
   return {
     async fetch(request: Request, env: WorkerEnv): Promise<Response> {
       const url = new URL(request.url);
-      if (url.pathname !== COMMAND_PATH || url.search || url.hash) {
+      if ((url.pathname !== COMMAND_PATH && url.pathname !== CLASS_ACTION_PATH
+        && url.pathname !== COURSE_TYPE_PATH && url.pathname !== DEADLINE_ACTION_PATH
+        && url.pathname !== ENROLLMENT_ACTION_PATH && url.pathname !== ASSIGNMENT_ACTION_PATH)
+        || url.search || url.hash) {
         return json(request, { code: 'notification_command_not_found' }, 404);
       }
 
@@ -204,13 +216,63 @@ export const createHomeworkSubmissionNotificationWorker = (
         return json(request, { code: 'notification_command_unavailable' }, 503);
       }
       const limited = await limiter.limit({
-        key: `homework-submission:${auth.uid}`,
+        key: `${url.pathname === CLASS_ACTION_PATH ? 'class-action'
+          : url.pathname === COURSE_TYPE_PATH ? 'course-type-decision'
+            : url.pathname === DEADLINE_ACTION_PATH ? 'deadline-reminder'
+              : url.pathname === ENROLLMENT_ACTION_PATH ? 'enrollment-decision'
+                : url.pathname === ASSIGNMENT_ACTION_PATH ? 'assignment-approval' : 'homework-submission'}:${auth.uid}`,
       });
       if (!limited.success) {
         return json(request, { code: 'rate_limited' }, 429);
       }
 
       try {
+        if (url.pathname === ENROLLMENT_ACTION_PATH) {
+          const command = await parseEnrollmentAction(request);
+          const result = await performEnrollmentAction({
+            command, actorUid: auth.uid,
+            storage: new FirebaseCourseRequestNotificationStorage(env),
+            repository: () => repositoryFactory(env), now,
+          });
+          return json(request, result.body, result.status);
+        }
+        if (url.pathname === ASSIGNMENT_ACTION_PATH) {
+          const command = await parseAssignmentAction(request);
+          const result = await performAssignmentAction({
+            command, actorUid: auth.uid,
+            storage: new FirebaseAssignmentNotificationStorage(env),
+            repository: () => repositoryFactory(env), now,
+          });
+          return json(request, result.body, result.status);
+        }
+        if (url.pathname === DEADLINE_ACTION_PATH) {
+          const result = await handleDeadlineNotificationAction(request, env, auth.uid);
+          return json(request, result.body, result.init.status ?? 200);
+        }
+        if (url.pathname === COURSE_TYPE_PATH) {
+          const command = await readCourseTypeDecisionDispatchRequest(request);
+          const handlers = createCourseTypeDecisionHandlers({
+            storage: new FirebaseCourseTypeDecisionStorage(env),
+            repository: repositoryFactory(env),
+            now,
+          });
+          const result = await handlers.dispatch({ requestId: command.requestId, actorUid: auth.uid });
+          const status = result.status === 'forbidden' ? 403
+            : result.status === 'not_found' ? 404
+              : result.status === 'stale' ? 409 : 200;
+          return json(request, result, status);
+        }
+        if (url.pathname === CLASS_ACTION_PATH) {
+          const command = await parseClassAction(request);
+          const result = await performClassAction({
+            command,
+            actorUid: auth.uid,
+            storage: classStorageFactory(env),
+            repository: () => repositoryFactory(env),
+            now,
+          });
+          return json(request, result.body, result.status);
+        }
         const command = await readNotificationCommand(request);
         if (command.producerFamily !== 'homework' || command.authority.kind !== 'homework') {
           return json(request, { code: 'notification_command_recipient_forbidden' }, 403);
@@ -231,7 +293,7 @@ export const createHomeworkSubmissionNotificationWorker = (
         const expectedOperationId = notificationOperationId(
           `homework-submitted:teacher:${command.authority.recordId}:${command.recipientId}`,
         );
-        const expectedMessage = `${canonical.studentName} submitted "${canonical.sourceTitle}".`;
+        const expectedMessage = 'A student submitted homework.';
         if (command.operationId !== expectedOperationId
           || command.notification.type !== 'info'
           || command.notification.title !== 'Homework Submitted'
@@ -246,12 +308,33 @@ export const createHomeworkSubmissionNotificationWorker = (
           notification: command.notification,
           now: now(),
         });
+        if (result.status !== 'idempotency-conflict') {
+          try {
+            await markHomeworkNotificationDelivered(env, {
+              resultId: command.authority.recordId,
+              studentId: auth.uid,
+              teacherId: command.recipientId,
+              homeworkId: canonical.homeworkId,
+            });
+          } catch (error) {
+            console.warn('Homework notification delivery marker deferred to retry:', error);
+          }
+        }
         return json(request, {
           status: result.status,
           operationId: command.operationId,
           notificationId: result.notificationId,
         }, result.status === 'idempotency-conflict' ? 409 : 200);
       } catch (error) {
+        if (error instanceof Error && (
+          error.message === 'content_type_required'
+          || error.message.startsWith('class_action_')
+          || error.message.startsWith('course_type_notification_')
+          || error.message.startsWith('enrollment_action_')
+          || error.message.startsWith('assignment_action_')
+        )) {
+          return json(request, { code: error.message }, 400);
+        }
         if (error instanceof NotificationCommandSchemaError) {
           return json(request, { code: error.code }, error.status);
         }

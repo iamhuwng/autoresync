@@ -19,14 +19,18 @@ import { database } from './firebase';
 import { ref, set, get, push, update } from 'firebase/database';
 
 const {
-    mockCreateTrustedNotification,
+    mockDispatchTestCompleteNotification,
+    mockGetAuth,
+    mockMarkResultReviewed,
     mockResolveResultOwnership,
     mockClassifyTeacherResultVisibility,
     mockClearUnresolvedResultVisibilityReport,
     mockUpsertUnresolvedResultVisibilityReport,
     mockTriggerFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
-    mockCreateTrustedNotification: vi.fn(),
+    mockDispatchTestCompleteNotification: vi.fn(),
+    mockGetAuth: vi.fn(),
+    mockMarkResultReviewed: vi.fn(),
     mockResolveResultOwnership: vi.fn(),
     mockClassifyTeacherResultVisibility: vi.fn(),
     mockClearUnresolvedResultVisibilityReport: vi.fn(),
@@ -46,6 +50,8 @@ vi.mock('firebase/database', () => ({
     push: vi.fn(),
     update: vi.fn()
 }));
+
+vi.mock('firebase/auth', () => ({ getAuth: mockGetAuth }));
 
 // Mock autoMarking service
 vi.mock('./autoMarking.service', () => ({
@@ -70,8 +76,12 @@ vi.mock('./resultVisibilityReporting.service', () => ({
     upsertUnresolvedResultVisibilityReport: mockUpsertUnresolvedResultVisibilityReport,
 }));
 
-vi.mock('./notificationProducerClient', () => ({
-    createTrustedNotification: mockCreateTrustedNotification,
+vi.mock('./testCompleteNotificationClient', () => ({
+    dispatchTestCompleteNotification: mockDispatchTestCompleteNotification,
+}));
+
+vi.mock('./resultReviewActionClient', () => ({
+    markResultReviewed: mockMarkResultReviewed,
 }));
 
 vi.mock('./resultFeedbackGeneration.service', () => ({
@@ -134,7 +144,11 @@ describe('testResults.service', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (ref as any).mockImplementation((_database: unknown, path?: string) => path ?? '__root__');
-        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
+        mockGetAuth.mockReturnValue(undefined);
+        mockDispatchTestCompleteNotification.mockResolvedValue(undefined);
+        mockMarkResultReviewed.mockResolvedValue({
+            status: 'committed', eventId: '00000000-0000-4000-8000-000000000121', notificationStatus: 'delivered',
+        });
         mockClearUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockUpsertUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockResolveResultOwnership.mockImplementation(async ({ result }: any) => ({
@@ -236,16 +250,48 @@ describe('testResults.service', () => {
                 })
             );
             expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledWith('result-123');
-            expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-                producerFamily: 'result',
-                authorityRecordId: 'result-123',
-                recipientId: studentId,
-                operationKey: 'test-complete:result-123',
-                type: 'success',
-                title: '\u2705 Test Complete',
-                message: 'You completed "Test". Score: 10/20',
-                link: '/result/result-123',
-            });
+            expect(updates['test_results/result-123']).not.toHaveProperty('testCompleteNotificationIntent');
+            expect(mockDispatchTestCompleteNotification).not.toHaveBeenCalled();
+        });
+
+        it('persists an ordinary completion intent atomically for the authenticated student', async () => {
+            (push as any).mockReturnValue({ key: 'result-complete-1' });
+            mockGetAuth.mockReturnValue({ currentUser: { uid: 'student-1' } });
+            await saveTestResult(
+                'SESSION-1', 'TEST-1', 'student-1', 'Student Name',
+                { totalScore: 6, maxScore: 10, percentage: 60, completedAt: 2000, questionResults: [],
+                    summary: { correct: 6, incorrect: 4, partialCredit: 0, totalQuestions: 10 } } as any,
+                { title: 'Ordinary Test', type: 'reading', skill: 'reading', duration: 30 }, 500,
+                'teacher-1', false,
+            );
+
+            expect(set).toHaveBeenCalledWith(expect.objectContaining({ key: 'result-complete-1' }), expect.objectContaining({
+                testCompleteNotificationIntent: {
+                    schemaVersion: 1, actionId: 'result-complete-1', kind: 'test-completed',
+                    actorUid: 'student-1', actorRole: 'student', occurredAt: 2000, dueAt: 2000,
+                    attempts: 0, state: 'pending',
+                },
+            }));
+            expect(mockDispatchTestCompleteNotification).toHaveBeenCalledWith('result-complete-1');
+        });
+
+        it('records the teacher actor for a disconnected class-session auto-submit', async () => {
+            (push as any).mockReturnValue({ key: 'result-auto-1' });
+            mockGetAuth.mockReturnValue({ currentUser: { uid: 'teacher-1' } });
+            await saveTestResult(
+                'SESSION-1', 'TEST-1', 'student-1', 'Student Name',
+                { totalScore: 6, maxScore: 10, percentage: 60, completedAt: 2000, questionResults: [],
+                    summary: { correct: 6, incorrect: 4, partialCredit: 0, totalQuestions: 10 } } as any,
+                { title: 'Ordinary Test', type: 'reading', skill: 'reading', duration: 30 }, 500,
+                'teacher-1', false, undefined, undefined,
+                { type: 'class_session', source: { type: 'class', id: 'SESSION-1', name: 'Ordinary Test' },
+                    sessionCode: 'SESSION-1', configApplied: { feedbackTiming: 'after_completion', source: 'teacher_override' } },
+            );
+
+            expect(set).toHaveBeenCalledWith(expect.objectContaining({ key: 'result-auto-1' }), expect.objectContaining({
+                testCompleteNotificationIntent: expect.objectContaining({ actorUid: 'teacher-1', actorRole: 'teacher' }),
+            }));
+            expect(mockDispatchTestCompleteNotification).toHaveBeenCalledWith('result-auto-1');
         });
 
         it('writes a stable solo result id with operation identity for idempotent reload recovery', async () => {
@@ -345,7 +391,7 @@ describe('testResults.service', () => {
             expect(resultId).toBe('listening_solo__self_study__student-1__TEST-1__attempt-001__submit');
             expect(set).not.toHaveBeenCalled();
             expect(update).not.toHaveBeenCalled();
-            expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+            expect(mockDispatchTestCompleteNotification).not.toHaveBeenCalled();
             expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
         });
 
@@ -2658,28 +2704,9 @@ describe('testResults.service', () => {
 
             await markAsReviewed('result-test-1', 'teacher-1');
 
-            // Verify update was called
-            expect(update).toHaveBeenCalled();
-            const updateCall = (update as any).mock.calls.find((call: any[]) =>
-                call[1] && call[1].markingStatus === 'reviewed'
-            );
-            expect(updateCall).toBeDefined();
-            const updates = updateCall[1];
-
-            expect(updates.markingStatus).toBe('reviewed');
-            expect(updates.reviewedBy).toBe('teacher-1');
-            expect(updates.reviewedAt).toBeDefined();
-            expect(updates.updatedAt).toBeDefined();
-            expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-                producerFamily: 'result',
-                authorityRecordId: 'result-test-1',
-                recipientId: 'student-1',
-                operationKey: 'result-reviewed:result-test-1',
-                type: 'success',
-                title: 'Writing Test Reviewed',
-                message: 'teacher-1 has reviewed your writing test "Writing Test 1". View your score.',
-                link: '/result/result-test-1',
-            });
+            expect(mockMarkResultReviewed).toHaveBeenCalledWith('result-test-1');
+            expect((update as any).mock.calls.some((call: any[]) => call[1]?.markingStatus === 'reviewed')).toBe(false);
+            expect(mockDispatchTestCompleteNotification).not.toHaveBeenCalled();
         });
 
         it('should throw error if result not found', async () => {
@@ -2720,7 +2747,7 @@ describe('testResults.service', () => {
                 .rejects.toThrow("Cannot mark as reviewed: current status is 'auto-marked'");
         });
 
-        it('should handle notification failure gracefully', async () => {
+        it('keeps the review request successful when the Worker records a pending notification retry', async () => {
             const { markAsReviewed } = await import('./testResults.service');
 
             (get as any).mockResolvedValue({
@@ -2728,13 +2755,11 @@ describe('testResults.service', () => {
                 val: () => mockResult
             });
 
-            mockCreateTrustedNotification.mockRejectedValueOnce(new Error('Notification failed'));
-
-            // Should not throw even if notification fails
+            mockMarkResultReviewed.mockResolvedValueOnce({
+                status: 'committed', eventId: '00000000-0000-4000-8000-000000000121', notificationStatus: 'retry_due',
+            });
             await expect(markAsReviewed('result-test-1', 'teacher-1')).resolves.not.toThrow();
-
-            // But status update should still happen
-            expect(update).toHaveBeenCalled();
+            expect(mockMarkResultReviewed).toHaveBeenCalledWith('result-test-1');
         });
 
         it('skips the reviewed notification when the canonical result authority is missing', async () => {
@@ -2745,10 +2770,8 @@ describe('testResults.service', () => {
                 val: () => ({ ...mockResult, resultId: '' }),
             });
 
-            await markAsReviewed('result-test-1', 'teacher-1');
-
-            expect(update).toHaveBeenCalled();
-            expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+            await expect(markAsReviewed('result-test-1', 'teacher-1')).rejects.toThrow('Result authority mismatch');
+            expect(mockMarkResultReviewed).not.toHaveBeenCalled();
         });
     });
 

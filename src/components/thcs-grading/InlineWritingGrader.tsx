@@ -5,14 +5,8 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { ref, update } from 'firebase/database';
-import { database } from '../../services/firebase';
-import { createTrustedNotification } from '../../services/notificationProducerClient';
-import { Card, Button } from '../modern';
-
-const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
-const isTrustedNotificationIdentifier = (value: unknown): value is string =>
-    typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
+import { submitManualThcsGrade } from '../../services/manualThcsGradeClient';
+import { Card, Button, toast } from '../modern';
 
 interface WritingAnswer {
     studentId: string;
@@ -43,8 +37,6 @@ const SCORE_PRESETS = [0, 0.25, 0.5, 0.75, 1.0];
 
 export const InlineWritingGrader: React.FC<InlineWritingGraderProps> = ({
     sessionCode,
-    testName,
-    studentId,
     studentName,
     writingAnswers,
     onClose,
@@ -93,44 +85,20 @@ export const InlineWritingGrader: React.FC<InlineWritingGraderProps> = ({
             const finalScore = scores[current.questionNumber] ?? 0;
             const finalFeedback = feedbacks[current.questionNumber] ?? '';
 
-            const updatePath = `game_sessions/${sessionCode}/results/${studentId}/questionResults/${current.questionNumber}`;
-            await update(ref(database, updatePath), {
+            await submitManualThcsGrade({
+                sessionCode,
+                studentId: current.studentId,
+                questionNumber: current.questionNumber,
                 pointsEarned: finalScore,
-                isCorrect: finalScore > 0,
-                'writingResult/teacherScore': finalScore,
-                'writingResult/teacherFeedback': finalFeedback || null,
-                'writingResult/gradingTier': 'teacher-graded',
+                feedback: finalFeedback,
             });
-
-            // Notify the student (fire-and-forget) using the canonical answer
-            // recipient. The monitor's studentId prop remains only the RTDB
-            // write target and is never trusted as a notification recipient.
-            const recipientId = current.studentId;
-            if (
-                isTrustedNotificationIdentifier(recipientId)
-                && isTrustedNotificationIdentifier(sessionCode)
-                && Number.isSafeInteger(current.questionNumber)
-                && typeof testName === 'string'
-                && testName.trim()
-            ) {
-                void createTrustedNotification({
-                    producerFamily: 'result',
-                    authorityRecordId: sessionCode,
-                    recipientId,
-                    operationKey: `grade-updated:${sessionCode}:${recipientId}:${current.questionNumber}`,
-                    type: 'success',
-                    title: 'Grade Updated',
-                    message: `Your answer for Q${current.questionNumber} in "${testName}" has been graded: ${finalScore} points.`,
-                }).catch((error) => {
-                    console.warn('[InlineWritingGrader] Grade notification failed:', error);
-                });
-            }
+            toast.success('Grade saved.');
 
             // Move to next question
             setCurrentIndex(prev => prev + 1);
         } catch (err) {
             console.error('Failed to submit grade:', err);
-            alert('Failed to submit grade. Please try again.');
+            toast.error('Could not save this grade. Please try again.');
         } finally {
             setSubmitting(false);
         }

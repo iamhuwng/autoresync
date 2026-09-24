@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { get, push, set, update } from 'firebase/database';
-import { deleteDoc, getDoc, getDocFromServer, getDocs, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, getDoc, getDocFromServer, getDocs, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import {
     autoSubmitFromRTDB,
+    createSubmission,
     getWritingSubmissionForGrading,
     materializeSubmissionResult,
     publishGrading,
@@ -14,13 +15,25 @@ const {
     mockClearUnresolvedResultVisibilityReport,
     mockUpsertUnresolvedResultVisibilityReport,
     mockMarkHomeworkSubmissionGraded,
-    mockCreateTrustedNotification,
+    mockDispatchWritingNotification,
+    mockWriteBatchSet,
+    mockWriteBatchUpdate,
+    mockWriteBatchCommit,
+    mockAuth,
 } = vi.hoisted(() => ({
     mockResolveResultOwnership: vi.fn(),
     mockClearUnresolvedResultVisibilityReport: vi.fn(),
     mockUpsertUnresolvedResultVisibilityReport: vi.fn(),
     mockMarkHomeworkSubmissionGraded: vi.fn(),
-    mockCreateTrustedNotification: vi.fn(),
+    mockDispatchWritingNotification: vi.fn(),
+    mockWriteBatchSet: vi.fn(),
+    mockWriteBatchUpdate: vi.fn(),
+    mockWriteBatchCommit: vi.fn(),
+    mockAuth: { uid: 'teacher-1' },
+}));
+
+vi.mock('firebase/auth', () => ({
+    getAuth: () => ({ currentUser: mockAuth }),
 }));
 
 vi.mock('./firebase', () => ({
@@ -45,6 +58,11 @@ vi.mock('firebase/firestore', () => ({
     getDocFromServer: vi.fn(),
     getDocs: vi.fn(),
     updateDoc: vi.fn(),
+    writeBatch: vi.fn(() => ({
+        update: mockWriteBatchUpdate,
+        set: mockWriteBatchSet,
+        commit: mockWriteBatchCommit,
+    })),
     collection: vi.fn(),
     query: vi.fn(),
     where: vi.fn(),
@@ -58,8 +76,8 @@ vi.mock('./restoreGuard', () => ({
                 fn,
 }));
 
-vi.mock('./notificationProducerClient', () => ({
-    createTrustedNotification: mockCreateTrustedNotification,
+vi.mock('./writingNotificationClient', () => ({
+    dispatchWritingNotification: mockDispatchWritingNotification,
 }));
 
 vi.mock('./homeworkSubmissionService', () => ({
@@ -112,7 +130,9 @@ describe('writingSubmissionService', () => {
         mockClearUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockUpsertUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockMarkHomeworkSubmissionGraded.mockResolvedValue(undefined);
-        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
+        mockDispatchWritingNotification.mockResolvedValue(undefined);
+        mockWriteBatchCommit.mockResolvedValue(undefined);
+        mockAuth.uid = 'teacher-1';
         (setDoc as any).mockResolvedValue(undefined);
         (set as any).mockResolvedValue(undefined);
         (deleteDoc as any).mockResolvedValue(undefined);
@@ -197,6 +217,30 @@ describe('writingSubmissionService', () => {
         expect(indexUpdates['test_results_by_teacher/teacher-legacy/result-1']).toBeUndefined();
         expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledWith('result-1');
         expect(mockUpsertUnresolvedResultVisibilityReport).not.toHaveBeenCalled();
+    });
+
+    it('records student and verified-candidate teacher notification intents with a solo submission', async () => {
+        mockAuth.uid = 'student-1';
+        const submission = {
+            id: 'writing-result-1',
+            studentId: 'student-1',
+            studentName: 'Student One',
+            context: { type: 'solo-practice', selectedTeacherId: 'teacher-1' },
+            testMeta: { testId: 'test-1', testTitle: 'Writing Check', format: 'IELTS', duration: 60 },
+            submittedAt: 500,
+            tasks: [], markingStatus: 'pending-review', annotations: [], auditTrail: [],
+        } as any;
+
+        await expect(createSubmission(submission)).resolves.toEqual({ success: true });
+        expect(mockWriteBatchSet).toHaveBeenCalledWith('writing_submissions/writing-result-1', submission);
+        expect(mockWriteBatchSet).toHaveBeenCalledWith('writing_notification_intents/writing-writing-result-1-submitted-student', expect.objectContaining({
+            kind: 'writing-submitted-student', actorUid: 'student-1', authorityRecordId: 'writing-result-1',
+            occurredAt: 500, dueAt: 3_600_500, attempts: 1, state: 'retry_due',
+        }));
+        expect(mockWriteBatchSet).toHaveBeenCalledWith('writing_notification_intents/writing-writing-result-1-submitted-teacher', expect.objectContaining({
+            kind: 'writing-submitted-teacher', actorUid: 'student-1', authorityRecordId: 'writing-result-1',
+        }));
+        expect(mockWriteBatchCommit).toHaveBeenCalledOnce();
     });
 
     it('materializes solo-practice writing into the dedicated student index without creating a teacher index', async () => {
@@ -919,6 +963,7 @@ describe('writingSubmissionService', () => {
     });
 
     it('auto-submits writing results through the same canonical materialization path', async () => {
+        mockAuth.uid = 'student-4';
         (push as any).mockReturnValue({ key: 'result-4' });
         (get as any).mockImplementation((path: string) => {
             if (path === 'game_sessions/SESSION-4/students/student-4/writing') {
@@ -983,8 +1028,8 @@ describe('writingSubmissionService', () => {
                 resultId: 'result-4',
             })
         );
-        expect(setDoc).toHaveBeenCalledWith(
-            expect.stringContaining('writing_submissions'),
+        expect(mockWriteBatchSet).toHaveBeenCalledWith(
+            'writing_submissions/result-4',
             expect.objectContaining({
                 id: 'result-4',
                 studentId: 'student-4',
@@ -999,16 +1044,10 @@ describe('writingSubmissionService', () => {
                 }),
             })
         );
-        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-            producerFamily: 'writing',
-            authorityRecordId: 'result-4',
-            recipientId: 'student-4',
-            operationKey: 'writing-submitted:result-4',
-            type: 'success',
-            title: '\u270D\uFE0F Writing Submitted',
-            message: 'Your class session essay for "Auto Submit Writing" has been submitted. A teacher will review it soon.',
-            link: '/student/academic-record',
-        });
+        expect(mockWriteBatchSet).toHaveBeenCalledWith('writing_notification_intents/writing-result-4-submitted-student', expect.objectContaining({
+            kind: 'writing-submitted-student', actorUid: 'student-4', occurredAt: expect.any(Number),
+        }));
+        expect(mockDispatchWritingNotification).toHaveBeenCalledWith('result-4', 'writing-result-4-submitted-student');
     });
 
     it('filters pending submissions by assignment metadata instead of grading.teacherId', async () => {
@@ -1066,7 +1105,7 @@ describe('writingSubmissionService', () => {
             } as any,
         );
 
-        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+        expect(mockDispatchWritingNotification).not.toHaveBeenCalled();
     });
 
     it('blocks publish when a pending comment draft is still open', async () => {
@@ -1346,6 +1385,7 @@ describe('writingSubmissionService', () => {
             exists: () => false,
             val: () => null,
         });
+        mockDispatchWritingNotification.mockRejectedValueOnce(new Error('worker_unavailable'));
 
         const result = await publishGrading('submission-1', draft, {
             expectedDraftVersion: 1,
@@ -1353,16 +1393,22 @@ describe('writingSubmissionService', () => {
         });
 
         expect(result.success).toBe(true);
-        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-            producerFamily: 'writing',
+        expect(mockWriteBatchSet).toHaveBeenCalledWith('writing_notification_intents/writing-submission-1-graded-1', {
+            schemaVersion: 1,
+            eventId: 'writing-submission-1-graded-1',
+            kind: 'writing-graded',
             authorityRecordId: 'submission-1',
-            recipientId: 'student-1',
-            operationKey: 'writing-graded:submission-1:1',
-            type: 'success',
-            title: '\uD83D\uDCCA Writing Graded',
-            message: 'Teacher One has graded your essay "IELTS Writing". Overall Band: 6.0',
-            link: '/student/academic-record',
+            occurrenceId: 'writing-submission-1-graded-1',
+            actorUid: 'teacher-1',
+            auditVersion: 1,
+            occurredAt: expect.any(Number),
+            dueAt: expect.any(Number),
+            attempts: 1,
+            state: 'retry_due',
         });
+        expect(mockDispatchWritingNotification).toHaveBeenCalledWith(
+            'submission-1', 'writing-submission-1-graded-1',
+        );
         const compatibilityProjectionCall = (updateDoc as any).mock.calls.find(([_refPath, payload]: [string, any]) => Array.isArray(payload?.annotations));
         expect(compatibilityProjectionCall?.[1]?.annotations).toEqual([
             {

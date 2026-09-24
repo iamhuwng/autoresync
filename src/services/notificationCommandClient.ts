@@ -6,6 +6,8 @@ import type {
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const ID = /^[A-Za-z0-9_-]{1,128}$/u;
 const MAX_RESPONSE_BYTES = 32 * 1024;
+export const DEFAULT_NOTIFICATION_WORKER_ORIGIN =
+    'https://luyentap-notification-command.iamhuwng.workers.dev';
 
 export const NOTIFICATION_COMMAND_PRODUCER_FAMILIES = [
     'course',
@@ -59,7 +61,7 @@ export class NotificationCommandClientError extends Error {
     }
 }
 
-const origin = (value: string): string => {
+export const notificationWorkerOrigin = (value: string): string => {
     let parsed: URL;
     try {
         parsed = new URL(value.trim());
@@ -88,7 +90,7 @@ export const createNotificationCommandClient = (options: {
     readonly getIdToken: (forceRefresh?: boolean) => Promise<string>;
     readonly fetchImpl?: typeof fetch;
 }) => {
-    const endpoint = `${origin(options.workerOrigin)}/book-notifications/commands`;
+    const endpoint = `${notificationWorkerOrigin(options.workerOrigin)}/book-notifications/commands`;
     return {
         async create(command: NotificationCreateCommand): Promise<NotificationCommandResult> {
             assertCommand(command);
