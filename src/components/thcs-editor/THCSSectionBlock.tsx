@@ -1,11 +1,7 @@
 /**
  * THCSSectionBlock — Section editor with questions, reorder, instruction (PRD-0027 Task 4.3)
  */
-import React, { useState } from 'react';
-import {
-    TextInput, Textarea, NumberInput, SegmentedControl,
-    ActionIcon, Tooltip, Collapse, Modal, Button as MButton, Text,
-} from '@mantine/core';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     DndContext, closestCenter, PointerSensor, KeyboardSensor,
     useSensor, useSensors,
@@ -19,6 +15,7 @@ import { ALL_INSTRUCTION_TEMPLATES } from '../../types/thcs-test.types';
 import THCSQuestionBlock from './THCSQuestionBlock';
 import { THCSBulkPasteModal } from './THCSBulkPasteModal';
 import { Button } from '../modern';
+import './THCSSectionBlock.css';
 
 // ── Sortable Question Wrapper (Task 9.3) ──
 function SortableQuestionItem({ id, children }: { id: string; children: React.ReactNode }) {
@@ -71,9 +68,17 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
     onUpdate, onDelete, onMoveUp, onMoveDown,
 }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const deleteDialogRef = useRef<HTMLDialogElement>(null);
     const [showBulkPaste, setShowBulkPaste] = useState(false);
     const [showPassage, setShowPassage] = useState(false);
     const [editingRawText, setEditingRawText] = useState(false);
+
+    useEffect(() => {
+        const dialog = deleteDialogRef.current;
+        if (!dialog) return;
+        if (showDeleteConfirm && !dialog.open) dialog.showModal();
+        if (!showDeleteConfirm && dialog.open) dialog.close();
+    }, [showDeleteConfirm]);
 
     const isRawFallback = section.isRawTextFallback === true
         || section.questions.some(q => q.type === 'raw-text-fallback');
@@ -176,65 +181,53 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                 display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
             }}>
                 {/* Section name */}
-                <TextInput
+                <input
+                    className="thcs-section-name"
+                    aria-label="Section name"
                     value={section.name}
                     onChange={(e) => onUpdate({ ...section, name: e.target.value })}
-                    size="sm"
-                    style={{ width: 200 }}
-                    styles={{ input: { fontWeight: 700, fontSize: '1rem' } }}
                 />
 
                 {/* Layout toggle */}
-                <SegmentedControl
-                    data={[
-                        { value: 'single-column', label: '1 Col' },
-                        { value: 'two-column', label: '2 Col' },
-                    ]}
-                    value={section.layout}
-                    onChange={(val) => onUpdate({ ...section, layout: val as 'single-column' | 'two-column', isCustomLayout: true })}
-                    size="xs"
-                />
+                <div className="thcs-section-segmented" role="group" aria-label="Section layout">
+                    {(['single-column', 'two-column'] as const).map((layout) => (
+                        <label key={layout}>
+                            <input type="radio" name={`section-layout-${section.id}`} checked={section.layout === layout}
+                                onChange={() => onUpdate({ ...section, layout, isCustomLayout: true })} />
+                            <span>{layout === 'single-column' ? '1 Col' : '2 Col'}</span>
+                        </label>
+                    ))}
+                </div>
 
                 {/* Total points */}
-                <NumberInput
-                    label="Points"
-                    value={section.totalPoints}
-                    onChange={(val) => onUpdate({ ...section, totalPoints: typeof val === 'number' ? val : 0 })}
-                    size="xs"
-                    min={0}
-                    step={0.25}
-                    style={{ width: 90 }}
-                />
+                <label className="thcs-section-points">Points
+                    <input type="number" value={section.totalPoints} min={0} step={0.25}
+                        onChange={(e) => onUpdate({ ...section, totalPoints: Number(e.target.value) || 0 })} />
+                </label>
 
                 {/* Point mode */}
-                <SegmentedControl
-                    data={[
-                        { value: 'auto', label: 'Auto' },
-                        { value: 'manual', label: 'Manual' },
-                    ]}
-                    value={section.pointMode}
-                    onChange={(val) => onUpdate({ ...section, pointMode: val as 'auto' | 'manual' })}
-                    size="xs"
-                />
+                <div className="thcs-section-segmented" role="group" aria-label="Point mode">
+                    {(['auto', 'manual'] as const).map((mode) => (
+                        <label key={mode}>
+                            <input type="radio" name={`section-points-${section.id}`} checked={section.pointMode === mode}
+                                onChange={() => onUpdate({ ...section, pointMode: mode })} />
+                            <span>{mode === 'auto' ? 'Auto' : 'Manual'}</span>
+                        </label>
+                    ))}
+                </div>
 
                 <div style={{ flex: 1 }} />
 
                 {/* Move/Delete buttons */}
-                <Tooltip label="Move section up">
-                    <ActionIcon variant="subtle" size="sm" disabled={sectionIndex === 0} onClick={onMoveUp}>↑</ActionIcon>
-                </Tooltip>
-                <Tooltip label="Move section down">
-                    <ActionIcon variant="subtle" size="sm" disabled={sectionIndex === totalSections - 1} onClick={onMoveDown}>↓</ActionIcon>
-                </Tooltip>
-                <Tooltip label={totalSections <= 1 ? 'A test must have at least one section' : `Delete ${section.name}`}>
-                    <ActionIcon
-                        variant="subtle" color="red" size="sm"
-                        disabled={totalSections <= 1}
-                        onClick={() => setShowDeleteConfirm(true)}
-                    >
-                        🗑️
-                    </ActionIcon>
-                </Tooltip>
+                <button type="button" className="thcs-section-icon" title="Move section up" aria-label="Move section up"
+                    disabled={sectionIndex === 0} onClick={onMoveUp}>↑</button>
+                <button type="button" className="thcs-section-icon" title="Move section down" aria-label="Move section down"
+                    disabled={sectionIndex === totalSections - 1} onClick={onMoveDown}>↓</button>
+                <button type="button" className="thcs-section-icon thcs-section-icon--delete"
+                    title={totalSections <= 1 ? 'A test must have at least one section' : `Delete ${section.name}`}
+                    aria-label={`Delete ${section.name}`}
+                    disabled={totalSections <= 1}
+                    onClick={() => setShowDeleteConfirm(true)}>🗑️</button>
             </div>
 
             {/* Section Body */}
@@ -289,13 +282,12 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                             </button>
                         )}
                     </div>
-                    <Textarea
+                    <textarea
+                        className="thcs-section-textarea"
                         placeholder="Section instruction text..."
                         value={section.instructionText}
                         onChange={(e) => onUpdate({ ...section, instructionText: e.target.value, isCustomInstruction: true })}
-                        size="xs"
-                        minRows={2}
-                        autosize
+                        rows={2}
                     />
                 </div>
 
@@ -316,10 +308,10 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                         >
                             📄 {showPassage ? 'Hide' : 'Show'} Reading Passage
                         </button>
-                        <Collapse in={showPassage}>
+                        {showPassage && (
                             <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <TextInput
-                                    label="Passage Title"
+                                <label className="thcs-section-field">Passage Title
+                                <input
                                     placeholder="e.g., Reading Passage 1"
                                     value={(() => {
                                         // Resolve best title: prefer flat if it looks like a real title
@@ -342,10 +334,10 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                             },
                                         } as any);
                                     }}
-                                    size="xs"
                                 />
-                                <Textarea
-                                    label="Passage Content"
+                                </label>
+                                <label className="thcs-section-field">Passage Content
+                                <textarea
                                     placeholder="Paste the reading passage here..."
                                     value={(() => {
                                         // Resolve best content: prefer whichever is longer
@@ -371,12 +363,11 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                             },
                                         } as any);
                                     }}
-                                    minRows={6}
-                                    autosize
-                                    size="xs"
+                                    rows={6}
                                 />
+                                </label>
                             </div>
-                        </Collapse>
+                        )}
                     </div>
                 )}
 
@@ -444,12 +435,11 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                             </button>
                         </div>
                         {editingRawText ? (
-                            <Textarea
+                            <textarea
+                                className="thcs-section-textarea"
                                 value={section.rawText || ''}
                                 onChange={(e) => onUpdate({ ...section, rawText: e.target.value })}
-                                minRows={6}
-                                autosize
-                                size="xs"
+                                rows={6}
                                 placeholder="Raw text from the original document..."
                             />
                         ) : (
@@ -579,21 +569,22 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
             </div>
 
             {/* Delete Confirmation */}
-            <Modal
-                opened={showDeleteConfirm}
+            <dialog
+                ref={deleteDialogRef}
+                className="thcs-delete-dialog"
+                aria-labelledby={`delete-section-${section.id}`}
                 onClose={() => setShowDeleteConfirm(false)}
-                title="Delete Section"
-                centered
-                size="sm"
+                onKeyDown={(event) => { if (event.key === 'Escape') event.stopPropagation(); }}
             >
-                <Text size="sm" mb="md">
+                <h2 id={`delete-section-${section.id}`}>Delete Section</h2>
+                <p>
                     Delete <strong>{section.name}</strong> and all {section.questions.length} question(s) inside?
-                </Text>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                    <MButton variant="subtle" onClick={() => setShowDeleteConfirm(false)}>Cancel</MButton>
-                    <MButton color="red" onClick={() => { onDelete(); setShowDeleteConfirm(false); }}>Delete</MButton>
+                </p>
+                <div className="thcs-delete-dialog__actions">
+                    <button type="button" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+                    <button type="button" className="thcs-delete-dialog__confirm" onClick={() => { onDelete(); setShowDeleteConfirm(false); }}>Delete</button>
                 </div>
-            </Modal>
+            </dialog>
 
             {/* Task 8.2: Bulk Paste Modal */}
             <THCSBulkPasteModal

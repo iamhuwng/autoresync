@@ -1,0 +1,76 @@
+.thcs-section-name,
+.thcs-section-points input,
+.thcs-section-field input,
+.thcs-section-textarea,
+.thcs-section-field textarea {
+    box-sizing: border-box;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 6px 10px;
+    background: #fff;
+    color: #1e293b;
+    font: inherit;
+}
+
+.thcs-section-name { width: 200px; font-size: 1rem; font-weight: 700; }
+.thcs-section-points { display: grid; gap: 2px; width: 90px; font-size: 0.75rem; }
+.thcs-section-points input { width: 100%; }
+.thcs-section-textarea { width: 100%; min-height: 64px; resize: vertical; }
+.thcs-section-field { display: grid; gap: 4px; font-size: 0.75rem; font-weight: 600; }
+.thcs-section-field textarea { min-height: 120px; resize: vertical; }
+
+.thcs-section-segmented { display: inline-flex; padding: 3px; border-radius: 4px; background: #f1f3f5; }
+.thcs-section-segmented label { position: relative; cursor: pointer; }
+.thcs-section-segmented input { position: absolute; opacity: 0; }
+.thcs-section-segmented span { display: block; padding: 4px 8px; border-radius: 3px; font-size: 0.75rem; }
+.thcs-section-segmented input:checked + span { background: #fff; box-shadow: 0 1px 3px #0002; }
+.thcs-section-segmented input:focus-visible + span { outline: 2px solid #8b5cf6; }
+
+.thcs-section-icon { border: 0; background: transparent; color: #475569; cursor: pointer; padding: 4px; }
+.thcs-section-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+.thcs-section-icon--delete { color: #dc2626; }
+
+.thcs-delete-dialog {
+    width: min(400px, calc(100vw - 32px));
+    max-width: none;
+    border: 0;
+    border-radius: 10px;
+    padding: 20px;
+    color: #1e293b;
+    background: #fff;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+}
+
+.thcs-delete-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.thcs-delete-dialog h2 {
+    margin: 0 0 12px;
+    font-size: 1.125rem;
+}
+
+.thcs-delete-dialog p {
+    margin: 0 0 20px;
+    font-size: 0.875rem;
+}
+
+.thcs-delete-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.thcs-delete-dialog__actions button {
+    border: 0;
+    border-radius: 6px;
+    padding: 8px 14px;
+    background: #f1f5f9;
+    color: #334155;
+    cursor: pointer;
+}
+
+.thcs-delete-dialog__actions .thcs-delete-dialog__confirm {
+    background: #dc2626;
+    color: #fff;
+}
