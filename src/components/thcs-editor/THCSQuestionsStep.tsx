@@ -4,14 +4,13 @@
  * Renders a section sidebar navigator + main content area for editing
  * sections and questions. Reuses THCSSectionBlock, THCSDndSectionsContainer.
  */
-import React, { useState, useEffect } from 'react';
-import { Alert } from '@mantine/core';
+import React, { useState } from 'react';
 import THCSSectionBlock from './THCSSectionBlock';
 import { THCSDndSectionsContainer } from './THCSDndSectionsContainer';
 import type { THCSSection, THCSTestMetadata } from '../../types/thcs-test.types';
 import { generateDiagnosticLog } from '../../services/test-creation/thcs-diagnostic-log';
 import type { ParseDebugData } from '../../services/test-creation/thcs-diagnostic-log';
-import { plog, getPreviewLogs, clearPreviewLogs, getPreviewLogCount } from './previewLogCollector';
+import { getPreviewLogs, clearPreviewLogs, getPreviewLogCount } from './previewLogCollector';
 
 export interface THCSQuestionsStepProps {
     sections: THCSSection[];
@@ -44,18 +43,17 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
     const answeredCount = sections.reduce((sum, s) =>
         sum + s.questions.filter(q => q.correctAnswer || q.modelAnswers?.length || q.blankAnswers?.length).length
         , 0);
-
-    // ─── Diagnostic: log Step 2 data on mount/change ────────────
-    useEffect(() => {
-        plog(`[Step2-Questions] Entered with ${sections.length} sections, ${totalQuestions} questions, ${answeredCount} answered`);
-        plog(`[Step2-Questions] Metadata:`, { title: metadata.title, grade: metadata.gradeLevel, examType: metadata.examType, duration: metadata.duration });
-        sections.forEach((s, i) => {
-            const types = [...new Set(s.questions.map(q => q.type))];
-            const qWithAnswer = s.questions.filter(q => q.correctAnswer).length;
-            const qWithOptions = s.questions.filter(q => q.options && q.options.length > 0).length;
-            plog(`[Step2-Questions]   [${i}] "${s.name}" (${s.id.slice(0, 8)}) — ${s.questions.length} Qs, types: [${types.join(', ')}], withAnswers: ${qWithAnswer}, withOptions: ${qWithOptions}, points: ${s.totalPoints}`);
-        });
-    }, [sections, totalQuestions, answeredCount, metadata]);
+    const activeIndex = activeSectionId === null
+        ? sections.length - 1
+        : sections.findIndex(section => section.id === activeSectionId);
+    const selectedIndex = activeIndex >= 0 ? activeIndex : 0;
+    const selectedSection = sections[selectedIndex];
+    const globalQuestionOffset = sections.slice(0, selectedIndex)
+        .reduce((sum, section) => sum + section.questions.length, 0);
+    const addSectionAndSelect = () => {
+        setActiveSectionId(null);
+        onAddSection();
+    };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -84,7 +82,7 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
             <div style={{ display: 'flex', gap: '1rem' }}>
                 {/* Section Navigator Sidebar */}
                 <div style={{
-                    width: '200px',
+                    width: '220px',
                     flexShrink: 0,
                     background: 'rgba(255,255,255,0.85)',
                     backdropFilter: 'blur(12px)',
@@ -109,72 +107,71 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                         Sections
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        {sections.map((section, idx) => {
-                            const isActive = section.id === activeSectionId;
-                            const qCount = section.questions.length;
-                            return (
-                                <button
-                                    key={section.id}
-                                    onClick={() => {
-                                        setActiveSectionId(section.id);
-                                        // Scroll to section
-                                        const el = document.getElementById(`section-${section.id}`);
-                                        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                    }}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0.5rem 0.75rem',
-                                        border: 'none',
-                                        borderRadius: '0.5rem',
-                                        cursor: 'pointer',
-                                        background: isActive ? 'rgba(139,92,246,0.1)' : 'transparent',
-                                        transition: 'all 0.15s ease',
-                                        textAlign: 'left',
-                                        width: '100%',
-                                    }}
-                                >
-                                    <div style={{
-                                        width: 22,
-                                        height: 22,
-                                        borderRadius: '50%',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontSize: '0.625rem',
-                                        fontWeight: 700,
-                                        flexShrink: 0,
-                                        background: isActive ? '#8b5cf6' : '#e2e8f0',
-                                        color: isActive ? '#fff' : '#64748b',
-                                    }}>
-                                        {idx + 1}
-                                    </div>
-                                    <div style={{ overflow: 'hidden', flex: 1 }}>
+                        <THCSDndSectionsContainer
+                            sections={sections}
+                            onReorder={onReorder}
+                            renderSection={(section, idx) => {
+                                const isActive = section.id === selectedSection?.id;
+                                const qCount = section.questions.length;
+                                return (
+                                    <button
+                                        onClick={() => setActiveSectionId(section.id)}
+                                        aria-current={isActive ? 'true' : undefined}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.5rem 0.75rem',
+                                            border: 'none',
+                                            borderRadius: '0.5rem',
+                                            cursor: 'pointer',
+                                            background: isActive ? 'rgba(139,92,246,0.1)' : 'transparent',
+                                            transition: 'all 0.15s ease',
+                                            textAlign: 'left',
+                                            width: '100%',
+                                        }}
+                                    >
                                         <div style={{
-                                            fontSize: '0.75rem',
-                                            fontWeight: isActive ? 700 : 500,
-                                            color: isActive ? '#8b5cf6' : '#1e293b',
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                        }}>
-                                            {section.name || 'Untitled'}
-                                        </div>
-                                        <div style={{
+                                            width: 22,
+                                            height: 22,
+                                            borderRadius: '50%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
                                             fontSize: '0.625rem',
-                                            color: '#94a3b8',
+                                            fontWeight: 700,
+                                            flexShrink: 0,
+                                            background: isActive ? '#8b5cf6' : '#e2e8f0',
+                                            color: isActive ? '#fff' : '#64748b',
                                         }}>
-                                            {qCount} Q · {section.totalPoints}pts
+                                            {idx + 1}
                                         </div>
-                                    </div>
-                                </button>
-                            );
-                        })}
+                                        <div style={{ overflow: 'hidden', flex: 1 }}>
+                                            <div style={{
+                                                fontSize: '0.75rem',
+                                                fontWeight: isActive ? 700 : 500,
+                                                color: isActive ? '#8b5cf6' : '#1e293b',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                            }}>
+                                                {section.name || 'Untitled'}
+                                            </div>
+                                            <div style={{
+                                                fontSize: '0.625rem',
+                                                color: '#94a3b8',
+                                            }}>
+                                                {qCount} Q · {section.totalPoints}pts
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            }}
+                        />
 
                         {/* Add Section button */}
                         <button
-                            onClick={onAddSection}
+                            onClick={addSectionAndSelect}
                             style={{
                                 padding: '0.5rem',
                                 border: '1px dashed rgba(139,92,246,0.3)',
@@ -323,37 +320,27 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                 {/* Main Content — Sections */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                     {sections.length === 0 ? (
-                        <Alert color="violet" variant="light">
+                        <div role="status" style={{ padding: '1rem', borderRadius: '0.75rem', color: '#6d28d9', background: '#f5f3ff' }}>
                             No sections yet. Click "+ Add Section" in the sidebar to start.
-                        </Alert>
-                    ) : (
-                        <THCSDndSectionsContainer
-                            sections={sections}
-                            onReorder={onReorder}
-                            renderSection={(section, si) => {
-                                const offset = sections.slice(0, si).reduce((sum, s) => sum + s.questions.length, 0);
-                                return (
-                                    <div id={`section-${section.id}`} key={section.id}>
-                                        <THCSSectionBlock
-                                            section={section}
-                                            sectionIndex={si}
-                                            totalSections={sections.length}
-                                            globalQuestionOffset={offset}
-                                            draftId={draftId}
-                                            onUpdate={(s) => onSectionUpdate(si, s)}
-                                            onDelete={() => onSectionDelete(si)}
-                                            onMoveUp={() => onSectionMove(si, -1)}
-                                            onMoveDown={() => onSectionMove(si, 1)}
-                                        />
-                                    </div>
-                                );
-                            }}
+                        </div>
+                    ) : selectedSection && (
+                        <THCSSectionBlock
+                            key={selectedSection.id}
+                            section={selectedSection}
+                            sectionIndex={selectedIndex}
+                            totalSections={sections.length}
+                            globalQuestionOffset={globalQuestionOffset}
+                            draftId={draftId}
+                            onUpdate={(section) => onSectionUpdate(selectedIndex, section)}
+                            onDelete={() => onSectionDelete(selectedIndex)}
+                            onMoveUp={() => onSectionMove(selectedIndex, -1)}
+                            onMoveDown={() => onSectionMove(selectedIndex, 1)}
                         />
                     )}
 
                     {/* Bottom Add Section */}
                     <button
-                        onClick={onAddSection}
+                        onClick={addSectionAndSelect}
                         style={{
                             padding: '0.75rem',
                             border: '2px dashed rgba(139,92,246,0.3)',

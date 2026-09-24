@@ -30,10 +30,11 @@ import type { THCSSection } from '../../types/thcs-test.types';
 // ── Sortable Section Wrapper ──
 interface SortableSectionProps {
     id: string;
+    name: string;
     children: React.ReactNode;
 }
 
-function SortableSectionItem({ id, children }: SortableSectionProps) {
+function SortableSectionItem({ id, name, children }: SortableSectionProps) {
     const {
         attributes,
         listeners,
@@ -51,9 +52,10 @@ function SortableSectionItem({ id, children }: SortableSectionProps) {
     };
 
     return (
-        <div ref={setNodeRef} style={style} {...attributes}>
+        <div ref={setNodeRef} style={style}>
             {/* Drag handle */}
             <button
+                {...attributes}
                 {...listeners}
                 style={{
                     position: 'absolute',
@@ -76,8 +78,8 @@ function SortableSectionItem({ id, children }: SortableSectionProps) {
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
-                title="Drag to reorder section"
-                aria-label="Drag handle"
+                title={`Drag to reorder ${name}`}
+                aria-label={`Drag to reorder ${name}`}
             >
                 ⋮⋮
             </button>
@@ -135,7 +137,7 @@ export function THCSDndSectionsContainer({
             <SortableContext items={sectionIds} strategy={verticalListSortingStrategy}>
                 <div style={{ paddingLeft: 32 }}>
                     {sections.map((section, index) => (
-                        <SortableSectionItem key={section.id} id={section.id}>
+                        <SortableSectionItem key={section.id} id={section.id} name={section.name || 'untitled section'}>
                             {renderSection(section, index)}
                         </SortableSectionItem>
                     ))}

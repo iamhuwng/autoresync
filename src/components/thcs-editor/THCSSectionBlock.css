@@ -30,6 +30,27 @@
 .thcs-section-icon:disabled { opacity: 0.4; cursor: not-allowed; }
 .thcs-section-icon--delete { color: #dc2626; }
 
+.thcs-question-list {
+    max-height: 70vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px 4px 4px 0;
+    scroll-behavior: auto;
+}
+
+.thcs-question-list__items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-left: 24px;
+}
+
+.thcs-question-list__count {
+    padding: 0.375rem 0 0.375rem 24px;
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
 .thcs-delete-dialog {
     position: fixed;
     inset: 0;
