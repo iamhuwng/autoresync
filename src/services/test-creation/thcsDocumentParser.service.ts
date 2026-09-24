@@ -26,6 +26,7 @@ import { createRetrySession, THCS_GROQ_MODEL } from './thcs-retry-manager';
 import type { RetryStep } from './thcs-retry-manager';
 import type { RepairAuditEntry } from './thcs-prompt-builder';
 import { executeGeminiWithKeyRotation } from '../ai/gemini-key-rotation.service';
+import { DEFAULT_R2_UPLOAD_WORKER_URL } from '../r2WorkerEndpoint';
 
 
 // -- Types --
@@ -809,19 +810,23 @@ export async function parseThcsText(
         // --- Stage 2: Parallel Assessment (FR-3) ─────────────────────
         onProgress?.({ stage: 'ai-polish', percent: 20, message: 'Analyzing text (AI + Code in parallel)...' });
 
-        // Create the AI callback for internal Pass 1 (Groq → Gemini fallback)
+        // Create the AI callback for internal Pass 1 (Groq → Cloudflare → Gemini)
         const callInternalAI = async (systemMessage: string, prompt: string): Promise<string | null> => {
             const groqResult = await callGroqDirectPlainText(prompt, systemMessage);
             if (groqResult) return groqResult;
-            // Groq failed — fall back to Gemini
-            console.warn('[Pass1] Groq could not process this input — falling back to Gemini');
+            const cloudflareResult = await callCloudflareDirectPlainText(prompt, systemMessage);
+            if (cloudflareResult) return cloudflareResult;
+            console.warn('[Pass1] Groq and Cloudflare could not process this input — falling back to Gemini');
             return callGeminiDirectPlainText(prompt, systemMessage);
         };
 
-        // Build the AI callback for crossfix loop (Groq → Gemini, typed as AICallFn)
+        // Build the AI callback for crossfix loop (Groq → Cloudflare → Gemini)
         const repairCallAI: AICallFn = async (system, prompt, step) => {
             if (step.provider === 'gemini') {
                 return callGeminiDirectPlainText(prompt, system, step.model);
+            }
+            if (step.provider === 'cloudflare') {
+                return callCloudflareDirectPlainText(prompt, system, step.temperature);
             }
             return callGroqDirectPlainText(prompt, system, step.model, step.temperature);
         };
@@ -905,9 +910,9 @@ export async function parseThcsText(
         if (validationReport.unsupportedTypes.length > 0) {
             onProgress?.({ stage: 'parsing', percent: 45, message: 'Converting unsupported sections...' });
             const compCallAI = async (system: string, prompt: string, step: RetryStep): Promise<string | null> => {
-                return step.provider === 'gemini'
-                    ? callGeminiDirectPlainText(prompt, system, step.model)
-                    : callGroqDirectPlainText(prompt, system, step.model, step.temperature);
+                if (step.provider === 'gemini') return callGeminiDirectPlainText(prompt, system, step.model);
+                if (step.provider === 'cloudflare') return callCloudflareDirectPlainText(prompt, system, step.temperature);
+                return callGroqDirectPlainText(prompt, system, step.model, step.temperature);
             };
 
             // Build per-section text slices so the AI only gets the relevant section,
@@ -1122,6 +1127,38 @@ export async function parseThcsText(
 }
 
 // -- Plain-Text AI Helpers (for Pipeline V2) --
+
+async function callCloudflareDirectPlainText(
+    prompt: string,
+    systemMessage: string,
+    temperature = 0.1,
+): Promise<string | null> {
+    try {
+        const { getAuth } = await import('firebase/auth');
+        const user = getAuth().currentUser;
+        if (!user) return null;
+        const baseUrl = import.meta.env.VITE_R2_UPLOAD_WORKER_URL?.trim().replace(/\/+$/, '')
+            || DEFAULT_R2_UPLOAD_WORKER_URL;
+        const response = await fetch(`${baseUrl}/thcs/gemma`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${await user.getIdToken()}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt, systemMessage, temperature }),
+            signal: AbortSignal.timeout(90_000),
+        });
+        if (!response.ok) {
+            console.warn(`[callCloudflareDirectPlainText] Cloudflare unavailable (${response.status})`);
+            return null;
+        }
+        const result = await response.json() as { text?: unknown };
+        return typeof result.text === 'string' && result.text.trim().length > 10 ? result.text : null;
+    } catch (error) {
+        console.warn('[callCloudflareDirectPlainText] Failed:', error);
+        return null;
+    }
+}
 
 /**
  * Call Groq and return PLAIN TEXT response (no JSON parsing).

@@ -148,9 +148,9 @@ describe('executeExternalRetry', () => {
         );
 
         expect(result.outcome).toBe('teacher-escalation');
-        expect(result.attemptsUsed).toBe(2);
+        expect(result.attemptsUsed).toBe(3);
         expect(result.teacherMessage).toContain('could not reliably extract');
-        expect(result.auditLog).toHaveLength(2);
+        expect(result.auditLog).toHaveLength(3);
     });
 
     it('handles AI returning null gracefully', async () => {
@@ -164,7 +164,7 @@ describe('executeExternalRetry', () => {
 
         expect(result.outcome).toBe('teacher-escalation');
         expect(runPipeline).not.toHaveBeenCalled();
-        expect(result.auditLog).toHaveLength(2);
+        expect(result.auditLog).toHaveLength(3);
     });
 
     it('handles pipeline returning null gracefully', async () => {
@@ -192,8 +192,8 @@ describe('executeExternalRetry', () => {
             callAI, runPipeline,
         );
 
-        expect(callAI).toHaveBeenCalledTimes(2);
-        expect(result.attemptsUsed).toBe(2);
+        expect(callAI).toHaveBeenCalledTimes(3);
+        expect(result.attemptsUsed).toBe(3);
     });
 
     it('tracks best confidence even on failure', async () => {
@@ -255,6 +255,7 @@ describe('executeExternalRetry', () => {
 
         expect(providers).toEqual([
             'groq/qwen/qwen3.8-27b',
+            'cloudflare/@cf/google/gemma-4-26b-a4b-it',
             'gemini/gemini-2.5-flash',
         ]);
     });

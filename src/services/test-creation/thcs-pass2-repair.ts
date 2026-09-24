@@ -1,14 +1,14 @@
 /**
  * THCS Pass 2 — Crossfix Loop (FR-5/7/9/13)
  *
- * 3-round iterative repair loop that cross-references AI output
+ * Iterative repair loop that cross-references AI output
  * against the code validator. Each round escalates temperature
  * and may switch provider.
  *
  * Flow:
  *   validate → build repair prompt → AI fix → re-validate
  *   → better? keep: discard → next round
- *   → repeat until confidence ≥ 70 + zero issues, or 3 rounds
+ *   → repeat until confidence ≥ 70 + zero issues, or all providers are tried
  */
 
 import type { ValidationReport } from './thcs-text-validator';
@@ -16,7 +16,7 @@ import { validateRestructuredText } from './thcs-text-validator';
 import { buildRepairPrompt, parseAIRepairResponse, createAuditEntry } from './thcs-prompt-builder';
 import type { RepairAuditEntry, ReasoningEntry } from './thcs-prompt-builder';
 import { executeRetryChain, REPAIR_CHAIN } from './thcs-retry-manager';
-import { THCS_GROQ_MODEL } from './thcs-retry-manager';
+import { THCS_GROQ_MODEL, THCS_CLOUDFLARE_MODEL } from './thcs-retry-manager';
 import type { RetrySession, RetryStep, AICallOutcome } from './thcs-retry-manager';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -52,6 +52,7 @@ export type AICallFn = (system: string, prompt: string, step: RetryStep) => Prom
 
 const CROSSFIX_STEPS: RetryStep[] = [
     { provider: 'groq', model: THCS_GROQ_MODEL, temperature: 0.1 },
+    { provider: 'cloudflare', model: THCS_CLOUDFLARE_MODEL, temperature: 0.1 },
     { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.2 },
     { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.3 },
 ];
@@ -77,7 +78,7 @@ export function checkConfidenceDisagreement(
 
 /**
  * Execute the crossfix loop — iterative AI repair with escalating models.
- * Runs up to 3 rounds, keeping the best result (fewest issues).
+ * Runs one round per configured step, keeping the best result (fewest issues).
  */
 export async function executeCrossfixLoop(
     initialText: string,
@@ -85,7 +86,7 @@ export async function executeCrossfixLoop(
     aiConfidence: number,
     callAI: AICallFn,
 ): Promise<CrossfixResult> {
-    const MAX_ROUNDS = 3;
+    const MAX_ROUNDS = CROSSFIX_STEPS.length;
     let bestText = initialText;
     let bestIssueCount = Infinity;
     let bestReport: ValidationReport | null = null;

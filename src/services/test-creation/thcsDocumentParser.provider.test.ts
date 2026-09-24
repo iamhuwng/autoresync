@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 const probe = vi.hoisted(() => ({
     create: vi.fn(),
     gemini: vi.fn(),
+    cloudflareFetch: vi.fn(),
     bench: vi.fn(),
     keys: [] as string[],
     response: null as string | null,
@@ -23,6 +24,7 @@ vi.mock('../key-cooldown.service', () => ({
     shouldBenchGeminiKeyError: () => false,
 }));
 vi.mock('../ai/gemini-key-rotation.service', () => ({ executeGeminiWithKeyRotation: probe.gemini }));
+vi.mock('firebase/auth', () => ({ getAuth: () => ({ currentUser: { getIdToken: async () => 'firebase-token' } }) }));
 vi.mock('./thcs-pass1-restructure', () => ({
     executePass1: async (text: string, _session: unknown, callAI: (system: string, prompt: string) => Promise<string | null>) => {
         probe.response = await callAI('system', 'prompt');
@@ -35,6 +37,9 @@ import { parseThcsText } from './thcsDocumentParser.service';
 beforeEach(() => {
     probe.create.mockReset();
     probe.gemini.mockReset();
+    probe.cloudflareFetch.mockReset();
+    probe.cloudflareFetch.mockResolvedValue({ ok: false, status: 503 });
+    vi.stubGlobal('fetch', probe.cloudflareFetch);
     probe.bench.mockReset();
     probe.keys.length = 0;
     probe.response = null;
@@ -51,8 +56,22 @@ it('does not try every Groq key when the model is unavailable', async () => {
     expect(probe.create.mock.calls[0]?.[0].model).toBe('qwen/qwen3.8-27b');
     expect(probe.create.mock.calls[0]?.[0].reasoning_effort).toBe('none');
     expect(probe.gemini).toHaveBeenCalledOnce();
+    expect(probe.cloudflareFetch).toHaveBeenCalledOnce();
     expect(probe.bench).not.toHaveBeenCalled();
     expect(probe.response).toBe('Gemini fallback text');
+});
+
+it('uses Cloudflare Gemma after Groq fails, before Gemini', async () => {
+    probe.create.mockRejectedValue(new Error('413 Request too large on input tokens per minute (ITPM): Limit 7000, Requested 8940'));
+    probe.cloudflareFetch.mockResolvedValue({ ok: true, json: async () => ({ text: 'Cloudflare restructured THCS text.' }) });
+
+    await parseThcsText('TITLE: English Test\nGRADE: 8\nPart A [TYPE: mcq-grammar]\nQuestion 1. Choose the best answer.');
+
+    expect(probe.create).toHaveBeenCalledOnce();
+    expect(probe.cloudflareFetch).toHaveBeenCalledOnce();
+    expect(probe.cloudflareFetch.mock.calls[0]?.[0]).toContain('/thcs/gemma');
+    expect(probe.gemini).not.toHaveBeenCalled();
+    expect(probe.response).toBe('Cloudflare restructured THCS text.');
 });
 
 it('continues to the next key when only one Groq key is invalid', async () => {

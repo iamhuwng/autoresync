@@ -160,15 +160,17 @@ describe('executeRetryChain', () => {
 });
 
 describe('Built-in chains', () => {
-    it('REPAIR_CHAIN has 2 steps and teacher fallback', () => {
-        expect(REPAIR_CHAIN.steps.length).toBe(2);
+    it('REPAIR_CHAIN tries Groq, Cloudflare, and Gemini before teacher fallback', () => {
+        expect(REPAIR_CHAIN.steps.length).toBe(3);
         expect(REPAIR_CHAIN.fallback).toBe('teacher');
         expect(REPAIR_CHAIN.steps[0].provider).toBe('groq');
-        expect(REPAIR_CHAIN.steps[1].provider).toBe('gemini');
+        expect(REPAIR_CHAIN.steps[1].provider).toBe('cloudflare');
+        expect(REPAIR_CHAIN.steps[2].provider).toBe('gemini');
     });
 
-    it('COMPROMISE_CHAIN has 2 steps and skip fallback', () => {
-        expect(COMPROMISE_CHAIN.steps.length).toBe(3);
+    it('COMPROMISE_CHAIN tries Cloudflare after Groq before skip fallback', () => {
+        expect(COMPROMISE_CHAIN.steps.length).toBe(4);
+        expect(COMPROMISE_CHAIN.steps[1].provider).toBe('cloudflare');
         expect(COMPROMISE_CHAIN.fallback).toBe('skip');
     });
 });

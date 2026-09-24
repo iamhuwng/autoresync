@@ -160,7 +160,7 @@ describe('executeCrossfixLoop', () => {
         expect(result.wasRepaired).toBe(false);
     });
 
-    it('tries Gemini after the Groq repair fails', async () => {
+    it('tries Cloudflare after the Groq repair fails', async () => {
         mockValidate.mockReturnValue(makeReport({
             formatConfidence: 55,
             issues: [makeIssue('MERGED_QUESTIONS')],
@@ -171,10 +171,10 @@ describe('executeCrossfixLoop', () => {
 
         expect(result.bestText).toBe('input');
         expect(result.wasRepaired).toBe(false);
-        expect(callAI.mock.calls[1]![2].provider).toBe('gemini');
+        expect(callAI.mock.calls[1]![2].provider).toBe('cloudflare');
     });
 
-    it('runs up to 3 rounds maximum', async () => {
+    it('runs up to 4 rounds maximum', async () => {
         // Always return issues so the loop doesn't exit early
         mockValidate.mockReturnValue(makeReport({
             formatConfidence: 55,
@@ -184,9 +184,9 @@ describe('executeCrossfixLoop', () => {
         const callAI: AICallFn = vi.fn().mockResolvedValue(MOCK_REPAIR_RESPONSE);
         const result = await executeCrossfixLoop('input', 'original', 50, callAI);
 
-        expect(result.roundsExecuted).toBe(3);
-        expect(callAI).toHaveBeenCalledTimes(3);
-        expect(result.auditLog).toHaveLength(3);
+        expect(result.roundsExecuted).toBe(4);
+        expect(callAI).toHaveBeenCalledTimes(4);
+        expect(result.auditLog).toHaveLength(4);
     });
 
     it('escalates provider/temperature across rounds', async () => {
@@ -201,12 +201,14 @@ describe('executeCrossfixLoop', () => {
         // Round 0: groq, 0.1
         expect(callAI.mock.calls[0]![2].provider).toBe('groq');
         expect(callAI.mock.calls[0]![2].temperature).toBe(0.1);
-        // Round 1: gemini, 0.2
-        expect(callAI.mock.calls[1]![2].provider).toBe('gemini');
-        expect(callAI.mock.calls[1]![2].temperature).toBe(0.2);
-        // Round 2: gemini, 0.3
+        // Round 1: Cloudflare, 0.1
+        expect(callAI.mock.calls[1]![2].provider).toBe('cloudflare');
+        expect(callAI.mock.calls[1]![2].temperature).toBe(0.1);
+        // Rounds 2–3: Gemini
         expect(callAI.mock.calls[2]![2].provider).toBe('gemini');
-        expect(callAI.mock.calls[2]![2].temperature).toBe(0.3);
+        expect(callAI.mock.calls[2]![2].temperature).toBe(0.2);
+        expect(callAI.mock.calls[3]![2].provider).toBe('gemini');
+        expect(callAI.mock.calls[3]![2].temperature).toBe(0.3);
     });
 
     it('collects reasoning log across rounds', async () => {

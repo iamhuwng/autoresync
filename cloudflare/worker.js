@@ -66,6 +66,55 @@ const authenticate = async (request, env, firebaseVerifier, responseHeaders = {}
   return { uid: authResult.uid };
 };
 
+const handleThcsGemma = async (request, env, uid, json) => {
+  if (!env.AI || !env.FIREBASE_DB_URL) return json({ error: 'ai_unavailable' }, { status: 503 });
+  if (Number(request.headers.get('Content-Length')) > 180_000) {
+    return json({ error: 'body_too_large' }, { status: 413 });
+  }
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > 180_000) {
+    return json({ error: 'body_too_large' }, { status: 413 });
+  }
+  let body;
+  try { body = JSON.parse(raw); } catch { return json({ error: 'invalid_request' }, { status: 400 }); }
+  if (typeof body?.prompt !== 'string' || !body.prompt.trim()
+      || typeof body.systemMessage !== 'string' || !body.systemMessage.trim()
+      || (body.temperature !== undefined && (typeof body.temperature !== 'number' || body.temperature < 0 || body.temperature > 1))) {
+    return json({ error: 'invalid_request' }, { status: 400 });
+  }
+
+  const token = request.headers.get('Authorization')?.slice('Bearer '.length) ?? '';
+  const profileUrl = `${env.FIREBASE_DB_URL.replace(/\/$/, '')}/users/${encodeURIComponent(uid)}.json?auth=${encodeURIComponent(token)}`;
+  const profileResponse = await fetch(profileUrl);
+  if (!profileResponse.ok) return json({ error: 'profile_unavailable' }, { status: 503 });
+  const profile = await profileResponse.json();
+  if ((profile?.role !== 'teacher' && profile?.role !== 'super_admin')
+      || profile.forceReauth === true || profile.disabled === true
+      || ['blocked', 'inactive', 'suspended'].includes(profile.status)) {
+    return json({ error: 'teacher_required' }, { status: 403 });
+  }
+
+  try {
+    const result = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
+      messages: [
+        { role: 'system', content: body.systemMessage },
+        { role: 'user', content: body.prompt },
+      ],
+      temperature: body.temperature ?? 0.1,
+      max_completion_tokens: 16_384,
+      chat_template_kwargs: { enable_thinking: false },
+    });
+    const choice = result?.choices?.[0];
+    const content = choice?.message?.content;
+    if (choice?.finish_reason !== 'stop' || typeof content !== 'string' || content.trim().length <= 10) {
+      return json({ error: 'ai_incomplete' }, { status: 502 });
+    }
+    return json({ text: content });
+  } catch {
+    return json({ error: 'ai_unavailable' }, { status: 503 });
+  }
+};
+
 export function createUploadWorker({
   firebaseVerifier = createFirebaseVerifier(),
   nonceGenerator = generateNonce,
@@ -121,6 +170,10 @@ export function createUploadWorker({
         if (auth.response) return auth.response;
         const { uid } = auth;
         await enforceRateLimit({ env, uid, request });
+
+        if (url.pathname === '/thcs/gemma' && request.method === 'POST') {
+          return handleThcsGemma(request, env, uid, json);
+        }
 
         if (url.pathname === '/move' && request.method === 'POST') {
           return respond(await handleGrantMove({

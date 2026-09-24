@@ -9,13 +9,13 @@
  *       → if confidence ≥ 50: success
  *       → exhausts chain → teacher escalation
  *
- * Provider chain: Groq → Gemini gemini-2.5-flash
+ * Provider chain: Groq → Cloudflare Gemma → Gemini gemini-2.5-flash
  * (MAX_ATTEMPTS matches chain length — update both together)
  */
 
 import type { ValidationReport } from './thcs-text-validator';
 import type { RepairAuditEntry } from './thcs-prompt-builder';
-import { THCS_GROQ_MODEL } from './thcs-retry-manager';
+import { THCS_GROQ_MODEL, THCS_CLOUDFLARE_MODEL } from './thcs-retry-manager';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -51,6 +51,7 @@ export type ExternalAICallFn = (provider: string, model: string, prompt: string)
 
 const EXTERNAL_CHAIN = [
     { provider: 'groq', model: THCS_GROQ_MODEL },
+    { provider: 'cloudflare', model: THCS_CLOUDFLARE_MODEL },
     { provider: 'gemini', model: 'gemini-2.5-flash' },
 ] as const;
 

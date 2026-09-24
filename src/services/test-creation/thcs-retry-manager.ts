@@ -14,7 +14,7 @@
 
 /** A single step in a retry chain (provider + model + temperature). */
 export interface RetryStep {
-    provider: 'groq' | 'gemini';
+    provider: 'groq' | 'cloudflare' | 'gemini';
     model: string;
     temperature: number;
 }
@@ -57,22 +57,25 @@ export interface AICallOutcome<T> {
 }
 
 export const THCS_GROQ_MODEL = 'qwen/qwen3.8-27b';
+export const THCS_CLOUDFLARE_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 
 // ── Built-in Chains (FR-8) ────────────────────────────────────
 
-/** Repair chain: Groq → Gemini Flash → teacher. */
+/** Repair chain: Groq → Cloudflare Gemma → Gemini Flash → teacher. */
 export const REPAIR_CHAIN: RetryChainConfig = {
     steps: [
         { provider: 'groq', model: THCS_GROQ_MODEL, temperature: 0.1 },
+        { provider: 'cloudflare', model: THCS_CLOUDFLARE_MODEL, temperature: 0.1 },
         { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.2 },
     ],
     fallback: 'teacher',
 };
 
-/** Compromise chain: Groq → Flash (temp 0.15) → Flash (temp 0.3) → skip. */
+/** Compromise chain: Groq → Cloudflare Gemma → Flash (temp 0.15) → Flash (temp 0.3) → skip. */
 export const COMPROMISE_CHAIN: RetryChainConfig = {
     steps: [
         { provider: 'groq', model: THCS_GROQ_MODEL, temperature: 0.15 },
+        { provider: 'cloudflare', model: THCS_CLOUDFLARE_MODEL, temperature: 0.15 },
         { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.15 },
         { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.3 },
     ],
