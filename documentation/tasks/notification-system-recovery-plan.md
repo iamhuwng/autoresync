@@ -95,6 +95,10 @@ The desired class-request flow is simple:
 2. Try to put the teacher's notice in the existing bell immediately.
 3. If delivery fails, try **once more later**. Keep the class request successful.
 4. If the second attempt fails, show **one** issue in the existing admin reports.
+5. After three distinct class-join actions fail both attempts in succession,
+   stop automatic retries for that notice family. New class-join actions still
+   attempt immediate delivery and report failures; they do not consume a retry
+   while suppression is active.
 
 Apply that behavior to every existing action that already intends to send a
 persistent notice. A normal save or click does not automatically need a bell
@@ -108,12 +112,14 @@ flowchart LR
   P --> D[Trusted delivery: check saved action and recipient]
   D --> I[Existing notifications/user inbox]
   I --> U[Existing teacher or student bell]
-  D -->|one failed attempt| R[One later retry]
+  D -->|failed and retries enabled| R[One later retry]
   R -->|still failed| M[One issue in existing admin reports]
-  M -->|same failure across actions| G[Admin flags the affected notice family]
-  G --> O[Developer or operator pauses its delivery route]
-  O --> F[Fix, verify, deploy, and re-enable the route]
-  F --> H[Recover verified missed notices in bounded batches]
+  M -->|third distinct consecutive failure| S[Suppress later retries for this notice family]
+  S --> N[New actions still try immediate delivery]
+  N -->|failed: report, no retry| M
+  N -->|succeeded: record recovery evidence| I
+  S --> F[Developer or operator fixes and verifies cause]
+  F --> H[Clear suppression; recover verified missed notices in bounded batches]
 ```
 
 ## Agreed product rules
@@ -125,9 +131,9 @@ flowchart LR
   add bell notices to every action.
 - The main action remains successful when its notification fails. Record enough
   durable information to make one later delivery attempt even if the user
-  closes the browser. Stop automatic attempts after that retry and report the
-  remaining failure to admins once per action, including a failed-recipient
-  count for bulk actions.
+  closes the browser. Stop automatic attempts after that retry, or skip the
+  retry while its family is suppressed. Report each remaining failure to
+  admins once per action, including a failed-recipient count for bulk actions.
 - Restore all missed notices that can be proven from saved action data, even if
   the action is now resolved. Keep the original event time, avoid duplicates,
   and make old links safe. Never invent a recipient or event that cannot be
@@ -144,42 +150,46 @@ flowchart LR
 Each failed notice gets at most one later retry. If that also fails, create
 one terminal issue in the existing Admin Error Log. The issue must identify
 the notification family or route, action type, failure reason, affected
-action, and time. Repeated terminal issues from **different actions** on the
-same route reveal a pattern. The admin sees and escalates that pattern; the
-admin is not expected to repair code, rules, or service configuration in the
-app. One bad recipient or malformed source record is an event-level problem;
-it must not stop unrelated notices in that family.
+action, and time. Count a terminal failure once per distinct saved action,
+not once per recipient or repeated invocation. Three **consecutive** terminal
+failures from distinct actions in the same notice family, with no successful
+delivery between them, are the initial pattern threshold. Repeated execution
+of one malformed source record must count only once. Reports must retain the
+recipient context so an admin can tell a route fault from repeated failures
+to one recipient; suppression affects only retries, so fresh sends to other
+recipients still run.
 
-When the pattern indicates a family-level fault, a developer or operator
-pauses that family's **notification delivery** through server-side
-configuration. They investigate, change code/rules/configuration as needed,
-verify the fix, deploy it, then re-enable delivery. The admin reports the
-pattern and can follow the operational status; no in-app admin repair or
-resume control is required. Do not add an automatic failure-count breaker,
-new polling service, database, or per-student circuit state. Each event is
-already capped at two attempts, and the operator pause stops waste across
-future actions once a pattern is recognized.
+At that threshold, set one durable family-level **retry-suppressed** state.
+Scheduled passes skip every outstanding retry for that family without
+consuming its attempt. Do not stop the underlying class, homework, course, or
+Book action, and do not stop its **immediate** notification attempt. If a new
+action's immediate attempt fails while retries are suppressed, report that
+failure to the existing Admin Error Log once for that action; do not schedule
+a retry. This keeps the repeated fault visible without multiplying failed
+requests. If a new immediate attempt succeeds, record a last-success time in
+the existing admin reporting surface so the admin has positive recovery
+evidence. A quiet error log without a successful new attempt does not prove
+the route works. Keep retry suppression in place until a developer or
+operator verifies the fix and clears it; one success alone must not release
+the held backlog.
 
-A pause stops immediate notice sends and scheduled retries for that family;
-it does not stop the underlying class, homework, course, or Book action.
-Worker action handlers that own a product transition must still commit that
-transition and its durable notice intent before reporting that delivery is
-paused. Delivery-only calls may return a clear paused result. The gate
-belongs after the action commit, not around an entire HTTP route that also
-owns the action. A Worker outage that prevents the action commit must still
-surface as an action failure. Preserve each saved event identity and original
-time; a skipped send does not consume its
-one automatic retry. Record paused state in the operational release record;
-do not build a new admin dashboard or create one error for every skipped
-event. If the reporting database is unavailable, do not claim an admin issue
-was written; the durable intents must remain inspectable after recovery.
+Use the smallest persistent state needed for the family counter and
+suppression flag, keyed by notice family, and reuse the existing report
+records as failure evidence. Do not add a new service, per-student breaker,
+admin repair screen, or separate replay interface. The admin sees and
+escalates the pattern; a developer or operator investigates and changes
+code, rules, or configuration as needed. The suppression gate belongs only
+around the retry, after any action commit. A Worker outage that prevents the
+action commit must still surface as an action failure. If the reporting or
+suppression-state store is unavailable, do not claim an issue was recorded;
+leave durable intents inspectable and skip retries until the gate can be
+read safely.
 
-After a verified fix is deployed, the operator re-enables the family and uses
-the same bounded, verified historical-recovery procedure for its saved
-outstanding notices. Reuse deterministic IDs, preserve read flags, and check
-old links before delivery. Do not reopen on a timer or silently discard
-notices created while delivery was paused. Do not build a separate admin
-replay interface for this repair.
+After a verified fix is deployed, the developer or operator clears retry
+suppression and uses the same bounded, verified historical-recovery procedure
+for saved outstanding notices. Reuse deterministic IDs, preserve read flags,
+and check old links before delivery. Do not silently discard notices created
+while retries were suppressed or release the entire backlog in one pass.
 
 ## Current starting state to verify before coding
 
@@ -348,11 +358,14 @@ they are not part of the 35 ordinary-producer variants above.
   the batch instead of launching repeated requests for every student. Test a
   30-student action and count actual Worker calls, Firebase reads/writes, and
   admin records. Do not scan every inbox on each scheduled pass.
-- Add the smallest server-side family delivery switch at the shared trusted
-  boundary. Verify that it suppresses both immediate sends and retry work
-  while leaving canonical actions and their saved intents intact. A developer
-  or operator changes the configuration during a controlled release; do not
-  build an admin toggle or use a per-isolate memory flag as the source of truth.
+- Add one durable family retry-suppression gate at the shared retry boundary.
+  Count distinct terminal failures once, trip after three consecutive failures
+  in one family, and skip all its later retries while retaining saved intents.
+  New actions must still make one immediate delivery attempt and report its
+  failure without retry. Show the latest successful fresh attempt in the
+  existing admin surface. A developer or operator clears suppression only
+  after verifying a fix; do not build an admin toggle or rely on per-isolate
+  memory.
 - Validate new outbox paths and every writable ancestor in RTDB/Firestore
   rules. The Worker must reject forged intents or changed authority. Do not
   introduce Cloudflare Queues, KV, D1, or paid Firebase features unless the
@@ -414,13 +427,15 @@ incomplete; track each variant individually.
   target. For each batch, perform representative actions, read back the exact
   recipient's inbox record, inspect the bell and link, and verify failure
   reporting. A toast is not proof that a persistent notice arrived.
-- **Failure containment:** prove repeated same-family failures from distinct
-  actions are visible in the existing Admin Error Log with enough context to
-  identify a pattern. Pause that notification family through server-side
-  configuration, commit a new underlying action without delivery, confirm its
-  intent remains recoverable and no scheduled retry is consumed, then deploy
-  the fix, re-enable the family, and recover it without duplicate inbox records
-  or reset read flags. Confirm an isolated bad record does not pause the family.
+- **Failure containment:** prove three consecutive terminal failures from
+  distinct actions in one family trip retry suppression exactly once. Confirm
+  all later due retries remain saved and unconsumed. Commit a new product
+  action while suppressed: its immediate send still runs; failure appears in
+  the existing Admin Error Log with no retry. A successful fresh send records
+  a visible last-success time but does not release the held backlog. After a
+  verified fix, clear suppression and recover in bounded batches without
+  duplicate inbox records or reset read flags. Confirm one bad record cannot
+  trip the family through duplicate execution and other families keep working.
 - **Free-plan check:** count calls and data for a one-recipient event, a
   30-recipient event, an idle scheduled pass, one failed batch, and replay.
   Enforce bounded queries/chunks and one admin issue per failed action. Recheck
@@ -449,6 +464,6 @@ incomplete; track each variant individually.
   in admin reports. Record any unverified event or remote rule state plainly;
   do not mark the notification system complete from green unit tests or a
   successful deployment command alone.
-  Verify a developer or operator can pause a repeatedly failing notification
-  family without blocking its product actions and can recover its saved
-  notices after a verified fix.
+  Verify a repeated family failure automatically suppresses later retries
+  without blocking product actions or fresh delivery attempts, remains visible
+  to admins, and permits bounded recovery after a verified fix.
