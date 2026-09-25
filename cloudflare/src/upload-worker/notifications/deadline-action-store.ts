@@ -1,4 +1,3 @@
-import { SignJWT, importPKCS8 } from 'jose';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import { deadlineNotificationId, type DeadlineNotificationStorage, type ManualHomeworkReminderIntent } from './deadline-action.ts';
 
@@ -54,18 +53,7 @@ export class FirebaseDeadlineNotificationStorage implements DeadlineNotification
     if (!key.client_email || !key.private_key || key.client_email !== required(this.env, 'NOTIFICATION_COMMAND_SERVICE_IDENTITY')) {
       throw new Error('deadline_service_identity_invalid');
     }
-    const privateKey = await importPKCS8(key.private_key, 'RS256');
-    const now = Math.floor(Date.now() / 1000);
-    const assertion = await new SignJWT({ iss: key.client_email, sub: key.client_email, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600, scope: 'https://www.googleapis.com/auth/datastore' })
-      .setProtectedHeader({ alg: 'RS256' }).sign(privateKey);
-    const response = await this.fetchImpl('https://oauth2.googleapis.com/token', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
-    });
-    if (!response.ok) throw new Error(`deadline_token_failed:${response.status}`);
-    const result = await response.json() as { access_token?: unknown };
-    if (typeof result.access_token !== 'string') throw new Error('deadline_token_invalid');
-    return result.access_token;
+    return this.rtdb.getAccessToken();
   }
 
   private documentsUrl(path = ''): string {

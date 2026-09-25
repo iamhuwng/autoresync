@@ -75,7 +75,7 @@ export const createHomeworkResetNotificationWorker = (options: HomeworkResetNoti
   };
 };
 
-/** Reads and processes at most 25 due records from the homework-reset family. */
+/** Reads and processes at most two due records from the homework-reset family. */
 export const retryDueHomeworkResetNotifications = async (env: Env): Promise<void> => {
   await createHandlers(env).retryDue();
 };

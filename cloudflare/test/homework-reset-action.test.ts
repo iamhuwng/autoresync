@@ -34,8 +34,8 @@ class MemoryStorage implements HomeworkResetNotificationStorage {
     this.version += 1;
     return String(this.version);
   }
-  async dueIntents(now: number, limit = 25) {
-    expect(limit).toBeLessThanOrEqual(25);
+  async dueIntents(now: number, limit = 2) {
+    expect(limit).toBeLessThanOrEqual(2);
     return this.current.dueAt <= now && ['retry_due', 'sending', 'retrying'].includes(this.current.state)
       ? [{ intent: structuredClone(this.current), version: String(this.version) }] : [];
   }

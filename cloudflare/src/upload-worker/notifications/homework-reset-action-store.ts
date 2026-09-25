@@ -1,4 +1,3 @@
-import { SignJWT, importPKCS8 } from 'jose';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import { homeworkResetNotificationId, type HomeworkResetIntent, type HomeworkResetNotificationStorage } from './homework-reset-action.ts';
 
@@ -56,18 +55,7 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
   private async token(): Promise<string> {
     const key = JSON.parse(required(this.env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY')) as { client_email?: string; private_key?: string };
     if (!key.client_email || !key.private_key || key.client_email !== required(this.env, 'NOTIFICATION_COMMAND_SERVICE_IDENTITY')) throw new Error('homework_reset_service_identity_invalid');
-    const privateKey = await importPKCS8(key.private_key, 'RS256');
-    const issuedAt = Math.floor(Date.now() / 1000);
-    const assertion = await new SignJWT({ iss: key.client_email, sub: key.client_email, aud: 'https://oauth2.googleapis.com/token', iat: issuedAt, exp: issuedAt + 3600, scope: 'https://www.googleapis.com/auth/datastore' })
-      .setProtectedHeader({ alg: 'RS256' }).sign(privateKey);
-    const response = await this.fetchImpl('https://oauth2.googleapis.com/token', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
-    });
-    if (!response.ok) throw new Error(`homework_reset_token_failed:${response.status}`);
-    const result = await response.json() as { access_token?: unknown };
-    if (typeof result.access_token !== 'string') throw new Error('homework_reset_token_invalid');
-    return result.access_token;
+    return this.rtdb.getAccessToken();
   }
 
   async readIntent(eventId: string) {

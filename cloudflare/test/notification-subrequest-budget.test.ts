@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FirebaseRestNotificationCommandRepository } from '../src/upload-worker/notifications/repository.ts';
+import { FirebaseDeadlineNotificationStorage } from '../src/upload-worker/notifications/deadline-action-store.ts';
+import { FirebaseHomeworkResetNotificationStorage } from '../src/upload-worker/notifications/homework-reset-action-store.ts';
 import { FirebaseThcsNotificationStorage } from '../src/upload-worker/notifications/thcs-notification-store.ts';
 
 const pem = (bytes: ArrayBuffer): string => {
@@ -8,6 +10,38 @@ const pem = (bytes: ArrayBuffer): string => {
 };
 
 describe('notification inbox external subrequests', () => {
+  it('reuses one OAuth exchange per first-batch Firestore retry store', async () => {
+    const key = await crypto.subtle.generateKey({
+      name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256',
+    }, true, ['sign', 'verify']);
+    const privateKey = pem(await crypto.subtle.exportKey('pkcs8', key.privateKey));
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      calls.push(`${init?.method ?? 'GET'} ${url}`);
+      if (url === 'https://oauth2.googleapis.com/token') {
+        return new Response(JSON.stringify({ access_token: 'test-token', expires_in: 3600 }));
+      }
+      if (url.endsWith(':runQuery')) return new Response('[]');
+      return new Response(null, { status: 404 });
+    };
+    for (const [index, Storage] of [FirebaseDeadlineNotificationStorage, FirebaseHomeworkResetNotificationStorage].entries()) {
+      const identity = `notification-budget-${index}@example.test`;
+      const env = {
+        FIREBASE_DB_URL: 'https://temp-a1437-default-rtdb.firebaseio.com',
+        FIREBASE_PROJECT_ID: 'temp-a1437',
+        NOTIFICATION_COMMAND_SERVICE_IDENTITY: identity,
+        NOTIFICATION_COMMAND_GOOGLE_SA_KEY: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      };
+      const storage = new Storage(env, fetchImpl);
+      expect(await storage.dueIntents(1_800_000_000_000, 2)).toEqual([]);
+      expect(await storage.readIntent('00000000-0000-4000-8000-000000000001')).toBeNull();
+    }
+    expect(calls.filter((call) => call.startsWith('POST https://oauth2.googleapis.com/token'))).toHaveLength(2);
+    expect(calls.filter((call) => call.includes('https://firestore.googleapis.com/'))).toHaveLength(4);
+  });
+
   it('shares one OAuth exchange across a THCS due scan and ten recipient writes', async () => {
     const key = await crypto.subtle.generateKey({
       name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
