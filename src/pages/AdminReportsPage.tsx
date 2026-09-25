@@ -1194,7 +1194,7 @@ const AdminReportsPage: React.FC = () => {
     { key: 'warning', label: 'Warning', color: '#b45309' },
   ];
   const activeDiagnosticRecord =
-    recentErrorRecords.find(
+    allErrorRecords.find(
       (record) => getRecordKey(record) === diagnosticViewerState?.recordKey
     ) || null;
   const liveFeedSummary = {
@@ -2060,8 +2060,7 @@ const AdminReportsPage: React.FC = () => {
                         Error Log Filters
                       </h3>
                       <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
-                        Filtering is client-side and currently scoped to the most recent
-                        3 days of reports.
+                        Filtering is client-side across all loaded error reports.
                       </p>
                     </div>
                     <Button
@@ -2265,7 +2264,7 @@ const AdminReportsPage: React.FC = () => {
                       </h3>
                       <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
                         Showing {filteredErrorRecords.length} of {allErrorRecords.length}{' '}
-                        error records loaded from the last 3 days.
+                        error records loaded across all dates.
                       </p>
                     </div>
                     <div

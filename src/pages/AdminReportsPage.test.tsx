@@ -100,7 +100,8 @@ vi.mock('../components/navigation', () => ({
 
 vi.mock('../components/DiagnosticViewerModal', () => ({
   __esModule: true,
-  default: () => null,
+  default: ({ opened, errorTitle }: { opened: boolean; errorTitle?: string }) =>
+    opened ? <div role="dialog">{errorTitle}</div> : null,
 }));
 
 vi.mock('../core/platform/storage', () => ({
@@ -118,7 +119,7 @@ vi.mock('../components/modern', () => ({
     ...props
   }: any) => <button {...props}>{children}</button>,
   Card: ({ children, variant: _variant, ...props }: any) => <div {...props}>{children}</div>,
-  Input: ({ label, ...props }: any) => (
+  Input: ({ label, fullWidth: _fullWidth, ...props }: any) => (
     <label>
       {label}
       <input {...props} />
@@ -170,12 +171,18 @@ describe('AdminReportsPage', () => {
       '2026-01-01': { 'notification-1': {
         id: 'notification-1', timestamp: Date.now(), feature: 'classes', severity: 'error',
         message: 'Delayed notification recovery failed', userName: 'Notification Worker',
+        diagnosticUrl: 'https://example.com/diagnostic.json',
       } },
     } });
 
     render(<AdminReportsPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Show Error Log reporting section' }));
     expect(await screen.findByText('Delayed notification recovery failed')).toBeInTheDocument();
+    expect(screen.getByText('Filtering is client-side across all loaded error reports.')).toBeInTheDocument();
+    expect(screen.getByText(/error records loaded across all dates/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Delayed notification recovery failed/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'View Full Diagnostic' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delayed notification recovery failed');
   });
 
   it('renders unresolved diagnostics from the RTDB map payload', async () => {
