@@ -517,11 +517,13 @@ const AdminReportsPage: React.FC = () => {
   const [todayErrors, setTodayErrors] = useState<ReportErrorRecord[]>([]);
   const [yesterdayErrors, setYesterdayErrors] = useState<ReportErrorRecord[]>([]);
   const [twoDaysAgoErrors, setTwoDaysAgoErrors] = useState<ReportErrorRecord[]>([]);
+  const [allErrorRecords, setAllErrorRecords] = useState<ReportErrorRecord[]>([]);
   const [todayEvents, setTodayEvents] = useState<ReportEventRecord[]>([]);
   const [healthLoadState, setHealthLoadState] = useState({
     todayErrors: false,
     yesterdayErrors: false,
     twoDaysAgoErrors: false,
+    allErrors: false,
     todayEvents: false,
   });
   const [unresolvedDiagnosticsRows, setUnresolvedDiagnosticsRows] = useState<
@@ -662,11 +664,16 @@ const AdminReportsPage: React.FC = () => {
       const value = snapshot.val();
       if (!value || typeof value !== 'object') {
         setOldestErrorDateKey(null);
+        setAllErrorRecords([]);
+        setHealthLoadState((previous) => ({ ...previous, allErrors: true }));
         return;
       }
 
       const keys = Object.keys(value).sort();
       setOldestErrorDateKey(keys[0] || null);
+      setAllErrorRecords(Object.values(value as Record<string, unknown>)
+        .flatMap((bucket) => snapshotToRecords<ReportErrorRecord>(bucket)));
+      setHealthLoadState((previous) => ({ ...previous, allErrors: true }));
     });
 
     return () => {
@@ -1083,9 +1090,7 @@ const AdminReportsPage: React.FC = () => {
     healthLoadState.yesterdayErrors &&
     healthLoadState.todayEvents;
   const errorLogDataReady =
-    healthLoadState.todayErrors &&
-    healthLoadState.yesterdayErrors &&
-    healthLoadState.twoDaysAgoErrors;
+    healthLoadState.allErrors;
   const healthSummary = {
     green: featureHealthRows.filter((row) => row.status === 'green').length,
     yellow: featureHealthRows.filter((row) => row.status === 'yellow').length,
@@ -1106,7 +1111,7 @@ const AdminReportsPage: React.FC = () => {
     Boolean(dateStartFilter) &&
     Boolean(dateEndFilter) &&
     dateStartFilter > dateEndFilter;
-  const filteredErrorRecords = recentErrorRecords
+  const filteredErrorRecords = allErrorRecords
     .filter((record) => {
       const severity = record.severity || 'error';
 
@@ -2029,7 +2034,7 @@ const AdminReportsPage: React.FC = () => {
                   Loading Error Log
                 </h3>
                 <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
-                  Reading the last 3 days of report data so the client-side filters can
+                  Reading report history so the client-side filters can
                   be applied locally.
                 </p>
               </Card>
@@ -2259,7 +2264,7 @@ const AdminReportsPage: React.FC = () => {
                         Recent Error Reports
                       </h3>
                       <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
-                        Showing {filteredErrorRecords.length} of {recentErrorRecords.length}{' '}
+                        Showing {filteredErrorRecords.length} of {allErrorRecords.length}{' '}
                         error records loaded from the last 3 days.
                       </p>
                     </div>
