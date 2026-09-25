@@ -59,41 +59,28 @@
   under the teacher-only session rule. Its unsupported generic notice was
   removed; row 32 is outside delivered coverage until a trusted grading source
   is repaired and connected to the shared notification path.
-- Current implementation uses two Cron Triggers and one bounded family per
-  invocation. The [scheduler budget](notification-recovery-scheduler-budget.md)
-  gives the cadence and unresolved composed CPU/subrequest proof. The earlier
-  five-minute, class/homework-only schedule in the original plan was superseded by this
-  implementation decision.
+- The full-family design proposes two Cron Triggers and one bounded family per
+  invocation; the first batch uses one trigger. The
+  [scheduler budget](notification-recovery-scheduler-budget.md) gives the
+  cadence and unresolved populated CPU/subrequest proof. The earlier
+  five-minute class/homework schedule was superseded.
 - [Historical backfill reconciliation](notification-recovery-historical-backfill.md)
   accounts for all 35 variants. The class/homework script is read-only and is
   not a whole-system backfill. A proven outage interval and recipient-level
   source evidence are required before any historical write.
 
-## Current release checkpoint (2026-09-25)
+## Historical release checkpoints before first-batch cutover (2026-09-25)
 
-The [combined release candidate](notification-recovery-release-candidate.md) at
-`c48f80a6` preserves the latest inspected Hosting source and live Book/AI RTDB
-rule differences. Its source commit `a016917e` passed
-[Linux CI run 36018675377](https://github.com/iamhuwng/autoresync/actions/runs/36018675377).
-The Hosting REST read still identifies `aea32fa07517146f` as live. Cloudflare
-authentication now works, the runtime service account has `roles/datastore.user`,
-and the dedicated API key is staged in an **undeployed** Worker version. The
-active Worker remains fetch-only and lacks that secret. The browser read-path
-check covered existing teacher/student pages but not a newly delivered notice.
-No Worker, rules, Hosting, or backfill release has occurred. The original
-execution baseline above is retained as historical investigation evidence;
-its old auth, IAM, and Hosting observations are superseded by this checkpoint.
+These source checkpoints preserve investigation history. Use the
+[combined release record](notification-recovery-release-candidate.md) and
+fresh remote readback for current deployment state. That record now includes
+the first-batch cutover and a populated class retry above the Workers Free
+Cron CPU limit; capacity correction and later-family activation remain open.
 
-The 2026-09-25 source checkpoint is `241ad39e` on
-`codex/notification-combined-release`. Its shared committed-event port,
-first-batch action-route gate, four-family retry rotation, and shared OAuth
-path for manual reminder/reset retry stores passed
-[Linux CI run 36131652274](https://github.com/iamhuwng/autoresync/actions/runs/36131652274).
-The separate class/homework Hosting source artifact is `c3e83309` on
-`codex/notification-class-homework-hosting`, based directly on the inspected
-live-source commit `070d2d3c`; it passed focused local tests and build. These
-are source checkpoints. The Worker, rules, and Hosting cutover and browser
-delivery proof remain open, as does historical backfill.
+The earlier `a016917e` and `241ad39e` source checkpoints and selective
+`c3e83309` Hosting artifact are recorded with their test and pre-cutover
+remote evidence in the release record. Their old fetch-only Worker and
+undeployed Hosting observations must not be read as current state.
 
 ## What this fixes
 
@@ -123,6 +110,8 @@ flowchart LR
   I --> U[Existing teacher or student bell]
   D -->|one failed attempt| R[One later retry]
   R -->|still failed| M[One issue in existing admin reports]
+  M -->|repeated family fault| G[Admin pauses affected notice delivery]
+  G -->|after repair| H[Reviewed recovery of saved notices]
 ```
 
 ## Agreed product rules
@@ -147,6 +136,43 @@ flowchart LR
 - Stay within the existing free plans. Use one event per action, bounded bulk
   delivery, one later retry, and no polling loop per student. Add no paid
   service or new delivery channel for this repair.
+
+## Repeated-failure containment decision (2026-09-25)
+
+The single retry helps distinguish a transient delivery failure from a
+repeatable fault. The existing admin issues must identify the notification
+family, failure reason, affected action, and time so an admin can recognize
+the same failure across distinct committed actions. One bad recipient or
+malformed source record is an event-level problem; it must not stop unrelated
+notices in that family.
+
+When the admin identifies a repeated family-level failure, an authorized
+operator must be able to pause that family's **notification delivery** through
+server-side configuration. This is an admin decision rather than an automatic
+failure-count threshold: a distributed automatic breaker would require new
+shared state and could disable a healthy family because of a few bad records.
+The existing Admin Error Log and a small family-level configuration switch
+are sufficient for the first release. Do not add a new polling service,
+database, or per-student circuit state.
+
+A pause stops immediate notice sends and scheduled retries for that family;
+it does not stop the underlying class, homework, course, or Book action.
+Worker action handlers that own a product transition must still commit that
+transition and its durable notice intent before reporting that delivery is
+paused. Delivery-only calls may return a clear paused result. The gate
+belongs after the action commit, not around an entire HTTP route that also
+owns the action. A Worker outage that prevents the action commit must still
+surface as an action failure. Preserve each saved event identity and original
+time; a skipped send does not consume its
+one automatic retry. Show the paused family and outstanding saved events in
+the existing admin surface without creating one new error for every skipped
+event. If the reporting database is unavailable, do not claim an admin issue
+was written; the durable intents must remain inspectable after recovery.
+
+After the fault is fixed, the operator resumes the family and runs bounded,
+verified recovery for its saved outstanding notices. Reuse deterministic IDs,
+preserve read flags, and check old links before delivery. Do not reopen on a
+timer or silently discard notices created while delivery was paused.
 
 ## Current starting state to verify before coding
 
@@ -301,9 +327,11 @@ they are not part of the 35 ordinary-producer variants above.
   replay proof.
 - Attempt delivery as soon as the action commits. A bounded scheduled pass
   checks only due, undelivered intents. Start each intent's retry due time
-  about **one hour** after commit. Use the implemented two-trigger rotation:
-  one minute for three bulk queues, two minutes for 14 small-family slots,
-  with one bounded family per invocation. The scheduler makes at most **one
+  about **one hour** after commit. The first batch rotates four class/homework
+  families on one two-minute trigger. The proposed full stage adds a separate
+  one-minute bulk trigger and more small-family slots only after populated
+  Free-plan CPU and backlog proof. Run one bounded family per invocation.
+  The scheduler makes at most **one
   additional delivery attempt** per event. If that fails, leave the intent
   available for an admin to inspect or retry manually and create one admin
   report issue. Before deployment, measure the fully composed invocation
@@ -313,6 +341,11 @@ they are not part of the 35 ordinary-producer variants above.
   the batch instead of launching repeated requests for every student. Test a
   30-student action and count actual Worker calls, Firebase reads/writes, and
   admin records. Do not scan every inbox on each scheduled pass.
+- Add the family-level delivery pause at the shared trusted boundary. Verify
+  that it suppresses both immediate sends and retry work while leaving
+  canonical actions and their saved intents intact. Keep the pause until an
+  authorized operator resumes after repair; do not use a per-isolate memory
+  flag as the source of truth.
 - Validate new outbox paths and every writable ancestor in RTDB/Firestore
   rules. The Worker must reject forged intents or changed authority. Do not
   introduce Cloudflare Queues, KV, D1, or paid Firebase features unless the
@@ -374,6 +407,12 @@ incomplete; track each variant individually.
   target. For each batch, perform representative actions, read back the exact
   recipient's inbox record, inspect the bell and link, and verify failure
   reporting. A toast is not proof that a persistent notice arrived.
+- **Failure containment:** prove repeated same-family failures are visible
+  with enough context to identify a pattern. Pause that notification family,
+  commit a new underlying action without delivery, confirm its intent remains
+  recoverable and no scheduled retry is consumed, then resume and recover it
+  without duplicate inbox records or reset read flags. Confirm an isolated
+  bad record does not pause the family.
 - **Free-plan check:** count calls and data for a one-recipient event, a
   30-recipient event, an idle scheduled pass, one failed batch, and replay.
   Enforce bounded queries/chunks and one admin issue per failed action. Recheck
@@ -398,3 +437,6 @@ incomplete; track each variant individually.
   in admin reports. Record any unverified event or remote rule state plainly;
   do not mark the notification system complete from green unit tests or a
   successful deployment command alone.
+  Verify the admin can pause a repeatedly failing notification family
+  without blocking its product actions and can recover its saved notices
+  after repair.
