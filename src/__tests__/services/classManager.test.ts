@@ -116,6 +116,37 @@ vi.mock('../../services/firebase', () => ({
   auth: { currentUser: { uid: 'teacher-test-uid-123' } },
 }));
 
+vi.mock('../../services/classActionClient', () => ({
+  commitClassAction: vi.fn(async ({ kind, classId, studentId }: {
+    kind: 'join-pending' | 'direct-add' | 'approve' | 'reject';
+    classId: string;
+    studentId: string;
+  }) => {
+    const studentPath = `classes/${classId}/students/${studentId}`;
+    const membershipPath = `student_classes/${studentId}/${classId}`;
+    const existing = getValueAtPath(studentPath) as Record<string, unknown> | undefined;
+    if (kind === 'reject') {
+      removeValueAtPath(studentPath);
+      removeValueAtPath(membershipPath);
+    } else if (kind === 'approve') {
+      if (!existing) return { success: false, error: 'class_action_stale' };
+      setValueAtPath(studentPath, { ...existing, status: 'active' });
+      setValueAtPath(membershipPath, { joinedAt: existing.joinedAt, status: 'active' });
+    } else {
+      const profile = getValueAtPath(`users/${studentId}`) as Record<string, unknown> | undefined;
+      if (!profile || existing) return { success: false, error: 'class_action_student_invalid' };
+      const joinedAt = Date.now();
+      const status = kind === 'join-pending' ? 'pending_approval' : 'active';
+      setValueAtPath(studentPath, {
+        id: studentId, uid: studentId, name: profile.displayName, email: profile.email,
+        status, joinedAt, lastActiveAt: joinedAt, isOnline: true, assignments: {},
+      });
+      setValueAtPath(membershipPath, { joinedAt, status });
+    }
+    return { success: true, committed: true, notificationStatus: 'delivered' };
+  }),
+}));
+
 vi.mock('firebase/database', () => {
   const ref = vi.fn((_db: unknown, path = '') => ({ path: normalizePath(path) }));
   let pushCounter = 0;
@@ -203,6 +234,12 @@ const TEST_STUDENT_UID_2 = 'student-test-uid-012';
 // Cleanup helper
 const cleanupTestData = async () => {
   clearMockDb();
+  setValueAtPath(`users/${TEST_STUDENT_UID}`, {
+    role: 'student', displayName: 'Test Student', email: 'student@test.com',
+  });
+  setValueAtPath(`users/${TEST_STUDENT_UID_2}`, {
+    role: 'student', displayName: 'Student 2', email: 'student2@test.com',
+  });
 };
 
 describe('Class Manager - Class Creation', () => {
