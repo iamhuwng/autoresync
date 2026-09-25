@@ -1,8 +1,8 @@
 # Notification system recovery plan
 
-**Status:** combined source and CI gates passed; release and historical backfill remain blocked, no deployment
+**Status:** the first-batch release record documents a live class/homework cutover; remaining families and historical backfill are open. Recheck remote state before further release claims.
 
-**Date:** 2026-09-24
+**Date:** 2026-09-25
 
 **Scope:** existing in-app notifications for teachers and students, including Book actions
 
@@ -110,8 +110,10 @@ flowchart LR
   I --> U[Existing teacher or student bell]
   D -->|one failed attempt| R[One later retry]
   R -->|still failed| M[One issue in existing admin reports]
-  M -->|repeated family fault| G[Admin pauses affected notice delivery]
-  G -->|after repair| H[Reviewed recovery of saved notices]
+  M -->|same failure across actions| G[Admin flags the affected notice family]
+  G --> O[Developer or operator pauses its delivery route]
+  O --> F[Fix, verify, deploy, and re-enable the route]
+  F --> H[Recover verified missed notices in bounded batches]
 ```
 
 ## Agreed product rules
@@ -139,21 +141,24 @@ flowchart LR
 
 ## Repeated-failure containment decision (2026-09-25)
 
-The single retry helps distinguish a transient delivery failure from a
-repeatable fault. The existing admin issues must identify the notification
-family, failure reason, affected action, and time so an admin can recognize
-the same failure across distinct committed actions. One bad recipient or
-malformed source record is an event-level problem; it must not stop unrelated
-notices in that family.
+Each failed notice gets at most one later retry. If that also fails, create
+one terminal issue in the existing Admin Error Log. The issue must identify
+the notification family or route, action type, failure reason, affected
+action, and time. Repeated terminal issues from **different actions** on the
+same route reveal a pattern. The admin sees and escalates that pattern; the
+admin is not expected to repair code, rules, or service configuration in the
+app. One bad recipient or malformed source record is an event-level problem;
+it must not stop unrelated notices in that family.
 
-When the admin identifies a repeated family-level failure, an authorized
-operator must be able to pause that family's **notification delivery** through
-server-side configuration. This is an admin decision rather than an automatic
-failure-count threshold: a distributed automatic breaker would require new
-shared state and could disable a healthy family because of a few bad records.
-The existing Admin Error Log and a small family-level configuration switch
-are sufficient for the first release. Do not add a new polling service,
-database, or per-student circuit state.
+When the pattern indicates a family-level fault, a developer or operator
+pauses that family's **notification delivery** through server-side
+configuration. They investigate, change code/rules/configuration as needed,
+verify the fix, deploy it, then re-enable delivery. The admin reports the
+pattern and can follow the operational status; no in-app admin repair or
+resume control is required. Do not add an automatic failure-count breaker,
+new polling service, database, or per-student circuit state. Each event is
+already capped at two attempts, and the operator pause stops waste across
+future actions once a pattern is recognized.
 
 A pause stops immediate notice sends and scheduled retries for that family;
 it does not stop the underlying class, homework, course, or Book action.
@@ -164,15 +169,17 @@ belongs after the action commit, not around an entire HTTP route that also
 owns the action. A Worker outage that prevents the action commit must still
 surface as an action failure. Preserve each saved event identity and original
 time; a skipped send does not consume its
-one automatic retry. Show the paused family and outstanding saved events in
-the existing admin surface without creating one new error for every skipped
+one automatic retry. Record paused state in the operational release record;
+do not build a new admin dashboard or create one error for every skipped
 event. If the reporting database is unavailable, do not claim an admin issue
 was written; the durable intents must remain inspectable after recovery.
 
-After the fault is fixed, the operator resumes the family and runs bounded,
-verified recovery for its saved outstanding notices. Reuse deterministic IDs,
-preserve read flags, and check old links before delivery. Do not reopen on a
-timer or silently discard notices created while delivery was paused.
+After a verified fix is deployed, the operator re-enables the family and uses
+the same bounded, verified historical-recovery procedure for its saved
+outstanding notices. Reuse deterministic IDs, preserve read flags, and check
+old links before delivery. Do not reopen on a timer or silently discard
+notices created while delivery was paused. Do not build a separate admin
+replay interface for this repair.
 
 ## Current starting state to verify before coding
 
@@ -333,7 +340,7 @@ they are not part of the 35 ordinary-producer variants above.
   Free-plan CPU and backlog proof. Run one bounded family per invocation.
   The scheduler makes at most **one
   additional delivery attempt** per event. If that fails, leave the intent
-  available for an admin to inspect or retry manually and create one admin
+  available for operator inspection or verified recovery and create one admin
   report issue. Before deployment, measure the fully composed invocation
   against Free plan CPU and subrequest limits, including overlapping triggers.
 - Resolve bulk recipients once from saved authority, deliver in bounded
@@ -341,11 +348,11 @@ they are not part of the 35 ordinary-producer variants above.
   the batch instead of launching repeated requests for every student. Test a
   30-student action and count actual Worker calls, Firebase reads/writes, and
   admin records. Do not scan every inbox on each scheduled pass.
-- Add the family-level delivery pause at the shared trusted boundary. Verify
-  that it suppresses both immediate sends and retry work while leaving
-  canonical actions and their saved intents intact. Keep the pause until an
-  authorized operator resumes after repair; do not use a per-isolate memory
-  flag as the source of truth.
+- Add the smallest server-side family delivery switch at the shared trusted
+  boundary. Verify that it suppresses both immediate sends and retry work
+  while leaving canonical actions and their saved intents intact. A developer
+  or operator changes the configuration during a controlled release; do not
+  build an admin toggle or use a per-isolate memory flag as the source of truth.
 - Validate new outbox paths and every writable ancestor in RTDB/Firestore
   rules. The Worker must reject forged intents or changed authority. Do not
   introduce Cloudflare Queues, KV, D1, or paid Firebase features unless the
@@ -407,16 +414,21 @@ incomplete; track each variant individually.
   target. For each batch, perform representative actions, read back the exact
   recipient's inbox record, inspect the bell and link, and verify failure
   reporting. A toast is not proof that a persistent notice arrived.
-- **Failure containment:** prove repeated same-family failures are visible
-  with enough context to identify a pattern. Pause that notification family,
-  commit a new underlying action without delivery, confirm its intent remains
-  recoverable and no scheduled retry is consumed, then resume and recover it
-  without duplicate inbox records or reset read flags. Confirm an isolated
-  bad record does not pause the family.
+- **Failure containment:** prove repeated same-family failures from distinct
+  actions are visible in the existing Admin Error Log with enough context to
+  identify a pattern. Pause that notification family through server-side
+  configuration, commit a new underlying action without delivery, confirm its
+  intent remains recoverable and no scheduled retry is consumed, then deploy
+  the fix, re-enable the family, and recover it without duplicate inbox records
+  or reset read flags. Confirm an isolated bad record does not pause the family.
 - **Free-plan check:** count calls and data for a one-recipient event, a
   30-recipient event, an idle scheduled pass, one failed batch, and replay.
   Enforce bounded queries/chunks and one admin issue per failed action. Recheck
-  current provider limits before deployment. As of this plan, Cloudflare
+  the populated class retry that used 16.361 ms CPU against the 10 ms Workers
+  Free limit before adding families or a second trigger. A one-intent-per-pass
+  cap is acceptable only if measured backlog at realistic class sizes remains
+  acceptable; do not trade an over-limit Worker for hours of hidden delay.
+  Recheck current provider limits before deployment. As of this plan, Cloudflare
   Workers Free lists 100,000 requests/day, 50 subrequests/invocation, 10 ms
   CPU/invocation, and five Cron Triggers/account; Firebase Spark lists 1 GB
   RTDB storage and 10 GB/month downloads; Firestore's free quota lists 50,000
@@ -437,6 +449,6 @@ incomplete; track each variant individually.
   in admin reports. Record any unverified event or remote rule state plainly;
   do not mark the notification system complete from green unit tests or a
   successful deployment command alone.
-  Verify the admin can pause a repeatedly failing notification family
-  without blocking its product actions and can recover its saved notices
-  after repair.
+  Verify a developer or operator can pause a repeatedly failing notification
+  family without blocking its product actions and can recover its saved
+  notices after a verified fix.
