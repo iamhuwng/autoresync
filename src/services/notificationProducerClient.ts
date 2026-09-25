@@ -1,23 +1,9 @@
 import { getAuth } from 'firebase/auth';
-import { buildRoute } from '../constants/routes';
-import type { NotificationType } from '../types/notification.types';
 import {
-    createNotificationCommandClient,
     DEFAULT_NOTIFICATION_WORKER_ORIGIN,
     NotificationCommandClientError,
-    type NotificationCommandProducerFamily,
+    notificationWorkerOrigin,
 } from './notificationCommandClient';
-
-export interface TrustedProducerNotificationInput {
-    readonly producerFamily: NotificationCommandProducerFamily;
-    readonly authorityRecordId: string;
-    readonly recipientId: string;
-    readonly operationKey: string;
-    readonly type: NotificationType;
-    readonly title: string;
-    readonly message: string;
-    readonly link?: string;
-}
 
 export interface TrustedProducerClientOptions {
     readonly workerOrigin?: string;
@@ -31,108 +17,39 @@ export interface TrustedProducerNotificationResult {
     readonly error?: string;
 }
 
-const hash32 = (value: string, seed: number): number => {
-    let hash = (2166136261 ^ seed) >>> 0;
-    for (let index = 0; index < value.length; index += 1) {
-        hash = Math.imul(hash ^ value.charCodeAt(index), 16777619) >>> 0;
-    }
-    return hash;
-};
-
-export const notificationOperationId = (operationKey: string): string => {
-    const normalized = operationKey.trim();
-    if (!normalized) throw new Error('notification_operation_key_required');
-    const hex = [0, 1, 2, 3]
-        .map((seed) => hash32(`${normalized}:${seed}`, seed).toString(16).padStart(8, '0'))
-        .join('');
-    const versioned = `${hex.slice(0, 12)}5${hex.slice(13, 16)}8${hex.slice(17)}`;
-    return `${versioned.slice(0, 8)}-${versioned.slice(8, 12)}-${versioned.slice(12, 16)}-${versioned.slice(16, 20)}-${versioned.slice(20)}`;
-};
-
 const defaultGetIdToken = async (forceRefresh = false): Promise<string> => {
     const user = getAuth().currentUser;
     return user ? user.getIdToken(forceRefresh) : '';
 };
 
-const createClient = (options: TrustedProducerClientOptions) => {
-    const workerOrigin = options.workerOrigin?.trim()
-        || import.meta.env.VITE_NOTIFICATION_COMMAND_WORKER_URL?.trim()
-        || DEFAULT_NOTIFICATION_WORKER_ORIGIN;
-    return createNotificationCommandClient({
-        workerOrigin,
-        getIdToken: options.getIdToken ?? defaultGetIdToken,
-        fetchImpl: options.fetchImpl,
-    });
-};
-
-export async function createTrustedNotification(
-    input: TrustedProducerNotificationInput,
+/** Dispatch a saved product event; recipient and content are resolved in the Worker. */
+export async function dispatchCommittedNotification(
+    input: { readonly eventKind: 'homework-submitted'; readonly recordId: string },
     options: TrustedProducerClientOptions = {},
 ): Promise<TrustedProducerNotificationResult> {
     try {
-        const client = createClient(options);
-        const operationId = notificationOperationId(`${input.operationKey}:${input.recipientId}`);
-        const result = await client.create({
-            schemaVersion: 1,
-            commandType: 'create-notification',
-            operationId,
-            producerFamily: input.producerFamily,
-            recipientId: input.recipientId,
-            authority: {
-                kind: input.producerFamily,
-                recordId: input.authorityRecordId,
+        if (!/^[A-Za-z0-9_-]{1,128}$/u.test(input.recordId)) throw new Error('notification_record_invalid');
+        const origin = options.workerOrigin?.trim()
+            || import.meta.env.VITE_NOTIFICATION_COMMAND_WORKER_URL?.trim()
+            || DEFAULT_NOTIFICATION_WORKER_ORIGIN;
+        const token = (await (options.getIdToken ?? defaultGetIdToken)(false)).trim();
+        if (!token) throw new NotificationCommandClientError('notification_command_unauthenticated', 401);
+        const response = await (options.fetchImpl ?? globalThis.fetch)(
+            `${notificationWorkerOrigin(origin)}/book-notifications/commands`, {
+                method: 'POST', credentials: 'omit', redirect: 'error',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schemaVersion: 1, eventKind: input.eventKind, recordId: input.recordId }),
             },
-            notification: {
-                type: input.type,
-                title: input.title,
-                message: input.message,
-                ...(input.link === undefined ? {} : { link: input.link }),
-            },
-        });
-        return { success: true, notificationId: result.notificationId };
+        );
+        const text = await response.text();
+        if (new TextEncoder().encode(text).byteLength > 32 * 1024) throw new Error('notification_command_response_too_large');
+        const body = JSON.parse(text) as { code?: unknown; notificationId?: unknown };
+        if (!response.ok) throw new NotificationCommandClientError(
+            typeof body.code === 'string' ? body.code : `http_${response.status}`, response.status,
+        );
+        if (typeof body.notificationId !== 'string') throw new Error('notification_command_response_invalid');
+        return { success: true, notificationId: body.notificationId };
     } catch (error) {
-        return {
-            success: false,
-            error: error instanceof NotificationCommandClientError
-                ? error.code
-                : error instanceof Error ? error.message : 'notification_command_failed',
-        };
+        return { success: false, error: error instanceof Error ? error.message : 'notification_command_failed' };
     }
 }
-
-export async function createTrustedBulkNotifications(
-    recipientIds: readonly string[],
-    input: Omit<TrustedProducerNotificationInput, 'recipientId'>,
-    options: TrustedProducerClientOptions = {},
-): Promise<{ success: boolean; notificationIds?: string[]; error?: string }> {
-    const uniqueRecipientIds = [...new Set(recipientIds.filter(Boolean))];
-    if (uniqueRecipientIds.length === 0) {
-        return { success: false, error: 'notification_recipients_required' };
-    }
-    const results = await Promise.all(uniqueRecipientIds.map((recipientId) => createTrustedNotification({
-        ...input,
-        recipientId,
-    }, options)));
-    const notificationIds = results.flatMap((result) => result.notificationId ? [result.notificationId] : []);
-    const failed = results.find((result) => !result.success);
-    return failed
-        ? { success: false, notificationIds, error: failed.error }
-        : { success: true, notificationIds };
-}
-
-export const sendTrustedHomeworkReminderNotification = (
-    studentId: string,
-    homeworkId: string,
-    homeworkTitle: string,
-    teacherName?: string,
-    reminderKey = String(Date.now()),
-): Promise<TrustedProducerNotificationResult> => createTrustedNotification({
-    producerFamily: 'deadline',
-    authorityRecordId: homeworkId,
-    recipientId: studentId,
-    operationKey: `teacher-manual-reminder:${homeworkId}:${reminderKey}`,
-    type: 'homework_reminder',
-    title: '⚡ Homework Reminder',
-    message: `${teacherName || 'Your teacher'} sent you a reminder for "${homeworkTitle}".`,
-    link: buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId }),
-});

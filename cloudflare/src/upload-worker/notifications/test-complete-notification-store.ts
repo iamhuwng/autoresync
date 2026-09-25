@@ -78,12 +78,13 @@ export class FirebaseTestCompleteNotificationStorage implements TestCompleteNoti
   }
 
   async reportFailure(resultId: string, intent: TestCompleteNotificationIntent): Promise<void> {
-    const day = new Date(intent.occurredAt).toISOString().slice(0, 10);
+    const now = Date.now();
+    const day = new Date(now).toISOString().slice(0, 10);
     const path = `reports/errors/${day}/test-complete-${resultId}`;
     const current = await this.admin.readWithEtag<unknown>(path);
     if (current.data !== null) return;
     await this.admin.writeIfMatch(path, {
-      id: `test-complete:${resultId}`, timestamp: Date.now(), feature: 'test-results', severity: 'error',
+      id: `test-complete:${resultId}`, timestamp: now, feature: 'test-results', severity: 'error',
       message: 'Test completion notification delivery failed after its retry.', userId: 'notification-worker',
       userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
       contextData: { resultId, studentId: String(row(await this.readResult(resultId))?.studentId ?? '') },

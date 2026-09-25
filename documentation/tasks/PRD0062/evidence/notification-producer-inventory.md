@@ -2,10 +2,9 @@
 
 Ticket 38B1 inventory. This table follows current source callsites for the
 specialized trusted action clients. Reader-only consumers are excluded.
-`GAP` means the source still calls the generic trusted notification API and
-does not yet commit a durable, source-authorized notification intent. The
-generic adapter alone does not establish that authority or the recovery
-behavior required by the notification recovery plan.
+The ordinary committed-event client sends only an event kind and saved record
+ID. Specialized action clients keep source mutation and intent creation
+atomic when a post-commit dispatch cannot do that safely.
 
 | Producer path | Migration owner | Family | Current status |
 |---|---:|---|---|
@@ -20,11 +19,9 @@ behavior required by the notification recovery plan.
 | `src/services/courseAnnouncementService.ts` | #95 | course-announcement | Specialized trusted action |
 | `src/services/courseManager.ts` | #95 | course-decision | Specialized trusted action |
 | `src/services/courseRequestManager.ts` | #95 | enrollment | Specialized trusted action |
-| `src/services/deadlineReminderService.ts` | #95 | deadline | Dormant GAP: generic call remains; no external caller found |
-| `src/services/enrollmentManager.ts` | #95 | enrollment | Dormant GAP: generic call remains; no external caller found |
 | `src/services/feedbackService.ts` | #96 | feedback | Specialized trusted action |
 | `src/services/homeworkManager.ts` | #95 | deadline | Durable manual reminder intent producer |
-| `src/services/homeworkSubmissionService.ts` | #96 | homework | Specialized reset action + generic GAP: submission notification call remains |
+| `src/services/homeworkSubmissionService.ts` | #96 | homework | Durable submission intent + committed-event dispatch; specialized reset action |
 | `src/services/sessionManager.js` | #97 | session | Specialized trusted action |
 | `src/services/testResults.service.ts` | #96 | result | Specialized review action and durable test-complete intent |
 | `src/services/writingSubmissionService.ts` | #97 | writing | Specialized trusted action |
@@ -33,11 +30,11 @@ behavior required by the notification recovery plan.
 
 Specialized source-side clients commit or wake a bounded action handled by the
 Worker. Their recipient and message content are resolved from saved source
-records. The generic calls marked `GAP` still pass through the legacy generic
-adapter and are not evidence of durable source-action authority or scheduled
-retry coverage. `deadlineReminderService.ts` and `enrollmentManager.ts` have no
-external caller in the current source tree; their generic calls are inventoried
-as dormant code, not as active notification behavior.
+records. Homework submission dispatch sends only an event kind and saved result ID;
+the Worker verifies the committed Firestore intent before deriving its inbox row.
+The two unreferenced generic producer paths (`deadlineReminderService.ts` and
+`sendExpirationWarning` in `enrollmentManager.ts`) were removed. No active
+feature source calls the generic content-authoring adapter.
 
 The specialized producers include assignment, class, course announcement,
 course decision, course request, feedback, homework reset, result review,

@@ -126,7 +126,7 @@ vi.mock('./testResults.service', () => ({
 }));
 
 vi.mock('./notificationProducerClient', () => ({
-    createTrustedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
+    dispatchCommittedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
 }));
 
 vi.mock('./homeworkResetNotificationClient', () => ({
@@ -384,14 +384,8 @@ describe('homeworkSubmissionService', () => {
         );
 
         expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-            producerFamily: 'homework',
-            authorityRecordId: 'writing-result-1',
-            recipientId: 'teacher-1',
-            operationKey: 'homework-submitted:teacher:writing-result-1',
-            type: 'info',
-            title: 'Homework Submitted',
-            message: 'A student submitted homework.',
-            link: `/teacher/homework/${mockHomeworkId}`,
+            eventKind: 'homework-submitted',
+            recordId: 'writing-result-1',
         });
         expect(firestoreHarness.store.get('homework_submissions/class-writing-submission')).toMatchObject({
             status: 'submitted',

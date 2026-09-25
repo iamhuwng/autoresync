@@ -75,14 +75,15 @@ export class FirebaseCourseTypeDecisionStorage implements CourseTypeDecisionStor
   }
 
   async reportFailure(request: CourseTypeDecisionRecord, intent: CourseTypeDecisionIntent): Promise<void> {
-    const day = new Date(intent.occurredAt).toISOString().slice(0, 10);
+    const now = Date.now();
+    const day = new Date(now).toISOString().slice(0, 10);
     const path = `reports/errors/${day}/${intent.occurrenceId}`;
     const existing = await this.admin.readWithEtag<unknown>(path);
     if (existing.data !== null) return;
     const actorId = intent.eventKind === 'course-type-approved' ? request.approvedBy : request.handledBy;
     await this.admin.writeIfMatch(path, {
       id: intent.occurrenceId,
-      timestamp: Date.now(),
+      timestamp: now,
       feature: 'courses',
       severity: 'error',
       message: `Course type notification delivery failed; 1 recipient remains.`,

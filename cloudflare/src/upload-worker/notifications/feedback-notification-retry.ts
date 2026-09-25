@@ -55,7 +55,7 @@ const reportFailure = async (env: Env, intent: FeedbackNotificationIntent, now: 
     GOOGLE_SA_KEY: required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY'),
   } });
   const issueId = `feedback-notification-${intent.eventId}`;
-  const path = `reports/errors/${new Date(intent.occurredAt).toISOString().slice(0, 10)}/${issueId}`;
+  const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${issueId}`;
   const existing = await admin.readWithEtag<unknown>(path);
   if (existing.data !== null) return;
   await admin.writeIfMatch(path, {

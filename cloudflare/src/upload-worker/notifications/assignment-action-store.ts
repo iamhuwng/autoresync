@@ -68,12 +68,13 @@ export class FirebaseAssignmentNotificationStorage implements AssignmentNotifica
       && teacherNotice?.id === assignmentNotificationId(intent.actionId, request.teacherId);
   }
   async reportFailure(id: string, intent: AssignmentNotificationIntent): Promise<void> {
-    const date = new Date(intent.occurredAt).toISOString().slice(0, 10);
+    const now = Date.now();
+    const date = new Date(now).toISOString().slice(0, 10);
     const path = `reports/errors/${date}/${intent.actionId}`;
     const current = await this.rtdb.readWithEtag<unknown>(path);
     if (current.data !== null) return;
     await this.rtdb.writeIfMatch(path, {
-      id: intent.actionId, timestamp: Date.now(), feature: 'assignments', severity: 'error',
+      id: intent.actionId, timestamp: now, feature: 'assignments', severity: 'error',
       message: 'Assignment approval notifications failed after one retry.', userId: id,
       userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
       contextData: { actionId: intent.actionId, requestId: id, failedRecipientCount: 2 },

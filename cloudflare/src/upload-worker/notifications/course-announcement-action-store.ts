@@ -151,13 +151,14 @@ export class FirebaseCourseAnnouncementActionStorage implements CourseAnnounceme
   }
 
   async reportFailure(announcement: CourseAnnouncementRecord, intent: CourseAnnouncementIntent, failedRecipientCount: number): Promise<void> {
-    const day = new Date(intent.occurredAt).toISOString().slice(0, 10);
+    const now = Date.now();
+    const day = new Date(now).toISOString().slice(0, 10);
     const path = `reports/errors/${day}/course-announcement-${intent.eventId}`;
     const current = await this.admin.readWithEtag<unknown>(path);
     if (current.data !== null) return;
     await this.admin.writeIfMatch(path, {
       id: `course-announcement-${intent.eventId}`,
-      timestamp: Date.now(),
+      timestamp: now,
       feature: 'courses',
       severity: 'error',
       message: `Course announcement notification delivery failed; ${failedRecipientCount} recipient(s) remain.`,

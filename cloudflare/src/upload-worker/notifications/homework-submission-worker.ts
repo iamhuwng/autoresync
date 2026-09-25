@@ -1,16 +1,14 @@
 import { createFirebaseVerifier } from '../firebase-verification.js';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
-import {
-  NotificationCommandSchemaError,
-  readNotificationCommand,
-} from './command-schema.ts';
+import { NotificationCommandSchemaError } from './command-schema.ts';
 import {
   FirebaseRestNotificationCommandRepository,
   type NotificationCommandRepository,
 } from './repository.ts';
 import { parseClassAction, performClassAction, type ClassActionStorage } from './class-action.ts';
 import { FirebaseClassActionStorage } from './class-action-store.ts';
-import { markHomeworkNotificationDelivered } from './homework-retry.ts';
+import { hasCommittedHomeworkNotification, markHomeworkNotificationDelivered } from './homework-retry.ts';
+import { buildRoute } from '../../../../src/constants/routes.ts';
 import {
   createCourseTypeDecisionHandlers,
   readCourseTypeDecisionDispatchRequest,
@@ -46,6 +44,8 @@ export interface HomeworkSubmissionNotificationWorkerOptions {
   readonly repositoryFactory?: (env: WorkerEnv) => NotificationCommandRepository;
   readonly readDatabaseValue?: (env: WorkerEnv, path: string) => Promise<unknown>;
   readonly classStorageFactory?: (env: WorkerEnv) => ClassActionStorage;
+  readonly hasCommittedIntent?: typeof hasCommittedHomeworkNotification;
+  readonly markDelivered?: typeof markHomeworkNotificationDelivered;
   readonly now?: () => number;
 }
 
@@ -143,10 +143,10 @@ const trustedHomeworkSubmission = (
   input: {
     readonly resultId: string;
     readonly actorUid: string;
-    readonly requestedRecipientId: string;
   },
 ): {
   readonly homeworkId: string;
+  readonly teacherId: string;
 } | null => {
   const record = asRecord(result);
   const context = asRecord(record?.context);
@@ -156,14 +156,34 @@ const trustedHomeworkSubmission = (
     || record.studentId !== input.actorUid
     || context.type !== 'homework'
     || visibility.ownershipResolved !== true
-    || visibility.visibilityOwnerTeacherId !== input.requestedRecipientId) {
+    || typeof visibility.visibilityOwnerTeacherId !== 'string'
+    || !SAFE_ID.test(visibility.visibilityOwnerTeacherId)) {
     return null;
   }
 
   const homeworkId = visibility.homeworkId;
   if (typeof homeworkId !== 'string' || !SAFE_ID.test(homeworkId)) return null;
 
-  return { homeworkId };
+  return { homeworkId, teacherId: visibility.visibilityOwnerTeacherId };
+};
+
+const readCommittedEvent = async (request: Request): Promise<string> => {
+  if (!request.headers.get('content-type')?.toLowerCase().includes('application/json')) {
+    throw new NotificationCommandSchemaError('content_type_required');
+  }
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > 1024) {
+    throw new NotificationCommandSchemaError('notification_command_body_too_large', 413);
+  }
+  let body: unknown;
+  try { body = JSON.parse(text); } catch { throw new NotificationCommandSchemaError('notification_command_invalid_json'); }
+  const event = asRecord(body);
+  if (!event || Object.keys(event).sort().join(',') !== 'eventKind,recordId,schemaVersion'
+    || event.schemaVersion !== 1 || event.eventKind !== 'homework-submitted'
+    || typeof event.recordId !== 'string' || !SAFE_ID.test(event.recordId)) {
+    throw new NotificationCommandSchemaError('notification_command_invalid');
+  }
+  return event.recordId;
 };
 
 const limiterFrom = (env: WorkerEnv): RateLimiter | null => {
@@ -180,6 +200,8 @@ export const createHomeworkSubmissionNotificationWorker = (
   const repositoryFactory = options.repositoryFactory ?? defaultRepositoryFactory;
   const readDatabaseValue = options.readDatabaseValue ?? defaultReadDatabaseValue;
   const classStorageFactory = options.classStorageFactory ?? ((env: WorkerEnv) => new FirebaseClassActionStorage(env));
+  const hasCommittedIntent = options.hasCommittedIntent ?? hasCommittedHomeworkNotification;
+  const markDelivered = options.markDelivered ?? markHomeworkNotificationDelivered;
   const now = options.now ?? Date.now;
 
   return {
@@ -273,47 +295,40 @@ export const createHomeworkSubmissionNotificationWorker = (
           });
           return json(request, result.body, result.status);
         }
-        const command = await readNotificationCommand(request);
-        if (command.producerFamily !== 'homework' || command.authority.kind !== 'homework') {
-          return json(request, { code: 'notification_command_recipient_forbidden' }, 403);
-        }
-
+        const recordId = await readCommittedEvent(request);
         const canonical = trustedHomeworkSubmission(
-          await readDatabaseValue(env, `test_results/${command.authority.recordId}`),
+          await readDatabaseValue(env, `test_results/${recordId}`),
           {
-            resultId: command.authority.recordId,
+            resultId: recordId,
             actorUid: auth.uid,
-            requestedRecipientId: command.recipientId,
           },
         );
         if (!canonical) {
           return json(request, { code: 'notification_command_recipient_forbidden' }, 403);
         }
 
-        const expectedOperationId = notificationOperationId(
-          `homework-submitted:teacher:${command.authority.recordId}:${command.recipientId}`,
-        );
-        const expectedMessage = 'A student submitted homework.';
-        if (command.operationId !== expectedOperationId
-          || command.notification.type !== 'info'
-          || command.notification.title !== 'Homework Submitted'
-          || command.notification.message !== expectedMessage
-          || command.notification.link !== `/teacher/homework/${canonical.homeworkId}`) {
-          return json(request, { code: 'notification_command_content_forbidden' }, 403);
+        if (!await hasCommittedIntent(env, {
+          resultId: recordId, studentId: auth.uid,
+          teacherId: canonical.teacherId, homeworkId: canonical.homeworkId,
+        })) {
+          return json(request, { code: 'notification_command_intent_missing' }, 403);
         }
-
+        const operationId = notificationOperationId(`homework-submitted:teacher:${recordId}:${canonical.teacherId}`);
         const result = await repositoryFactory(env).create({
-          operationId: command.operationId,
-          recipientId: command.recipientId,
-          notification: command.notification,
+          operationId,
+          recipientId: canonical.teacherId,
+          notification: {
+            type: 'info', title: 'Homework Submitted', message: 'A student submitted homework.',
+            link: buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: canonical.homeworkId }),
+          },
           now: now(),
         });
         if (result.status !== 'idempotency-conflict') {
           try {
-            await markHomeworkNotificationDelivered(env, {
-              resultId: command.authority.recordId,
+            await markDelivered(env, {
+              resultId: recordId,
               studentId: auth.uid,
-              teacherId: command.recipientId,
+              teacherId: canonical.teacherId,
               homeworkId: canonical.homeworkId,
             });
           } catch (error) {
@@ -322,7 +337,7 @@ export const createHomeworkSubmissionNotificationWorker = (
         }
         return json(request, {
           status: result.status,
-          operationId: command.operationId,
+          operationId,
           notificationId: result.notificationId,
         }, result.status === 'idempotency-conflict' ? 409 : 200);
       } catch (error) {

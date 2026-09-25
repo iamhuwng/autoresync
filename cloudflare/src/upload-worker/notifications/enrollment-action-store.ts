@@ -99,13 +99,14 @@ export class FirebaseCourseRequestNotificationStorage implements CourseRequestNo
   }
 
   async reportFailure(requestId: string, intent: CourseRequestNotificationIntent): Promise<void> {
-    const date = new Date(intent.occurredAt).toISOString().slice(0, 10);
+    const now = Date.now();
+    const date = new Date(now).toISOString().slice(0, 10);
     const path = `reports/errors/${date}/${intent.actionId}`;
     const current = await this.rtdb.readWithEtag<unknown>(path);
     if (current.data !== null) return;
     await this.rtdb.writeIfMatch(path, {
       id: intent.actionId,
-      timestamp: Date.now(),
+      timestamp: now,
       feature: 'courses',
       severity: 'error',
       message: 'Course request notification delivery failed after one retry.',

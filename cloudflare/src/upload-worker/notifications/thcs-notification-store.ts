@@ -136,14 +136,15 @@ export class FirebaseThcsNotificationStorage implements ThcsNotificationStorage 
     return [...homework, ...fullyGraded].slice(0, limit);
   }
   async reportFailure(kind: ThcsNotificationKind, recordId: string, intent: ThcsNotificationIntent): Promise<void> {
+    const now = Date.now();
     const eventId = `${kind}:${recordId}`;
-    const path = `reports/errors/${new Date(intent.occurredAt).toISOString().slice(0, 10)}/${thcsNotificationId(eventId, 'report')}`;
+    const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${thcsNotificationId(eventId, 'report')}`;
     const current = await this.rtdb.readWithEtag<unknown>(path);
     if (current.data !== null) return;
     const recipientCount = intent.recipientIds?.length ?? 1;
     const deliveredCount = intent.deliveredRecipientIds?.length ?? 0;
     await this.rtdb.writeIfMatch(path, {
-      id: eventId, timestamp: Date.now(), feature: 'thcs', severity: 'error',
+      id: eventId, timestamp: now, feature: 'thcs', severity: 'error',
       message: 'THCS notification delivery failed after its retry.', userId: 'notification-worker',
       userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
       contextData: { eventId, authorityRecordId: recordId, failedRecipientCount: recipientCount - deliveredCount },

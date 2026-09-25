@@ -134,7 +134,7 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
 
   async reportFailure(intent: HomeworkResetIntent, now: number): Promise<void> {
     const issueId = `homework-reset-notification-${intent.eventId}`;
-    const path = `reports/errors/${new Date(intent.occurredAt).toISOString().slice(0, 10)}/${issueId}`;
+    const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${issueId}`;
     const existing = await this.rtdb.readWithEtag<unknown>(path);
     if (existing.data !== null) return;
     await this.rtdb.writeIfMatch(path, {

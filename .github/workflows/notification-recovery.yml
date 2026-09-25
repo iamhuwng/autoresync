@@ -102,6 +102,7 @@ jobs:
           test/writing-notification-worker.test.ts
           test/notification-subrequest-budget.test.ts
           test/notification-scheduled-handler.test.ts
+          test/homework-submission-notification-worker.test.ts
           test/test-complete-notification-action.test.ts
           test/grade-notification-action.test.ts
           --config vitest.config.mjs --maxWorkers=1

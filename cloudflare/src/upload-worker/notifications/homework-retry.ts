@@ -131,7 +131,7 @@ const reportFailure = async (env: Env, intent: Intent, now: number, fetchImpl: t
     GOOGLE_SA_KEY: required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY'),
   }, fetchImpl });
   const issueId = `homework-notification-${intent.eventId}`;
-  const path = `reports/errors/${new Date(intent.submittedAt).toISOString().slice(0, 10)}/${issueId}`;
+  const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${issueId}`;
   const existing = await admin.readWithEtag<unknown>(path);
   if (existing.data !== null) return;
   await admin.writeIfMatch(path, {
@@ -140,6 +140,41 @@ const reportFailure = async (env: Env, intent: Intent, now: number, fetchImpl: t
     userId: intent.studentId, userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
     contextData: { eventId: intent.eventId, resultId: intent.resultId, homeworkId: intent.homeworkId },
   }, existing.etag);
+};
+
+/** Mark only the exact committed event done after the trusted HTTP path delivered it. */
+export const hasCommittedHomeworkNotification = async (
+  env: Env,
+  input: { readonly resultId: string; readonly studentId: string; readonly teacherId: string; readonly homeworkId: string },
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<boolean> => {
+  if (![input.resultId, input.studentId, input.teacherId, input.homeworkId].every((id) => ID.test(id))) return false;
+  const token = await tokenFor(env, fetchImpl);
+  const projectId = encodeURIComponent(required(env, 'FIREBASE_PROJECT_ID'));
+  const response = await fetchImpl(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery: {
+      from: [{ collectionId: COLLECTION }],
+      where: { fieldFilter: { field: { fieldPath: 'notificationIntent.resultId' }, op: 'EQUAL', value: { stringValue: input.resultId } } },
+      limit: 2,
+    } }),
+  });
+  if (!response.ok) throw new Error(`homework_notification_intent_query_failed:${response.status}`);
+  const rows = await response.json() as { readonly document?: FirestoreDocument }[];
+  const matches = rows.flatMap((row) => row.document ? [decodeDocument(row.document)] : [])
+    .filter((submission) => {
+      const intent = submission.notificationIntent;
+      return intent?.schemaVersion === 1
+        && intent.eventId === `homework-submitted:${input.resultId}`
+        && intent.resultId === input.resultId
+        && intent.studentId === input.studentId
+        && intent.teacherId === input.teacherId
+        && intent.homeworkId === input.homeworkId
+        && (submission.notificationDelivery?.state === 'retry_due'
+          || submission.notificationDelivery?.state === 'retrying'
+          || submission.notificationDelivery?.state === 'done');
+    });
+  return matches.length === 1;
 };
 
 /** Mark only the exact committed event done after the trusted HTTP path delivered it. */

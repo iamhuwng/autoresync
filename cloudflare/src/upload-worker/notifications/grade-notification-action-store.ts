@@ -127,7 +127,7 @@ export class FirebaseGradeNotificationStorage implements GradeNotificationStorag
 
   async reportFailure(intent: GradeNotificationIntent, now: number): Promise<void> {
     const id = `grade-notification-${intent.eventId}`;
-    const path = `reports/errors/${new Date(intent.occurredAt).toISOString().slice(0, 10)}/${id}`;
+    const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${id}`;
     const current = await this.admin.readWithEtag<unknown>(path);
     if (current.data !== null) return;
     await this.admin.writeIfMatch(path, {

@@ -7,8 +7,7 @@ const sourceRoot = join(root, 'src');
 const inventoryPath = join(root, 'documentation', 'tasks', 'PRD0062', 'evidence', 'notification-producer-inventory.md');
 const sourceExtensions = /\.(?:js|jsx|ts|tsx)$/u;
 const testFile = /\.(?:test|spec)\.[^.]+$/u;
-const genericCall = /\bcreateTrusted(?:Bulk)?Notifications?\s*\(/u;
-const producerCall = /\b(?:createTrusted(?:Bulk)?Notifications?|commitClassAction|createCourseAnnouncementAction|wakeCourseTypeDecisionDelivery|wakeAssignmentNotification|wakeCourseRequestNotification|saveFeedbackAction|recordManualHomeworkReminder|dispatchHomeworkResetNotification|markResultReviewed|dispatchWritingNotification|buildSessionNotificationWrites|deliverSessionNotificationNow|dispatchThcsNotificationAction|submitManualThcsGrade)\s*\(/u;
+const producerCall = /\b(?:dispatchCommittedNotification|commitClassAction|createCourseAnnouncementAction|wakeCourseTypeDecisionDelivery|wakeAssignmentNotification|wakeCourseRequestNotification|saveFeedbackAction|recordManualHomeworkReminder|dispatchHomeworkResetNotification|markResultReviewed|dispatchWritingNotification|buildSessionNotificationWrites|deliverSessionNotificationNow|dispatchThcsNotificationAction|submitManualThcsGrade)\s*\(/u;
 const adapters = new Set([
     'src/services/assignmentActionClient.ts',
     'src/services/classActionClient.ts',
@@ -59,36 +58,13 @@ describe('PRD0062 notification producer inventory', () => {
         expect(new Set(rows.map((row) => row.owner))).toEqual(new Set(['#95', '#96', '#97']));
     });
 
-    it('lists every live generic trusted call as an explicit gap', () => {
+    it('has no generic content-authoring producer call', () => {
         const source = sources();
         const actualGenericCalls = [...source]
-            .filter(([path, text]) => path !== 'src/services/notificationProducerClient.ts' && genericCall.test(text))
+            .filter(([, text]) => /\bcreateTrusted(?:Bulk)?Notifications?\s*\(/u.test(text))
             .map(([path]) => path)
             .sort();
-        const documentedGaps = inventoryRows()
-            .filter((row) => row.status.includes('GAP'))
-            .map((row) => row.path)
-            .sort();
-        expect(documentedGaps).toEqual(actualGenericCalls);
-        for (const path of actualGenericCalls) {
-            expect(inventoryRows().find((row) => row.path === path)?.status, path).toMatch(/GAP/u);
-        }
-    });
-
-    it('keeps dormant generic producers labeled dormant and unreferenced', () => {
-        const source = sources();
-        const rows = inventoryRows().filter((row) => row.status.startsWith('Dormant'));
-        expect(rows.map((row) => row.path).sort()).toEqual([
-            'src/services/deadlineReminderService.ts',
-            'src/services/enrollmentManager.ts',
-        ]);
-        for (const row of rows) {
-            const identifier = row.path.endsWith('deadlineReminderService.ts') ? 'processStudentReminders' : 'sendExpirationWarning';
-            const callers = [...source]
-                .filter(([path, text]) => path !== row.path && new RegExp(`\\b${identifier}\\s*\\(`, 'u').test(text))
-                .map(([path]) => path);
-            expect(callers, identifier).toEqual([]);
-        }
+        expect(actualGenericCalls).toEqual([]);
     });
 
     it('keeps raw inbox-content writes confined to the legacy adapter and account cleanup', () => {

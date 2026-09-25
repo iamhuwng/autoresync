@@ -40,8 +40,7 @@ import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
 import type { BookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.types';
 import { validateBookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.service';
 import { resolveBookHomeworkWorkerOrigin } from './homeworkAssignmentClient';
-import { buildRoute } from '../constants/routes';
-import { createTrustedNotification } from './notificationProducerClient';
+import { dispatchCommittedNotification } from './notificationProducerClient';
 import { dispatchHomeworkResetNotification } from './homeworkResetNotificationClient';
 
 const SUBMISSION_COLLECTION = 'homework_submissions';
@@ -528,15 +527,8 @@ export async function submitHomework(
         && isTrustedNotificationIdentifier(teacherRecipientId)
     ) {
         try {
-            const notificationResult = await createTrustedNotification({
-                producerFamily: 'homework',
-                authorityRecordId: resultId,
-                recipientId: teacherRecipientId,
-                operationKey: `homework-submitted:teacher:${resultId}`,
-                type: 'info',
-                title: 'Homework Submitted',
-                message: 'A student submitted homework.',
-                link: buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: authorityHomeworkId }),
+            const notificationResult = await dispatchCommittedNotification({
+                eventKind: 'homework-submitted', recordId: resultId,
             });
             if (!notificationResult.success) {
                 console.warn(

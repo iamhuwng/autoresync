@@ -110,7 +110,15 @@ export default {
   },
   scheduled(event, env, context) {
     const bulk = event.cron === '* * * * *';
-    const families = bulk ? bulkRetryFamilies : smallRetryFamilies;
+    // The first cutover runs only the two proven small retry families.
+    // An unknown value fails closed instead of activating every producer.
+    const batch = env.NOTIFICATION_RETRY_BATCH;
+    if (batch !== 'class-homework' && batch !== 'all') return;
+    if (batch === 'class-homework' && bulk) return;
+    const activeSmallFamilies = batch === 'class-homework'
+      ? [retryDueClassNotifications, retryDueHomeworkNotifications]
+      : smallRetryFamilies;
+    const families = bulk ? bulkRetryFamilies : activeSmallFamilies;
     const minute = Math.floor(event.scheduledTime / 60_000);
     const slot = Math.floor(minute / (bulk ? 1 : 2)) % families.length;
     context.waitUntil(families[slot](env));

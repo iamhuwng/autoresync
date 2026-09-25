@@ -144,7 +144,7 @@ export class FirebaseDeadlineNotificationStorage implements DeadlineNotification
   }
 
   async reportFailure(intent: ManualHomeworkReminderIntent, now: number): Promise<void> {
-    const path = `reports/errors/${new Date(intent.occurredAt).toISOString().slice(0, 10)}/${intent.eventId}`;
+    const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${intent.eventId}`;
     const existing = await this.rtdb.readWithEtag<unknown>(path);
     if (existing.data !== null) return;
     await this.rtdb.writeIfMatch(path, {

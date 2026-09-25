@@ -46,7 +46,7 @@ const reportFailure = async (env: Env, intent: Parameters<ResultReviewActionStor
       GOOGLE_SA_KEY: required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY'),
     },
   });
-  const date = new Date(intent.occurredAt).toISOString().slice(0, 10);
+  const date = new Date(now).toISOString().slice(0, 10);
   const path = `reports/errors/${date}/result-notification-${intent.eventId}`;
   const existing = await admin.readWithEtag<unknown>(path);
   if (existing.data !== null) return;

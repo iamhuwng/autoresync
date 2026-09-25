@@ -101,7 +101,7 @@ export class FirebaseSessionNotificationActionStorage implements SessionNotifica
   }
 
   async reportFailure(event: SessionNotificationEvent, failedRecipientCount: number, now: number): Promise<void> {
-    const day = new Date(event.occurredAt).toISOString().slice(0, 10);
+    const day = new Date(now).toISOString().slice(0, 10);
     const path = `reports/errors/${day}/session-notification-${event.eventId}`;
     const current = await this.admin.readWithEtag<unknown>(path);
     if (current.data !== null) return;

@@ -47,10 +47,6 @@ vi.mock('./userService', () => ({
     getUserById: vi.fn(),
 }));
 
-vi.mock('./notificationProducerClient', () => ({
-    createTrustedNotification: vi.fn(),
-}));
-
 vi.mock('./assignmentActionClient', () => ({ wakeAssignmentNotification: vi.fn().mockResolvedValue(undefined) }));
 
 import { getUserByEmail } from './userService';

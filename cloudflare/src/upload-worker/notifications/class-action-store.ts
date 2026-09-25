@@ -123,13 +123,14 @@ export class FirebaseClassActionStorage implements ClassActionStorage {
   }
 
   async reportFailure(intent: ClassNotificationIntent, failedRecipientCount: number): Promise<void> {
-    const date = new Date(intent.dueAt - 3_600_000).toISOString().slice(0, 10);
+    const now = Date.now();
+    const date = new Date(now).toISOString().slice(0, 10);
     const path = `reports/errors/${date}/${intent.actionId}`;
     const existing = await this.admin.readWithEtag<unknown>(path);
     if (existing.data !== null) return;
     await this.admin.writeIfMatch(path, {
       id: intent.actionId,
-      timestamp: Date.now(),
+      timestamp: now,
       feature: 'classes',
       severity: 'error',
       message: `Class notification delivery failed for ${intent.kind}; ${failedRecipientCount} recipient(s) remain.`,

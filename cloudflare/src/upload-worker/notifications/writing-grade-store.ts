@@ -180,7 +180,7 @@ export class FirebaseWritingGradeNotificationStorage implements WritingGradeNoti
   }
 
   async reportFailure(intent: WritingGradeNotificationIntent, now: number): Promise<void> {
-    const date = new Date(intent.occurredAt).toISOString().slice(0, 10);
+    const date = new Date(now).toISOString().slice(0, 10);
     const path = `reports/errors/${date}/writing-notification-${intent.eventId}`;
     const current = await this.rtdb.readWithEtag<unknown>(path);
     if (current.data !== null) return;
