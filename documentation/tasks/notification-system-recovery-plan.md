@@ -157,7 +157,8 @@ delivery between them, are the initial pattern threshold. Repeated execution
 of one malformed source record must count only once. Reports must retain the
 recipient context so an admin can tell a route fault from repeated failures
 to one recipient; suppression affects only retries, so fresh sends to other
-recipients still run.
+recipients still run. A successful delivery resets the consecutive count
+before suppression, but does not clear an already suppressed family.
 
 At that threshold, set one durable family-level **retry-suppressed** state.
 Scheduled passes skip every outstanding retry for that family without
@@ -183,7 +184,13 @@ around the retry, after any action commit. A Worker outage that prevents the
 action commit must still surface as an action failure. If the reporting or
 suppression-state store is unavailable, do not claim an issue was recorded;
 leave durable intents inspectable and skip retries until the gate can be
-read safely.
+read safely. Write the terminal admin issue before advancing the family
+counter. A crash between those writes may leave a visible issue uncounted,
+delaying suppression until a later distinct failure. This conservative
+undercount is acceptable; never suppress from an unreported or duplicate
+failure, and never give an event more than its one retry. An operator can
+disable retry delivery through configuration if state updates repeatedly
+fail; do not build a cross-store transaction framework for this edge case.
 
 After a verified fix is deployed, the developer or operator clears retry
 suppression and uses the same bounded, verified historical-recovery procedure
