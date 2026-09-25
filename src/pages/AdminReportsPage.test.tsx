@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminReportsPage from './AdminReportsPage';
 
@@ -163,6 +163,19 @@ describe('AdminReportsPage', () => {
     expect(
       await screen.findByText('No unresolved result diagnostics are currently queued.')
     ).toBeInTheDocument();
+  });
+
+  it('shows a newly reported issue whose stable event bucket is older than the default three days', async () => {
+    listenerState.values.set('/reports/errors', { value: {
+      '2026-01-01': { 'notification-1': {
+        id: 'notification-1', timestamp: Date.now(), feature: 'classes', severity: 'error',
+        message: 'Delayed notification recovery failed', userName: 'Notification Worker',
+      } },
+    } });
+
+    render(<AdminReportsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show Error Log reporting section' }));
+    expect(await screen.findByText('Delayed notification recovery failed')).toBeInTheDocument();
   });
 
   it('renders unresolved diagnostics from the RTDB map payload', async () => {
