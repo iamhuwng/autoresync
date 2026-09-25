@@ -55,7 +55,7 @@ const tokenFor = async (env: Env, fetchImpl: typeof fetch): Promise<string> => {
   const now = Math.floor(Date.now() / 1000);
   const assertion = await new SignJWT({ iss: key.client_email, sub: key.client_email, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600, scope: 'https://www.googleapis.com/auth/datastore' })
     .setProtectedHeader({ alg: 'RS256' }).sign(privateKey);
-  const response = await fetchImpl('https://oauth2.googleapis.com/token', {
+  const response = await fetchImpl.call(globalThis, 'https://oauth2.googleapis.com/token', {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
   });
@@ -79,7 +79,7 @@ const notificationOperationId = (operationKey: string): string => {
 const fetchDue = async (env: Env, now: number, fetchImpl: typeof fetch, token: string): Promise<readonly { path: string; document: FirestoreDocument; submission: Submission }[]> => {
   const projectId = encodeURIComponent(required(env, 'FIREBASE_PROJECT_ID'));
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
-  const response = await fetchImpl(url, {
+  const response = await fetchImpl.call(globalThis, url, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ structuredQuery: {
       from: [{ collectionId: COLLECTION }],
@@ -102,7 +102,7 @@ const updateDelivery = async (env: Env, due: { path: string; document: Firestore
   if (!due.document.updateTime) return null;
   const projectId = encodeURIComponent(required(env, 'FIREBASE_PROJECT_ID'));
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${due.path}?updateMask.fieldPaths=notificationDelivery&currentDocument.updateTime=${encodeURIComponent(due.document.updateTime)}`;
-  const response = await fetchImpl(url, {
+  const response = await fetchImpl.call(globalThis, url, {
     method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields: { notificationDelivery: encode(delivery) } }),
   });
@@ -151,7 +151,7 @@ export const hasCommittedHomeworkNotification = async (
   if (![input.resultId, input.studentId, input.teacherId, input.homeworkId].every((id) => ID.test(id))) return false;
   const token = await tokenFor(env, fetchImpl);
   const projectId = encodeURIComponent(required(env, 'FIREBASE_PROJECT_ID'));
-  const response = await fetchImpl(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`, {
+  const response = await fetchImpl.call(globalThis, `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ structuredQuery: {
       from: [{ collectionId: COLLECTION }],
@@ -186,7 +186,7 @@ export const markHomeworkNotificationDelivered = async (
   if (![input.resultId, input.studentId, input.teacherId, input.homeworkId].every((id) => ID.test(id))) return false;
   const token = await tokenFor(env, fetchImpl);
   const projectId = encodeURIComponent(required(env, 'FIREBASE_PROJECT_ID'));
-  const response = await fetchImpl(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`, {
+  const response = await fetchImpl.call(globalThis, `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ structuredQuery: {
       from: [{ collectionId: COLLECTION }],

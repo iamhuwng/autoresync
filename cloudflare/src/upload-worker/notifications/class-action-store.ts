@@ -40,7 +40,7 @@ const firebaseToken = async (
     },
   }).setProtectedHeader({ alg: 'RS256', typ: 'JWT' }).sign(privateKey);
   const url = `${SIGN_IN_URL}?key=${encodeURIComponent(required(env, 'FIREBASE_WEB_API_KEY'))}`;
-  const response = await fetchImpl(url, {
+  const response = await fetchImpl.call(globalThis, url, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
   });

@@ -60,7 +60,7 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
 
   async readIntent(eventId: string) {
     const token = await this.token();
-    const response = await this.fetchImpl(this.documentsUrl(`/${COLLECTION}/${encodeURIComponent(eventId)}`), { headers: { Authorization: `Bearer ${token}` } });
+    const response = await this.fetchImpl.call(globalThis, this.documentsUrl(`/${COLLECTION}/${encodeURIComponent(eventId)}`), { headers: { Authorization: `Bearer ${token}` } });
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`homework_reset_intent_read_failed:${response.status}`);
     const document = await response.json() as FirestoreDocument;
@@ -70,7 +70,7 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
 
   async readHomework(homeworkId: string, studentId: string): Promise<Record<string, unknown> | null> {
     const token = await this.token();
-    const response = await this.fetchImpl(this.documentsUrl(`/homework_assignments/${encodeURIComponent(homeworkId)}`), { headers: { Authorization: `Bearer ${token}` } });
+    const response = await this.fetchImpl.call(globalThis, this.documentsUrl(`/homework_assignments/${encodeURIComponent(homeworkId)}`), { headers: { Authorization: `Bearer ${token}` } });
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`homework_reset_source_read_failed:${response.status}`);
     const homework = decoded(await response.json() as FirestoreDocument);
@@ -88,7 +88,7 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
     const token = await this.token();
     const fields = ['state', 'attempts', 'dueAt'];
     const mask = fields.map((field) => `updateMask.fieldPaths=${field}`).join('&');
-    const response = await this.fetchImpl(`${this.documentsUrl(`/${COLLECTION}/${encodeURIComponent(eventId)}`)}?${mask}&currentDocument.updateTime=${encodeURIComponent(version)}`, {
+    const response = await this.fetchImpl.call(globalThis, `${this.documentsUrl(`/${COLLECTION}/${encodeURIComponent(eventId)}`)}?${mask}&currentDocument.updateTime=${encodeURIComponent(version)}`, {
       method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: Object.fromEntries(fields.map((field) => [field, encode(intent[field as keyof HomeworkResetIntent])])) }),
     });
@@ -99,7 +99,7 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
 
   async dueIntents(now: number, limit = 2) {
     const token = await this.token();
-    const response = await this.fetchImpl(`${this.documentsUrl()}:runQuery`, {
+    const response = await this.fetchImpl.call(globalThis, `${this.documentsUrl()}:runQuery`, {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ structuredQuery: {
         from: [{ collectionId: COLLECTION }],

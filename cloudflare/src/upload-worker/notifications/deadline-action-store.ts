@@ -62,7 +62,7 @@ export class FirebaseDeadlineNotificationStorage implements DeadlineNotification
 
   async readIntent(eventId: string) {
     const token = await this.token();
-    const response = await this.fetchImpl(this.documentsUrl(`/${COLLECTION}/${encodeURIComponent(eventId)}`), {
+    const response = await this.fetchImpl.call(globalThis, this.documentsUrl(`/${COLLECTION}/${encodeURIComponent(eventId)}`), {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (response.status === 404) return null;
@@ -74,7 +74,7 @@ export class FirebaseDeadlineNotificationStorage implements DeadlineNotification
 
   async readHomework(homeworkId: string, studentId: string): Promise<Record<string, unknown> | null> {
     const token = await this.token();
-    const response = await this.fetchImpl(this.documentsUrl(`/homework_assignments/${encodeURIComponent(homeworkId)}`), {
+    const response = await this.fetchImpl.call(globalThis, this.documentsUrl(`/homework_assignments/${encodeURIComponent(homeworkId)}`), {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (response.status === 404) return null;
@@ -97,7 +97,7 @@ export class FirebaseDeadlineNotificationStorage implements DeadlineNotification
 
   async updateIntent(eventId: string, intent: ManualHomeworkReminderIntent, version: string): Promise<string | null> {
     const token = await this.token();
-    const response = await this.fetchImpl(`${this.documentsUrl(`/${COLLECTION}/${encodeURIComponent(eventId)}`)}?updateMask.fieldPaths=${Object.keys(intent).map(encodeURIComponent).join('&updateMask.fieldPaths=')}&currentDocument.updateTime=${encodeURIComponent(version)}`, {
+    const response = await this.fetchImpl.call(globalThis, `${this.documentsUrl(`/${COLLECTION}/${encodeURIComponent(eventId)}`)}?updateMask.fieldPaths=${Object.keys(intent).map(encodeURIComponent).join('&updateMask.fieldPaths=')}&currentDocument.updateTime=${encodeURIComponent(version)}`, {
       method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: Object.fromEntries(Object.entries(intent).map(([key, value]) => [key, encode(value)])) }),
     });
@@ -109,7 +109,7 @@ export class FirebaseDeadlineNotificationStorage implements DeadlineNotification
 
   async dueIntents(now: number, limit = 5) {
     const token = await this.token();
-    const response = await this.fetchImpl(`${this.documentsUrl()}:runQuery`, {
+    const response = await this.fetchImpl.call(globalThis, `${this.documentsUrl()}:runQuery`, {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ structuredQuery: {
         from: [{ collectionId: COLLECTION }],

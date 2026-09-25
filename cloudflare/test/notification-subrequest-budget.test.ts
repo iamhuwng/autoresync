@@ -43,7 +43,8 @@ describe('notification inbox external subrequests', () => {
     }));
     const calls: string[] = [];
     const writes: Array<{ path: string; state?: string }> = [];
-    const fetchImpl: typeof fetch = async (input, init) => {
+    const fetchImpl: typeof fetch = async function (this: unknown, input, init) {
+      if (this !== globalThis) throw new TypeError('fetch receiver was lost');
       const url = String(input);
       const method = init?.method ?? 'GET';
       const path = new URL(url).pathname;
@@ -93,7 +94,8 @@ describe('notification inbox external subrequests', () => {
     const now = 1_800_000_000_000;
     const calls: string[] = [];
     const patches: unknown[] = [];
-    const fetchImpl: typeof fetch = async (input, init) => {
+    const fetchImpl: typeof fetch = async function (this: unknown, input, init) {
+      if (this !== globalThis) throw new TypeError('fetch receiver was lost');
       const url = String(input);
       const method = init?.method ?? 'GET';
       calls.push(`${method} ${url}`);
@@ -150,7 +152,8 @@ describe('notification inbox external subrequests', () => {
       };
       const calls: string[] = [];
       const patches: unknown[] = [];
-      const fetchImpl: typeof fetch = async (input, init) => {
+      const fetchImpl: typeof fetch = async function (this: unknown, input, init) {
+        if (this !== globalThis) throw new TypeError('fetch receiver was lost');
         const url = String(input);
         const method = init?.method ?? 'GET';
         calls.push(`${method} ${url}`);
@@ -211,7 +214,8 @@ describe('notification inbox external subrequests', () => {
     }, true, ['sign', 'verify']);
     const privateKey = pem(await crypto.subtle.exportKey('pkcs8', key.privateKey));
     const calls: string[] = [];
-    const fetchImpl: typeof fetch = async (input, init) => {
+    const fetchImpl: typeof fetch = async function (this: unknown, input, init) {
+      if (this !== globalThis) throw new TypeError('fetch receiver was lost');
       const url = String(input);
       calls.push(`${init?.method ?? 'GET'} ${url}`);
       if (url === 'https://oauth2.googleapis.com/token') {
