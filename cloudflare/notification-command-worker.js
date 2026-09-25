@@ -75,6 +75,12 @@ const smallRetryFamilies = [
   retryDueTestCompleteNotificationsForEnv,
   retryDueGradeNotificationsForEnv,
 ];
+const firstBatchRetryFamilies = [
+  retryDueClassNotifications,
+  retryDueHomeworkNotifications,
+  retryDueDeadlineNotifications,
+  retryDueHomeworkResetNotifications,
+];
 const notificationActionPaths = new Set([
   '/book-notifications/commands',
   '/class-notifications/actions',
@@ -159,14 +165,12 @@ export default {
   },
   scheduled(event, env, context) {
     const bulk = event.cron === '* * * * *';
-    // The first cutover runs only the two proven small retry families.
+    // The first cutover runs one bounded retry family per invocation.
     // An unknown value fails closed instead of activating every producer.
     const batch = env.NOTIFICATION_RETRY_BATCH;
     if (batch !== 'class-homework' && batch !== 'all') return;
     if (batch === 'class-homework' && bulk) return;
-    const activeSmallFamilies = batch === 'class-homework'
-      ? [retryDueClassNotifications, retryDueHomeworkNotifications]
-      : smallRetryFamilies;
+    const activeSmallFamilies = batch === 'class-homework' ? firstBatchRetryFamilies : smallRetryFamilies;
     const families = bulk ? bulkRetryFamilies : activeSmallFamilies;
     const minute = Math.floor(event.scheduledTime / 60_000);
     const slot = Math.floor(minute / (bulk ? 1 : 2)) % families.length;

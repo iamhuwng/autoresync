@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const { retryClass, retryAnnouncement, homeworkFetch, classHomeworkFetch, feedbackFetch } = vi.hoisted(() => ({
+const { retryClass, retryHomework, retryDeadline, retryReset, retryAnnouncement, homeworkFetch, classHomeworkFetch, feedbackFetch } = vi.hoisted(() => ({
   retryClass: vi.fn(async () => {}),
+  retryHomework: vi.fn(async () => {}),
+  retryDeadline: vi.fn(async () => {}),
+  retryReset: vi.fn(async () => {}),
   retryAnnouncement: vi.fn(async () => {}),
   homeworkFetch: vi.fn(async () => new Response('homework')),
   classHomeworkFetch: vi.fn(async () => new Response('class')),
@@ -11,9 +14,11 @@ vi.mock('../src/upload-worker/notifications/homework-submission-worker.ts', () =
   createHomeworkSubmissionNotificationWorker: () => ({ fetch: classHomeworkFetch }),
 }));
 vi.mock('../src/upload-worker/notifications/class-retry.ts', () => ({ retryDueClassNotifications: retryClass }));
+vi.mock('../src/upload-worker/notifications/homework-retry.ts', () => ({ retryDueHomeworkNotifications: retryHomework }));
+vi.mock('../src/upload-worker/notifications/deadline-notification-worker.ts', () => ({ retryDueDeadlineNotifications: retryDeadline }));
 vi.mock('../src/upload-worker/notifications/homework-reset-notification-worker.ts', () => ({
   createHomeworkResetNotificationWorker: () => ({ fetch: homeworkFetch }),
-  retryDueHomeworkResetNotifications: vi.fn(async () => {}),
+  retryDueHomeworkResetNotifications: retryReset,
 }));
 vi.mock('../src/upload-worker/notifications/feedback-notification-action.ts', () => ({
   createFeedbackNotificationWorker: () => ({ fetch: feedbackFetch }),
@@ -26,11 +31,20 @@ vi.mock('../src/upload-worker/notifications/course-announcement-action.ts', () =
 import worker from '../notification-command-worker.js';
 
 describe('composed notification Worker scheduled handler', () => {
-  it('dispatches the selected bounded family through waitUntil', async () => {
-    let pending: Promise<unknown> | undefined;
-    worker.scheduled({ cron: '*/2 * * * *', scheduledTime: 0 }, { NOTIFICATION_RETRY_BATCH: 'class-homework' }, { waitUntil: (promise: Promise<unknown>) => { pending = promise; } });
-    await pending;
+  it('visits every first-batch retry family through one waitUntil per two-minute slot', async () => {
+    const waitUntil = vi.fn();
+    const pending: Promise<unknown>[] = [];
+    for (const scheduledTime of [0, 120_000, 240_000, 360_000]) {
+      worker.scheduled({ cron: '*/2 * * * *', scheduledTime }, { NOTIFICATION_RETRY_BATCH: 'class-homework' }, {
+        waitUntil: (promise: Promise<unknown>) => { waitUntil(promise); pending.push(promise); },
+      });
+    }
+    await Promise.all(pending);
+    expect(waitUntil).toHaveBeenCalledTimes(4);
     expect(retryClass).toHaveBeenCalledOnce();
+    expect(retryHomework).toHaveBeenCalledOnce();
+    expect(retryDeadline).toHaveBeenCalledOnce();
+    expect(retryReset).toHaveBeenCalledOnce();
   });
 
   it('gives the bulk queue its own minute trigger', async () => {

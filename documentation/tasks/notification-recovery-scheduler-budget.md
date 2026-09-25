@@ -1,6 +1,6 @@
 # Notification recovery scheduler budget
 
-Checked against source on 2026-09-25. The release candidate config has one `*/2 * * * *` trigger and `NOTIFICATION_RETRY_BATCH=class-homework`, alternating a bounded class and homework pass every two minutes. Each family is visited every four minutes. The full-family stage requires a separate config change to `NOTIFICATION_RETRY_BATCH=all` plus a `* * * * *` bulk trigger. The full schedule below has three bulk families and 14 small-family slots, including two each for class and homework; both triggers can fire on even minutes.
+Checked against source on 2026-09-25. The release candidate config has one `*/2 * * * *` trigger and `NOTIFICATION_RETRY_BATCH=class-homework`. It rotates class membership, homework submission, manual homework reminder, and homework reset retries, one bounded family every two minutes. Each first-batch family is visited every eight minutes, including the two action routes exposed in the selective Hosting artifact. The full-family stage requires a separate config change to `NOTIFICATION_RETRY_BATCH=all` plus a `* * * * *` bulk trigger. The full schedule below has three bulk families and 14 small-family slots, including two each for class and homework submission; both triggers can fire on even minutes.
 
 | Queue | Maximum interval between its passes | Maximum delay after a one-hour retry due time |
 |---|---:|---:|
