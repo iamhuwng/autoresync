@@ -22,4 +22,19 @@ describe('notificationProducerClient', () => {
         })).resolves.toMatchObject({ success: false, error: 'notification_record_invalid' });
         expect(fetchImpl).not.toHaveBeenCalled();
     });
+
+    it.each([
+        [{ eventKind: 'test-completed', recordId: 'result-1' }, '/test-complete-notifications/actions', { schemaVersion: 1, resultId: 'result-1' }, 'test-completed:result-1'],
+        [{ eventKind: 'homework-reset', recordId: '00000000-0000-4000-8000-000000000123' }, '/homework-reset-notifications/actions', { eventId: '00000000-0000-4000-8000-000000000123' }, '00000000-0000-4000-8000-000000000123'],
+        [{ eventKind: 'writing-notification', recordId: 'submission-1', occurrenceId: 'writing-submission-1-graded-1' }, '/writing-notifications/actions', { schemaVersion: 1, actionType: 'writing-notification', eventId: 'writing-submission-1-graded-1', submissionId: 'submission-1' }, 'writing-submission-1-graded-1'],
+    ] as const)('routes %j through the shared identity port', async (event, path, body, key) => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ status: 'delivered' }), { status: 200 }));
+        await expect(dispatchCommittedNotification(event, {
+            workerOrigin: 'https://worker.example', getIdToken: async () => 'token', fetchImpl,
+        })).resolves.toMatchObject({ success: true, status: 'delivered' });
+        const [url, init] = fetchImpl.mock.calls[0]!;
+        expect(url).toBe(`https://worker.example${path}`);
+        expect(init?.headers).toMatchObject({ 'Idempotency-Key': key });
+        expect(JSON.parse(String(init?.body))).toEqual(body);
+    });
 });

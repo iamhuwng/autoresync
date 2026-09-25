@@ -3,8 +3,11 @@
 Ticket 38B1 inventory. This table follows current source callsites for the
 specialized trusted action clients. Reader-only consumers are excluded.
 The ordinary committed-event client sends only an event kind and saved record
-ID. Specialized action clients keep source mutation and intent creation
-atomic when a post-commit dispatch cannot do that safely.
+identity. It covers homework submission/reset, test completion, and writing
+submission/grade events. Its endpoint mapping calls existing trusted Worker
+resolvers, all of which derive recipient, content, and link from saved records.
+Specialized action clients keep source mutation and intent creation atomic
+when a post-commit dispatch cannot do that safely.
 
 | Producer path | Migration owner | Family | Current status |
 |---|---:|---|---|
@@ -21,17 +24,26 @@ atomic when a post-commit dispatch cannot do that safely.
 | `src/services/courseRequestManager.ts` | #95 | enrollment | Specialized trusted action |
 | `src/services/feedbackService.ts` | #96 | feedback | Specialized trusted action |
 | `src/services/homeworkManager.ts` | #95 | deadline | Durable manual reminder intent producer |
-| `src/services/homeworkSubmissionService.ts` | #96 | homework | Durable submission intent + committed-event dispatch; specialized reset action |
+| `src/services/homeworkSubmissionService.ts` | #96 | homework | Durable submission/reset intents + shared committed-event dispatch |
 | `src/services/sessionManager.js` | #97 | session | Specialized trusted action |
-| `src/services/testResults.service.ts` | #96 | result | Specialized review action and durable test-complete intent |
-| `src/services/writingSubmissionService.ts` | #97 | writing | Specialized trusted action |
+| `src/services/testResults.service.ts` | #96 | result | Shared test-complete dispatch; specialized review action commits transition + intent |
+| `src/services/writingSubmissionService.ts` | #97 | writing | Shared committed-event dispatch for submission/grade intents |
 
 ## Current trusted action coverage
 
+The shared producer port sends an event kind and saved record identity for
+post-commit dispatch. Homework submission verifies its committed Firestore
+intent before deriving its inbox row. Test completion, homework reset, and
+writing retain their existing trusted Worker resolvers and bounded retry paths.
+All use the same inbox repository and read flag.
+
 Specialized source-side clients commit or wake a bounded action handled by the
-Worker. Their recipient and message content are resolved from saved source
-records. Homework submission dispatch sends only an event kind and saved result ID;
-the Worker verifies the committed Firestore intent before deriving its inbox row.
+Worker. Class membership, assignment approval, course request/type decision,
+course announcement, feedback, manual reminders, result review, THCS manual
+grading, and session transitions need Worker-owned action or intent changes;
+those clients remain explicit exceptions to the ordinary post-commit port.
+Their recipient and message content are still resolved from saved source
+records.
 The two unreferenced generic producer paths (`deadlineReminderService.ts` and
 `sendExpirationWarning` in `enrollmentManager.ts`) were removed. No active
 feature source calls the generic content-authoring adapter.

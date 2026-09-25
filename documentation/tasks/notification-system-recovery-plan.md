@@ -190,6 +190,23 @@ action commits. It need not call the browser-facing HTTP route merely to share
 the inbox. Preserve Book's committed-only, one-notice-per-student-per-update,
 safe-link, and no-hidden-answer requirements.
 
+### Current source boundary (2026-09-25)
+
+`dispatchCommittedNotification` is the ordinary feature port for saved homework
+submission/reset, test completion, and writing submission/grade events. It
+accepts only a registered event kind, saved record ID, and for writing a saved
+occurrence ID. The port maps these identities to the existing trusted Worker
+resolvers; it does not accept a recipient, title, message, or destination.
+Each resolver verifies its source record and writes through the same inbox
+repository with deterministic identity and bounded retry.
+
+Source actions that must atomically commit the product transition and its
+notification intent keep narrow Worker action commands: class membership,
+assignment and course decisions, announcements, feedback, result review,
+manual reminders/grading, and session transitions. The implementation matrix
+marks these exceptions. Their shared policy is server-owned content and link,
+the existing inbox/read flag, one later retry, and a terminal admin issue.
+
 ### Class transition decision (2026-09-24)
 
 Class rejection deletes the pending roster and student-class rows, leaving no

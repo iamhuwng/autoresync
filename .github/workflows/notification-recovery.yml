@@ -45,6 +45,7 @@ jobs:
           src/services/thcsWritingGrading.service.test.ts
           src/services/feedbackService.test.ts
           src/services/assignmentManager.test.ts
+          src/__tests__/services/classManager.test.ts
           src/services/courseRequestManager.test.ts
           src/services/writingSubmissionService.test.ts
           src/services/writingGradeNotificationAuthority.test.ts

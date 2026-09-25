@@ -75,10 +75,59 @@ const smallRetryFamilies = [
   retryDueTestCompleteNotificationsForEnv,
   retryDueGradeNotificationsForEnv,
 ];
+const notificationActionPaths = new Set([
+  '/book-notifications/commands',
+  '/class-notifications/actions',
+  '/notifications/course-type-decisions/dispatch',
+  '/deadline-notifications/actions',
+  '/enrollment-notifications/actions',
+  '/assignment-notifications/actions',
+  '/result-notifications/reviewed',
+  '/feedback-notifications/actions',
+  '/course-announcements/actions',
+  '/homework-reset-notifications/actions',
+  '/thcs-notifications/actions',
+  '/session-notifications/action',
+  '/writing-notifications/actions',
+  '/test-complete-notifications/actions',
+  '/grading-notifications/manual',
+]);
+const firstBatchActionPaths = new Set([
+  '/book-notifications/commands',
+  '/class-notifications/actions',
+  '/deadline-notifications/actions',
+  '/homework-reset-notifications/actions',
+]);
+const allowedOrigins = new Set([
+  'https://kahut1.web.app',
+  'http://localhost:5173',
+  'http://localhost:5174',
+]);
+
+const gatedActionResponse = (request) => {
+  const headers = new Headers({
+    'Cache-Control': 'no-store',
+    'Content-Type': 'application/json; charset=utf-8',
+    Vary: 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+  });
+  const origin = request.headers.get('Origin');
+  if (origin && allowedOrigins.has(origin)) {
+    headers.set('Access-Control-Allow-Origin', origin);
+    headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key');
+  }
+  return new Response(JSON.stringify({ code: 'notification_action_batch_inactive' }), { status: 503, headers });
+};
 
 export default {
   fetch(request, env) {
     const path = new URL(request.url).pathname;
+    if (request.method !== 'OPTIONS' && notificationActionPaths.has(path)) {
+      const batch = env.NOTIFICATION_RETRY_BATCH;
+      if (batch !== 'all' && !(batch === 'class-homework' && firstBatchActionPaths.has(path))) {
+        return gatedActionResponse(request);
+      }
+    }
     if (path === '/result-notifications/reviewed') {
       return resultReviewWorker.fetch(request, env);
     }

@@ -22,7 +22,6 @@ const mockGetStudentOverride = vi.hoisted(() => vi.fn(() => ({})));
 const mockIsStudentExemptedFromHomework = vi.hoisted(() => vi.fn(() => false));
 const mockDeleteTestResult = vi.hoisted(() => vi.fn());
 const mockCreateTrustedNotification = vi.hoisted(() => vi.fn());
-const mockDispatchHomeworkResetNotification = vi.hoisted(() => vi.fn());
 
 vi.mock('firebase/firestore', () => {
     const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -127,10 +126,6 @@ vi.mock('./testResults.service', () => ({
 
 vi.mock('./notificationProducerClient', () => ({
     dispatchCommittedNotification: (...args: unknown[]) => mockCreateTrustedNotification(...args),
-}));
-
-vi.mock('./homeworkResetNotificationClient', () => ({
-    dispatchHomeworkResetNotification: (...args: unknown[]) => mockDispatchHomeworkResetNotification(...args),
 }));
 
 import {
@@ -261,8 +256,7 @@ describe('homeworkSubmissionService', () => {
         mockGetStudentOverride.mockReturnValue({});
         mockIsStudentExemptedFromHomework.mockReturnValue(false);
         mockDeleteTestResult.mockResolvedValue(undefined);
-        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
-        mockDispatchHomeworkResetNotification.mockResolvedValue('delivered');
+        mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1', status: 'delivered' });
         mockUpdateHomework.mockResolvedValue(undefined);
     });
 
@@ -579,7 +573,9 @@ describe('homeworkSubmissionService', () => {
                 completionRate: 0,
             },
         });
-        expect(mockDispatchHomeworkResetNotification).toHaveBeenCalledWith(resetEvent?.[0].split('/')[1]);
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            eventKind: 'homework-reset', recordId: resetEvent?.[0].split('/')[1],
+        });
     });
 
     it('does not delete submissions when homework authority is unavailable', async () => {
@@ -595,7 +591,7 @@ describe('homeworkSubmissionService', () => {
             .rejects.toMatchObject({ code: 'RESET_FORBIDDEN' });
 
         expect(firestoreHarness.store.has('homework_submissions/missing-authority-submission')).toBe(true);
-        expect(mockDispatchHomeworkResetNotification).not.toHaveBeenCalled();
+        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
     });
 
     it('reads trusted Book progress without mapping completion into legacy score fields', async () => {

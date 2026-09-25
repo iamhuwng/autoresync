@@ -1,6 +1,6 @@
 # Persistent notification event matrix
 
-Source review: 2026-09-24, isolated `codex/notification-recovery` worktree. These 35 rows cover the ordinary variants in the recovery plan. All delivered items use the existing RTDB `notifications/{recipientId}/{notificationId}` inbox and read flag. This is source status, not deployment proof. Book update notifications use the same inbox but are outside these 35 variants.
+Source review: 2026-09-24, isolated `codex/notification-recovery` worktree; committed-event routing updated 2026-09-25 on `codex/notification-combined-release`. These 35 rows cover the ordinary variants in the recovery plan. All delivered items use the existing RTDB `notifications/{recipientId}/{notificationId}` inbox and read flag. This is source status, not deployment proof. Book update notifications use the same inbox but are outside these 35 variants.
 
 | # | Event | Saved authority and recipient | Delivery state |
 |---:|---|---|---|
@@ -21,17 +21,17 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree. Thes
 | 15 | Ordinary homework due soon | Firestore assignment and reminder status | Dormant `processStudentReminders` has no caller. No active recovered event |
 | 16 | THCS homework due soon | Same source | Same dormant path |
 | 17 | Teacher manual homework reminder | Firestore assignment override and immutable reminder intent; assigned student | Specialized Worker wake and bounded retry |
-| 18 | Homework submitted | Firestore submission transaction holds intent; RTDB result proves student and teacher | Specialized Worker validation, bounded retry |
-| 19 | Homework reset | Firestore reset transaction and immutable event; prior submission student | Specialized reset Worker, bounded retry |
+| 18 | Homework submitted | Firestore submission transaction holds intent; RTDB result proves student and teacher | Shared committed-event port; Worker validates saved intent, bounded retry |
+| 19 | Homework reset | Firestore reset transaction and immutable event; prior submission student | Shared committed-event port to reset resolver, bounded retry |
 | 20 | Per-question feedback saved | Worker commits feedback and signed intent under canonical result; result student | Specialized feedback action, bounded retry |
 | 21 | Overall feedback saved | Same source; result student | Same bounded path |
-| 22 | Ordinary test completed | RTDB result creation and separate completion intent; result student | Specialized Worker excludes THCS duplicate, bounded retry |
+| 22 | Ordinary test completed | RTDB result creation and separate completion intent; result student | Shared committed-event port to completion resolver; excludes THCS duplicate, bounded retry |
 | 23 | Result marked reviewed | Worker commits review transition and intent; result student | Specialized review action, bounded retry |
 | 24 | Individual THCS question manually graded | Worker atomically commits authorized session grade and separate intent; saved answer student | Specialized manual grade action, bounded retry |
-| 25 | Writing grade published | Firestore grade and immutable intent; submission student | Specialized writing Worker, bounded retry |
-| 26 | Solo writing practice submitted, student | Firestore materialization intent and RTDB result; submitting student | Specialized writing Worker, bounded retry |
-| 27 | Class-session writing auto-submitted | Firestore submission intent plus RTDB session/result; session student | Specialized writing Worker, bounded retry |
-| 28 | Solo writing practice submitted, teacher | Same submission/result; saved assigned teacher | Same bounded path |
+| 25 | Writing grade published | Firestore grade and immutable intent; submission student | Shared committed-event port to writing resolver, bounded retry |
+| 26 | Solo writing practice submitted, student | Firestore materialization intent and RTDB result; submitting student | Shared committed-event port to writing resolver, bounded retry |
+| 27 | Class-session writing auto-submitted | Firestore submission intent plus RTDB session/result; session student | Shared committed-event port to writing resolver, bounded retry |
+| 28 | Solo writing practice submitted, teacher | Same submission/result; saved assigned teacher | Same shared bounded path |
 | 29 | THCS homework assigned | Firestore assignment intent; Worker checks teacher and resolves saved target | Specialized Worker processes at most 10 recipients per invocation, persists cursor, then one later retry |
 | 30 | THCS fully graded from practice view | RTDB fully graded result intent; result student | Specialized Worker, bounded retry |
 | 31 | THCS fully graded from student layout | Same canonical result/intent and deterministic inbox ID as row 30 | Same path; converges on one item |
@@ -42,7 +42,14 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree. Thes
 
 ## Remaining release evidence
 
+The ordinary port accepts only event identity and routes to trusted resolvers.
+Action clients remain for class transitions, assignment/course decisions,
+announcements, feedback, manual reminders, review transitions, grading, and
+session actions where the Worker must commit source state or a durable intent.
+These are explicit source-action exceptions; they still write to the shared
+inbox and use the same idempotent read-preserving delivery repository.
+
 - Linux CI run 35984381971 passed RTDB rules (33/33), Firestore rules (26/26), Workerd (60/60), and the Wrangler dry-run bundle. The Windows RTDB emulator still cannot bind its loopback transport here.
-- The local Worker tests and bundle prove source behavior only. Cloudflare authentication, Firestore role for the Worker service account, required Worker API key secret, and live RTDB rule reconciliation remain release gates.
+- The local Worker tests and bundle prove source behavior only. Refresh Cloudflare authentication, Worker identity and secret bindings, and live RTDB rule reconciliation before release. The `class-homework` setting now gates action routes as well as scheduled retries.
 - Historical backfill is not executed. The [35-row reconciliation](notification-recovery-historical-backfill.md) records each variant's evidence gate. The Hosting file history narrows possible exposure, but does not prove each missed recipient or a continuous outage interval. The read-only preview script currently covers class and homework only.
-- Live browser flows and combined Hosting source have not been verified or deployed from this branch.
+- The selective class/homework Hosting source is built and tested on `codex/notification-class-homework-hosting` at `c3e83309`; no live delivery browser flow or combined Hosting deployment has been verified.

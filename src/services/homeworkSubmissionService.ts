@@ -41,7 +41,6 @@ import type { BookHomeworkProgressProjection } from './book-homework/bookHomewor
 import { validateBookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.service';
 import { resolveBookHomeworkWorkerOrigin } from './homeworkAssignmentClient';
 import { dispatchCommittedNotification } from './notificationProducerClient';
-import { dispatchHomeworkResetNotification } from './homeworkResetNotificationClient';
 
 const SUBMISSION_COLLECTION = 'homework_submissions';
 const HOMEWORK_NOTIFICATION_RETRY_MS = 60 * 60 * 1000;
@@ -1160,12 +1159,13 @@ export async function resetStudentHomework(
         && isTrustedNotificationIdentifier(submissionRecipientId)
         && isTrustedNotificationIdentifier(authorityHomeworkId)
     ) {
-        await dispatchHomeworkResetNotification(eventId).then((status) => {
-            notificationStatus = status === 'replayed' ? 'delivered' : status;
-        }).catch((err) => {
-            console.warn('Failed to send homework reset notification:', err);
+        const result = await dispatchCommittedNotification({ eventKind: 'homework-reset', recordId: eventId });
+        if (result.success && (result.status === 'delivered' || result.status === 'replayed' || result.status === 'retry_scheduled')) {
+            notificationStatus = result.status === 'replayed' ? 'delivered' : result.status;
+        } else {
+            console.warn('Failed to send homework reset notification:', result.error ?? 'invalid_response');
             // The saved event remains eligible for the bounded Worker retry.
-        });
+        }
     } else {
         console.warn('Skipped homework reset notification: trusted recipient or authority was unavailable.');
     }

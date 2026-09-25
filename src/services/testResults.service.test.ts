@@ -76,8 +76,8 @@ vi.mock('./resultVisibilityReporting.service', () => ({
     upsertUnresolvedResultVisibilityReport: mockUpsertUnresolvedResultVisibilityReport,
 }));
 
-vi.mock('./testCompleteNotificationClient', () => ({
-    dispatchTestCompleteNotification: mockDispatchTestCompleteNotification,
+vi.mock('./notificationProducerClient', () => ({
+    dispatchCommittedNotification: mockDispatchTestCompleteNotification,
 }));
 
 vi.mock('./resultReviewActionClient', () => ({
@@ -145,7 +145,7 @@ describe('testResults.service', () => {
         vi.clearAllMocks();
         (ref as any).mockImplementation((_database: unknown, path?: string) => path ?? '__root__');
         mockGetAuth.mockReturnValue(undefined);
-        mockDispatchTestCompleteNotification.mockResolvedValue(undefined);
+        mockDispatchTestCompleteNotification.mockResolvedValue({ success: true, status: 'delivered' });
         mockMarkResultReviewed.mockResolvedValue({
             status: 'committed', eventId: '00000000-0000-4000-8000-000000000121', notificationStatus: 'delivered',
         });
@@ -272,7 +272,7 @@ describe('testResults.service', () => {
                     attempts: 0, state: 'pending',
                 },
             }));
-            expect(mockDispatchTestCompleteNotification).toHaveBeenCalledWith('result-complete-1');
+            expect(mockDispatchTestCompleteNotification).toHaveBeenCalledWith({ eventKind: 'test-completed', recordId: 'result-complete-1' });
         });
 
         it('records the teacher actor for a disconnected class-session auto-submit', async () => {
@@ -291,7 +291,7 @@ describe('testResults.service', () => {
             expect(set).toHaveBeenCalledWith(expect.objectContaining({ key: 'result-auto-1' }), expect.objectContaining({
                 testCompleteNotificationIntent: expect.objectContaining({ actorUid: 'teacher-1', actorRole: 'teacher' }),
             }));
-            expect(mockDispatchTestCompleteNotification).toHaveBeenCalledWith('result-auto-1');
+            expect(mockDispatchTestCompleteNotification).toHaveBeenCalledWith({ eventKind: 'test-completed', recordId: 'result-auto-1' });
         });
 
         it('writes a stable solo result id with operation identity for idempotent reload recovery', async () => {

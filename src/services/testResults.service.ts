@@ -15,7 +15,7 @@ import { getAuth } from 'firebase/auth';
 // @ts-ignore
 import { database } from './firebase';
 import { markResultReviewed } from './resultReviewActionClient';
-import { dispatchTestCompleteNotification } from './testCompleteNotificationClient';
+import { dispatchCommittedNotification } from './notificationProducerClient';
 import { TestMarkingResult } from './autoMarking.service';
 import {
   ReMarkEntry,
@@ -932,8 +932,8 @@ export async function saveTestResult(
     console.log(`💾 Test result saved: ${resultId}`);
 
     if (persistedResultRecord.testCompleteNotificationIntent) {
-      void dispatchTestCompleteNotification(resultId).catch((notifError) => {
-        console.warn('⚠️ [TestResults] Failed to send test-complete notification (non-blocking):', notifError);
+      void dispatchCommittedNotification({ eventKind: 'test-completed', recordId: resultId }).then((result) => {
+        if (!result.success) console.warn('⚠️ [TestResults] Failed to send test-complete notification (non-blocking):', result.error);
       });
     }
 

@@ -7,7 +7,7 @@ const sourceRoot = join(root, 'src');
 const inventoryPath = join(root, 'documentation', 'tasks', 'PRD0062', 'evidence', 'notification-producer-inventory.md');
 const sourceExtensions = /\.(?:js|jsx|ts|tsx)$/u;
 const testFile = /\.(?:test|spec)\.[^.]+$/u;
-const producerCall = /\b(?:dispatchCommittedNotification|commitClassAction|createCourseAnnouncementAction|wakeCourseTypeDecisionDelivery|wakeAssignmentNotification|wakeCourseRequestNotification|saveFeedbackAction|recordManualHomeworkReminder|dispatchHomeworkResetNotification|markResultReviewed|dispatchWritingNotification|buildSessionNotificationWrites|deliverSessionNotificationNow|dispatchThcsNotificationAction|submitManualThcsGrade)\s*\(/u;
+const producerCall = /\b(?:dispatchCommittedNotification|commitClassAction|createCourseAnnouncementAction|wakeCourseTypeDecisionDelivery|wakeAssignmentNotification|wakeCourseRequestNotification|saveFeedbackAction|recordManualHomeworkReminder|markResultReviewed|buildSessionNotificationWrites|deliverSessionNotificationNow|dispatchThcsNotificationAction|submitManualThcsGrade)\s*\(/u;
 const adapters = new Set([
     'src/services/assignmentActionClient.ts',
     'src/services/classActionClient.ts',
@@ -15,12 +15,10 @@ const adapters = new Set([
     'src/services/courseTypeDecisionClient.ts',
     'src/services/enrollmentActionClient.ts',
     'src/services/feedbackActionClient.ts',
-    'src/services/homeworkResetNotificationClient.ts',
     'src/services/manualThcsGradeClient.ts',
     'src/services/notificationProducerClient.ts',
     'src/services/sessionNotificationActionClient.ts',
     'src/services/thcsNotificationActionClient.ts',
-    'src/services/writingNotificationClient.ts',
     'src/services/resultReviewActionClient.ts',
 ]);
 

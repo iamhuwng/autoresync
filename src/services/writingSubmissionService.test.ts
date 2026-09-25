@@ -76,8 +76,8 @@ vi.mock('./restoreGuard', () => ({
                 fn,
 }));
 
-vi.mock('./writingNotificationClient', () => ({
-    dispatchWritingNotification: mockDispatchWritingNotification,
+vi.mock('./notificationProducerClient', () => ({
+    dispatchCommittedNotification: mockDispatchWritingNotification,
 }));
 
 vi.mock('./homeworkSubmissionService', () => ({
@@ -130,7 +130,7 @@ describe('writingSubmissionService', () => {
         mockClearUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockUpsertUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockMarkHomeworkSubmissionGraded.mockResolvedValue(undefined);
-        mockDispatchWritingNotification.mockResolvedValue(undefined);
+        mockDispatchWritingNotification.mockResolvedValue({ success: true, status: 'delivered' });
         mockWriteBatchCommit.mockResolvedValue(undefined);
         mockAuth.uid = 'teacher-1';
         (setDoc as any).mockResolvedValue(undefined);
@@ -1047,7 +1047,9 @@ describe('writingSubmissionService', () => {
         expect(mockWriteBatchSet).toHaveBeenCalledWith('writing_notification_intents/writing-result-4-submitted-student', expect.objectContaining({
             kind: 'writing-submitted-student', actorUid: 'student-4', occurredAt: expect.any(Number),
         }));
-        expect(mockDispatchWritingNotification).toHaveBeenCalledWith('result-4', 'writing-result-4-submitted-student');
+        expect(mockDispatchWritingNotification).toHaveBeenCalledWith({
+            eventKind: 'writing-notification', recordId: 'result-4', occurrenceId: 'writing-result-4-submitted-student',
+        });
     });
 
     it('filters pending submissions by assignment metadata instead of grading.teacherId', async () => {
@@ -1385,7 +1387,7 @@ describe('writingSubmissionService', () => {
             exists: () => false,
             val: () => null,
         });
-        mockDispatchWritingNotification.mockRejectedValueOnce(new Error('worker_unavailable'));
+        mockDispatchWritingNotification.mockResolvedValueOnce({ success: false, error: 'worker_unavailable' });
 
         const result = await publishGrading('submission-1', draft, {
             expectedDraftVersion: 1,
@@ -1406,9 +1408,9 @@ describe('writingSubmissionService', () => {
             attempts: 1,
             state: 'retry_due',
         });
-        expect(mockDispatchWritingNotification).toHaveBeenCalledWith(
-            'submission-1', 'writing-submission-1-graded-1',
-        );
+        expect(mockDispatchWritingNotification).toHaveBeenCalledWith({
+            eventKind: 'writing-notification', recordId: 'submission-1', occurrenceId: 'writing-submission-1-graded-1',
+        });
         const compatibilityProjectionCall = (updateDoc as any).mock.calls.find(([_refPath, payload]: [string, any]) => Array.isArray(payload?.annotations));
         expect(compatibilityProjectionCall?.[1]?.annotations).toEqual([
             {

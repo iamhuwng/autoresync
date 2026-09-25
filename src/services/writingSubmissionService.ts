@@ -41,7 +41,7 @@ import type {
     WritingTaskGradingResult,
     IELTSWritingTest,
 } from '../types/ielts-writing.types';
-import { dispatchWritingNotification } from './writingNotificationClient';
+import { dispatchCommittedNotification } from './notificationProducerClient';
 import { markHomeworkSubmissionGraded } from './homeworkSubmissionService';
 import type { ResultContext } from '../types/solo.types';
 import { resolveResultOwnership } from './resultOwnershipResolver';
@@ -969,8 +969,8 @@ export const createSubmission = withRestoreGuard<{ success: boolean; error?: str
         }
         await batch.commit();
         for (const intent of intents) {
-            void dispatchWritingNotification(data.id, intent.eventId).catch((error) => {
-                console.warn('[WritingSubmission] Non-blocking writing submission notification failed', error);
+            void dispatchCommittedNotification({ eventKind: 'writing-notification', recordId: data.id, occurrenceId: intent.eventId }).then((result) => {
+                if (!result.success) console.warn('[WritingSubmission] Non-blocking writing submission notification failed', result.error);
             });
         }
         console.log('✅ Writing submission created:', data.id);
@@ -1333,8 +1333,8 @@ export const publishGrading = withRestoreGuard<{
         }
 
         if (notificationIntent) {
-            await dispatchWritingNotification(submission.id, eventId).catch((error) => {
-                console.warn('[WritingSubmission] Non-blocking writing graded notification failed', error);
+            await dispatchCommittedNotification({ eventKind: 'writing-notification', recordId: submission.id, occurrenceId: eventId }).then((result) => {
+                if (!result.success) console.warn('[WritingSubmission] Non-blocking writing graded notification failed', result.error);
             });
         }
 
@@ -1935,8 +1935,8 @@ export const autoSubmitFromRTDB = withRestoreGuard(
         console.log('✅ Writing auto-submitted:', resultId, 'for student:', studentName);
 
         if (studentIntent) {
-            void dispatchWritingNotification(resultId, studentIntent.eventId).catch((error) => {
-                console.warn('[autoSubmitFromRTDB] Non-blocking writing submission notification failed:', error);
+            void dispatchCommittedNotification({ eventKind: 'writing-notification', recordId: resultId, occurrenceId: studentIntent.eventId }).then((result) => {
+                if (!result.success) console.warn('[autoSubmitFromRTDB] Non-blocking writing submission notification failed:', result.error);
             });
         }
     } catch (error) {
