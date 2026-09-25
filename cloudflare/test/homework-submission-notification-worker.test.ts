@@ -54,6 +54,7 @@ describe('homework submission event dispatch', () => {
     expect((await worker.fetch(request(command), env)).status).toBe(500);
     expect(recordImmediateOutcome).toHaveBeenCalledWith(env, {
       resultId, studentId: 'student-1', teacherId: 'teacher-1', homeworkId: 'homework-1',
+      reasonCode: 'delivery_backend_error',
     }, false, expect.any(Number));
   });
 

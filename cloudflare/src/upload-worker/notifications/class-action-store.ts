@@ -1,7 +1,7 @@
 import { SignJWT, importPKCS8 } from 'jose';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import type { ClassActionCommand, ClassActionStorage, ClassNotificationIntent } from './class-action.ts';
-import { RetryFamilyGate } from './retry-family-gate.ts';
+import { notificationIssuePath, RetryFamilyGate, type NotificationFailureReason } from './retry-family-gate.ts';
 
 type Env = Readonly<Record<string, unknown>>;
 const SIGN_IN_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken';
@@ -129,10 +129,9 @@ export class FirebaseClassActionStorage implements ClassActionStorage {
         (row.state === 'retry_due' || row.state === 'retrying'));
   }
 
-  async reportFailure(intent: ClassNotificationIntent, failedRecipientCount: number): Promise<void> {
+  async reportFailure(intent: ClassNotificationIntent, failedRecipientCount: number, reasonCode: NotificationFailureReason): Promise<void> {
     const now = Date.now();
-    const date = new Date(now).toISOString().slice(0, 10);
-    const path = `reports/errors/${date}/${intent.actionId}`;
+    const path = notificationIssuePath(intent.actionId, intent.occurredAt);
     const existing = await this.admin.readWithEtag<unknown>(path);
     if (existing.data !== null) return;
     if (await this.admin.writeIfMatch(path, {
@@ -140,12 +139,15 @@ export class FirebaseClassActionStorage implements ClassActionStorage {
       timestamp: now,
       feature: 'classes',
       severity: 'error',
-      message: `Class notification delivery failed for ${intent.kind}; ${failedRecipientCount} recipient(s) remain.`,
+      message: `Class notification delivery failed for ${intent.kind}; ${failedRecipientCount} recipient(s) remain (${reasonCode}).`,
       userId: intent.actorUid,
       userName: 'Notification Worker',
       userRole: 'service',
       duplicateCount: 1,
-      contextData: { actionId: intent.actionId, classId: intent.classId, kind: intent.kind, failedRecipientCount },
+      contextData: { actionId: intent.actionId, classId: intent.classId, kind: intent.kind, reasonCode,
+        failedRecipientCount, failedRecipientIds: intent.kind === 'join-pending'
+          ? failedRecipientCount === 2 ? [intent.studentId, intent.teacherId] : [intent.teacherId]
+          : [intent.studentId] },
     }, existing.etag)) await this.gate.recordTerminalFailure('class-membership', intent.actionId, path);
   }
 }

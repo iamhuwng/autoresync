@@ -1,6 +1,6 @@
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import { homeworkResetNotificationId, type HomeworkResetIntent, type HomeworkResetNotificationStorage } from './homework-reset-action.ts';
-import { RetryFamilyGate } from './retry-family-gate.ts';
+import { notificationIssuePath, RetryFamilyGate, type NotificationFailureReason } from './retry-family-gate.ts';
 
 type Env = Readonly<Record<string, unknown>>;
 type FirestoreValue = { readonly nullValue?: string; readonly booleanValue?: boolean; readonly integerValue?: string; readonly doubleValue?: number; readonly stringValue?: string; readonly mapValue?: { readonly fields?: Record<string, FirestoreValue> }; readonly arrayValue?: { readonly values?: FirestoreValue[] } };
@@ -126,16 +126,17 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
     return notification?.id === id;
   }
 
-  async reportFailure(intent: HomeworkResetIntent, now: number): Promise<void> {
+  async reportFailure(intent: HomeworkResetIntent, now: number, reasonCode: NotificationFailureReason): Promise<void> {
     const issueId = `homework-reset-notification-${intent.eventId}`;
-    const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${issueId}`;
+    const path = notificationIssuePath(issueId, intent.occurredAt);
     const existing = await this.rtdb.readWithEtag<unknown>(path);
     if (existing.data !== null) return;
     if (await this.rtdb.writeIfMatch(path, {
       id: issueId, timestamp: now, feature: 'homework', severity: 'error',
-      message: 'Homework reset notification delivery failed after its retry.',
+      message: `Homework reset notification delivery failed (${reasonCode}).`,
       userId: intent.actorUid, userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
-      contextData: { eventId: intent.eventId, homeworkId: intent.homeworkId, studentId: intent.studentId },
+      contextData: { eventId: intent.eventId, homeworkId: intent.homeworkId,
+        recipientId: intent.studentId, reasonCode },
     }, existing.etag)) await this.gate.recordTerminalFailure('homework-reset', intent.eventId, path);
   }
 }

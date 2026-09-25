@@ -17,7 +17,7 @@ export const retryDueClassNotifications = async (env: Env, now = Date.now()): Pr
     if (due.state === 'retrying') {
       // A crash may have happened after delivery; read the inbox without a third send.
       const missing = await missingClassIntentRecipients(due, (path) => storage.read(path));
-      if (missing) await storage.reportFailure(due, missing);
+      if (missing) await storage.reportFailure(due, missing, 'inbox_missing_after_claim');
       await storage.updateIntent({ ...due, state: missing ? 'failed' : 'done', dueAt: CLASS_INTENT_DONE_DUE_AT });
       continue;
     }
@@ -30,7 +30,7 @@ export const retryDueClassNotifications = async (env: Env, now = Date.now()): Pr
     if (result.delivered && result.fresh) {
       try { await storage.recordSuccess(now); } catch { /* Preserve the delivered intent. */ }
     }
-    if (!result.delivered) await storage.reportFailure(claimed, result.failedRecipientCount);
+    if (!result.delivered) await storage.reportFailure(claimed, result.failedRecipientCount, 'inbox_conflict');
     await storage.updateIntent({
       ...claimed,
       state: result.delivered ? 'done' : 'failed',

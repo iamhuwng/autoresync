@@ -330,14 +330,16 @@ export const createHomeworkSubmissionNotificationWorker = (
         } catch (error) {
           try {
             await recordImmediateOutcome(env, { resultId: recordId, studentId: auth.uid,
-              teacherId: canonical.teacherId, homeworkId: canonical.homeworkId }, false, now());
+              teacherId: canonical.teacherId, homeworkId: canonical.homeworkId,
+              reasonCode: 'delivery_backend_error' }, false, now());
           } catch { /* The durable retry intent remains inspectable. */ }
           throw error;
         }
         if (result.status !== 'replayed') {
           try {
             await recordImmediateOutcome(env, { resultId: recordId, studentId: auth.uid,
-              teacherId: canonical.teacherId, homeworkId: canonical.homeworkId },
+              teacherId: canonical.teacherId, homeworkId: canonical.homeworkId,
+              reasonCode: result.status === 'idempotency-conflict' ? 'inbox_conflict' : undefined },
             result.status === 'created', now());
           } catch { /* Delivery and the saved intent remain authoritative. */ }
         }

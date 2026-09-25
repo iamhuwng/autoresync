@@ -101,6 +101,7 @@ describe('homework reset notification action', () => {
     expect((await handlers.action({ request: request(), uid: 'teacher-1' })).body.status).toBe('failed');
     expect(storage.current).toMatchObject({ state: 'failed', attempts: 1 });
     expect(storage.reportFailure).toHaveBeenCalledOnce();
+    expect(storage.reportFailure).toHaveBeenCalledWith(expect.objectContaining({ eventId: intent().eventId }), 200, 'delivery_backend_error');
     await handlers.retryDue();
     expect(repository.create).toHaveBeenCalledOnce();
   });

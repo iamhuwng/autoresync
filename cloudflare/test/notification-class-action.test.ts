@@ -112,6 +112,7 @@ describe('trusted class membership action', () => {
       status: 200, body: { notificationStatus: 'failed' },
     });
     expect(reportFailure).toHaveBeenCalledOnce();
+    expect(reportFailure).toHaveBeenCalledWith(expect.objectContaining({ actionId }), 2, 'delivery_backend_error');
     expect(rows.get(`notification_intents/${actionId}`)).toMatchObject({ attempts: 1, state: 'failed' });
   });
 

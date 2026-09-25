@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { afterSuccess, afterTerminalFailure, RetryFamilyGate, type RetryFamilyState } from '../src/upload-worker/notifications/retry-family-gate.ts';
+import { afterSuccess, afterTerminalFailure, notificationIssuePath, RetryFamilyGate, type RetryFamilyState } from '../src/upload-worker/notifications/retry-family-gate.ts';
 import type { FirebaseRtdbRestClient } from '../src/upload-worker/listening-authoring/rtdb.ts';
 
 describe('notification retry family gate', () => {
@@ -9,10 +9,18 @@ describe('notification retry family gate', () => {
     state = afterTerminalFailure(state, 'action-a');
     expect(state.consecutiveFailures).toBe(1);
     state = afterTerminalFailure(state, 'action-b');
+    state = afterTerminalFailure(state, 'action-a');
+    expect(state.consecutiveFailures).toBe(2);
     state = afterTerminalFailure(state, 'action-c');
     expect(state.retrySuppressed).toBe(true);
     state = afterSuccess(state, 123);
     expect(state).toMatchObject({ retrySuppressed: true, consecutiveFailures: 3, lastSuccessAt: 123 });
+  });
+
+  it('uses the saved event time for one issue path across midnight', () => {
+    const occurredAt = Date.parse('2026-09-25T23:59:59Z');
+    expect(notificationIssuePath('action-a', occurredAt)).toBe('reports/errors/2026-09-25/action-a');
+    expect(notificationIssuePath('action-a', occurredAt)).not.toContain('2026-09-26');
   });
 
   it('resets the consecutive pattern on success before suppression', () => {
@@ -24,7 +32,7 @@ describe('notification retry family gate', () => {
     const issuePath = 'reports/errors/2026-09-26/action-a';
     const rows = new Map<string, unknown>([
       ['notification_retry_families/class-membership', {
-        consecutiveFailures: 3, retrySuppressed: true, lastFailedActionId: 'action-a', lastIssuePath: issuePath,
+        consecutiveFailures: 3, retrySuppressed: true, failedActionIds: ['action-a'], lastIssuePath: issuePath,
       }],
       [issuePath, { id: 'action-a', timestamp: 100, contextData: { actionId: 'action-a' } }],
     ]);

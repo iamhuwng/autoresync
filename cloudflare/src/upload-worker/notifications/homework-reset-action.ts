@@ -1,5 +1,6 @@
 import { buildRoute } from '../../../../src/constants/routes.ts';
 import type { NotificationCommandRepository } from './repository.ts';
+import type { NotificationFailureReason } from './retry-family-gate.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const ID = /^[A-Za-z0-9_-]{1,128}$/u;
@@ -26,7 +27,7 @@ export interface HomeworkResetNotificationStorage {
   updateIntent(eventId: string, intent: HomeworkResetIntent, version: string): Promise<string | null>;
   dueIntents(now: number, limit?: number): Promise<Array<{ readonly intent: HomeworkResetIntent; readonly version: string }>>;
   notificationExists(intent: HomeworkResetIntent): Promise<boolean>;
-  reportFailure(intent: HomeworkResetIntent, now: number): Promise<void>;
+  reportFailure(intent: HomeworkResetIntent, now: number, reasonCode: NotificationFailureReason): Promise<void>;
   retrySuppressed?(): Promise<boolean>;
   recordSuccess?(at: number): Promise<void>;
 }
@@ -84,9 +85,10 @@ export const createHomeworkResetNotificationHandlers = (options: {
   readonly now?: () => number;
 }) => {
   const now = options.now ?? Date.now;
-  const deliver = async (intent: HomeworkResetIntent): Promise<{ delivered: boolean; fresh: boolean }> => {
+  type Outcome = { delivered: boolean; fresh: boolean; reasonCode: NotificationFailureReason };
+  const deliver = async (intent: HomeworkResetIntent): Promise<Outcome> => {
     const source = trustedSource(intent, await options.storage.readHomework(intent.homeworkId, intent.studentId));
-    if (!source) return { delivered: false, fresh: false };
+    if (!source) return { delivered: false, fresh: false, reasonCode: 'source_unavailable' };
     const result = await options.repository.create({
       operationId: homeworkResetNotificationId(intent), recipientId: intent.studentId,
       notification: {
@@ -97,7 +99,8 @@ export const createHomeworkResetNotificationHandlers = (options: {
       now: intent.occurredAt,
     });
     return { delivered: result.status !== 'idempotency-conflict' || await options.storage.notificationExists(intent),
-      fresh: result.status === 'created' };
+      fresh: result.status === 'created',
+      reasonCode: result.status === 'idempotency-conflict' ? 'inbox_conflict' : 'delivery_unconfirmed' };
   };
 
   const attempt = async (intent: HomeworkResetIntent, version: string, retry: boolean) => {
@@ -106,7 +109,7 @@ export const createHomeworkResetNotificationHandlers = (options: {
     const claimed = { ...intent, state: retry ? 'retrying' as const : 'sending' as const, attempts, dueAt: now() + RETRY_DELAY_MS };
     const claimVersion = await options.storage.updateIntent(intent.eventId, claimed, version);
     if (!claimVersion) return;
-    let outcome = { delivered: false, fresh: false };
+    let outcome: Outcome = { delivered: false, fresh: false, reasonCode: 'delivery_backend_error' };
     try { outcome = await deliver(claimed); } catch { /* one later attempt remains */ }
     if (outcome.fresh) {
       try { await options.storage.recordSuccess?.(now()); } catch { /* Delivery remains authoritative. */ }
@@ -114,7 +117,7 @@ export const createHomeworkResetNotificationHandlers = (options: {
     let failedWithoutRetry = false;
     if (!outcome.delivered && (retry || await options.storage.retrySuppressed?.())) {
       try {
-        await options.storage.reportFailure(claimed, now());
+        await options.storage.reportFailure(claimed, now(), outcome.reasonCode);
         failedWithoutRetry = true;
       } catch { /* Keep a durable retry intent if reporting failed. */ }
     }
@@ -151,7 +154,7 @@ export const createHomeworkResetNotificationHandlers = (options: {
         else if (['retry_due', 'sending'].includes(due.intent.state) && due.intent.attempts === 1) await attempt(due.intent, due.version, true);
         else if (due.intent.state === 'retrying' && due.intent.attempts === 2) {
           const delivered = await options.storage.notificationExists(due.intent);
-          if (!delivered) await options.storage.reportFailure(due.intent, now());
+          if (!delivered) await options.storage.reportFailure(due.intent, now(), 'inbox_missing_after_claim');
           await options.storage.updateIntent(due.intent.eventId, {
             ...due.intent, state: delivered ? 'done' : 'failed', dueAt: HOMEWORK_RESET_INTENT_DONE_DUE_AT,
           }, due.version);

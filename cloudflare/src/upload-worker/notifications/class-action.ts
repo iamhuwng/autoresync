@@ -1,5 +1,6 @@
 import { buildRoute } from '../../../../src/constants/routes.ts';
 import type { NotificationCommandRepository } from './repository.ts';
+import type { NotificationFailureReason } from './retry-family-gate.ts';
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -43,7 +44,7 @@ export interface ClassActionStorage {
   updateIntent(intent: ClassNotificationIntent): Promise<void>;
   recordSuccess?(at: number): Promise<void>;
   retrySuppressed?(): Promise<boolean>;
-  reportFailure?(intent: ClassNotificationIntent, failedRecipientCount: number): Promise<void>;
+  reportFailure?(intent: ClassNotificationIntent, failedRecipientCount: number, reasonCode: NotificationFailureReason): Promise<void>;
 }
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -256,7 +257,8 @@ export const performClassAction = async (input: {
   } else {
     try {
       if (storage.reportFailure && await storage.retrySuppressed?.()) {
-        await storage.reportFailure(intent, delivery.failedRecipientCount);
+        await storage.reportFailure(intent, delivery.failedRecipientCount,
+          delivery.backendFailure ? 'delivery_backend_error' : 'inbox_conflict');
         await storage.updateIntent({ ...intent, state: 'failed', dueAt: CLASS_INTENT_DONE_DUE_AT });
         suppressedFailure = true;
       }

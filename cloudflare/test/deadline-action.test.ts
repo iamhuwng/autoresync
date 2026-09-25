@@ -78,6 +78,7 @@ describe('deadline manual reminder action', () => {
     const response = await handlers.action({ request: request(), uid: 'teacher-1' });
     expect(response.body.status).toBe('failed');
     expect(storage.reportFailure).toHaveBeenCalledOnce();
+    expect(storage.reportFailure).toHaveBeenCalledWith(expect.objectContaining({ eventId }), 20_000, 'delivery_backend_error');
     expect(storage.updateIntent).toHaveBeenLastCalledWith(eventId,
       expect.objectContaining({ state: 'failed', attempts: 1 }), 'v2');
 

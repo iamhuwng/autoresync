@@ -1,8 +1,11 @@
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 
+export type NotificationFailureReason = 'source_unavailable' | 'inbox_conflict'
+  | 'inbox_missing_after_claim' | 'delivery_backend_error' | 'delivery_unconfirmed';
+
 export type RetryFamilyState = {
   consecutiveFailures: number;
-  lastFailedActionId?: string;
+  failedActionIds?: string[];
   retrySuppressed: boolean;
   lastSuccessAt?: number;
   lastIssuePath?: string;
@@ -14,16 +17,24 @@ const validState = (value: unknown): value is RetryFamilyState => {
   return Number.isSafeInteger(row.consecutiveFailures)
     && Number(row.consecutiveFailures) >= 0 && Number(row.consecutiveFailures) <= 3
     && typeof row.retrySuppressed === 'boolean'
-    && (row.lastFailedActionId === undefined || typeof row.lastFailedActionId === 'string')
+    && (row.failedActionIds === undefined || (Array.isArray(row.failedActionIds)
+      && row.failedActionIds.length <= 3 && row.failedActionIds.every((id) => typeof id === 'string')))
     && (row.lastSuccessAt === undefined || Number.isSafeInteger(row.lastSuccessAt))
     && (row.lastIssuePath === undefined || /^reports\/errors\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9_:-]{1,256}$/u.test(String(row.lastIssuePath)));
 };
 
+export const notificationIssuePath = (issueId: string, occurredAt: number): string => {
+  if (!/^[A-Za-z0-9_:-]{1,256}$/u.test(issueId) || !Number.isSafeInteger(occurredAt) || occurredAt <= 0) {
+    throw new Error('notification_issue_identity_invalid');
+  }
+  return `reports/errors/${new Date(occurredAt).toISOString().slice(0, 10)}/${issueId}`;
+};
+
 export const afterTerminalFailure = (state: RetryFamilyState, actionId: string, issuePath?: string): RetryFamilyState =>
-  state.lastFailedActionId === actionId ? state : {
+  state.failedActionIds?.includes(actionId) ? state : {
     ...state,
     consecutiveFailures: Math.min(3, state.consecutiveFailures + 1),
-    lastFailedActionId: actionId,
+    failedActionIds: [...(state.failedActionIds ?? []), actionId].slice(-3),
     ...(issuePath ? { lastIssuePath: issuePath } : {}),
     retrySuppressed: state.retrySuppressed || state.consecutiveFailures + 1 >= 3,
   };
@@ -31,7 +42,7 @@ export const afterTerminalFailure = (state: RetryFamilyState, actionId: string, 
 export const afterSuccess = (state: RetryFamilyState, at: number): RetryFamilyState => ({
   ...state,
   consecutiveFailures: state.retrySuppressed ? state.consecutiveFailures : 0,
-  lastFailedActionId: state.retrySuppressed ? state.lastFailedActionId : undefined,
+  failedActionIds: state.retrySuppressed ? state.failedActionIds : [],
   lastSuccessAt: at,
 });
 
