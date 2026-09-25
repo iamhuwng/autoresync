@@ -88,6 +88,8 @@ jobs:
         run: >-
           npx vitest run
           test/notification-class-action.test.ts
+          test/retry-family-gate.test.ts
+          test/homework-retry-suppression.test.ts
           test/enrollment-action.test.ts
           test/assignment-action.test.ts
           test/course-type-decision-notification.test.ts
