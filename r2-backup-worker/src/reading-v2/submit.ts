@@ -491,6 +491,10 @@ export async function handleReadingV2Submit(
         const body = await request.json();
         const submission = parseReadingV2TrustedSubmissionRequest(body);
         const materialId = getMaterialIdFromRequest(submission);
+        const homeworkId = submission.context?.surface === 'homework' ? submission.context.homeworkId : undefined;
+        if (submission.context?.surface === 'homework' && (!homeworkId || !/^[A-Za-z0-9_-]{1,128}$/.test(homeworkId))) {
+            return errorResponse('Reading V2 homework submission requires a valid homeworkId.', 400);
+        }
         const accessToken = await getFirebaseAccessToken(env.GOOGLE_SA_KEY);
         const submittedAt = new Date();
         const sessionPath = submission.context?.sessionCode
@@ -513,10 +517,13 @@ export async function handleReadingV2Submit(
                 generatedAt: submittedAt.toISOString(),
             });
 
-        const [records, session, studentProfile] = await Promise.all([
+        const [records, session, studentProfile, homework] = await Promise.all([
             trustedRecordsPromise,
             sessionPath ? loadRtdb<Record<string, any>>(env, accessToken, sessionPath) : Promise.resolve(null),
             loadRtdb<Record<string, any>>(env, accessToken, `users/${auth.uid}`),
+            homeworkId && !isReadingPassageSetSubmit(submission, materialId)
+                ? loadFirestoreDoc<Record<string, any>>(env, accessToken, `homework_assignments/${homeworkId}`)
+                : Promise.resolve(null),
         ]);
 
         if (!records.snapshot || Object.keys(records.snapshot).length === 0) {
@@ -536,6 +543,7 @@ export async function handleReadingV2Submit(
             ...records,
             session,
             studentProfile,
+            homework: records.homework ?? (homework ? { ...homework, id: homework.id ?? homeworkId } : null),
         };
         const plan = buildReadingV2TrustedSubmissionPlan({
             request: submission,

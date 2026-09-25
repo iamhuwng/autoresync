@@ -44,6 +44,7 @@ export interface ReadingV2SubmitLoadedRecords {
   snapshot: Record<string, any>;
   reviewProjection: Record<string, any>;
   metadata?: Record<string, any> | null;
+  homework?: Record<string, any> | null;
   session?: Record<string, any> | null;
   studentProfile?: Record<string, any> | null;
 }
@@ -679,7 +680,7 @@ export const composeReadingPassageSetTrustedRecords = (input: {
   const snapshotVersionId = `homework-set:${input.homework.id ?? input.homework.materialId.replace(/^reading-passage-set:/, '')}`;
   const title = input.homework.readingPassageSet?.titleSnapshot ?? input.homework.title ?? input.homework.materialTitle ?? 'Reading Passage Set';
 
-  return composeTrustedPassageRecords({
+  return { ...composeTrustedPassageRecords({
     materialId: input.homework.materialId,
     snapshotVersionId,
     title,
@@ -690,7 +691,7 @@ export const composeReadingPassageSetTrustedRecords = (input: {
     items,
     passageRecords: input.passageRecords,
     generatedAt: input.generatedAt,
-  });
+  }), homework: input.homework };
 };
 
 export const composeReadingV2CompositionTrustedRecords = (input: {
@@ -910,12 +911,14 @@ const buildVisibilitySnapshot = (
   sourceName: string,
   snapshotOwnerId: string,
   session?: Record<string, any> | null,
+  homework?: Record<string, any> | null,
 ): Record<string, unknown> => {
   const contextType = visibilityContextTypeForMode(mode);
   const isSoloPractice = contextType === 'solo_practice';
   const sessionOwner = optionalNullableString(session?.createdByUserId)
     ?? optionalNullableString(session?.createdBy);
-  const ownerId = isSoloPractice ? null : (sessionOwner ?? snapshotOwnerId);
+  const homeworkOwner = optionalNullableString(homework?.createdBy);
+  const ownerId = isSoloPractice ? null : (mode === 'homework' ? homeworkOwner : sessionOwner ?? snapshotOwnerId);
   const sourceId = resultSourceIdForAttempt(mode, context, materialId);
 
   return {
@@ -926,7 +929,7 @@ const buildVisibilitySnapshot = (
     visibilityOwnerTeacherId: ownerId,
     ownerResolutionSource: isSoloPractice
       ? 'solo_practice'
-      : (sessionOwner ? 'session.createdByUserId' : 'result.teacherId'),
+      : (mode === 'homework' ? 'homework.createdBy' : sessionOwner ? 'session.createdByUserId' : 'result.teacherId'),
     ownershipResolved: isSoloPractice || Boolean(ownerId),
     unresolvedReason: isSoloPractice || ownerId ? null : 'owner_not_resolved',
     homeworkId: context.homeworkId ?? null,
@@ -1126,6 +1129,12 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     throw new Error('Reading V2 review projection binding does not match the submitted snapshot.');
   }
 
+  const homework = mode === 'homework' ? input.records.homework : null;
+  if (mode === 'homework' && (!context.homeworkId || homework?.id !== context.homeworkId
+    || homework.materialId !== materialId || !optionalString(homework.createdBy))) {
+    throw new Error('Reading V2 homework submission does not match the saved assignment.');
+  }
+
   const canonicalInteractions = orderedCanonicalInteractions(snapshot);
   const canonicalInteractionMap = new Map(
     canonicalInteractions.map((interaction) => [interaction.interactionId, interaction]),
@@ -1220,6 +1229,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     context.sourceName ?? testTitle,
     snapshot.ownerId,
     input.records.session,
+    homework,
   );
   const savedResult = sanitizeRtdbValue({
     resultId: input.identity.resultId,
@@ -1251,7 +1261,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     timeElapsed: 0,
     testDuration: Number(input.records.metadata?.durationMinutes ?? 0),
     createdAt: input.identity.submittedAtMs,
-    teacherId: snapshot.ownerId,
+    teacherId: mode === 'homework' ? homework!.createdBy : snapshot.ownerId,
     testTitle,
     testType: 'ielts-reading-v2',
     testSkill: 'reading',

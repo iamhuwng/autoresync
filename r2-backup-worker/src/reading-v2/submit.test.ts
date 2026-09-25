@@ -203,6 +203,49 @@ describe('Reading V2 Worker submit route', () => {
         vi.mocked(getFirebaseAccessToken).mockResolvedValue('google-token');
     });
 
+    it('loads the assigned homework owner before saving a result from another teacher’s material', async () => {
+        const records = new Map<string, unknown>([
+            ['reading_v2/published_snapshots/material-1/snapshot-1', makeSnapshot({
+                materialId: 'material-1', snapshotVersionId: 'snapshot-1', answer: 'Answer One',
+            })],
+            ['reading_v2/projections/review/material-1:snapshot-1', makeReviewProjection({
+                snapshotVersionId: 'snapshot-1', title: 'Assigned Reading',
+            })],
+            ['reading_v2/material_metadata/material-1', { title: 'Assigned Reading' }],
+            ['users/student-1', { name: 'Student One' }],
+        ]);
+        let savedResult: Record<string, any> | null = null;
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = new URL(String(input));
+            if (url.hostname === 'firestore.googleapis.com') return json({
+                fields: firestoreFields({ id: 'homework-1', materialId: 'material-1', createdBy: 'assigning-teacher' }),
+            });
+            if (url.hostname === 'db.example.test') {
+                const path = decodeURIComponent(url.pathname.replace(/^\/|\.json$/g, ''));
+                if (!init?.method || init.method === 'GET') return json(records.get(path) ?? null);
+                if (init.method === 'PUT' && path.startsWith('test_results/')) savedResult = JSON.parse(String(init.body));
+                return json({ ok: true });
+            }
+            throw new Error(`Unexpected fetch ${url}`);
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const request = new Request('https://worker.example.test/api/reading-v2/submit', {
+            method: 'POST', headers: { Authorization: 'Bearer student-token', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deliveryEngine: READING_V2_ENGINE,
+                projectionId: 'student-safe:material-1:snapshot-1', sourceSnapshotVersionId: 'snapshot-1',
+                materialId: 'material-1', answers: [], context: { surface: 'homework', homeworkId: 'homework-1' } }),
+        });
+        const response = await handleReadingV2Submit(request, {
+            FIREBASE_PROJECT_ID: 'temp-a1437', FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: '{}',
+        } as WorkerEnv);
+        expect(response.status).toBe(200);
+        expect(savedResult?.teacherId).toBe('assigning-teacher');
+        expect(savedResult?.visibility).toMatchObject({ visibilityOwnerTeacherId: 'assigning-teacher' });
+        expect(fetchMock).toHaveBeenCalledWith(
+            expect.stringContaining('/documents/homework_assignments/homework-1'), expect.objectContaining({ method: 'GET' }),
+        );
+    });
+
     it('scores Reading Passage set homework by loading the assigned passage snapshots', async () => {
         const homework = makeHomework();
         const rtdbRecords = new Map<string, unknown>([
