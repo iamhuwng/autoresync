@@ -6,6 +6,22 @@
 
 **Scope:** existing in-app notifications for teachers and students, including Book actions
 
+## Current design in brief
+
+- Keep ordinary product actions in their existing owners and route persistent
+  notices through one shared producer. A Worker may verify and deliver a saved
+  event internally; this does not require moving the product action into it.
+- Keep Worker-owned product actions only when trusted code must commit the
+  transition and durable event together, or a later reader cannot prove the
+  occurrence and recipient. Require that proof per action.
+- Deliver to the existing inbox once immediately and retry at most once.
+  Three consecutive terminal failures from distinct actions suppress later
+  retries for that notice family. New actions still attempt immediate delivery
+  and report failures; verified repair precedes bounded recovery.
+- The proposed full scheduler is conditional. Do not add its second Cron
+  trigger or expand families until populated CPU and realistic backlog meet
+  the free-plan limits.
+
 ## Historical execution baseline (verified 2026-09-24 before source composition)
 
 - Isolated branch `codex/notification-recovery` starts at `7b093a07`; it includes
@@ -159,6 +175,11 @@ recipient context so an admin can tell a route fault from repeated failures
 to one recipient; suppression affects only retries, so fresh sends to other
 recipients still run. A successful delivery resets the consecutive count
 before suppression, but does not clear an already suppressed family.
+Three failed joins can all target one teacher; a family-wide gate then also
+skips retries for other teachers, although their fresh attempts still run.
+Keep that tradeoff visible in admin context and verify it with a second class
+before release; do not describe same-recipient failures as proof that every
+recipient is broken.
 
 At that threshold, set one durable family-level **retry-suppressed** state.
 Scheduled passes skip every outstanding retry for that family without
@@ -253,20 +274,28 @@ safe-link, and no-hidden-answer requirements.
 
 ### Current source boundary (2026-09-25)
 
-`dispatchCommittedNotification` is the ordinary feature port for saved homework
-submission/reset, test completion, and writing submission/grade events. It
-accepts only a registered event kind, saved record ID, and for writing a saved
-occurrence ID. The port maps these identities to the existing trusted Worker
-resolvers; it does not accept a recipient, title, message, or destination.
-Each resolver verifies its source record and writes through the same inbox
-repository with deterministic identity and bounded retry.
+`dispatchCommittedNotification` currently covers saved homework
+submission/reset, test completion, and writing submission/grade events. Expand
+this ordinary feature port to other already committed actions. It accepts
+only a registered event kind, saved record ID, and any needed occurrence ID;
+it does not accept a recipient, title, message, or destination. Trusted
+resolvers may remain event-specific behind the port, but ordinary callers
+must not each own a separate Worker URL or delivery client. Each resolver
+verifies source authority and writes to the same inbox with deterministic
+identity and bounded retry.
 
-Source actions that must atomically commit the product transition and its
-notification intent keep narrow Worker action commands: class membership,
-assignment and course decisions, announcements, feedback, result review,
-manual reminders/grading, and session transitions. The implementation matrix
-marks these exceptions. Their shared policy is server-owned content and link,
-the existing inbox/read flag, one later retry, and a terminal admin issue.
+Assignment and course decisions, manual reminders, THCS assignment/fully
+graded events, and session transitions already save their product outcome in
+the ordinary app path; their specialized Worker endpoints mostly wake
+notification delivery. Consolidate those wake calls behind the shared
+producer without moving the product actions. Class membership is a genuine
+Worker-owned action because rejection deletes its prior request proof. Manual
+THCS grading has a trusted atomic grade-and-event boundary. Announcements
+currently use a server-owned roster snapshot. Feedback and result review are
+Worker-owned in current source but are candidates for ordinary atomic saves;
+their browser rules currently deny the Worker-signed intent, so move them
+only with a proven rules and event-write design. Do not treat the desire for
+a retry alone as proof that an action must move into the Worker.
 
 ### Class transition decision (2026-09-24)
 
@@ -339,8 +368,10 @@ they are not part of the 35 ordinary-producer variants above.
 
 ### 3. Add the minimum durable retry
 
-- Save **one small notification intent per action** with the action's canonical
-  record, not one retry job per student. The intent contains an event kind,
+- Save **one durable event proof per action**, not one retry job per student.
+  Prefer the canonical action record when it preserves occurrence, recipient,
+  and time. Add or embed a small notification intent only where needed for
+  immutable occurrence proof or retry state. An intent contains an event kind,
   authority record ID, occurrence ID, and state; it contains no client-chosen
   message or unrestricted recipient list.
 - For RTDB actions, include that intent in the same authorized action update
@@ -353,8 +384,10 @@ they are not part of the 35 ordinary-producer variants above.
   checks only due, undelivered intents. Start each intent's retry due time
   about **one hour** after commit. The first batch rotates four class/homework
   families on one two-minute trigger. The proposed full stage adds a separate
-  one-minute bulk trigger and more small-family slots only after populated
-  Free-plan CPU and backlog proof. Run one bounded family per invocation.
+  one-minute bulk trigger and more small-family slots; this topology is an
+  option, not a requirement. Prefer the least frequent shared pass that meets
+  measured backlog and Free-plan CPU limits. Add a second trigger only after
+  proving one is insufficient. Run bounded work per invocation.
   The scheduler makes at most **one
   additional delivery attempt** per event. If that fails, leave the intent
   available for operator inspection or verified recovery and create one admin
@@ -465,8 +498,10 @@ incomplete; track each variant individually.
   artifact/configuration and exercise the affected workflow in a real client.
   Keep rollback versions and assess any partly deployed batch before rollback.
 - **Completion:** every applicable existing event variant has a verified
-  producer-to-recipient path, there are no feature-specific Worker URLs or
-  broad browser content writes, the Book events reach the same inbox, missed
+  producer-to-recipient path, ordinary callers use the shared producer with
+  no feature-specific delivery URLs or clients, and Worker-owned product
+  actions have documented authority/atomicity proof. There are no broad
+  browser content writes, the Book events reach the same inbox, missed
   provable events are reconciled, and unresolved delivery failures appear once
   in admin reports. Record any unverified event or remote rule state plainly;
   do not mark the notification system complete from green unit tests or a
