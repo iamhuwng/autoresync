@@ -41,6 +41,9 @@ export interface ClassActionStorage {
     updates: readonly { path: string; value: unknown }[];
   }): Promise<void>;
   updateIntent(intent: ClassNotificationIntent): Promise<void>;
+  recordSuccess?(at: number): Promise<void>;
+  retrySuppressed?(): Promise<boolean>;
+  reportFailure?(intent: ClassNotificationIntent, failedRecipientCount: number): Promise<void>;
 }
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -238,15 +241,27 @@ export const performClassAction = async (input: {
   } catch {
     delivery = { delivered: false, failedRecipientCount: command.kind === 'join-pending' ? 2 : 1, backendFailure: true };
   }
+  let suppressedFailure = false;
   if (delivery.delivered) {
+    try { await storage.recordSuccess?.(Date.now()); } catch { /* Delivery already succeeded. */ }
     try {
       await storage.updateIntent({ ...intent, state: 'done', dueAt: CLASS_INTENT_DONE_DUE_AT });
     } catch {
       // Idempotent replay on the scheduled pass leaves existing read flags intact.
     }
+  } else {
+    try {
+      if (storage.reportFailure && await storage.retrySuppressed?.()) {
+        await storage.reportFailure(intent, delivery.failedRecipientCount);
+        await storage.updateIntent({ ...intent, state: 'failed', dueAt: CLASS_INTENT_DONE_DUE_AT });
+        suppressedFailure = true;
+      }
+    } catch {
+      // A failed gate/report read leaves the durable intent inspectable.
+    }
   }
   return { status: 200, body: {
     status: 'committed', actionId: command.actionId,
-    notificationStatus: delivery.delivered ? 'delivered' : 'retry_due',
+    notificationStatus: delivery.delivered ? 'delivered' : suppressedFailure ? 'failed' : 'retry_due',
   } };
 };

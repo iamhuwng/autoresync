@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   performClassAction,
   missingClassIntentRecipients,
@@ -99,6 +99,20 @@ describe('trusted class membership action', () => {
     expect(rows.get(`notification_intents/${actionId}`)).toMatchObject({
       attempts: 1, state: 'retry_due',
     });
+  });
+
+  it('reports a fresh immediate failure while retries are suppressed', async () => {
+    const { rows, storage } = fixture();
+    const reportFailure = vi.fn(async () => {});
+    storage.retrySuppressed = async () => true;
+    storage.reportFailure = reportFailure;
+    await expect(performClassAction({ command: command('join-pending'), actorUid: studentId,
+      storage, repository: () => { throw new Error('backend outage'); },
+      now: () => 1_800_000_000_000 })).resolves.toMatchObject({
+      status: 200, body: { notificationStatus: 'failed' },
+    });
+    expect(reportFailure).toHaveBeenCalledOnce();
+    expect(rows.get(`notification_intents/${actionId}`)).toMatchObject({ attempts: 1, state: 'failed' });
   });
 
   it('recognizes delivered notices after an interrupted retry without sending again', async () => {

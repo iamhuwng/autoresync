@@ -84,6 +84,17 @@ describeEmulator('class notification intent RTDB rules', () => {
 
   afterAll(async () => { await testEnv?.cleanup(); });
 
+  it('denies browser and class-action writes to the retry suppression gate', async () => {
+    const teacher = testEnv.authenticatedContext(teacherId).database();
+    const classAction = testEnv.authenticatedContext(
+      `notification-class-action:${actionId}`, actionClaims(),
+    ).database();
+    const state = { consecutiveFailures: 3, retrySuppressed: true };
+    await assertFails(teacher.ref('notification_retry_families/class-membership').set(state));
+    await assertFails(teacher.ref().update({ 'notification_retry_families/class-membership': state }));
+    await assertFails(classAction.ref().update({ 'notification_retry_families/class-membership': state }));
+  });
+
   it('allows one scoped pending-to-active transition and initial retry intent', async () => {
     const service = testEnv.authenticatedContext(
       `notification-class-action:${actionId}`,

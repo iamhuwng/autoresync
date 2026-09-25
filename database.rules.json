@@ -1282,6 +1282,10 @@
         }
       }
     },
+    "notification_retry_families": {
+      ".read": false,
+      ".write": false
+    },
     "notification_intents": {
       ".read": false,
       ".write": false,

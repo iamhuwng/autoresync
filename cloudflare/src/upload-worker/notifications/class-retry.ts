@@ -21,10 +21,15 @@ export const retryDueClassNotifications = async (env: Env, now = Date.now()): Pr
       await storage.updateIntent({ ...due, state: missing ? 'failed' : 'done', dueAt: CLASS_INTENT_DONE_DUE_AT });
       continue;
     }
+    // A failed gate read is safer than spending an untracked retry.
+    if (await storage.retrySuppressed()) continue;
     const claimed = await storage.claimRetry(due.actionId, now);
     if (!claimed) continue;
     const result = await deliverClassIntent(claimed, repository);
     if (result.backendFailure) break;
+    if (result.delivered) {
+      try { await storage.recordSuccess(now); } catch { /* Preserve the delivered intent. */ }
+    }
     if (!result.delivered) await storage.reportFailure(claimed, result.failedRecipientCount);
     await storage.updateIntent({
       ...claimed,

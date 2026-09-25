@@ -73,9 +73,9 @@ describe('notification inbox external subrequests', () => {
     expect(writes.filter((write) => write.state === 'retrying')).toHaveLength(1);
     expect(writes.filter((write) => write.state === 'done')).toHaveLength(1);
     expect(calls.filter((call) => call.startsWith('POST https://oauth2.googleapis.com/token'))).toHaveLength(1);
-    expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(5);
-    expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(4);
-    expect(calls).toHaveLength(10);
+    expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(7);
+    expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(5);
+    expect(calls).toHaveLength(13);
   });
 
   it('bounds a populated homework submission terminal retry to one failed intent', async () => {

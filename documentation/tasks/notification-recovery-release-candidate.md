@@ -2,6 +2,11 @@
 
 **Prepared:** 2026-09-24. **Current status (2026-09-25):** first-batch Firebase rules, notification Worker, and selective Hosting are deployed to `temp-a1437` / `kahut1`. Later notification families and historical backfill remain staged separately. The dated preparation and readback sections below record what was true before cutover.
 
+## Source continuation (2026-09-26; deployment unverified)
+
+- Source commit `efaa63fd` routes assignment approval and course request/type decision notices through `dispatchCommittedNotification` and removes three duplicate browser clients. Focused app tests passed: 55 tests across the producer, inventory, assignment, course, and course-request suites (the course-request suite used dummy Firebase config).
+- Follow-up source work adds a durable class-family retry suppression gate. It needs RTDB rule emulator proof, live CPU measurement, and deployment. Focused x64 Workerd checks passed 12 tests across class action, retry budget, and gate tests. The Windows RTDB emulator exited during startup with Netty `Unable to establish loopback connection`; no rules test ran. The local Wrangler command could not read remote state because `CLOUDFLARE_API_TOKEN` was absent from its environment. The 2026-09-25 active version and Hosting release below are historical, not fresh readback.
+
 ## First-batch cutover and live correction (2026-09-25)
 
 - The exact combined RTDB candidate still differed from the fresh live tree at the 44 reviewed notification paths. Firestore's live source matched the inspected `070d2d3c` source. Firebase deployed `database` and `firestore:rules`; readback matched both candidate sources, with Firestore ruleset `f2b8e6ad-a28e-495a-9198-56522d612075`.

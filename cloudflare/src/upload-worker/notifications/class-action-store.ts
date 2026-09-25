@@ -1,6 +1,7 @@
 import { SignJWT, importPKCS8 } from 'jose';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import type { ClassActionCommand, ClassActionStorage, ClassNotificationIntent } from './class-action.ts';
+import { RetryFamilyGate } from './retry-family-gate.ts';
 
 type Env = Readonly<Record<string, unknown>>;
 const SIGN_IN_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken';
@@ -54,6 +55,7 @@ const firebaseToken = async (
 
 export class FirebaseClassActionStorage implements ClassActionStorage {
   private readonly admin: FirebaseRtdbRestClient;
+  private readonly gate: RetryFamilyGate;
 
   constructor(private readonly env: Env, private readonly fetchImpl: typeof fetch = globalThis.fetch) {
     this.admin = new FirebaseRtdbRestClient({
@@ -64,11 +66,16 @@ export class FirebaseClassActionStorage implements ClassActionStorage {
       },
       fetchImpl,
     });
+    this.gate = new RetryFamilyGate(this.admin);
   }
 
   read(path: string): Promise<unknown> {
     return this.admin.readValue(path);
   }
+
+  retrySuppressed(): Promise<boolean> { return this.gate.isSuppressed('class-membership'); }
+
+  recordSuccess(at: number): Promise<void> { return this.gate.recordSuccess('class-membership', at); }
 
   async commit(input: {
     command: ClassActionCommand;
@@ -128,7 +135,7 @@ export class FirebaseClassActionStorage implements ClassActionStorage {
     const path = `reports/errors/${date}/${intent.actionId}`;
     const existing = await this.admin.readWithEtag<unknown>(path);
     if (existing.data !== null) return;
-    await this.admin.writeIfMatch(path, {
+    if (await this.admin.writeIfMatch(path, {
       id: intent.actionId,
       timestamp: now,
       feature: 'classes',
@@ -139,6 +146,6 @@ export class FirebaseClassActionStorage implements ClassActionStorage {
       userRole: 'service',
       duplicateCount: 1,
       contextData: { actionId: intent.actionId, classId: intent.classId, kind: intent.kind, failedRecipientCount },
-    }, existing.etag);
+    }, existing.etag)) await this.gate.recordTerminalFailure('class-membership', intent.actionId);
   }
 }
