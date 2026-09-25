@@ -90,10 +90,10 @@ export const createDeadlineNotificationHandlers = (options: {
   readonly now?: () => number;
 }) => {
   const now = options.now ?? Date.now;
-  const deliver = async (intent: ManualHomeworkReminderIntent): Promise<boolean> => {
+  const deliver = async (intent: ManualHomeworkReminderIntent): Promise<{ delivered: boolean; fresh: boolean }> => {
     const homework = await options.storage.readHomework(intent.homeworkId, intent.studentId);
     const source = trustedHomework(intent, homework);
-    if (!source) return false;
+    if (!source) return { delivered: false, fresh: false };
     const result = await options.repository.create({
       operationId: deadlineNotificationId(intent.eventId, intent.studentId),
       recipientId: intent.studentId,
@@ -103,15 +103,15 @@ export const createDeadlineNotificationHandlers = (options: {
       },
       now: intent.occurredAt,
     });
-    return result.status !== 'idempotency-conflict';
+    return { delivered: result.status !== 'idempotency-conflict', fresh: result.status === 'created' };
   };
 
   const recordSuccess = async () => {
     try { await options.storage.recordSuccess?.(now()); } catch { /* Delivery remains authoritative. */ }
   };
-  const initialState = async (intent: ManualHomeworkReminderIntent, delivered: boolean) => {
+  const initialState = async (intent: ManualHomeworkReminderIntent, delivered: boolean, fresh: boolean) => {
     if (delivered) {
-      await recordSuccess();
+      if (fresh) await recordSuccess();
       return { state: 'done' as const, dueAt: DEADLINE_INTENT_DONE_DUE_AT };
     }
     try {
@@ -139,11 +139,11 @@ export const createDeadlineNotificationHandlers = (options: {
       const claimed = { ...intent, state: 'sending' as const, attempts: 1 as const, dueAt: now() + RETRY_DELAY_MS };
       const version = await options.storage.updateIntent(eventId, claimed, saved.version);
       if (!version) return { body: { code: 'deadline_action_already_claimed' }, init: { status: 409 } satisfies ResponseInit };
-      let delivered = false;
-      try { delivered = await deliver(claimed); } catch { /* retain the one scheduled retry */ }
-      const completed: ManualHomeworkReminderIntent = { ...claimed, ...await initialState(claimed, delivered) };
+      let outcome = { delivered: false, fresh: false };
+      try { outcome = await deliver(claimed); } catch { /* retain the one scheduled retry */ }
+      const completed: ManualHomeworkReminderIntent = { ...claimed, ...await initialState(claimed, outcome.delivered, outcome.fresh) };
       await options.storage.updateIntent(eventId, completed, version);
-      return { body: { status: delivered ? 'delivered' : completed.state === 'failed' ? 'failed' : 'retry_scheduled', eventId }, init: { status: 200 } satisfies ResponseInit };
+      return { body: { status: outcome.delivered ? 'delivered' : completed.state === 'failed' ? 'failed' : 'retry_scheduled', eventId }, init: { status: 200 } satisfies ResponseInit };
     } catch {
       return { body: { code: 'deadline_action_failed' }, init: { status: 500 } satisfies ResponseInit };
     }
@@ -155,7 +155,6 @@ export const createDeadlineNotificationHandlers = (options: {
       if (intent.state === 'retrying') {
         const delivered = await options.storage.notificationExists(intent);
         if (!delivered) await options.storage.reportFailure(intent, now());
-        else await recordSuccess();
         await options.storage.updateIntent(intent.eventId, {
           ...intent, state: delivered ? 'done' : 'failed', attempts: 2, dueAt: DEADLINE_INTENT_DONE_DUE_AT,
         }, due.version);
@@ -165,9 +164,9 @@ export const createDeadlineNotificationHandlers = (options: {
         const claimed = { ...intent, state: 'sending' as const, attempts: 1 as const, dueAt: now() + RETRY_DELAY_MS };
         const version = await options.storage.updateIntent(intent.eventId, claimed, due.version);
         if (!version) continue;
-        let delivered = false;
-        try { delivered = await deliver(claimed); } catch { /* one later retry remains */ }
-        await options.storage.updateIntent(intent.eventId, { ...claimed, ...await initialState(claimed, delivered) }, version);
+        let outcome = { delivered: false, fresh: false };
+        try { outcome = await deliver(claimed); } catch { /* one later retry remains */ }
+        await options.storage.updateIntent(intent.eventId, { ...claimed, ...await initialState(claimed, outcome.delivered, outcome.fresh) }, version);
         continue;
       }
       if (intent.state !== 'retry_due' || intent.attempts !== 1) continue;
@@ -175,12 +174,12 @@ export const createDeadlineNotificationHandlers = (options: {
       const claimed = { ...intent, state: 'retrying' as const, attempts: 2 as const, dueAt: now() + RETRY_DELAY_MS };
       const version = await options.storage.updateIntent(intent.eventId, claimed, due.version);
       if (!version) continue;
-      let delivered = false;
-      try { delivered = await deliver(claimed); } catch { /* report below */ }
-      if (!delivered) await options.storage.reportFailure(claimed, now());
-      else await recordSuccess();
+      let outcome = { delivered: false, fresh: false };
+      try { outcome = await deliver(claimed); } catch { /* report below */ }
+      if (!outcome.delivered) await options.storage.reportFailure(claimed, now());
+      else if (outcome.fresh) await recordSuccess();
       await options.storage.updateIntent(intent.eventId, {
-        ...claimed, state: delivered ? 'done' : 'failed', dueAt: DEADLINE_INTENT_DONE_DUE_AT,
+        ...claimed, state: outcome.delivered ? 'done' : 'failed', dueAt: DEADLINE_INTENT_DONE_DUE_AT,
       }, version);
     }
   } };

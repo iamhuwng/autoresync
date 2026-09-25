@@ -85,4 +85,12 @@ describe('deadline manual reminder action', () => {
     await handlers.retryDue();
     expect(repository.create).toHaveBeenCalledOnce();
   });
+
+  it('does not treat a replayed inbox item as fresh recovery evidence', async () => {
+    const storage = storageFor({ recordSuccess: vi.fn(async () => {}) });
+    const repository = { create: vi.fn(async () => ({ status: 'replayed' as const, notificationId: 'notice-1' })) };
+    const handlers = createDeadlineNotificationHandlers({ storage, repository, now: () => 20_000 });
+    expect((await handlers.action({ request: request(), uid: 'teacher-1' })).body.status).toBe('delivered');
+    expect(storage.recordSuccess).not.toHaveBeenCalled();
+  });
 });

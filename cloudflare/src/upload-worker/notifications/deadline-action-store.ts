@@ -146,6 +146,6 @@ export class FirebaseDeadlineNotificationStorage implements DeadlineNotification
       message: 'Teacher homework reminder notification delivery failed after its retry.',
       userId: intent.actorUid, userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
       contextData: { eventId: intent.eventId, homeworkId: intent.homeworkId, studentId: intent.studentId },
-    }, existing.etag)) await this.gate.recordTerminalFailure('homework-reminder', intent.eventId);
+    }, existing.etag)) await this.gate.recordTerminalFailure('homework-reminder', intent.eventId, path);
   }
 }

@@ -135,8 +135,9 @@ export const missingClassIntentRecipients = async (
 export const deliverClassIntent = async (
   intent: ClassNotificationIntent,
   repository: NotificationCommandRepository,
-): Promise<{ delivered: boolean; failedRecipientCount: number; backendFailure: boolean }> => {
+): Promise<{ delivered: boolean; failedRecipientCount: number; backendFailure: boolean; fresh: boolean }> => {
   const notices = noticesFor(intent);
+  let fresh = false;
   for (const [index, { recipientId, ...notification }] of notices.entries()) {
     try {
       const result = await repository.create({
@@ -146,14 +147,15 @@ export const deliverClassIntent = async (
         now: intent.occurredAt,
       });
       if (result.status === 'idempotency-conflict') {
-        return { delivered: false, failedRecipientCount: notices.length - index, backendFailure: false };
+        return { delivered: false, failedRecipientCount: notices.length - index, backendFailure: false, fresh };
       }
+      if (result.status === 'created') fresh = true;
     } catch {
       // Stop on a shared backend failure; a later retry resumes via stable IDs.
-      return { delivered: false, failedRecipientCount: notices.length - index, backendFailure: true };
+      return { delivered: false, failedRecipientCount: notices.length - index, backendFailure: true, fresh };
     }
   }
-  return { delivered: true, failedRecipientCount: 0, backendFailure: false };
+  return { delivered: true, failedRecipientCount: 0, backendFailure: false, fresh };
 };
 
 export const performClassAction = async (input: {
@@ -235,15 +237,17 @@ export const performClassAction = async (input: {
     return { status: 409, body: { code: 'class_action_commit_failed' } };
   }
 
-  let delivery: { delivered: boolean; failedRecipientCount: number; backendFailure: boolean };
+  let delivery: { delivered: boolean; failedRecipientCount: number; backendFailure: boolean; fresh: boolean };
   try {
     delivery = await deliverClassIntent(intent, input.repository());
   } catch {
-    delivery = { delivered: false, failedRecipientCount: command.kind === 'join-pending' ? 2 : 1, backendFailure: true };
+    delivery = { delivered: false, failedRecipientCount: command.kind === 'join-pending' ? 2 : 1, backendFailure: true, fresh: false };
   }
   let suppressedFailure = false;
   if (delivery.delivered) {
-    try { await storage.recordSuccess?.(Date.now()); } catch { /* Delivery already succeeded. */ }
+    if (delivery.fresh) {
+      try { await storage.recordSuccess?.(Date.now()); } catch { /* Delivery already succeeded. */ }
+    }
     try {
       await storage.updateIntent({ ...intent, state: 'done', dueAt: CLASS_INTENT_DONE_DUE_AT });
     } catch {

@@ -23,10 +23,11 @@ describe('homework submission event dispatch', () => {
   it('derives the recipient and content from a committed result and intent', async () => {
     const repository = new InMemoryNotificationCommandRepository();
     const hasCommittedIntent = vi.fn(async () => true);
+    const recordImmediateOutcome = vi.fn(async () => {});
     const worker = createHomeworkSubmissionNotificationWorker({
       firebaseVerifier: verifier('student-1'), repositoryFactory: () => repository,
       readDatabaseValue: async () => canonicalResult, hasCommittedIntent,
-      markDelivered: async () => true, now: () => 1_779_000_000_000,
+      markDelivered: async () => true, recordImmediateOutcome, now: () => 1_779_000_000_000,
     });
     const response = await worker.fetch(request(command), env);
     expect(response.status).toBe(200);
@@ -39,6 +40,7 @@ describe('homework submission event dispatch', () => {
     })]);
     expect((await worker.fetch(request(command), env)).status).toBe(200);
     expect(Object.keys(repository.snapshot())).toHaveLength(1);
+    expect(recordImmediateOutcome).toHaveBeenCalledOnce();
   });
 
   it('records a failed immediate attempt after verifying the committed intent', async () => {

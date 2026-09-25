@@ -135,7 +135,7 @@ const reportFailure = async (admin: FirebaseRtdbRestClient, gate: RetryFamilyGat
     message: 'Homework submission notification delivery failed after its retry.',
     userId: intent.studentId, userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
     contextData: { eventId: intent.eventId, resultId: intent.resultId, homeworkId: intent.homeworkId },
-  }, existing.etag)) await gate.recordTerminalFailure('homework-submitted', intent.eventId);
+  }, existing.etag)) await gate.recordTerminalFailure('homework-submitted', intent.eventId, path);
 };
 
 /** Mark only the exact committed event done after the trusted HTTP path delivered it. */
@@ -293,9 +293,6 @@ export const retryDueHomeworkNotifications = async (
         && row.title === 'Homework Submitted'
         && row.link === buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: intent.homeworkId });
       if (!delivered) await reportFailure(admin, gate, intent, now);
-      else {
-        try { await gate.recordSuccess('homework-submitted', now); } catch { /* Keep delivered intent moving. */ }
-      }
       await updateDelivery(env, due, { state: delivered ? 'done' : 'failed', attempts: 2, dueAt: DONE_DUE_AT }, fetchImpl, token);
       continue;
     }
@@ -304,6 +301,7 @@ export const retryDueHomeworkNotifications = async (
     const claimedDocument = await updateDelivery(env, due, claimed, fetchImpl, token);
     if (!claimedDocument) continue;
     let delivered = false;
+    let fresh = false;
     let backendFailure = false;
     try {
       const canonical = trustedIntent(intent, await readResult(`test_results/${intent.resultId}`));
@@ -320,6 +318,7 @@ export const retryDueHomeworkNotifications = async (
           now: intent.submittedAt,
         });
         delivered = result.status !== 'idempotency-conflict';
+        fresh = result.status === 'created';
       }
     } catch {
       delivered = false;
@@ -327,7 +326,7 @@ export const retryDueHomeworkNotifications = async (
     }
     if (backendFailure) break;
     if (!delivered) await reportFailure(admin, gate, intent, now);
-    else {
+    else if (fresh) {
       try { await gate.recordSuccess('homework-submitted', now); } catch { /* Keep delivered intent moving. */ }
     }
     await updateDelivery(env, { ...due, document: claimedDocument }, { state: delivered ? 'done' : 'failed', attempts: 2, dueAt: DONE_DUE_AT }, fetchImpl, token);

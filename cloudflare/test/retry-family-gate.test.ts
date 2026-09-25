@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { afterSuccess, afterTerminalFailure, type RetryFamilyState } from '../src/upload-worker/notifications/retry-family-gate.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { afterSuccess, afterTerminalFailure, RetryFamilyGate, type RetryFamilyState } from '../src/upload-worker/notifications/retry-family-gate.ts';
+import type { FirebaseRtdbRestClient } from '../src/upload-worker/listening-authoring/rtdb.ts';
 
 describe('notification retry family gate', () => {
   it('suppresses after three distinct consecutive terminal failures and keeps fresh success evidence', () => {
@@ -17,5 +18,25 @@ describe('notification retry family gate', () => {
   it('resets the consecutive pattern on success before suppression', () => {
     const state = afterSuccess(afterTerminalFailure({ consecutiveFailures: 0, retrySuppressed: false }, 'a'), 456);
     expect(afterTerminalFailure(state, 'b')).toMatchObject({ consecutiveFailures: 1, retrySuppressed: false });
+  });
+
+  it('adds fresh success time to the existing admin issue without clearing suppression', async () => {
+    const issuePath = 'reports/errors/2026-09-26/action-a';
+    const rows = new Map<string, unknown>([
+      ['notification_retry_families/class-membership', {
+        consecutiveFailures: 3, retrySuppressed: true, lastFailedActionId: 'action-a', lastIssuePath: issuePath,
+      }],
+      [issuePath, { id: 'action-a', timestamp: 100, contextData: { actionId: 'action-a' } }],
+    ]);
+    const client = {
+      readWithEtag: vi.fn(async (path: string) => ({ data: rows.get(path) ?? null, etag: '"0"' })),
+      writeIfMatch: vi.fn(async (path: string, value: unknown) => { rows.set(path, value); return true; }),
+    } as unknown as FirebaseRtdbRestClient;
+    await new RetryFamilyGate(client).recordSuccess('class-membership', 456);
+    expect(rows.get(issuePath)).toMatchObject({ timestamp: 100,
+      contextData: { actionId: 'action-a', lastSuccessAt: 456 } });
+    expect(rows.get('notification_retry_families/class-membership')).toMatchObject({
+      retrySuppressed: true, lastSuccessAt: 456,
+    });
   });
 });

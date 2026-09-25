@@ -136,6 +136,6 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
       message: 'Homework reset notification delivery failed after its retry.',
       userId: intent.actorUid, userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
       contextData: { eventId: intent.eventId, homeworkId: intent.homeworkId, studentId: intent.studentId },
-    }, existing.etag)) await this.gate.recordTerminalFailure('homework-reset', intent.eventId);
+    }, existing.etag)) await this.gate.recordTerminalFailure('homework-reset', intent.eventId, path);
   }
 }

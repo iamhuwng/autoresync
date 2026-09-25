@@ -146,6 +146,6 @@ export class FirebaseClassActionStorage implements ClassActionStorage {
       userRole: 'service',
       duplicateCount: 1,
       contextData: { actionId: intent.actionId, classId: intent.classId, kind: intent.kind, failedRecipientCount },
-    }, existing.etag)) await this.gate.recordTerminalFailure('class-membership', intent.actionId);
+    }, existing.etag)) await this.gate.recordTerminalFailure('class-membership', intent.actionId, path);
   }
 }

@@ -334,11 +334,13 @@ export const createHomeworkSubmissionNotificationWorker = (
           } catch { /* The durable retry intent remains inspectable. */ }
           throw error;
         }
-        try {
-          await recordImmediateOutcome(env, { resultId: recordId, studentId: auth.uid,
-            teacherId: canonical.teacherId, homeworkId: canonical.homeworkId },
-          result.status !== 'idempotency-conflict', now());
-        } catch { /* Delivery and the saved intent remain authoritative. */ }
+        if (result.status !== 'replayed') {
+          try {
+            await recordImmediateOutcome(env, { resultId: recordId, studentId: auth.uid,
+              teacherId: canonical.teacherId, homeworkId: canonical.homeworkId },
+            result.status === 'created', now());
+          } catch { /* Delivery and the saved intent remain authoritative. */ }
+        }
         if (result.status !== 'idempotency-conflict') {
           try {
             await markDelivered(env, {
