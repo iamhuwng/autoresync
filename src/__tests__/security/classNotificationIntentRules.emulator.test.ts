@@ -69,7 +69,10 @@ describeEmulator('class notification intent RTDB rules', () => {
     });
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await context.database().ref().set({
-        users: { [teacherId]: { role: 'teacher' } },
+        users: { [teacherId]: { role: 'teacher' }, 'admin-1': { role: 'super_admin' } },
+        notification_retry_families: {
+          'class-membership': { consecutiveFailures: 2, retrySuppressed: false },
+        },
         classes: {
           [classId]: {
             createdBy: teacherId,
@@ -93,6 +96,26 @@ describeEmulator('class notification intent RTDB rules', () => {
     await assertFails(teacher.ref('notification_retry_families/class-membership').set(state));
     await assertFails(teacher.ref().update({ 'notification_retry_families/class-membership': state }));
     await assertFails(classAction.ref().update({ 'notification_retry_families/class-membership': state }));
+  });
+
+  it('keeps the gate admin-readable but denies super-admin create, update, delete, and root rewrites', async () => {
+    const admin = testEnv.authenticatedContext('admin-1').database();
+    const teacher = testEnv.authenticatedContext(teacherId).database();
+    const path = 'notification_retry_families/class-membership';
+    const changed = { consecutiveFailures: 3, retrySuppressed: true };
+
+    await assertSucceeds(admin.ref(path).once('value'));
+    await assertFails(teacher.ref(path).once('value'));
+    await assertFails(admin.ref('notification_retry_families/homework-reset').set(changed));
+    await assertFails(admin.ref(path).set(changed));
+    await assertFails(admin.ref(path).update({ retrySuppressed: true }));
+    await assertFails(admin.ref(path).remove());
+    await assertFails(admin.ref().update({ [path]: changed, 'users/admin-1/probe': true }));
+    await assertFails(admin.ref().update({ notification_retry_families: null }));
+    expect((await admin.ref(path).once('value')).val()).toMatchObject({
+      consecutiveFailures: 2, retrySuppressed: false,
+    });
+    expect((await admin.ref('users/admin-1/probe').once('value')).val()).toBeNull();
   });
 
   it('allows one scoped pending-to-active transition and initial retry intent', async () => {
