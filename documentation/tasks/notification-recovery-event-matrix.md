@@ -4,18 +4,18 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree; comm
 
 | # | Event | Saved authority and recipient | Delivery state |
 |---:|---|---|---|
-| 1 | Assignment request approved, teacher | RTDB assignment decision and intent; request teacher | Ordinary action, specialized Worker delivery wake; immediate attempt, one later retry, admin issue |
+| 1 | Assignment request approved, teacher | RTDB assignment decision and intent; request teacher | Ordinary action, shared committed-event dispatch; immediate attempt, one later retry, admin issue |
 | 2 | Assignment request approved, student | Same decision and intent; request student | Same bounded path |
 | 3 | Class join pending, student | RTDB membership transition and Worker-owned intent; joining student | Specialized class action, bounded retry |
 | 4 | Class join pending, teacher | Same transition; class owner | Same bounded path |
 | 5 | Direct class add | Same transition; added student | Same bounded path |
 | 6 | Class request approved | Same transition; approved student | Same bounded path |
 | 7 | Class request rejected | Same transition; rejected student | Same bounded path |
-| 8 | Course join or unenroll request approved | RTDB request decision and intent; saved student | Ordinary decision, specialized Worker delivery wake, bounded retry |
+| 8 | Course join or unenroll request approved | RTDB request decision and intent; saved student | Ordinary decision, shared committed-event dispatch, bounded retry |
 | 9 | Course join or unenroll request denied | Same decision and intent; saved student | Same bounded path |
 | 10 | Class-course expiration warning | `class_course_links`; class owner | Dormant `sendExpirationWarning` has no caller. No active recovered event |
 | 11 | Course archived | `courses` and enrollments | Current archive invariant excludes active enrollments, so no recipient event occurs |
-| 12 | Course type approved | RTDB type decision and intent; requesting teacher | Ordinary decision, specialized Worker delivery wake, bounded retry |
+| 12 | Course type approved | RTDB type decision and intent; requesting teacher | Ordinary decision, shared committed-event dispatch, bounded retry |
 | 13 | Course type rejected | Same decision and intent; requesting teacher | Same bounded path |
 | 14 | Course announcement | Worker commits announcement and intent; server resolves enrolled roster | Bounded 10-recipient passes and one later retry per failure |
 | 15 | Ordinary homework due soon | Firestore assignment and reminder status | Dormant `processStudentReminders` has no caller. No active recovered event |

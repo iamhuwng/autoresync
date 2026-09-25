@@ -20,6 +20,7 @@ export interface TrustedProducerNotificationResult {
 
 export type CommittedNotificationEvent =
     | { readonly eventKind: 'homework-submitted' | 'test-completed' | 'homework-reset'; readonly recordId: string }
+    | { readonly eventKind: 'assignment-approved' | 'course-request-decided' | 'course-type-decided'; readonly recordId: string }
     | { readonly eventKind: 'writing-notification'; readonly recordId: string; readonly occurrenceId: string };
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/u;
@@ -32,6 +33,12 @@ const requestFor = (input: CommittedNotificationEvent): { path: string; body: Re
             return { path: '/book-notifications/commands', body: { schemaVersion: 1, eventKind: input.eventKind, recordId: input.recordId } };
         case 'test-completed':
             return { path: '/test-complete-notifications/actions', body: { schemaVersion: 1, resultId: input.recordId }, key: `test-completed:${input.recordId}` };
+        case 'assignment-approved':
+            return { path: '/assignment-notifications/actions', body: { schemaVersion: 1, actionId: input.recordId }, key: input.recordId };
+        case 'course-request-decided':
+            return { path: '/enrollment-notifications/actions', body: { schemaVersion: 1, actionId: input.recordId }, key: input.recordId };
+        case 'course-type-decided':
+            return { path: '/notifications/course-type-decisions/dispatch', body: { schemaVersion: 1, actionType: 'dispatch-course-type-decision', requestId: input.recordId } };
         case 'homework-reset':
             if (!UUID.test(input.recordId)) throw new Error('notification_occurrence_invalid');
             return { path: '/homework-reset-notifications/actions', body: { eventId: input.recordId }, key: input.recordId };

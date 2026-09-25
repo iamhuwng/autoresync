@@ -37,4 +37,18 @@ describe('notificationProducerClient', () => {
         expect(init?.headers).toMatchObject({ 'Idempotency-Key': key });
         expect(JSON.parse(String(init?.body))).toEqual(body);
     });
+
+    it.each([
+        ['assignment-approved', '/assignment-notifications/actions', { schemaVersion: 1, actionId: 'request-1' }],
+        ['course-request-decided', '/enrollment-notifications/actions', { schemaVersion: 1, actionId: 'request-1' }],
+        ['course-type-decided', '/notifications/course-type-decisions/dispatch', { schemaVersion: 1, actionType: 'dispatch-course-type-decision', requestId: 'request-1' }],
+    ] as const)('dispatches committed %s from saved identity only', async (eventKind, path, body) => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ status: 'committed' }), { status: 200 }));
+        await expect(dispatchCommittedNotification({ eventKind, recordId: 'request-1' }, {
+            workerOrigin: 'https://worker.example', getIdToken: async () => 'token', fetchImpl,
+        })).resolves.toMatchObject({ success: true });
+        const [url, init] = fetchImpl.mock.calls[0]!;
+        expect(url).toBe(`https://worker.example${path}`);
+        expect(JSON.parse(String(init?.body))).toEqual(body);
+    });
 });

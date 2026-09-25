@@ -17,7 +17,7 @@ import type {
     AssignmentHistory
 } from '../types/assignment.types';
 import { getUserByEmail } from './userService';
-import { wakeAssignmentNotification } from './assignmentActionClient';
+import { dispatchCommittedNotification } from './notificationProducerClient';
 import { logCreate, logDelete } from './auditService';
 
 // ============================================================================
@@ -694,7 +694,7 @@ export async function approveStudentRequest(
         if (!existing) logCreate(null, 'assignment', assignmentId, {
             studentId: student.uid, teacherId: request.teacherId, assignedBy: approvedBy,
         });
-        await wakeAssignmentNotification(requestId);
+        await dispatchCommittedNotification({ eventKind: 'assignment-approved', recordId: requestId });
 
         return { success: true };
     } catch (error) {

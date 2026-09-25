@@ -6,7 +6,7 @@
 
 import { ref, push, set, get, update, query, orderByChild, equalTo, remove } from 'firebase/database';
 import { auth, database } from './firebase';
-import { wakeCourseTypeDecisionDelivery } from './courseTypeDecisionClient';
+import { dispatchCommittedNotification } from './notificationProducerClient';
 import type { Course, Module, CourseMaterial, StudentCourseProgress } from '../types/course.types';
 import { logCreate, logUpdate, logDelete } from './auditService';
 
@@ -479,7 +479,7 @@ export async function approveCourseType(requestId: string): Promise<{ success: b
             [`${COURSE_TYPES_REF}/${typeId}`]: newType,
             [`${COURSE_TYPE_REQUESTS_REF}/${requestId}`]: updatedRequest,
         });
-        if (!await wakeCourseTypeDecisionDelivery(requestId)) {
+        if (!(await dispatchCommittedNotification({ eventKind: 'course-type-decided', recordId: requestId })).success) {
             console.warn('Course type approved; immediate notification delivery wake failed.');
         }
 
@@ -513,7 +513,7 @@ export async function rejectCourseType(requestId: string, reason?: string): Prom
         await update(ref(database), {
             [`${COURSE_TYPE_REQUESTS_REF}/${requestId}`]: updatedRequest,
         });
-        if (!await wakeCourseTypeDecisionDelivery(requestId)) {
+        if (!(await dispatchCommittedNotification({ eventKind: 'course-type-decided', recordId: requestId })).success) {
             console.warn('Course type rejected; immediate notification delivery wake failed.');
         }
         return { success: true };

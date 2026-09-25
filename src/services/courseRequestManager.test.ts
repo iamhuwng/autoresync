@@ -12,7 +12,7 @@ vi.mock('firebase/auth', () => ({
     getAuth: () => ({ currentUser: { uid: 't1', getIdToken: async () => 'token' } }),
     GoogleAuthProvider: class { setCustomParameters() {} },
 }));
-vi.mock('./enrollmentActionClient', () => ({ wakeCourseRequestNotification: vi.fn() }));
+vi.mock('./notificationProducerClient', () => ({ dispatchCommittedNotification: vi.fn().mockResolvedValue({ success: true }) }));
 
 describe('courseRequestManager', () => {
     beforeEach(() => {

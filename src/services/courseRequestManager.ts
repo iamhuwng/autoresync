@@ -2,7 +2,7 @@ import { ref, push, set, get, update, query, orderByChild, equalTo } from 'fireb
 import { database } from './firebase';
 import type { CourseRequest } from '../types/course.types';
 import { getAuth } from 'firebase/auth';
-import { wakeCourseRequestNotification } from './enrollmentActionClient';
+import { dispatchCommittedNotification } from './notificationProducerClient';
 
 const REQUESTS_REF = 'course_requests';
 
@@ -161,11 +161,7 @@ export async function processCourseRequest(
         };
 
         await update(requestRef, updates);
-        try {
-            await wakeCourseRequestNotification(requestId);
-        } catch (wakeError) {
-            console.warn('Course request was processed; notification will use its saved retry intent', wakeError);
-        }
+        await dispatchCommittedNotification({ eventKind: 'course-request-decided', recordId: requestId });
         return { success: true };
     } catch (error) {
         console.error('Error processing request:', error);
