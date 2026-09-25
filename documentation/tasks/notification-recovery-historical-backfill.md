@@ -8,6 +8,8 @@ This ledger accounts for all 35 ordinary notice variants in the [event matrix](n
 
 The inspected Hosting release `bc08f3f7e2936066` at 2026-09-24 05:07:20Z contains a producer bundle with no Worker origin. Release `d9ee9cee411c5af5` at 04:31:18Z is an earlier inspected point. Neither establishes when the failure began, when every producer stopped, or whether an older release worked. Before preview or execution, read current Hosting release history and deployed assets, identify the last verified working bundle and first broken bundle for each producer group, and record a half-open interval `[start, end)` with the evidence for both bounds. If a bound cannot be proven, leave that group's historical backfill blocked rather than guessing. Source event timestamps must be evaluated in UTC.
 
+Read-only Hosting REST inspection on 2026-09-25 returned the newest 100 releases, from 2026-09-24 09:06:05Z back to 2026-04-25 13:43:26Z, with another page available. The newest version remains `aea32fa07517146f`. Version `31a9052843c443c5` appears in both July and August releases; release dates alone therefore cannot identify a working producer. The file-list API returns paths and hashes, not historical file contents. No working-to-broken bundle transition has been proved, so no outage interval or backfill eligibility is approved.
+
 ## Row-by-row eligibility
 
 | # | Historical source to inspect | Decision until source and interval are proven |

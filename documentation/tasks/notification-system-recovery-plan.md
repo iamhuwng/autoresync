@@ -1,12 +1,12 @@
 # Notification system recovery plan
 
-**Status:** agreed plan; isolated source and CI gates passed, release blocked, no deployment
+**Status:** combined source and CI gates passed; release and historical backfill remain blocked, no deployment
 
 **Date:** 2026-09-24
 
 **Scope:** existing in-app notifications for teachers and students, including Book actions
 
-## Execution baseline (verified 2026-09-24)
+## Historical execution baseline (verified 2026-09-24 before source composition)
 
 - Isolated branch `codex/notification-recovery` starts at `7b093a07`; it includes
   the committed narrow class-join fix `07be1679`. That fix has no durable retry
@@ -68,6 +68,21 @@
   accounts for all 35 variants. The class/homework script is read-only and is
   not a whole-system backfill. A proven outage interval and recipient-level
   source evidence are required before any historical write.
+
+## Current release checkpoint (2026-09-25)
+
+The [combined release candidate](notification-recovery-release-candidate.md) at
+`c48f80a6` preserves the latest inspected Hosting source and live Book/AI RTDB
+rule differences. Its source commit `a016917e` passed
+[Linux CI run 36018675377](https://github.com/iamhuwng/autoresync/actions/runs/36018675377).
+The Hosting REST read still identifies `aea32fa07517146f` as live. Cloudflare
+authentication now works, the runtime service account has `roles/datastore.user`,
+and the dedicated API key is staged in an **undeployed** Worker version. The
+active Worker remains fetch-only and lacks that secret. The browser read-path
+check covered existing teacher/student pages but not a newly delivered notice.
+No Worker, rules, Hosting, or backfill release has occurred. The original
+execution baseline above is retained as historical investigation evidence;
+its old auth, IAM, and Hosting observations are superseded by this checkpoint.
 
 ## What this fixes
 
