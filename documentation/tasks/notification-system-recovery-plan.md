@@ -84,10 +84,11 @@ No Worker, rules, Hosting, or backfill release has occurred. The original
 execution baseline above is retained as historical investigation evidence;
 its old auth, IAM, and Hosting observations are superseded by this checkpoint.
 
-The 2026-09-25 source checkpoint is `ff9d0442` on
+The 2026-09-25 source checkpoint is `241ad39e` on
 `codex/notification-combined-release`. Its shared committed-event port,
-first-batch action-route gate, and four-family retry rotation passed
-[Linux CI run 36130152945](https://github.com/iamhuwng/autoresync/actions/runs/36130152945).
+first-batch action-route gate, four-family retry rotation, and shared OAuth
+path for manual reminder/reset retry stores passed
+[Linux CI run 36131652274](https://github.com/iamhuwng/autoresync/actions/runs/36131652274).
 The separate class/homework Hosting source artifact is `c3e83309` on
 `codex/notification-class-homework-hosting`, based directly on the inspected
 live-source commit `070d2d3c`; it passed focused local tests and build. These
