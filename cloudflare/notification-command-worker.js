@@ -75,6 +75,7 @@ const smallRetryFamilies = [
   retryDueTestCompleteNotificationsForEnv,
   retryDueGradeNotificationsForEnv,
 ];
+// ponytail: One due intent per first-batch slot on Workers Free; raise throughput only after populated CPU proof.
 const firstBatchRetryFamilies = [
   retryDueClassNotifications,
   retryDueHomeworkNotifications,

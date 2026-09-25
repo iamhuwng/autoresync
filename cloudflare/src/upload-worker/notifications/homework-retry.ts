@@ -9,7 +9,7 @@ import {
 
 const COLLECTION = 'homework_submissions';
 const DONE_DUE_AT = 8_640_000_000_000_000;
-const LIMIT = 3;
+const LIMIT = 1;
 const ID = /^[A-Za-z0-9_-]{1,128}$/u;
 type Env = Readonly<Record<string, unknown>>;
 type Delivery = { readonly state: 'retry_due' | 'retrying' | 'done' | 'failed'; readonly attempts: number; readonly dueAt: number };

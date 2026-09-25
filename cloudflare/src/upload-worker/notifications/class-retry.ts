@@ -13,7 +13,7 @@ export const retryDueClassNotifications = async (env: Env, now = Date.now()): Pr
   const repository = new FirebaseRestNotificationCommandRepository({
     env: env as NotificationCommandRepositoryEnv,
   });
-  for (const due of await storage.dueIntents(now)) {
+  for (const due of await storage.dueIntents(now, 1)) {
     if (due.state === 'retrying') {
       // A crash may have happened after delivery; read the inbox without a third send.
       const missing = await missingClassIntentRecipients(due, (path) => storage.read(path));

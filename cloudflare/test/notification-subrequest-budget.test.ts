@@ -19,7 +19,7 @@ const firestoreValue = (value: unknown): unknown => typeof value === 'string' ? 
       .map(([name, item]) => [name, firestoreValue(item)])) } };
 
 describe('notification inbox external subrequests', () => {
-  it('bounds a populated class membership retry with two delivered intents', async () => {
+  it('bounds a populated class membership retry to one delivered intent', async () => {
     const key = await crypto.subtle.generateKey({
       name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
       publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256',
@@ -34,7 +34,7 @@ describe('notification inbox external subrequests', () => {
       }),
     };
     const now = 1_800_000_000_000;
-    const intents = [1, 2].map((index) => ({
+    const intents = [1].map((index) => ({
       actionId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
       kind: 'join-pending', classId: 'class1', studentId: `student${index}`,
       actorUid: 'teacher1', teacherId: 'teacher1', occurredAt: now - 1000,
@@ -54,6 +54,7 @@ describe('notification inbox external subrequests', () => {
       }
       if (!url.startsWith(env.FIREBASE_DB_URL)) throw new Error(`unexpected ${method} ${url}`);
       if (method === 'GET' && path === '/notification_intents.json') {
+        expect(new URL(url).searchParams.get('limitToFirst')).toBe('1');
         return new Response(JSON.stringify(Object.fromEntries(intents.map((intent) => [intent.actionId, intent]))));
       }
       if (method === 'GET') {
@@ -68,16 +69,16 @@ describe('notification inbox external subrequests', () => {
     };
     vi.stubGlobal('fetch', fetchImpl);
     try { await retryDueClassNotifications(env, now); } finally { vi.unstubAllGlobals(); }
-    expect(writes.filter((write) => write.path.startsWith('/notifications/'))).toHaveLength(4);
-    expect(writes.filter((write) => write.state === 'retrying')).toHaveLength(2);
-    expect(writes.filter((write) => write.state === 'done')).toHaveLength(2);
+    expect(writes.filter((write) => write.path.startsWith('/notifications/'))).toHaveLength(2);
+    expect(writes.filter((write) => write.state === 'retrying')).toHaveLength(1);
+    expect(writes.filter((write) => write.state === 'done')).toHaveLength(1);
     expect(calls.filter((call) => call.startsWith('POST https://oauth2.googleapis.com/token'))).toHaveLength(1);
-    expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(9);
-    expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(8);
-    expect(calls).toHaveLength(18);
+    expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(5);
+    expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(4);
+    expect(calls).toHaveLength(10);
   });
 
-  it('bounds a populated homework submission terminal retry with two failed intents', async () => {
+  it('bounds a populated homework submission terminal retry to one failed intent', async () => {
     const key = await crypto.subtle.generateKey({
       name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
       publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256',
@@ -103,7 +104,8 @@ describe('notification inbox external subrequests', () => {
         return new Response(JSON.stringify({ access_token: 'test-token', expires_in: 3600 }));
       }
       if (url.endsWith(':runQuery')) {
-        return new Response(JSON.stringify([1, 2].map((index) => ({ document: {
+        expect((JSON.parse(String(init?.body)) as { structuredQuery: { limit: number } }).structuredQuery.limit).toBe(1);
+        return new Response(JSON.stringify([1].map((index) => ({ document: {
           name: `projects/temp-a1437/databases/(default)/documents/homework_submissions/submission${index}`,
           updateTime: '2026-01-01T00:00:00Z',
           fields: {
@@ -126,16 +128,16 @@ describe('notification inbox external subrequests', () => {
     };
     const repository = new FirebaseRestNotificationCommandRepository({ env, fetchImpl });
     await retryDueHomeworkNotifications(env, now, { fetchImpl, repository });
-    expect(patches).toHaveLength(2);
+    expect(patches).toHaveLength(1);
     expect(patches.every((patch) => JSON.stringify(patch).includes('failed'))).toBe(true);
     expect(calls.filter((call) => call.startsWith('POST https://oauth2.googleapis.com/token'))).toHaveLength(2);
     expect(calls.filter((call) => call.startsWith('POST https://firestore.googleapis.com/'))).toHaveLength(1);
-    expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(4);
-    expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(2);
-    expect(calls).toHaveLength(11);
+    expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(2);
+    expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(1);
+    expect(calls).toHaveLength(7);
   });
 
-  it('bounds two terminal manual-reminder and homework-reset retries per populated pass', async () => {
+  it('bounds manual-reminder and homework-reset terminal retries to one intent per pass', async () => {
     const key = await crypto.subtle.generateKey({
       name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
       publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256',
@@ -161,7 +163,8 @@ describe('notification inbox external subrequests', () => {
           return new Response(JSON.stringify({ access_token: 'test-token', expires_in: 3600 }));
         }
         if (url.endsWith(':runQuery')) {
-          const rows = [1, 2].map((index) => {
+          expect((JSON.parse(String(init?.body)) as { structuredQuery: { limit: number } }).structuredQuery.limit).toBe(1);
+          const rows = [1].map((index) => {
             const intent = {
               ...(family === 'homework-reset' ? { schemaVersion: 1, sourceSubmissionId: `submission${index}` } : {}),
               eventId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
@@ -199,11 +202,11 @@ describe('notification inbox external subrequests', () => {
       }
       expect(calls.filter((call) => call.startsWith('POST https://oauth2.googleapis.com/token'))).toHaveLength(1);
       expect(calls.filter((call) => call.startsWith('POST https://firestore.googleapis.com/'))).toHaveLength(1);
-      expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(4);
-      expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(2);
-      expect(patches).toHaveLength(2);
+      expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(2);
+      expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(1);
+      expect(patches).toHaveLength(1);
       expect(patches.every((patch) => JSON.stringify(patch).includes('failed'))).toBe(true);
-      expect(calls).toHaveLength(10);
+      expect(calls).toHaveLength(6);
     }
   });
 

@@ -5,7 +5,7 @@ const ID = /^[A-Za-z0-9_-]{1,128}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 export const DEADLINE_INTENT_DONE_DUE_AT = 8_640_000_000_000_000;
 const RETRY_DELAY_MS = 60 * 60 * 1000;
-const LIMIT = 2;
+const LIMIT = 1;
 
 export interface ManualHomeworkReminderIntent {
   readonly eventId: string;
