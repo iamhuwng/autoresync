@@ -41,6 +41,20 @@ describe('homework submission event dispatch', () => {
     expect(Object.keys(repository.snapshot())).toHaveLength(1);
   });
 
+  it('records a failed immediate attempt after verifying the committed intent', async () => {
+    const recordImmediateOutcome = vi.fn(async () => {});
+    const worker = createHomeworkSubmissionNotificationWorker({
+      firebaseVerifier: verifier('student-1'),
+      repositoryFactory: () => ({ create: async () => { throw new Error('inbox_unavailable'); } }),
+      readDatabaseValue: async () => canonicalResult, hasCommittedIntent: async () => true,
+      recordImmediateOutcome,
+    });
+    expect((await worker.fetch(request(command), env)).status).toBe(500);
+    expect(recordImmediateOutcome).toHaveBeenCalledWith(env, {
+      resultId, studentId: 'student-1', teacherId: 'teacher-1', homeworkId: 'homework-1',
+    }, false, expect.any(Number));
+  });
+
   it('rejects uncommitted and caller-authored notifications before writing', async () => {
     const repository = new InMemoryNotificationCommandRepository();
     const worker = createHomeworkSubmissionNotificationWorker({

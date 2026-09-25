@@ -27,6 +27,8 @@ export interface HomeworkResetNotificationStorage {
   dueIntents(now: number, limit?: number): Promise<Array<{ readonly intent: HomeworkResetIntent; readonly version: string }>>;
   notificationExists(intent: HomeworkResetIntent): Promise<boolean>;
   reportFailure(intent: HomeworkResetIntent, now: number): Promise<void>;
+  retrySuppressed?(): Promise<boolean>;
+  recordSuccess?(at: number): Promise<void>;
 }
 
 const record = (value: unknown): Record<string, unknown> | null => value && typeof value === 'object' && !Array.isArray(value)
@@ -98,17 +100,27 @@ export const createHomeworkResetNotificationHandlers = (options: {
   };
 
   const attempt = async (intent: HomeworkResetIntent, version: string, retry: boolean) => {
+    if (retry && await options.storage.retrySuppressed?.()) return;
     const attempts = retry ? 2 as const : 1 as const;
     const claimed = { ...intent, state: retry ? 'retrying' as const : 'sending' as const, attempts, dueAt: now() + RETRY_DELAY_MS };
     const claimVersion = await options.storage.updateIntent(intent.eventId, claimed, version);
     if (!claimVersion) return;
     let delivered = false;
     try { delivered = await deliver(claimed); } catch { /* one later attempt remains */ }
-    if (!delivered && retry) await options.storage.reportFailure(claimed, now());
+    if (delivered) {
+      try { await options.storage.recordSuccess?.(now()); } catch { /* Delivery remains authoritative. */ }
+    }
+    let failedWithoutRetry = false;
+    if (!delivered && (retry || await options.storage.retrySuppressed?.())) {
+      try {
+        await options.storage.reportFailure(claimed, now());
+        failedWithoutRetry = true;
+      } catch { /* Keep a durable retry intent if reporting failed. */ }
+    }
     const next: HomeworkResetIntent = {
       ...claimed,
-      state: delivered ? 'done' : retry ? 'failed' : 'retry_due',
-      dueAt: delivered || retry ? HOMEWORK_RESET_INTENT_DONE_DUE_AT : claimed.dueAt,
+      state: delivered ? 'done' : failedWithoutRetry ? 'failed' : retry ? 'retrying' : 'retry_due',
+      dueAt: delivered || failedWithoutRetry ? HOMEWORK_RESET_INTENT_DONE_DUE_AT : claimed.dueAt,
     };
     await options.storage.updateIntent(intent.eventId, next, claimVersion);
   };
@@ -127,7 +139,7 @@ export const createHomeworkResetNotificationHandlers = (options: {
         if (intent.state !== 'retry_due' || intent.attempts !== 0) return { body: { status: 'retry_scheduled', eventId }, status: 200 };
         await attempt(intent, saved.version, false);
         const latest = await options.storage.readIntent(eventId);
-        return { body: { status: latest?.intent.state === 'done' ? 'delivered' : 'retry_scheduled', eventId }, status: 200 };
+        return { body: { status: latest?.intent.state === 'done' ? 'delivered' : latest?.intent.state === 'failed' ? 'failed' : 'retry_scheduled', eventId }, status: 200 };
       } catch {
         return { body: { code: 'homework_reset_action_failed' }, status: 500 };
       }
@@ -139,6 +151,9 @@ export const createHomeworkResetNotificationHandlers = (options: {
         else if (due.intent.state === 'retrying' && due.intent.attempts === 2) {
           const delivered = await options.storage.notificationExists(due.intent);
           if (!delivered) await options.storage.reportFailure(due.intent, now());
+          else {
+            try { await options.storage.recordSuccess?.(now()); } catch { /* Delivery remains authoritative. */ }
+          }
           await options.storage.updateIntent(due.intent.eventId, {
             ...due.intent, state: delivered ? 'done' : 'failed', dueAt: HOMEWORK_RESET_INTENT_DONE_DUE_AT,
           }, due.version);

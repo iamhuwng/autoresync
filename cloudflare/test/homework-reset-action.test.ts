@@ -16,6 +16,7 @@ class MemoryStorage implements HomeworkResetNotificationStorage {
   version = 1;
   readonly reportFailure = vi.fn(async () => {});
   readonly notificationExists = vi.fn(async () => false);
+  retrySuppressed = vi.fn(async () => false);
 
   constructor(initial = intent()) { this.current = initial; }
 
@@ -90,5 +91,17 @@ describe('homework reset notification action', () => {
     expect(repository.create).toHaveBeenCalledTimes(2);
     expect(storage.current).toMatchObject({ state: 'failed', attempts: 2 });
     expect(storage.reportFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an immediate failure with no retry while suppressed', async () => {
+    const storage = new MemoryStorage();
+    storage.retrySuppressed.mockResolvedValue(true);
+    const repository = { create: vi.fn(async () => { throw new Error('offline'); }) };
+    const handlers = createHomeworkResetNotificationHandlers({ storage, repository, now: () => 200 });
+    expect((await handlers.action({ request: request(), uid: 'teacher-1' })).body.status).toBe('failed');
+    expect(storage.current).toMatchObject({ state: 'failed', attempts: 1 });
+    expect(storage.reportFailure).toHaveBeenCalledOnce();
+    await handlers.retryDue();
+    expect(repository.create).toHaveBeenCalledOnce();
   });
 });

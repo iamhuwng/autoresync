@@ -7,7 +7,7 @@ import {
 } from './repository.ts';
 import { parseClassAction, performClassAction, type ClassActionStorage } from './class-action.ts';
 import { FirebaseClassActionStorage } from './class-action-store.ts';
-import { hasCommittedHomeworkNotification, markHomeworkNotificationDelivered } from './homework-retry.ts';
+import { hasCommittedHomeworkNotification, markHomeworkNotificationDelivered, recordHomeworkImmediateOutcome } from './homework-retry.ts';
 import { buildRoute } from '../../../../src/constants/routes.ts';
 import {
   createCourseTypeDecisionHandlers,
@@ -46,6 +46,7 @@ export interface HomeworkSubmissionNotificationWorkerOptions {
   readonly classStorageFactory?: (env: WorkerEnv) => ClassActionStorage;
   readonly hasCommittedIntent?: typeof hasCommittedHomeworkNotification;
   readonly markDelivered?: typeof markHomeworkNotificationDelivered;
+  readonly recordImmediateOutcome?: typeof recordHomeworkImmediateOutcome;
   readonly now?: () => number;
 }
 
@@ -202,6 +203,7 @@ export const createHomeworkSubmissionNotificationWorker = (
   const classStorageFactory = options.classStorageFactory ?? ((env: WorkerEnv) => new FirebaseClassActionStorage(env));
   const hasCommittedIntent = options.hasCommittedIntent ?? hasCommittedHomeworkNotification;
   const markDelivered = options.markDelivered ?? markHomeworkNotificationDelivered;
+  const recordImmediateOutcome = options.recordImmediateOutcome ?? recordHomeworkImmediateOutcome;
   const now = options.now ?? Date.now;
 
   return {
@@ -314,7 +316,9 @@ export const createHomeworkSubmissionNotificationWorker = (
           return json(request, { code: 'notification_command_intent_missing' }, 403);
         }
         const operationId = notificationOperationId(`homework-submitted:teacher:${recordId}:${canonical.teacherId}`);
-        const result = await repositoryFactory(env).create({
+        let result: Awaited<ReturnType<NotificationCommandRepository['create']>>;
+        try {
+          result = await repositoryFactory(env).create({
           operationId,
           recipientId: canonical.teacherId,
           notification: {
@@ -322,7 +326,19 @@ export const createHomeworkSubmissionNotificationWorker = (
             link: buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: canonical.homeworkId }),
           },
           now: now(),
-        });
+          });
+        } catch (error) {
+          try {
+            await recordImmediateOutcome(env, { resultId: recordId, studentId: auth.uid,
+              teacherId: canonical.teacherId, homeworkId: canonical.homeworkId }, false, now());
+          } catch { /* The durable retry intent remains inspectable. */ }
+          throw error;
+        }
+        try {
+          await recordImmediateOutcome(env, { resultId: recordId, studentId: auth.uid,
+            teacherId: canonical.teacherId, homeworkId: canonical.homeworkId },
+          result.status !== 'idempotency-conflict', now());
+        } catch { /* Delivery and the saved intent remain authoritative. */ }
         if (result.status !== 'idempotency-conflict') {
           try {
             await markDelivered(env, {

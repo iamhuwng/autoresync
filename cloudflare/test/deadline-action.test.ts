@@ -70,4 +70,19 @@ describe('deadline manual reminder action', () => {
     await handlers.action({ request: request(), uid: 'teacher-1' });
     expect(repository.create).not.toHaveBeenCalled();
   });
+
+  it('reports a fresh failed reminder and skips a held retry while suppressed', async () => {
+    const storage = storageFor({ retrySuppressed: vi.fn(async () => true) });
+    const repository = { create: vi.fn(async () => { throw new Error('offline'); }) };
+    const handlers = createDeadlineNotificationHandlers({ storage, repository, now: () => 20_000 });
+    const response = await handlers.action({ request: request(), uid: 'teacher-1' });
+    expect(response.body.status).toBe('failed');
+    expect(storage.reportFailure).toHaveBeenCalledOnce();
+    expect(storage.updateIntent).toHaveBeenLastCalledWith(eventId,
+      expect.objectContaining({ state: 'failed', attempts: 1 }), 'v2');
+
+    storage.dueIntents.mockResolvedValue([{ intent: { ...intent, state: 'retry_due', attempts: 1, dueAt: 0 }, version: 'v3' }]);
+    await handlers.retryDue();
+    expect(repository.create).toHaveBeenCalledOnce();
+  });
 });

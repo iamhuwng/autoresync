@@ -1,5 +1,6 @@
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import { homeworkResetNotificationId, type HomeworkResetIntent, type HomeworkResetNotificationStorage } from './homework-reset-action.ts';
+import { RetryFamilyGate } from './retry-family-gate.ts';
 
 type Env = Readonly<Record<string, unknown>>;
 type FirestoreValue = { readonly nullValue?: string; readonly booleanValue?: boolean; readonly integerValue?: string; readonly doubleValue?: number; readonly stringValue?: string; readonly mapValue?: { readonly fields?: Record<string, FirestoreValue> }; readonly arrayValue?: { readonly values?: FirestoreValue[] } };
@@ -39,6 +40,7 @@ const record = (value: unknown): Record<string, unknown> | null => value && type
 export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNotificationStorage {
   private readonly projectId: string;
   private readonly rtdb: FirebaseRtdbRestClient;
+  private readonly gate: RetryFamilyGate;
 
   constructor(private readonly env: Env, private readonly fetchImpl: typeof fetch = globalThis.fetch) {
     this.projectId = encodeURIComponent(required(env, 'FIREBASE_PROJECT_ID'));
@@ -46,7 +48,11 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
       FIREBASE_DB_URL: required(env, 'FIREBASE_DB_URL'), FIREBASE_PROJECT_ID: required(env, 'FIREBASE_PROJECT_ID'),
       GOOGLE_SA_KEY: required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY'),
     }, fetchImpl });
+    this.gate = new RetryFamilyGate(this.rtdb);
   }
+
+  retrySuppressed(): Promise<boolean> { return this.gate.isSuppressed('homework-reset'); }
+  recordSuccess(at: number): Promise<void> { return this.gate.recordSuccess('homework-reset', at); }
 
   private documentsUrl(path = ''): string {
     return `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents${path}`;
@@ -125,11 +131,11 @@ export class FirebaseHomeworkResetNotificationStorage implements HomeworkResetNo
     const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${issueId}`;
     const existing = await this.rtdb.readWithEtag<unknown>(path);
     if (existing.data !== null) return;
-    await this.rtdb.writeIfMatch(path, {
+    if (await this.rtdb.writeIfMatch(path, {
       id: issueId, timestamp: now, feature: 'homework', severity: 'error',
       message: 'Homework reset notification delivery failed after its retry.',
       userId: intent.actorUid, userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
       contextData: { eventId: intent.eventId, homeworkId: intent.homeworkId, studentId: intent.studentId },
-    }, existing.etag);
+    }, existing.etag)) await this.gate.recordTerminalFailure('homework-reset', intent.eventId);
   }
 }

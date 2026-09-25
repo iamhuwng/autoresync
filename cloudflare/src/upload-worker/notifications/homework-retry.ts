@@ -6,6 +6,7 @@ import {
   type NotificationCommandRepository,
   type NotificationCommandRepositoryEnv,
 } from './repository.ts';
+import { RetryFamilyGate } from './retry-family-gate.ts';
 
 const COLLECTION = 'homework_submissions';
 const DONE_DUE_AT = 8_640_000_000_000_000;
@@ -124,22 +125,17 @@ const trustedIntent = (intent: Intent, value: unknown): boolean => {
   return true;
 };
 
-const reportFailure = async (env: Env, intent: Intent, now: number, fetchImpl: typeof fetch): Promise<void> => {
-  const admin = new FirebaseRtdbRestClient({ env: {
-    FIREBASE_DB_URL: required(env, 'FIREBASE_DB_URL'),
-    FIREBASE_PROJECT_ID: required(env, 'FIREBASE_PROJECT_ID'),
-    GOOGLE_SA_KEY: required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY'),
-  }, fetchImpl });
+const reportFailure = async (admin: FirebaseRtdbRestClient, gate: RetryFamilyGate, intent: Intent, now: number): Promise<void> => {
   const issueId = `homework-notification-${intent.eventId}`;
   const path = `reports/errors/${new Date(now).toISOString().slice(0, 10)}/${issueId}`;
   const existing = await admin.readWithEtag<unknown>(path);
   if (existing.data !== null) return;
-  await admin.writeIfMatch(path, {
+  if (await admin.writeIfMatch(path, {
     id: issueId, timestamp: now, feature: 'homework', severity: 'error',
     message: 'Homework submission notification delivery failed after its retry.',
     userId: intent.studentId, userName: 'Notification Worker', userRole: 'service', duplicateCount: 1,
     contextData: { eventId: intent.eventId, resultId: intent.resultId, homeworkId: intent.homeworkId },
-  }, existing.etag);
+  }, existing.etag)) await gate.recordTerminalFailure('homework-submitted', intent.eventId);
 };
 
 /** Mark only the exact committed event done after the trusted HTTP path delivered it. */
@@ -220,6 +216,53 @@ export const markHomeworkNotificationDelivered = async (
   }, { state: 'done', attempts: delivery.attempts, dueAt: DONE_DUE_AT }, fetchImpl, token));
 };
 
+/** Keep immediate success evidence, or report a new failure without queuing a retry while suppressed. */
+export const recordHomeworkImmediateOutcome = async (
+  env: Env,
+  input: { readonly resultId: string; readonly studentId: string; readonly teacherId: string; readonly homeworkId: string },
+  delivered: boolean,
+  now: number,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<void> => {
+  const admin = new FirebaseRtdbRestClient({ env: {
+    FIREBASE_DB_URL: required(env, 'FIREBASE_DB_URL'), FIREBASE_PROJECT_ID: required(env, 'FIREBASE_PROJECT_ID'),
+    GOOGLE_SA_KEY: required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY'),
+  }, fetchImpl });
+  const gate = new RetryFamilyGate(admin);
+  if (delivered) {
+    await gate.recordSuccess('homework-submitted', now);
+    return;
+  }
+  if (!await gate.isSuppressed('homework-submitted')) return;
+  const token = await tokenFor(env, fetchImpl);
+  const projectId = encodeURIComponent(required(env, 'FIREBASE_PROJECT_ID'));
+  const response = await fetchImpl.call(globalThis,
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ structuredQuery: {
+        from: [{ collectionId: COLLECTION }],
+        where: { fieldFilter: { field: { fieldPath: 'notificationIntent.resultId' }, op: 'EQUAL', value: { stringValue: input.resultId } } },
+        limit: 2,
+      } }),
+    });
+  if (!response.ok) throw new Error(`homework_notification_suppressed_query_failed:${response.status}`);
+  const rows = await response.json() as { readonly document?: FirestoreDocument }[];
+  const matches = rows.flatMap((row) => row.document ? [row.document] : [])
+    .filter((document) => typeof document.name === 'string' && document.updateTime)
+    .map((document) => ({ document, submission: decodeDocument(document) }))
+    .filter(({ submission }) => {
+      const intent = submission.notificationIntent;
+      return intent?.eventId === `homework-submitted:${input.resultId}`
+        && intent.studentId === input.studentId && intent.teacherId === input.teacherId
+        && intent.homeworkId === input.homeworkId && submission.notificationDelivery?.state === 'retry_due';
+    });
+  if (matches.length !== 1) throw new Error('homework_notification_suppressed_intent_missing');
+  const match = matches[0]!;
+  await reportFailure(admin, gate, match.submission.notificationIntent!, now);
+  await updateDelivery(env, { path: match.document.name!.split('/documents/')[1], document: match.document },
+    { state: 'failed', attempts: 1, dueAt: DONE_DUE_AT }, fetchImpl, token);
+};
+
 /** One bounded scheduled pass; each submission receives one later retry at most. */
 export const retryDueHomeworkNotifications = async (
   env: Env,
@@ -233,6 +276,7 @@ export const retryDueHomeworkNotifications = async (
       FIREBASE_DB_URL: required(env, 'FIREBASE_DB_URL'), FIREBASE_PROJECT_ID: required(env, 'FIREBASE_PROJECT_ID'),
       GOOGLE_SA_KEY: required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY'),
     }, fetchImpl });
+  const gate = new RetryFamilyGate(admin);
   const readResult = dependencies.readResult ?? ((path: string) => admin.readValue(path));
   const readInbox = dependencies.readInbox ?? ((path: string) => admin.readValue(path));
   for (const due of await fetchDue(env, now, fetchImpl, token)) {
@@ -248,10 +292,14 @@ export const retryDueHomeworkNotifications = async (
       const delivered = row?.id === operationId && row.type === 'info'
         && row.title === 'Homework Submitted'
         && row.link === buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: intent.homeworkId });
-      if (!delivered) await reportFailure(env, intent, now, fetchImpl);
+      if (!delivered) await reportFailure(admin, gate, intent, now);
+      else {
+        try { await gate.recordSuccess('homework-submitted', now); } catch { /* Keep delivered intent moving. */ }
+      }
       await updateDelivery(env, due, { state: delivered ? 'done' : 'failed', attempts: 2, dueAt: DONE_DUE_AT }, fetchImpl, token);
       continue;
     }
+    if (await gate.isSuppressed('homework-submitted')) continue;
     const claimed = { state: 'retrying' as const, attempts: 2, dueAt: now + 60 * 60 * 1000 };
     const claimedDocument = await updateDelivery(env, due, claimed, fetchImpl, token);
     if (!claimedDocument) continue;
@@ -278,7 +326,10 @@ export const retryDueHomeworkNotifications = async (
       backendFailure = true;
     }
     if (backendFailure) break;
-    if (!delivered) await reportFailure(env, intent, now, fetchImpl);
+    if (!delivered) await reportFailure(admin, gate, intent, now);
+    else {
+      try { await gate.recordSuccess('homework-submitted', now); } catch { /* Keep delivered intent moving. */ }
+    }
     await updateDelivery(env, { ...due, document: claimedDocument }, { state: delivered ? 'done' : 'failed', attempts: 2, dueAt: DONE_DUE_AT }, fetchImpl, token);
   }
 };

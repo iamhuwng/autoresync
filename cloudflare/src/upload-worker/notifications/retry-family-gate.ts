@@ -47,7 +47,7 @@ export class RetryFamilyGate {
   }
 
   async recordTerminalFailure(family: string, actionId: string): Promise<void> {
-    if (!/^[A-Za-z0-9_-]{1,128}$/u.test(actionId)) throw new Error('notification_action_id_invalid');
+    if (!/^[A-Za-z0-9_:-]{1,256}$/u.test(actionId)) throw new Error('notification_action_id_invalid');
     await this.change(family, (state) => afterTerminalFailure(state, actionId));
   }
 
