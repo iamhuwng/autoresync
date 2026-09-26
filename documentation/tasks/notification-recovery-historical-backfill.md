@@ -2,6 +2,8 @@
 
 **Status (2026-09-26 rotation):** read-only planning; no historical write or live preview is recorded. The [current handoff](notification-recovery-rotation-handoff-2026-09-26.md) leaves outage bounds and verified 35-row backfill open. Dated Hosting observations below are historical and must be refreshed before a preview or write.
 
+**September 27 validation correction:** the partial class/homework preview now checks canonical homework result identity, saved student, homework context and resolved teacher ownership for intent-bearing candidates as well as legacy submissions. A focused Node regression case proves a matching candidate is eligible and a conflicting canonical teacher is omitted. This validates the preview's authority filter only; no outage bounds, export, actual historical preview or write have been established.
+
 This ledger accounts for all 35 ordinary notice variants in the [event matrix](notification-recovery-event-matrix.md). “Candidate” means a saved record might prove the event; it is not permission to write a notice. For each recipient, a writer must prove the event time fell in the verified outage interval, the recipient belonged to the event at that time, the saved action actually committed, and the deterministic inbox ID is absent. Preserve an existing inbox row and its `read` flag. Rows 30 and 31 represent one canonical event, not two notices.
 
 ## Outage interval gate

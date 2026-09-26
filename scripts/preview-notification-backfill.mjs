@@ -10,7 +10,7 @@ Usage:
 The outage window is required and is half-open [start, end). The export must contain
 classIntents, legacyClassActions, and homeworkSubmissions arrays or keyed objects,
 canonicalResults keyed by resultId, and notifications keyed by recipient then notice ID.
-A legacy homework candidate requires the matching resultId, studentId, homework context,
+Every homework candidate requires the matching resultId, studentId, homework context,
 and resolved homework visibility owner on the canonical result. Existing inbox rows are
 read only and excluded by deterministic recipient/event ID.
 No network access or writes are performed.`;
@@ -61,6 +61,16 @@ function parseIsoTime(value, name) {
 
 function inWindow(time, start, end) {
   return validTime(time) && time >= start && time < end;
+}
+
+function matchesCanonicalHomework(result, { resultId, homeworkId, studentId, teacherId, submittedAt }) {
+  const visibility = isRecord(result) ? result.visibility : null;
+  const context = isRecord(result) ? result.context : null;
+  return isRecord(result) && result.resultId === resultId && result.studentId === studentId
+    && (result.submittedAt === undefined || result.submittedAt === submittedAt)
+    && isRecord(context) && context.type === 'homework'
+    && isRecord(visibility) && visibility.ownershipResolved === true
+    && visibility.homeworkId === homeworkId && visibility.visibilityOwnerTeacherId === teacherId;
 }
 
 function preview(data, start, end) {
@@ -178,6 +188,10 @@ function preview(data, start, end) {
         omit('homework_delivery_state_unknown');
         continue;
       }
+      if (!matchesCanonicalHomework(results[intent.resultId], intent)) {
+        omit('homework_intent_canonical_result_mismatch');
+        continue;
+      }
       include('homework-submitted', `homework:${intent.resultId}`, [intent.teacherId]);
       continue;
     }
@@ -200,14 +214,7 @@ function preview(data, start, end) {
       omit('outside_outage_window');
       continue;
     }
-    const result = results[resultId];
-    const visibility = isRecord(result) ? result.visibility : null;
-    const context = isRecord(result) ? result.context : null;
-    if (!isRecord(result) || result.resultId !== resultId || result.studentId !== studentId
-      || (result.submittedAt !== undefined && result.submittedAt !== submittedAt)
-      || !isRecord(context) || context.type !== 'homework'
-      || !isRecord(visibility) || visibility.ownershipResolved !== true
-      || visibility.homeworkId !== homeworkId || visibility.visibilityOwnerTeacherId !== teacherId) {
+    if (!matchesCanonicalHomework(results[resultId], submission)) {
       omit('legacy_homework_canonical_result_mismatch');
       continue;
     }

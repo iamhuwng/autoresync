@@ -2,6 +2,8 @@
 
 **Status (2026-09-26 rotation):** the first class/homework batch is live, but cold retry CPU, realistic backlog capacity, remaining families, Book verification, and historical backfill are open. Read the [current implementer handoff](notification-recovery-rotation-handoff-2026-09-26.md) and recheck remote state before further release claims. Older dated sections below are historical checkpoints.
 
+**September 27 executor review:** the current warm populated class retry still has an over-target sample. At the planner's direction, repeated local tuning/deployment is paused. The [single internal Durable Object proposal](notification-recovery-executor-proposal.md) is **UNDER REVIEW**, including its 47-call contention ceiling, two bounded RPCs per existing Cron and empty-day cost. No runtime/binding/migration change is approved or deployed by that proposal. The one closed-app retry, Firebase authority, product owners and held later-family scope remain the governing decisions.
+
 **Date:** 2026-09-26; routing boundary reconciled with the saved conversation
 
 **Scope:** existing in-app notifications for teachers and students, including Book actions
