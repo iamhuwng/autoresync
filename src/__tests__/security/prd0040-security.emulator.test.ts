@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { afterAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   assertFails,
   assertSucceeds,
@@ -102,6 +102,41 @@ describe('PRD-0040 security emulator checks', () => {
   afterAll(async () => {
     if (testEnv) {
       await testEnv.cleanup();
+    }
+  });
+
+  it('authorizes atomic result/index deletion for the owner teacher and student only', async () => {
+    const { student, otherStudent, assignedTeacher, teacher, unauthenticated } = await makeContexts();
+    const resultId = 'atomic-delete-result';
+    const result = { resultId, studentId: 'student-1', sessionCode: 'reading-v2',
+      visibility: { contextType: 'homework', ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1' } };
+    const rows = {
+      [`test_results/${resultId}`]: result,
+      [`test_results_by_session/reading-v2/${resultId}`]: { resultId, studentId: 'student-1' },
+      [`test_results_by_student/student-1/${resultId}`]: { resultId },
+      [`test_results_by_teacher/teacher-1/${resultId}`]: { resultId },
+    };
+    const deletions = Object.fromEntries(Object.keys(rows).map((path) => [path, null]));
+    const seed = () => testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref().update(rows);
+    });
+    await seed();
+    for (const denied of [otherStudent, teacher, unauthenticated]) {
+      await assertFails(denied.database().ref().update(deletions));
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        for (const [path, value] of Object.entries(rows)) {
+          expect((await context.database().ref(path).once('value')).val()).toEqual(value);
+        }
+      });
+    }
+    for (const allowed of [assignedTeacher, student]) {
+      await assertSucceeds(allowed.database().ref().update(deletions));
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        for (const path of Object.keys(rows)) {
+          expect((await context.database().ref(path).once('value')).exists()).toBe(false);
+        }
+      });
+      if (allowed === assignedTeacher) await seed();
     }
   });
 

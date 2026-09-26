@@ -9,6 +9,7 @@ import {
     updateResultScore,
     getReMarkHistory,
     markAsReviewed,
+    deleteTestResult,
     getStudentTestAttempts,
     getHistoricalScores,
     getClassTestScores,
@@ -177,6 +178,57 @@ describe('testResults.service', () => {
                 && result.visibility.visibilityOwnerTeacherId === teacherId
             ),
         }));
+    });
+
+    it('deletes results and their optional indexes atomically and propagates rejection', async () => {
+        const result = createLegacyResultRecord({
+            resultId: 'result-delete', sessionCode: 'reading-v2',
+            visibility: {
+                contextType: 'homework', sourceType: 'homework', sourceId: 'homework-1',
+                sourceNameSnapshot: 'Homework', visibilityOwnerTeacherId: 'teacher-1',
+                ownerResolutionSource: 'homework.createdBy', ownershipResolved: true,
+                unresolvedReason: null, homeworkId: 'homework-1', sessionCode: null,
+                courseId: 'course-1', classId: 'class-1', assignmentId: null,
+            },
+        });
+        vi.mocked(get).mockResolvedValue({ exists: () => true, val: () => result } as any);
+        vi.mocked(update).mockResolvedValue(undefined);
+
+        await deleteTestResult(result.resultId);
+
+        expect(update).toHaveBeenCalledExactlyOnceWith('__root__', {
+            'test_results/result-delete': null,
+            'test_results_by_session/reading-v2/result-delete': null,
+            'test_results_by_student/student-1/result-delete': null,
+            'test_results_by_teacher/teacher-1/result-delete': null,
+            'test_results_by_course/course-1/student-1/result-delete': null,
+            'test_results_by_class/class-1/student-1/result-delete': null,
+        });
+        expect(set).not.toHaveBeenCalled();
+        expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledWith('result-delete');
+
+        vi.mocked(update).mockClear();
+        mockClearUnresolvedResultVisibilityReport.mockClear();
+        const solo = { ...result, visibility: { ...result.visibility!,
+            contextType: 'solo_practice', sourceType: 'solo_practice',
+            visibilityOwnerTeacherId: null, courseId: null, classId: null,
+        } };
+        vi.mocked(get).mockResolvedValue({ exists: () => true, val: () => solo } as any);
+        await deleteTestResult(result.resultId);
+        expect(update).toHaveBeenCalledExactlyOnceWith('__root__', {
+            'test_results/result-delete': null,
+            'test_results_by_session/reading-v2/result-delete': null,
+            'test_results_by_student/student-1/result-delete': null,
+            'test_results_solo_practice_by_student/student-1/result-delete': null,
+        });
+
+        mockClearUnresolvedResultVisibilityReport.mockClear();
+        const denied = new Error('permission_denied');
+        vi.mocked(update).mockRejectedValueOnce(denied);
+        await expect(deleteTestResult(result.resultId)).rejects.toBe(denied);
+        // Reading a resolved row clears its old report before the rejected delete.
+        expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledTimes(1);
+        expect(set).not.toHaveBeenCalled();
     });
 
     describe('saveTestResult', () => {

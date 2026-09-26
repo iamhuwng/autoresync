@@ -81,6 +81,13 @@ jobs:
           src/__tests__/security/homeworkResetNotificationIntentRules.emulator.test.ts
           src/__tests__/security/writingNotificationIntentRules.emulator.test.ts
           --maxWorkers=1"
+      - name: Verify atomic result deletion authority
+        run: >-
+          npx firebase-tools emulators:exec --only database,firestore
+          "npx vitest run
+          src/__tests__/security/prd0040-security.emulator.test.ts
+          -t 'authorizes atomic result/index deletion'
+          --maxWorkers=1"
       - name: Install locked Worker dependencies
         run: npm ci --prefix cloudflare
       - name: Verify notification Worker actions under workerd
