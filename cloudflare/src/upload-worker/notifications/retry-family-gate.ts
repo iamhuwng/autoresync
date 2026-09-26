@@ -70,16 +70,22 @@ export class RetryFamilyGate {
 
   async recordSuccess(family: string, at: number): Promise<void> {
     const state = await this.change(family, (current) =>
-      current.consecutiveFailures === 0 && !current.retrySuppressed && !current.lastIssuePath
+      (current.consecutiveFailures === 0 && !current.lastIssuePath)
+        || (current.retrySuppressed && !current.lastIssuePath && current.lastSuccessAt !== undefined)
         ? current : afterSuccess(current, at));
-    if (!state.lastIssuePath) return;
+    const issuePath = state.lastIssuePath;
+    if (!issuePath) return;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const issue = await this.client.readWithEtag<Record<string, unknown> | null>(state.lastIssuePath);
-      if (!issue.data) return;
-      const context = issue.data.contextData && typeof issue.data.contextData === 'object'
+      const issue = await this.client.readWithEtag<Record<string, unknown> | null>(issuePath);
+      const context = issue.data?.contextData && typeof issue.data.contextData === 'object'
         && !Array.isArray(issue.data.contextData) ? issue.data.contextData as Record<string, unknown> : {};
-      if (await this.client.writeIfMatch(state.lastIssuePath,
-        { ...issue.data, contextData: { ...context, lastSuccessAt: at } }, issue.etag)) return;
+      if (!issue.data || Number.isSafeInteger(context.lastSuccessAt)
+        || await this.client.writeIfMatch(issuePath,
+          { ...issue.data, contextData: { ...context, lastSuccessAt: at } }, issue.etag)) {
+        await this.change(family, (current) => current.lastIssuePath === issuePath
+          ? { ...current, lastIssuePath: undefined } : current);
+        return;
+      }
     }
     throw new Error('notification_success_report_cas_failed');
   }

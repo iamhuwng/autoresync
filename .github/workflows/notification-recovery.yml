@@ -57,6 +57,7 @@ jobs:
           src/components/practice/THCSPracticeView.test.tsx
           src/components/thcs-student/THCSTestLayout.test.tsx
           src/services/book-delivery/bookUpdateFinalizer.worker.test.ts
+          src/pages/StudentDashboardPage.navigation.test.jsx
           --maxWorkers=1
       - name: Verify RTDB notification authority rules
         run: >-

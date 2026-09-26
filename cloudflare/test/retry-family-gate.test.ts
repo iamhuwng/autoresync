@@ -56,5 +56,32 @@ describe('notification retry family gate', () => {
     expect(rows.get('notification_retry_families/class-membership')).toMatchObject({
       retrySuppressed: true, lastSuccessAt: 456,
     });
+    expect((rows.get('notification_retry_families/class-membership') as RetryFamilyState).lastIssuePath).toBeUndefined();
+    vi.mocked(client.writeIfMatch).mockClear();
+    await new RetryFamilyGate(client).recordSuccess('class-membership', 789);
+    expect(client.writeIfMatch).not.toHaveBeenCalled();
+    expect((rows.get(issuePath) as { contextData: { lastSuccessAt: number } }).contextData.lastSuccessAt).toBe(456);
+  });
+
+  it('keeps a newer failure issue when recovery reporting races with it', async () => {
+    const familyPath = 'notification_retry_families/class-membership';
+    const oldIssue = 'reports/errors/2026-09-26/action-a';
+    const newIssue = 'reports/errors/2026-09-26/action-b';
+    const rows = new Map<string, unknown>([
+      [familyPath, { consecutiveFailures: 1, retrySuppressed: false, lastIssuePath: oldIssue }],
+      [oldIssue, { contextData: { actionId: 'action-a' } }],
+    ]);
+    const client = {
+      readWithEtag: vi.fn(async (path: string) => ({ data: rows.get(path) ?? null, etag: '"0"' })),
+      writeIfMatch: vi.fn(async (path: string, value: unknown) => {
+        rows.set(path, value);
+        if (path === oldIssue) rows.set(familyPath, afterTerminalFailure(
+          rows.get(familyPath) as RetryFamilyState, 'action-b', newIssue));
+        return true;
+      }),
+    } as unknown as FirebaseRtdbRestClient;
+    await new RetryFamilyGate(client).recordSuccess('class-membership', 456);
+    expect(rows.get(familyPath)).toMatchObject({ lastIssuePath: newIssue, consecutiveFailures: 1 });
+    expect(rows.get(oldIssue)).toMatchObject({ contextData: { lastSuccessAt: 456 } });
   });
 });

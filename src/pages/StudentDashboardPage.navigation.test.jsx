@@ -172,7 +172,7 @@ describe('StudentDashboardPage navigation portability', () => {
             expect(navigateToMock).toHaveBeenCalledWith(
                 'STUDENT_LIBRARY',
                 {},
-                { reason: 'dashboard_notification_link' },
+                { reason: 'dashboard_notification_link', userInitiated: true },
             );
         });
     });
@@ -247,7 +247,7 @@ describe('StudentDashboardPage navigation portability', () => {
             expect(navigateToMock).toHaveBeenCalledWith(
                 'STUDENT_LIBRARY',
                 {},
-                { reason: 'dashboard_notification_link' },
+                { reason: 'dashboard_notification_link', userInitiated: true },
             );
         });
     });

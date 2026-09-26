@@ -528,7 +528,7 @@ const StudentDashboardPage = () => {
             }
 
             sessionService.setPlayerData(user.uid, user.displayName || user.email || 'Student', sessionCode);
-            navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, { reason: 'dashboard_session_notification' });
+            navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, { reason: 'dashboard_session_notification', userInitiated: true });
             return;
         }
 
@@ -545,7 +545,7 @@ const StudentDashboardPage = () => {
             const linkTarget = resolveNotificationLinkTarget(notification.link);
 
             if (linkTarget?.kind === 'internal') {
-                navigateTo(linkTarget.destination, linkTarget.params, { reason: 'dashboard_notification_link' });
+                navigateTo(linkTarget.destination, linkTarget.params, { reason: 'dashboard_notification_link', userInitiated: true });
                 return;
             }
 
