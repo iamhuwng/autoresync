@@ -59,7 +59,9 @@ jobs:
           src/pages/StudentDashboardPage.navigation.test.jsx
           --maxWorkers=1
       - name: Bundle notification app candidate
-        run: npm run build
+        run: |
+          npx vite build
+          node scripts/check-bundle-budget.mjs
       - name: Verify RTDB notification authority rules
         run: >-
           npx firebase-tools emulators:exec --only database
