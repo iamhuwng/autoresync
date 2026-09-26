@@ -47,6 +47,7 @@ const CONFIG = {
         'src/pages/AccessDeniedPage.test.tsx',
     ],
     emulatorTestPaths: [
+        'src/__tests__/security/thcsPublishFirebaseRules.emulator.test.ts',
         'src/__tests__/security/prd0040-security.emulator.test.ts',
         'src/__tests__/security/prd0055-live-session-rules.emulator.test.ts',
         'src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts',
@@ -83,6 +84,7 @@ const PRD0062_CONFIG = Object.freeze({
         VITE_FIREBASE_APP_ID: '1:1234567890:web:abc123',
     }),
     databaseTestPaths: Object.freeze([
+        'src/__tests__/security/thcsPublishFirebaseRules.emulator.test.ts',
         'src/__tests__/security/materialCatalogFirebaseRules.test.ts',
         'src/__tests__/security/readingV2FirebaseRules.test.ts',
         'src/__tests__/security/prd0055-live-session-rules.emulator.test.ts',
