@@ -32,7 +32,7 @@ export const retryDueClassNotifications = async (env: Env, now = Date.now(), dep
     const claimed = await storage.claimRetry(due.actionId, now);
     if (!claimed) continue;
     const result = await deliverClassIntent(claimed, repository);
-    if (result.backendFailure) break;
+    if (result.backendFailure) throw new Error('notification_class_retry_backend_error');
     if (result.delivered && result.fresh) {
       try { await storage.recordSuccess(Date.now()); } catch { /* Preserve the delivered intent. */ }
     }

@@ -320,7 +320,7 @@ export const retryDueHomeworkNotifications = async (
       backendFailure = true;
       reasonCode = 'delivery_backend_error';
     }
-    if (backendFailure) break;
+    if (backendFailure) throw new Error('notification_homework_retry_backend_error');
     if (!delivered) await reportFailure(admin, gate, intent, now, reasonCode);
     else if (fresh) {
       try { await gate.recordSuccess('homework-submitted', Date.now()); } catch { /* Keep delivered intent moving. */ }

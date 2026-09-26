@@ -10,6 +10,7 @@ import { createHomeworkResetNotificationHandlers } from '../src/upload-worker/no
 import { retryDueClassNotifications } from '../src/upload-worker/notifications/class-retry.ts';
 import { retryDueHomeworkNotifications } from '../src/upload-worker/notifications/homework-retry.ts';
 import { NotificationRetryExecutor } from '../src/upload-worker/notifications/notification-retry-executor.js';
+import notificationWorker from '../notification-command-worker.js';
 
 const pem = (bytes: ArrayBuffer): string => {
   const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
@@ -22,6 +23,111 @@ const firestoreValue = (value: unknown): unknown => typeof value === 'string' ? 
       .map(([name, item]) => [name, firestoreValue(item)])) } };
 
 describe('notification inbox external subrequests', () => {
+  it.each(['class-membership', 'homework-submission'] as const)('surfaces fast %s backend failure and recovers without another send', async (family) => {
+    const key = await crypto.subtle.generateKey({
+      name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256',
+    }, true, ['sign', 'verify']);
+    const identity = `notification-fast-failure-${family}@example.test`;
+    const env = {
+      FIREBASE_DB_URL: 'https://temp-a1437-default-rtdb.firebaseio.com',
+      FIREBASE_PROJECT_ID: 'temp-a1437', NOTIFICATION_RETRY_BATCH: 'class-homework',
+      NOTIFICATION_COMMAND_SERVICE_IDENTITY: identity,
+      NOTIFICATION_COMMAND_GOOGLE_SA_KEY: JSON.stringify({ client_email: identity,
+        private_key: pem(await crypto.subtle.exportKey('pkcs8', key.privateKey)) }),
+    };
+    const now = Date.now();
+    const actionId = '00000000-0000-4000-8000-000000000001';
+    const intentPath = `/notification_intents/${actionId}.json`;
+    const untouchedInbox = '/notifications/other/existing.json';
+    const rows = new Map<string, Record<string, unknown>>([[untouchedInbox, { id: 'existing', read: true }]]);
+    if (family === 'class-membership') rows.set(intentPath, {
+      actionId, kind: 'join-pending', classId: 'class1', studentId: 'student1', actorUid: 'teacher1',
+      teacherId: 'teacher1', occurredAt: now - 1000, className: 'Example', studentName: 'Student',
+      dueAt: now - 1, attempts: 1, state: 'retry_due',
+    });
+    let delivery = { state: 'retry_due', attempts: 1, dueAt: now - 1 };
+    let version = new Date(now).toISOString();
+    let patches = 0;
+    const calls: Array<{ path: string; method: string }> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      const path = url.pathname;
+      const method = init?.method ?? 'GET';
+      calls.push({ path, method });
+      expect(init?.signal?.aborted).toBe(false);
+      if (url.origin === 'https://oauth2.googleapis.com') {
+        return new Response(JSON.stringify({ access_token: 'fast-failure-token', expires_in: 3600 }));
+      }
+      if (path.endsWith(':runQuery')) {
+        expect(JSON.parse(String(init?.body)).structuredQuery.limit).toBe(1);
+        return new Response(JSON.stringify(family === 'homework-submission' ? [{ document: {
+          name: 'projects/temp-a1437/databases/(default)/documents/homework_submissions/submission1', updateTime: version,
+          fields: {
+            notificationIntent: firestoreValue({ schemaVersion: 1, eventId: 'homework-submitted:result1',
+              resultId: 'result1', homeworkId: 'homework1', studentId: 'student1', teacherId: 'teacher1', submittedAt: now - 1000 }),
+            notificationDelivery: firestoreValue(delivery),
+          },
+        } }] : []));
+      }
+      if (url.origin === 'https://firestore.googleapis.com' && method === 'PATCH') {
+        expect(url.searchParams.get('currentDocument.updateTime')).toBe(version);
+        const fields = JSON.parse(String(init?.body)).fields.notificationDelivery.mapValue.fields;
+        delivery = { state: fields.state.stringValue, attempts: Number(fields.attempts.integerValue), dueAt: Number(fields.dueAt.integerValue) };
+        version = new Date(now + ++patches).toISOString();
+        return new Response(JSON.stringify({ updateTime: version }));
+      }
+      if (!String(input).startsWith(env.FIREBASE_DB_URL)) throw new Error(`unexpected ${method} ${url}`);
+      if (method === 'GET' && path === '/notification_intents.json') {
+        return new Response(JSON.stringify(family === 'class-membership' ? { [actionId]: rows.get(intentPath) } : null));
+      }
+      if (method === 'GET' && path === '/test_results/result1.json') return new Response(JSON.stringify({
+        resultId: 'result1', studentId: 'student1', context: { type: 'homework' },
+        visibility: { ownershipResolved: true, visibilityOwnerTeacherId: 'teacher1', homeworkId: 'homework1' },
+      }));
+      if (method === 'GET') return new Response(JSON.stringify(rows.get(path) ?? null), { headers: { etag: '"0"' } });
+      if (method === 'PUT' && path.startsWith('/notifications/')) throw new Error('provider_transport_failed');
+      if (method !== 'PUT') throw new Error(`unexpected ${method} ${url}`);
+      rows.set(path, JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response('null');
+    };
+    vi.stubGlobal('fetch', fetchImpl);
+    try {
+      await runInDurableObject(workerEnv.UPLOAD_GRANT_REPLAY_LEDGER.getByName(`notification-fast-failure-${family}`),
+        async (_instance, state) => {
+          const executor = new NotificationRetryExecutor(state, env);
+          const attempted: string[] = [];
+          let pending: Promise<unknown> | undefined;
+          notificationWorker.scheduled({ cron: '*/2 * * * *', scheduledTime: 0 }, {
+            ...env, NOTIFICATION_RETRY_EXECUTOR: { getByName: () => ({ retry: async (next: string) => {
+              attempted.push(next);
+              await executor.retry(next);
+            } }) },
+          }, { waitUntil: (promise: Promise<unknown>) => { pending = promise; } });
+          await expect(pending).rejects.toMatchObject({ name: 'AggregateError', message: 'notification_retry_failed',
+            errors: [{ message: family === 'class-membership' ? 'notification_class_retry_backend_error' : 'notification_homework_retry_backend_error' }] });
+          expect(attempted).toEqual(['class-membership', 'homework-submission']);
+          expect(family === 'class-membership' ? rows.get(intentPath) : delivery).toMatchObject({ state: 'retrying', attempts: 2 });
+          expect(calls).toHaveLength(7);
+          expect(calls.filter(({ path, method }) => path.startsWith('/notifications/') && method === 'PUT')).toHaveLength(1);
+          expect(rows.get(untouchedInbox)).toEqual({ id: 'existing', read: true });
+          expect([...rows.keys()].filter((path) => path.startsWith('/reports/'))).toHaveLength(0);
+          calls.length = 0;
+          const recoveryAt = Number((family === 'class-membership' ? rows.get(intentPath) : delivery)?.dueAt) + 1;
+          const clock = vi.spyOn(Date, 'now').mockReturnValue(recoveryAt);
+          try { await executor.retry(family); } finally { clock.mockRestore(); }
+          expect(family === 'class-membership' ? rows.get(intentPath) : delivery).toMatchObject({ state: 'failed', attempts: 2 });
+          expect(calls).toHaveLength(family === 'class-membership' ? 10 : 8);
+          expect(calls.filter(({ path, method }) => path.startsWith('/notifications/') && method === 'PUT')).toHaveLength(0);
+          expect(rows.get(untouchedInbox)).toEqual({ id: 'existing', read: true });
+          const issue = [...rows].find(([path]) => path.startsWith('/reports/'))?.[1];
+          expect(issue?.contextData).toMatchObject({ reasonCode: 'inbox_missing_after_claim' });
+          const gate = [...rows].find(([path]) => path.startsWith('/notification_retry_families/'))?.[1];
+          expect(gate).toMatchObject({ consecutiveFailures: 1, retrySuppressed: false });
+        });
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it('caps contention at 47 requests and preserves an aborted class claim without a third send', async () => {
     const key = await crypto.subtle.generateKey({
       name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
@@ -129,7 +235,9 @@ describe('notification inbox external subrequests', () => {
       await runInDurableObject(workerEnv.UPLOAD_GRANT_REPLAY_LEDGER.getByName('notification-abort-native-state'),
         async (_instance, state) => {
           await expect(new NotificationRetryExecutor(state, env).retry('class-membership'))
-            .rejects.toThrow('notification_retry_deadline');
+            .rejects.toThrow('notification_class_retry_backend_error');
+          expect(calls.at(-1)?.init?.signal?.aborted).toBe(true);
+          expect(calls.at(-1)?.init?.signal?.reason?.message).toBe('notification_retry_deadline');
         });
       expect(rows.get(intentPath)).toMatchObject({ state: 'retrying', attempts: 2 });
       expect(calls.filter(({ path, method }) => path.startsWith('/notifications/') && method === 'PUT')).toHaveLength(1);
