@@ -1,6 +1,17 @@
 # Notification recovery implementer rotation handoff
 
-**Checkpoint:** 2026-09-26 04:49 UTC. This is a continuation, not a completion or a new architecture approval. Recheck current source, remote versions, and QA records before making deployed-state claims. The prior implementation thread is [Implement notification recovery — continuation](codex://threads/01a0d9b4-3601-76c1-bff5-3440a1f762f2); its last turn stopped at a Codex usage limit. Continue its existing checkout at `C:/Users/The Lord/.codex/worktrees/6dbb/luyentap-prd0062` on `codex/notification-recovery-rotation`. Do not discard its uncommitted work or the `output/notification-recovery/` evidence directory. The canonical project checkout has unrelated dirty PRD work.
+**Checkpoint:** 2026-09-26 04:49 UTC. This is a continuation, not a completion
+or a new architecture approval. Recheck current source, remote versions, and
+QA records before making deployed-state claims.
+
+The new implementation owner is [Implement notification recovery — rotation 2](codex://threads/01a0dc11-397e-7a40-b59f-01940d8e685c)
+(GPT-6 Sol/high). The prior [notification implementor](codex://threads/01a0d9b4-3601-76c1-bff5-3440a1f762f2)
+thread stopped at a Codex usage limit and was archived; its worktree remains
+active for the new owner. Continue its existing checkout at
+`C:/Users/The Lord/.codex/worktrees/6dbb/luyentap-prd0062` on
+`codex/notification-recovery-rotation`. Do not discard its uncommitted work
+or the `output/notification-recovery/` evidence directory. The canonical
+project checkout has unrelated dirty PRD work.
 
 ## User intent and governing decisions
 
