@@ -28,7 +28,7 @@ import {
 import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import { isBookHomeworkAssignment } from '../services/book-homework/bookHomeworkManifest.service';
 import { recordManualHomeworkReminder, updateHomework, updateStudentOverride } from '../services/homeworkManager';
-import { wakeManualHomeworkReminder } from '../services/manualHomeworkReminderClient';
+import { dispatchCommittedNotification } from '../services/notificationProducerClient';
 import { reportingService } from '../services/reportingService';
 import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 import { database } from '../services/firebase';
@@ -862,7 +862,7 @@ function TeacherHomeworkDetailPage() {
             const reminderAt = Date.now();
             const eventId = crypto.randomUUID();
             await recordManualHomeworkReminder(homeworkId, row.studentId, user!.uid, eventId, reminderAt);
-            await wakeManualHomeworkReminder(eventId);
+            await dispatchCommittedNotification({ eventKind: 'manual-homework-reminder', recordId: eventId });
             trackAction('sendHomeworkReminder', { homeworkId, studentId: row.studentId });
             toast.success(`Reminder queued for ${row.studentName}`);
             await refetch();
@@ -903,7 +903,7 @@ function TeacherHomeworkDetailPage() {
                     const reminderAt = Date.now();
                     const eventId = crypto.randomUUID();
                     await recordManualHomeworkReminder(homeworkId, row.studentId, user!.uid, eventId, reminderAt);
-                    await wakeManualHomeworkReminder(eventId);
+                    await dispatchCommittedNotification({ eventKind: 'manual-homework-reminder', recordId: eventId });
                     sentCount++;
                 } catch (err) {
                     console.error('[RemindAll] Failed for', row.studentId, err);

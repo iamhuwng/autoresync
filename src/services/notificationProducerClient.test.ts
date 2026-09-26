@@ -51,4 +51,37 @@ describe('notificationProducerClient', () => {
         expect(url).toBe(`https://worker.example${path}`);
         expect(JSON.parse(String(init?.body))).toEqual(body);
     });
+
+    it.each([
+        ['manual-homework-reminder', '/deadline-notifications/actions', { eventId: '00000000-0000-4000-8000-000000000123' }, '00000000-0000-4000-8000-000000000123'],
+        ['thcs-homework-assigned', '/thcs-notifications/actions', { schemaVersion: 1, kind: 'homework-assigned', authorityRecordId: '00000000-0000-4000-8000-000000000123' }, 'homework-assigned:00000000-0000-4000-8000-000000000123'],
+        ['thcs-fully-graded', '/thcs-notifications/actions', { schemaVersion: 1, kind: 'fully-graded', authorityRecordId: '00000000-0000-4000-8000-000000000123' }, 'fully-graded:00000000-0000-4000-8000-000000000123'],
+    ] as const)('preserves the HTTP acknowledgement for %s', async (eventKind, path, body, key) => {
+        const fetchImpl = vi.fn(async () => new Response('', { status: 200 }));
+        const input = { eventKind, recordId: '00000000-0000-4000-8000-000000000123' };
+        const options = { workerOrigin: 'https://worker.example', getIdToken: async () => 'token', fetchImpl };
+        await expect(dispatchCommittedNotification(input, options)).resolves.toEqual({ success: true });
+        expect(fetchImpl).toHaveBeenCalledWith(`https://worker.example${path}`, expect.objectContaining({
+            headers: expect.objectContaining({ 'Idempotency-Key': key }), body: JSON.stringify(body),
+        }));
+        fetchImpl.mockImplementation(async () => new Response('', { status: 503 }));
+        await expect(dispatchCommittedNotification(input, options)).resolves.toEqual({ success: false, error: 'http_503' });
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('requires the matching bounded session acknowledgement without another attempt', async () => {
+        const recordId = '00000000-0000-4000-8000-000000000123';
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ status: 'committed', eventId: recordId })));
+        const options = { workerOrigin: 'https://worker.example', getIdToken: async () => 'token', fetchImpl };
+        await expect(dispatchCommittedNotification({ eventKind: 'session-notification', recordId }, options)).resolves.toMatchObject({ success: true });
+        expect(fetchImpl).toHaveBeenCalledWith('https://worker.example/session-notifications/action', expect.objectContaining({
+            headers: expect.objectContaining({ 'Idempotency-Key': recordId }),
+            body: JSON.stringify({ schemaVersion: 1, actionType: 'deliver-session-notification', eventId: recordId }),
+        }));
+        fetchImpl.mockImplementation(async () => new Response(JSON.stringify({ status: 'committed', eventId: 'wrong-event' })));
+        await expect(dispatchCommittedNotification({ eventKind: 'session-notification', recordId }, options)).resolves.toMatchObject({ success: false });
+        fetchImpl.mockImplementation(async () => new Response(JSON.stringify({ status: 'committed', eventId: recordId, padding: 'x'.repeat(4096) })));
+        await expect(dispatchCommittedNotification({ eventKind: 'session-notification', recordId }, options)).resolves.toMatchObject({ success: false, error: 'notification_command_response_too_large' });
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+    });
 });

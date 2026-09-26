@@ -1,6 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { THCSPracticeView } from './THCSPracticeView';
+import { toast } from '../modern/ToastNotification';
 
 const {
     mockNavigate,
@@ -10,7 +12,7 @@ const {
     mockThcsResultToTestMarkingResult,
     mockSaveTestResult,
     mockGradeWritingQuestions,
-    mockDispatchThcsNotificationAction,
+    mockDispatchCommittedNotification,
     mockGetSubmissionById,
     mockSubmitHomework,
     mockGetHomeworkById,
@@ -29,7 +31,7 @@ const {
     mockThcsResultToTestMarkingResult: vi.fn(),
     mockSaveTestResult: vi.fn(),
     mockGradeWritingQuestions: vi.fn(),
-    mockDispatchThcsNotificationAction: vi.fn(),
+    mockDispatchCommittedNotification: vi.fn(),
     mockGetSubmissionById: vi.fn(),
     mockSubmitHomework: vi.fn(),
     mockGetHomeworkById: vi.fn(),
@@ -50,13 +52,7 @@ vi.mock('react-router-dom', async () => {
     };
 });
 
-vi.mock('@mantine/core', () => ({
-    Container: ({ children }: any) => <div>{children}</div>,
-    Text: ({ children }: any) => <div>{children}</div>,
-    Alert: ({ children }: any) => <div>{children}</div>,
-}));
-
-vi.mock('@mantine/hooks', () => ({
+vi.mock('../../hooks/useMediaQuery', () => ({
     useMediaQuery: () => false,
 }));
 
@@ -124,8 +120,8 @@ vi.mock('../../services/testResults.service', () => ({
     saveTestResult: (...args: unknown[]) => mockSaveTestResult(...args),
 }));
 
-vi.mock('../../services/thcsNotificationActionClient', () => ({
-    dispatchThcsNotificationAction: (...args: unknown[]) => mockDispatchThcsNotificationAction(...args),
+vi.mock('../../services/notificationProducerClient', () => ({
+    dispatchCommittedNotification: (...args: unknown[]) => mockDispatchCommittedNotification(...args),
 }));
 
 vi.mock('../../services/homeworkSubmissionService', () => ({
@@ -245,7 +241,7 @@ describe('THCSPracticeView', () => {
         });
         mockSaveTestResult.mockResolvedValue('result-1');
         mockGradeWritingQuestions.mockResolvedValue(undefined);
-        mockDispatchThcsNotificationAction.mockResolvedValue({ status: 'delivered' });
+        mockDispatchCommittedNotification.mockResolvedValue({ success: true });
         mockTriggerFormativeFeedbackForSavedResult.mockResolvedValue(undefined);
         mockUpdateThcsProgress.mockResolvedValue(undefined);
         mockGetSubmissionById.mockResolvedValue(null);
@@ -304,8 +300,34 @@ describe('THCSPracticeView', () => {
                 }),
             }),
         );
-        expect(mockDispatchThcsNotificationAction).toHaveBeenCalledWith('fully-graded', 'result-1');
+        expect(mockDispatchCommittedNotification).toHaveBeenCalledWith({ eventKind: 'thcs-fully-graded', recordId: 'result-1' });
     }, 15000);
+
+    it('announces timer expiry only after the result is saved', async () => {
+        let tick: () => void = () => {};
+        let finishSave: (id: string) => void = () => {};
+        const interval = vi.spyOn(globalThis, 'setInterval').mockImplementation((callback) => {
+            tick = callback as () => void;
+            return 1 as unknown as ReturnType<typeof setInterval>;
+        });
+        mockGetThcsTestFromFirebase.mockResolvedValue({
+            success: true, data: { ...thcsTestFixture, metadata: { ...thcsTestFixture.metadata, duration: 1 / 60 } },
+        });
+        mockSaveTestResult.mockImplementation(() => new Promise<string>(resolve => { finishSave = resolve; }));
+        try {
+            render(<StrictMode><THCSPracticeView materialId="material-1" practiceContext={{ type: 'self_study' } as any} /></StrictMode>);
+            await screen.findByRole('button', { name: /submit/i });
+            await act(async () => { tick(); });
+            expect(mockSaveTestResult).toHaveBeenCalledTimes(1);
+            expect(toast.warning).not.toHaveBeenCalled();
+            await act(async () => { finishSave('result-1'); });
+            expect(toast.warning).toHaveBeenCalledWith("Time's up! Your answers have been submitted.");
+            expect(toast.warning).toHaveBeenCalledTimes(1);
+            expect(screen.queryByText("⏰ Time's up! Your answers have been submitted.")).not.toBeInTheDocument();
+        } finally {
+            interval.mockRestore();
+        }
+    });
 
     it('submits via saveTestResult with canonical homework context', async () => {
         const saveCall = await submitPracticeAttempt({

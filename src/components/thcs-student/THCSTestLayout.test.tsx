@@ -13,7 +13,7 @@ const {
     mockThcsResultToTestMarkingResult,
     mockSaveTestResult,
     mockGradeWritingQuestions,
-    mockDispatchThcsNotificationAction,
+    mockDispatchCommittedNotification,
     mockTriggerFormativeFeedbackForSavedResult,
     mockUpdateThcsProgress,
     mockShuffleTest,
@@ -28,7 +28,7 @@ const {
     mockThcsResultToTestMarkingResult: vi.fn(),
     mockSaveTestResult: vi.fn(),
     mockGradeWritingQuestions: vi.fn(),
-    mockDispatchThcsNotificationAction: vi.fn(),
+    mockDispatchCommittedNotification: vi.fn(),
     mockTriggerFormativeFeedbackForSavedResult: vi.fn(),
     mockUpdateThcsProgress: vi.fn(),
     mockShuffleTest: vi.fn(),
@@ -100,8 +100,8 @@ vi.mock('../../services/testResults.service', () => ({
     saveTestResult: (...args: unknown[]) => mockSaveTestResult(...args),
 }));
 
-vi.mock('../../services/thcsNotificationActionClient', () => ({
-    dispatchThcsNotificationAction: (...args: unknown[]) => mockDispatchThcsNotificationAction(...args),
+vi.mock('../../services/notificationProducerClient', () => ({
+    dispatchCommittedNotification: (...args: unknown[]) => mockDispatchCommittedNotification(...args),
 }));
 
 vi.mock('../../services/resultFeedbackGeneration.service', () => ({
@@ -208,7 +208,7 @@ describe('THCSTestLayout', () => {
         });
         mockSaveTestResult.mockResolvedValue('result-session-1');
         mockGradeWritingQuestions.mockResolvedValue(undefined);
-        mockDispatchThcsNotificationAction.mockResolvedValue({ status: 'delivered' });
+        mockDispatchCommittedNotification.mockResolvedValue({ success: true });
         mockTriggerFormativeFeedbackForSavedResult.mockResolvedValue(undefined);
         mockUpdateThcsProgress.mockResolvedValue(undefined);
     });
@@ -276,7 +276,7 @@ describe('THCSTestLayout', () => {
                 }),
             }),
         );
-        expect(mockDispatchThcsNotificationAction).toHaveBeenCalledWith('fully-graded', 'result-session-1');
+        expect(mockDispatchCommittedNotification).toHaveBeenCalledWith({ eventKind: 'thcs-fully-graded', recordId: 'result-session-1' });
     });
 
     it('does not forward testData.createdBy when saving class-session THCS results', async () => {

@@ -79,7 +79,9 @@ with a missing notice.
 | Ordinary Firebase actions | Keep their existing product mutations; consolidate delivery wake calls behind the shared producer. |
 | Existing Book Workers | Preserve their established product authority and shared inbox emission. |
 | Class join/add/approve/reject | Reviewed narrow exception: commit membership/projection and notification evidence together. |
-| Course announcement, feedback save, result review, manual THCS question grade | Worker mutations exist in current source, but necessity remains unproven. Hold activation pending the review below. |
+| Feedback save and result review | Planner approved app-owned atomic source/initial-intent saves, canonical two-step ownership, immutable occurrence evidence and protected delivery-state mutation. Coordinated service/rule implementation remains pending. |
+| Manual THCS question grade | App ownership approved as direction; owner change held for the minimal canonical-save/linkage/concurrency proposal. No grading-model redesign. |
+| Course announcement | App owns content/save; a narrow trusted complete recipient capture/seal may supply delivery authority. Exact capture/save/replay sequence requires review before changes. |
 
 For each of the four unresolved migrations, compare the existing ordinary save
 with an authorized atomic source-and-intent save. Keep the ordinary owner if
@@ -89,6 +91,28 @@ required trusted action boundary reviewed by the planner. A Worker-signed
 intent rule introduced by this implementation, or the fact that source and
 intent now share a Worker patch, is not sufficient justification. Update
 callers, rules, and relevant checks together when the boundary changes.
+
+**Planner decision (2026-09-27):** proceed with the eight ordinary wake calls
+through the existing producer, removing obsolete specialized transports while
+preserving source owners and endpoint contracts. Then implement feedback and
+review in coordinated batches. Feedback question and overall retry must both
+use immutable history; a newer edit or deletion cannot erase a proven older
+occurrence. Reject different-text reuse of an event ID and resolve existing
+delete permissions. See the [updated boundary record](notification-recovery-route-boundary.md#planner-decisions-and-current-work-2026-09-27)
+for current implementation and held proposal/browser gates.
+
+**Authority gate:** existing browser-writable result visibility and teacher
+self-writable outer links do not independently prove the two-step teacher
+ownership contract. New feedback/review permissions require a narrow proven
+source/capture model. The planner permits a minimal protected create-only
+record per result where existing evidence cannot suffice, but requires the
+supported-context/occurrence-proof table before implementation and adversarial
+ancestor-shaped emulator proof before permission approval. Existing editable
+snapshots do not become trusted by freezing them. Authority implementation
+stays separate from the ordinary transport milestone.
+Ordinary transport checks passed. The recovered harness verified a teacher
+reminder save, one shared POST/200, student inbox receipt, correct homework
+destination, and unread acknowledgement (11 to 10); see the boundary record.
 
 ### Minimum notification Worker workload (2026-09-26)
 

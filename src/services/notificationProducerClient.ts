@@ -21,6 +21,7 @@ export interface TrustedProducerNotificationResult {
 export type CommittedNotificationEvent =
     | { readonly eventKind: 'homework-submitted' | 'test-completed' | 'homework-reset'; readonly recordId: string }
     | { readonly eventKind: 'assignment-approved' | 'course-request-decided' | 'course-type-decided'; readonly recordId: string }
+    | { readonly eventKind: 'manual-homework-reminder' | 'session-notification' | 'thcs-homework-assigned' | 'thcs-fully-graded'; readonly recordId: string }
     | { readonly eventKind: 'writing-notification'; readonly recordId: string; readonly occurrenceId: string };
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/u;
@@ -45,6 +46,17 @@ const requestFor = (input: CommittedNotificationEvent): { path: string; body: Re
         case 'writing-notification':
             if (!ID.test(input.occurrenceId)) throw new Error('notification_occurrence_invalid');
             return { path: '/writing-notifications/actions', body: { schemaVersion: 1, actionType: 'writing-notification', eventId: input.occurrenceId, submissionId: input.recordId }, key: input.occurrenceId };
+        case 'manual-homework-reminder':
+        case 'session-notification':
+            if (!UUID.test(input.recordId)) throw new Error('notification_occurrence_invalid');
+            return input.eventKind === 'manual-homework-reminder'
+                ? { path: '/deadline-notifications/actions', body: { eventId: input.recordId }, key: input.recordId }
+                : { path: '/session-notifications/action', body: { schemaVersion: 1, actionType: 'deliver-session-notification', eventId: input.recordId }, key: input.recordId };
+        case 'thcs-homework-assigned':
+        case 'thcs-fully-graded': {
+            const kind = input.eventKind === 'thcs-homework-assigned' ? 'homework-assigned' : 'fully-graded';
+            return { path: '/thcs-notifications/actions', body: { schemaVersion: 1, kind, authorityRecordId: input.recordId }, key: `${kind}:${input.recordId}` };
+        }
     }
 };
 
@@ -75,9 +87,16 @@ export async function dispatchCommittedNotification(
                 body: JSON.stringify(command.body),
             },
         );
+        // These existing wake routes acknowledge via HTTP status only.
+        if (input.eventKind === 'manual-homework-reminder' || input.eventKind === 'thcs-homework-assigned'
+            || input.eventKind === 'thcs-fully-graded') {
+            return response.ok ? { success: true } : { success: false, error: `http_${response.status}` };
+        }
         const text = await response.text();
-        if (new TextEncoder().encode(text).byteLength > 32 * 1024) throw new Error('notification_command_response_too_large');
-        const body = JSON.parse(text) as { code?: unknown; notificationId?: unknown; status?: unknown };
+        const responseLimit = input.eventKind === 'session-notification' ? 4096 : 32 * 1024;
+        if (new TextEncoder().encode(text).byteLength > responseLimit) throw new Error('notification_command_response_too_large');
+        const body = JSON.parse(text) as { code?: unknown; notificationId?: unknown; status?: unknown; eventId?: unknown };
+        if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('notification_command_response_invalid');
         if (!response.ok) throw new NotificationCommandClientError(
             typeof body.code === 'string' ? body.code : `http_${response.status}`, response.status,
         );
@@ -85,6 +104,10 @@ export async function dispatchCommittedNotification(
             throw new Error('notification_command_response_invalid');
         }
         if (input.eventKind !== 'homework-submitted' && typeof body.status !== 'string') {
+            throw new Error('notification_command_response_invalid');
+        }
+        if (input.eventKind === 'session-notification'
+            && (!['committed', 'replayed'].includes(String(body.status)) || body.eventId !== input.recordId)) {
             throw new Error('notification_command_response_invalid');
         }
         return { success: true,

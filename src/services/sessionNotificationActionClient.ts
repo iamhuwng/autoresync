@@ -1,6 +1,3 @@
-import { getAuth } from 'firebase/auth';
-import { DEFAULT_NOTIFICATION_WORKER_ORIGIN } from './notificationCommandClient';
-
 export type SessionNotificationKind = 'session-opened' | 'test-started' | 'test-ended';
 export interface SessionNotificationEvent {
   readonly eventId: string;
@@ -79,37 +76,4 @@ export const buildSessionNotificationWrites = (input: {
     occurredAt: input.marker, dueAt: input.marker, recipientCount: recipientIds.length,
     event, attempts: 1, initialCursor: 0, retryRecipientIds: [], retryCursor: 0,
     finalFailedRecipientIds: [], state: 'initial_due' } };
-};
-
-export const deliverSessionNotificationNow = async (
-  eventId: string,
-  options: { readonly workerOrigin?: string; readonly getIdToken?: () => Promise<string>; readonly fetchImpl?: typeof fetch } = {},
-): Promise<void> => {
-  const user = getAuth().currentUser;
-  const token = (await (options.getIdToken ?? (() => user ? user.getIdToken() : Promise.resolve('')))()).trim();
-  if (!token) throw new Error('session_notification_unauthenticated');
-  const origin = (options.workerOrigin?.trim() || import.meta.env.VITE_NOTIFICATION_COMMAND_WORKER_URL?.trim()
-    || DEFAULT_NOTIFICATION_WORKER_ORIGIN).replace(/\/+$/u, '');
-  const parsed = new URL(origin);
-  if ((parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && parsed.hostname === 'localhost'))
-    || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) {
-    throw new Error('session_notification_origin_invalid');
-  }
-  const response = await (options.fetchImpl ?? globalThis.fetch)(`${parsed.origin}/session-notifications/action`, {
-    method: 'POST', credentials: 'omit', redirect: 'error',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': eventId },
-    body: JSON.stringify({ schemaVersion: 1, actionType: 'deliver-session-notification', eventId }),
-  });
-  const text = await response.text();
-  if (new TextEncoder().encode(text).byteLength > 4096) throw new Error('session_notification_response_too_large');
-  let body: Record<string, unknown>;
-  try {
-    const value = JSON.parse(text);
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid');
-    body = value as Record<string, unknown>;
-  } catch { throw new Error('session_notification_response_invalid'); }
-  if (!response.ok) throw new Error(typeof body.code === 'string' ? body.code : `http_${response.status}`);
-  if ((body.status !== 'committed' && body.status !== 'replayed') || body.eventId !== eventId) {
-    throw new Error('session_notification_response_invalid');
-  }
 };

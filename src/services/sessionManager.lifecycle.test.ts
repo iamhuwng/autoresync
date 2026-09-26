@@ -5,13 +5,13 @@ const {
   refMock,
   setMock,
   updateMock,
-  deliverSessionNotificationNowMock,
+  dispatchCommittedNotificationMock,
 } = vi.hoisted(() => ({
   getMock: vi.fn(),
   refMock: vi.fn((_database?: unknown, path = '') => ({ path })),
   setMock: vi.fn(),
   updateMock: vi.fn(),
-  deliverSessionNotificationNowMock: vi.fn(),
+  dispatchCommittedNotificationMock: vi.fn(),
 }));
 
 vi.mock('firebase/database', () => ({
@@ -37,9 +37,9 @@ vi.mock('./sessionHelpers', () => ({
 vi.mock('../types/releaseState.types', () => ({
   getSessionEndReleaseState: vi.fn(() => 'review-released'),
 }));
-vi.mock('./sessionNotificationActionClient', async () => {
-  const actual = await vi.importActual<typeof import('./sessionNotificationActionClient')>('./sessionNotificationActionClient');
-  return { ...actual, deliverSessionNotificationNow: (...args: unknown[]) => deliverSessionNotificationNowMock(...args) };
+vi.mock('./notificationProducerClient', async () => {
+  const actual = await vi.importActual<typeof import('./notificationProducerClient')>('./notificationProducerClient');
+  return { ...actual, dispatchCommittedNotification: (...args: unknown[]) => dispatchCommittedNotificationMock(...args) };
 });
 
 import {
@@ -64,7 +64,7 @@ describe('sessionManager lifecycle index writes', () => {
     sessionStorage.clear();
     updateMock.mockResolvedValue(undefined);
     setMock.mockResolvedValue(undefined);
-    deliverSessionNotificationNowMock.mockResolvedValue(undefined);
+    dispatchCommittedNotificationMock.mockResolvedValue({ success: true });
   });
 
   it('creates canonical session and owner index in one root update', async () => {
@@ -111,7 +111,7 @@ describe('sessionManager lifecycle index writes', () => {
     expect(event).toMatchObject({ kind: 'session-opened', classId: 'class-1', recipientCount: 2 });
     expect(Object.keys(event.recipients).sort()).toEqual(['student-1', 'student-2']);
     expect(patch[`session_notification_intents/${eventId}`]).toMatchObject({ event, recipientCount: 2, state: 'initial_due' });
-    expect(deliverSessionNotificationNowMock).toHaveBeenCalledWith(eventId);
+    expect(dispatchCommittedNotificationMock).toHaveBeenCalledWith({ eventKind: 'session-notification', recordId: eventId });
   });
 
   it('fails class session creation if a durable roster snapshot cannot be read', async () => {

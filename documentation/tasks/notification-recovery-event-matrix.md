@@ -48,6 +48,15 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree; comm
 
 ## Remaining release evidence
 
+**Current transport reconciliation (2026-09-27):** the working change consolidates
+manual reminder, session, and THCS wakes into `notificationProducerClient`,
+preserving each specialized server resolver/body/key/acknowledgement. The
+earlier routing description below predates this change. The enabled reminder
+flow passed teacher save/shared POST/200/student receipt/destination/read
+acknowledgement; later-family delivery remains disabled and unverified.
+Feedback/review app ownership requires a protected occurrence-proof proposal
+and permission checks first; announcement and grading sequences remain held.
+
 The ordinary port accepts only event identity and routes to trusted resolvers.
 Most specialized endpoints above wake delivery after an ordinary app action
 already committed its canonical record and durable event. They are routing

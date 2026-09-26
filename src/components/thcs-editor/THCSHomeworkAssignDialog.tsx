@@ -19,7 +19,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { createHomework, type CreateHomeworkInput } from '../../services/homeworkManager';
-import { dispatchThcsNotificationAction } from '../../services/thcsNotificationActionClient';
+import { dispatchCommittedNotification } from '../../services/notificationProducerClient';
 import { getClasses, getClass } from '../../services/classManager';
 import { DateTimeCalendar } from '../common/DateTimeCalendar';
 import { Button, Input, Textarea } from '../modern';
@@ -285,7 +285,8 @@ export function THCSHomeworkAssignDialog({
             // The saved assignment carries the durable intent; this call only asks the
             // Worker to make the immediate attempt from canonical assignment data.
             try {
-                await dispatchThcsNotificationAction('homework-assigned', homeworkId);
+                const notification = await dispatchCommittedNotification({ eventKind: 'thcs-homework-assigned', recordId: homeworkId });
+                if (!notification.success) console.warn('[THCSHomework] Notification setup failed (non-blocking):', notification.error);
             } catch (notifErr) {
                 console.warn('[THCSHomework] Notification setup failed (non-blocking):', notifErr);
             }

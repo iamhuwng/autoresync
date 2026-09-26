@@ -65,7 +65,7 @@ import THCSSubmitConfirmation from './THCSSubmitConfirmation';
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service';
 import { saveTestResult } from '../../services/testResults.service';
-import { dispatchThcsNotificationAction } from '../../services/thcsNotificationActionClient';
+import { dispatchCommittedNotification } from '../../services/notificationProducerClient';
 import { resolveSessionMutationFailure } from '../../services/sessionActionError';
 import { Button, toast } from '../modern';
 import { buildThcsSessionResultContext } from './thcsSessionResultContext';
@@ -613,8 +613,8 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                 }).catch(err => console.warn('Failed to load academicRecordService:', err));
 
                 // Phase 3 Task 3.3: Notify student that test is fully graded
-                void dispatchThcsNotificationAction('fully-graded', resultId)
-                    .catch(err => console.warn('[THCS] Fully graded notification failed:', err));
+                void dispatchCommittedNotification({ eventKind: 'thcs-fully-graded', recordId: resultId })
+                    .then(result => { if (!result.success) console.warn('[THCS] Fully graded notification failed:', result.error); });
             }
 
             // Task 5.7: Fire-and-forget writing grading trigger

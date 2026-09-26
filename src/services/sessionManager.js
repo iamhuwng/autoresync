@@ -30,9 +30,9 @@ import {
 } from './sessionOwnerIndex';
 import {
   buildSessionNotificationWrites,
-  deliverSessionNotificationNow,
   sessionNotificationEventId,
 } from './sessionNotificationActionClient';
+import { dispatchCommittedNotification } from './notificationProducerClient';
 
 // Session expiration time (24 hours in milliseconds)
 const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
@@ -267,7 +267,9 @@ export async function createSession({ testId, mode = SessionMode.TEST, settings 
 
     if (classId) {
       const eventId = sessionNotificationEventId('session-opened', sessionCode, now);
-      void deliverSessionNotificationNow(eventId).catch(err => console.warn('[Session] Feed notification failed (non-blocking):', err));
+      void dispatchCommittedNotification({ eventKind: 'session-notification', recordId: eventId }).then(result => {
+        if (!result.success) console.warn('[Session] Feed notification failed (non-blocking):', result.error);
+      });
     }
 
     return {

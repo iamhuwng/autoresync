@@ -23,8 +23,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Text, Alert } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useAuth } from '../../hooks/useAuth';
 
 import THCSQuestionRenderer from '../thcs-student/THCSQuestionRenderer';
@@ -36,7 +35,7 @@ import THCSSubmitConfirmation from '../thcs-student/THCSSubmitConfirmation';
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service';
 import { saveTestResult } from '../../services/testResults.service';
-import { dispatchThcsNotificationAction } from '../../services/thcsNotificationActionClient';
+import { dispatchCommittedNotification } from '../../services/notificationProducerClient';
 import { getThcsTestFromFirebase } from '../../services/thcsTestStorage';
 import { shuffleTest } from '../../utils/thcsShuffle';
 import { Button } from '../modern';
@@ -245,6 +244,7 @@ const THCSPracticeInner: React.FC<{
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const submissionStartedRef = useRef(false);
     const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
     const [scoreDisplay, setScoreDisplay] = useState<{
         scaledScore: number;
@@ -268,7 +268,7 @@ const THCSPracticeInner: React.FC<{
     const [timeElapsed, setTimeElapsed] = useState(clampedInitialElapsed);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const handleSubmitRef = useRef<() => void>(() => { });
+    const handleSubmitRef = useRef<(timerExpired?: boolean) => void>(() => { });
 
     const rawCurrentSection = shuffledTestData.sections[currentSectionIndex];
 
@@ -333,13 +333,7 @@ const THCSPracticeInner: React.FC<{
         }
 
         timerRef.current = setInterval(() => {
-            setTimeRemaining(prev => {
-                if (prev <= 1) {
-                    handleSubmitRef.current();
-                    return 0;
-                }
-                return prev - 1;
-            });
+            setTimeRemaining(prev => Math.max(0, prev - 1));
             setTimeElapsed(prev => prev + 1);
         }, 1000);
 
@@ -347,6 +341,10 @@ const THCSPracticeInner: React.FC<{
             if (timerRef.current) clearInterval(timerRef.current);
         };
     }, [isSubmitted]);
+
+    useEffect(() => {
+        if (timeRemaining <= 0 && !isSubmitted) handleSubmitRef.current(true);
+    }, [timeRemaining, isSubmitted]);
 
     // ── Answer Management (same as THCSTestLayout) ─────────────────────────────
     const handleAnswer = useCallback((questionNumber: number, answer: string | string[] | null) => {
@@ -515,9 +513,10 @@ const THCSPracticeInner: React.FC<{
     });
 
     // ── Submission ──────────────────────────────────────────────────────────────
-    const handleSubmit = useCallback(async (flushReason = 'homework_submit') => {
-        if (!user?.uid || isSubmitting) return;
+    const handleSubmit = useCallback(async (flushReason = 'homework_submit', timerExpired = timeRemaining <= 0) => {
+        if (!user?.uid || submissionStartedRef.current) return;
 
+        submissionStartedRef.current = true;
         setIsSubmitting(true);
         setShowSubmitConfirm(false);
 
@@ -589,6 +588,7 @@ const THCSPracticeInner: React.FC<{
 
             void studentResumeService.clearResume();
             setIsSubmitted(true);
+            if (timerExpired) toast.warning("Time's up! Your answers have been submitted.");
 
             // If homework, update homework_submissions
             if (isHomework && practiceContext.submissionId) {
@@ -669,8 +669,8 @@ const THCSPracticeInner: React.FC<{
                     }).catch(err => console.warn('Academic record update failed:', err));
                 }).catch(err => console.warn('Failed to load academicRecordService:', err));
 
-                void dispatchThcsNotificationAction('fully-graded', resultId)
-                    .catch(err => console.warn('[THCSPractice] Fully graded notification failed:', err));
+                void dispatchCommittedNotification({ eventKind: 'thcs-fully-graded', recordId: resultId })
+                    .then(result => { if (!result.success) console.warn('[THCSPractice] Fully graded notification failed:', result.error); });
             }
 
             // Fire-and-forget: writing grading
@@ -700,8 +700,9 @@ const THCSPracticeInner: React.FC<{
             }, 4000);
 
         } catch (error) {
+            submissionStartedRef.current = false;
             console.error('Submission failed:', error);
-            alert('Failed to submit. Please try again.');
+            toast.error('Failed to submit. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -711,18 +712,18 @@ const THCSPracticeInner: React.FC<{
         flushEvents,
         getIntegrityReport,
         isHomework,
-        isSubmitting,
         materialId,
         navigate,
         practiceContext,
         testData,
         timeElapsed,
+        timeRemaining,
         user,
     ]);
 
     // Keep ref in sync for timer auto-submit
-    handleSubmitRef.current = () => {
-        void handleSubmit('auto_submit');
+    handleSubmitRef.current = (timerExpired) => {
+        void handleSubmit('auto_submit', timerExpired);
     };
 
     // ── Warn on page leave ─────────────────────────────────────────────────────
@@ -825,9 +826,9 @@ const THCSPracticeInner: React.FC<{
                             </svg>
                         </button>
                     )}
-                    <Text fw={700} size={isMobile ? 'sm' : 'md'} style={{ color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} lineClamp={1}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: isMobile ? '0.875rem' : '1rem', lineHeight: isMobile ? 1.45 : 1.55, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {testData.metadata.title}
-                    </Text>
+                    </p>
                     {isHomework && (
                         <span style={{
                             fontSize: '0.6rem', fontWeight: 700, padding: '0.1rem 0.4rem',
@@ -836,12 +837,12 @@ const THCSPracticeInner: React.FC<{
                             HOMEWORK
                         </span>
                     )}
-                    <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: 1.4, color: '#868e96', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {isMobile
                             ? `${answeredCount}/${totalQuestions}`
                             : `Grade ${testData.metadata.gradeLevel} | ${testData.questionCount} questions | ${answeredCount}/${totalQuestions} answered`
                         }
-                    </Text>
+                    </p>
                 </div>
 
                 {/* Center zone — student name */}
@@ -863,9 +864,9 @@ const THCSPracticeInner: React.FC<{
                             {(user?.displayName || 'S').charAt(0).toUpperCase()}
                         </div>
                     )}
-                    <Text size="xs" fw={600} c="#6d28d9" lineClamp={1} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: 1.4, fontWeight: 600, color: '#6d28d9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {user?.displayName || 'Student'}
-                    </Text>
+                    </p>
                 </div>
 
                 {/* Right zone — timer + submit */}
@@ -923,37 +924,30 @@ const THCSPracticeInner: React.FC<{
                     <div style={{ fontSize: '3rem', fontWeight: 800, color: '#1e293b' }}>
                         {scoreDisplay.scaledScore.toFixed(1)}/10.0
                     </div>
-                    <Text size="sm" c="dimmed">
+                    <p style={{ margin: 0, fontSize: '0.875rem', lineHeight: 1.45, color: '#868e96' }}>
                         Raw: {scoreDisplay.rawScore}/{scoreDisplay.maxRaw} points | {scoreDisplay.percentage.toFixed(1)}%
-                    </Text>
+                    </p>
                     {scoreDisplay.pendingWritingCount && scoreDisplay.pendingWritingCount > 0 && (
-                        <Text size="xs" c="orange" mt={4} fw={600}>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.75rem', lineHeight: 1.4, color: '#fd7e14', fontWeight: 600 }}>
                             ✍️ {scoreDisplay.pendingWritingCount} writing question{scoreDisplay.pendingWritingCount > 1 ? 's' : ''} pending review
-                        </Text>
+                        </p>
                     )}
-                    <Text size="xs" c="dimmed" mt={8}>
+                    <p style={{ margin: '8px 0 0', fontSize: '0.75rem', lineHeight: 1.4, color: '#868e96' }}>
                         Redirecting in a few seconds...
-                    </Text>
+                    </p>
                 </div>
-            )}
-
-            {/* Time's up alert */}
-            {isSubmitted && timeRemaining <= 0 && (
-                <Alert color="orange" variant="light" mx="md" mt="md">
-                    ⏰ Time's up! Your answers have been submitted.
-                </Alert>
             )}
 
             {/* Main content */}
             <div style={{ flex: 1 }}>
-                <Container size={currentSection?.layout === 'two-column' ? 'xl' : 'md'} py="md">
+                <div style={{ maxWidth: currentSection?.layout === 'two-column' ? '82.5rem' : '60rem', marginInline: 'auto', padding: '1rem' }}>
                     {currentSection && (
                         <>
                             {/* Section name + points */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                <Text fw={700} size="md" style={{ color: '#1e293b' }}>
+                                <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem', lineHeight: 1.55, color: '#1e293b' }}>
                                     {currentSection.name}
-                                </Text>
+                                </p>
                                 <span style={{
                                     fontSize: '0.65rem',
                                     fontWeight: 600,
@@ -976,9 +970,9 @@ const THCSPracticeInner: React.FC<{
                                     borderLeft: '3px solid rgba(139,92,246,0.35)',
                                     marginBottom: '1rem',
                                 }}>
-                                    <Text size="sm" fw={500} style={{ lineHeight: 1.6, color: '#1e293b' }}>
+                                    <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.6, color: '#1e293b' }}>
                                         {currentSection.instructionText}
-                                    </Text>
+                                    </p>
                                 </div>
                             )}
 
@@ -1090,7 +1084,7 @@ const THCSPracticeInner: React.FC<{
                             )}
                         </>
                     )}
-                </Container>
+                </div>
             </div>
 
             {/* Question pills — compact footer */}

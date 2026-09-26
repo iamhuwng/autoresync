@@ -10,7 +10,7 @@ const {
   autoSubmitDisconnectedStudentsMock,
   identifyDisconnectedStudentsMock,
   identifyUnsubmittedStudentsMock,
-  deliverSessionNotificationNowMock,
+  dispatchCommittedNotificationMock,
 } = vi.hoisted(() => ({
   mockNavigateTo: vi.fn(),
   getMock: vi.fn(),
@@ -19,7 +19,7 @@ const {
   autoSubmitDisconnectedStudentsMock: vi.fn(),
   identifyDisconnectedStudentsMock: vi.fn(),
   identifyUnsubmittedStudentsMock: vi.fn(),
-  deliverSessionNotificationNowMock: vi.fn(),
+  dispatchCommittedNotificationMock: vi.fn(),
 }));
 
 vi.mock('../useNavigation', () => ({
@@ -49,9 +49,9 @@ vi.mock('../../services/testStorage', () => ({
   cacheSessionStudentSafeTestData: vi.fn(async () => ({ success: true })),
 }));
 
-vi.mock('../../services/sessionNotificationActionClient', async () => {
-  const actual = await vi.importActual<typeof import('../../services/sessionNotificationActionClient')>('../../services/sessionNotificationActionClient');
-  return { ...actual, deliverSessionNotificationNow: (...args: unknown[]) => deliverSessionNotificationNowMock(...args) };
+vi.mock('../../services/notificationProducerClient', async () => {
+  const actual = await vi.importActual<typeof import('../../services/notificationProducerClient')>('../../services/notificationProducerClient');
+  return { ...actual, dispatchCommittedNotification: (...args: unknown[]) => dispatchCommittedNotificationMock(...args) };
 });
 
 const TEST_DATA = {
@@ -74,7 +74,7 @@ describe('useMonitorControls', () => {
     autoSubmitDisconnectedStudentsMock.mockResolvedValue([]);
     identifyDisconnectedStudentsMock.mockReturnValue([]);
     identifyUnsubmittedStudentsMock.mockReturnValue([]);
-    deliverSessionNotificationNowMock.mockResolvedValue(undefined);
+    dispatchCommittedNotificationMock.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
@@ -124,7 +124,7 @@ describe('useMonitorControls', () => {
     expect(rootPatch[eventPath!]).toMatchObject({ kind: 'test-ended', recipientCount: 2, classId: 'class-1' });
     expect(Object.keys(rootPatch[`session_notification_intents/${eventId}`].event.recipients).sort())
       .toEqual(['student-1', 'student-2']);
-    expect(deliverSessionNotificationNowMock).toHaveBeenCalledWith(eventId);
+    expect(dispatchCommittedNotificationMock).toHaveBeenCalledWith({ eventKind: 'session-notification', recordId: eventId });
   });
 
   it('preserves feedback-released when the session is already fully released', async () => {
@@ -171,7 +171,7 @@ describe('useMonitorControls', () => {
     expect(rootPatch[eventPath!]).toMatchObject({ kind: 'test-started', recipientCount: 1, testName: 'Started Test' });
     const eventId = eventPath!.split('/').at(-1)!;
     expect(rootPatch[`session_notification_intents/${eventId}`].event.recipients).toEqual({ 'student-1': true });
-    expect(deliverSessionNotificationNowMock).toHaveBeenCalledWith(eventId);
+    expect(dispatchCommittedNotificationMock).toHaveBeenCalledWith({ eventKind: 'session-notification', recordId: eventId });
   });
 
   it('routes disconnected base-student auto-submit through canonical result saving after fetching test data', async () => {

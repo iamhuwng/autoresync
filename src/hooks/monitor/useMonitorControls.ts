@@ -27,8 +27,8 @@ import { cacheSessionStudentSafeTestData } from '../../services/testStorage';
 import type { ReviewReleaseState } from '../../types/releaseState.types';
 import {
   buildSessionNotificationWrites,
-  deliverSessionNotificationNow,
 } from '../../services/sessionNotificationActionClient';
+import { dispatchCommittedNotification } from '../../services/notificationProducerClient';
 
 function resolveCanonicalSessionTeacherId(session: TestSession | null): string | undefined {
   const createdByUserId = typeof (session as any)?.createdByUserId === 'string'
@@ -377,8 +377,8 @@ export function useMonitorControls(
       }
       await update(ref(database), startUpdates);
       console.log('✅ [Controls] Test started successfully');
-      if (notificationEvent) void deliverSessionNotificationNow(notificationEvent.event.eventId)
-        .catch((err: Error) => console.warn('[Controls] Test-started feed notification failed:', err));
+      if (notificationEvent) void dispatchCommittedNotification({ eventKind: 'session-notification', recordId: notificationEvent.event.eventId })
+        .then(result => { if (!result.success) console.warn('[Controls] Test-started feed notification failed:', result.error); });
     } catch (error) {
       console.error('❌ [Controls] Error starting test:', error);
       alert('Failed to start test. Please try again.');
@@ -889,8 +889,8 @@ export function useMonitorControls(
 
       console.log('✅ [PRD-0019] Full session ended - all test data cleared, session reset to waiting');
 
-      if (notificationEvent) void deliverSessionNotificationNow(notificationEvent.event.eventId)
-        .catch((err: Error) => console.warn('[Controls] Test-ended feed notification failed:', err));
+      if (notificationEvent) void dispatchCommittedNotification({ eventKind: 'session-notification', recordId: notificationEvent.event.eventId })
+        .then(result => { if (!result.success) console.warn('[Controls] Test-ended feed notification failed:', result.error); });
 
       // Navigate based on redirectToResults flag
       if (redirectToResults) {
