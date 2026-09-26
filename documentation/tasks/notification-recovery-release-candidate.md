@@ -2,6 +2,13 @@
 
 **Prepared:** 2026-09-24. **Current status (2026-09-26):** first-batch Firebase rules, notification Worker, and selective Hosting are deployed to `temp-a1437` / `kahut1`. The first-batch retry gate is now deployed too. Later notification families and historical backfill remain staged separately. The dated preparation and readback sections below record earlier states.
 
+## Focused CPU corrections (2026-09-26 02:09 UTC)
+
+- CORS source `e32c9ba1` deployed as `333a16e9-9b9f-4df3-a41c-01e6427604f6`. Live preflights from the existing `https://hocthem.net` domain succeed for Book, class, deadline, and homework-reset routes; an unrelated origin remains denied and later feedback actions remain inactive.
+- Source `eab74994` deployed as `6f98156e-3911-47b0-844c-2ae6c8205f43` to try Firebase `print=silent` for unused conditional-write response bodies. The 02:00:39 UTC class Cron threw before claiming QA intent `cf0c5e13-e7fc-4f4a-b102-21ea0b6f7ccc` (4 subrequests, 6.306 ms CPU). A direct REST read followed by a conditional same-value write proves Firebase returns HTTP 400: mixing `print=silent` with `if-match` is unsupported. The canary remains `retry_due`, attempt 1. Mocked 204 responses did not prove this provider behavior.
+- The corrective source removes that incompatible option and skips healthy-success gate writes only when there is no failure streak, suppression, or issue to update. It preserves the latest gate read, conditional writes, failure reset, and required recovery evidence. The focused x64 Workerd set passes 21 tests across four files; its normal class retry budget is 12 external subrequests (one fewer write). Deployment and populated CPU remeasurement remain pending at this entry.
+- Edge control was recovered through a fresh tab using the existing Super Admin session. Student quick-login, the class notice Open/read action, and an existing homework-reset notice link were exercised in Edge. A fresh Reading V2 homework submission is in progress; these observations alone do not prove a newly delivered homework notice.
+
 ## Corrective deployment and normal retry CPU (2026-09-26 01:50 UTC)
 
 - Source `a8c9e75f` includes the two reporting corrections and passed 7 Admin Reports tests plus 15 focused Workerd tests. Wrangler dry-run passed at 391.78 KiB. The same first-batch config deployed Worker version `f5f1448a-04e7-440a-99ef-5a1096271fb4` at 01:39:02 UTC; `versions view` confirms fetch/scheduled handlers, both secret names, and `NOTIFICATION_RETRY_BATCH=class-homework`. No additional families or trigger were activated.

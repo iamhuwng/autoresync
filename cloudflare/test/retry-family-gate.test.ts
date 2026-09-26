@@ -28,6 +28,16 @@ describe('notification retry family gate', () => {
     expect(afterTerminalFailure(state, 'b')).toMatchObject({ consecutiveFailures: 1, retrySuppressed: false });
   });
 
+  it('does not write healthy success bookkeeping without a failure or issue to update', async () => {
+    const client = {
+      readWithEtag: vi.fn(async () => ({ data: null, etag: '"0"' })),
+      writeIfMatch: vi.fn(async () => true),
+    } as unknown as FirebaseRtdbRestClient;
+    await new RetryFamilyGate(client).recordSuccess('class-membership', 456);
+    expect(client.readWithEtag).toHaveBeenCalledOnce();
+    expect(client.writeIfMatch).not.toHaveBeenCalled();
+  });
+
   it('adds fresh success time to the existing admin issue without clearing suppression', async () => {
     const issuePath = 'reports/errors/2026-09-26/action-a';
     const rows = new Map<string, unknown>([

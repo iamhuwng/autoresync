@@ -69,7 +69,9 @@ export class RetryFamilyGate {
   }
 
   async recordSuccess(family: string, at: number): Promise<void> {
-    const state = await this.change(family, (current) => afterSuccess(current, at));
+    const state = await this.change(family, (current) =>
+      current.consecutiveFailures === 0 && !current.retrySuppressed && !current.lastIssuePath
+        ? current : afterSuccess(current, at));
     if (!state.lastIssuePath) return;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const issue = await this.client.readWithEtag<Record<string, unknown> | null>(state.lastIssuePath);

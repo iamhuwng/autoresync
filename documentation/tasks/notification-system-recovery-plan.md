@@ -78,13 +78,50 @@ intent rule introduced by this implementation, or the fact that source and
 intent now share a Worker patch, is not sufficient justification. Update
 callers, rules, and relevant checks together when the boundary changes.
 
+### Minimum notification Worker workload (2026-09-26)
+
+The user requires minimum Worker use and processing. Ordinary product logic,
+source saves, UI/display formatting, toasts, and ordinary app reporting stay
+in the app and its existing shared services. The notification Worker is a
+small trust boundary, not the owner of those feature workflows.
+
+The user explicitly retained **a minimal background retry for closed-app
+cases**. Therefore keep only the trusted work needed to:
+
+- Verify the actor, saved occurrence, recipient authority, and permitted
+  notification content/link.
+- Perform the protected, idempotent inbox write without resetting read flags.
+- Make the single bounded background retry when the app is closed, using
+  durable evidence and authoritative attempt/suppression state.
+- Record the terminal admin issue and failure-pattern/recovery evidence
+  required for that trusted retry boundary.
+
+Minimize database reads/writes, token work, response bodies, idle scheduled
+work, and per-recipient overhead in that path. Reuse existing validated source
+evidence and shared auth/storage code. Avoid healthy-path success/gate/report
+writes when no failure state needs resetting and no required recovery evidence
+needs recording. Preserve concurrency and source-authority checks when
+removing a read or write. Client-controlled recipients, success claims, or
+global suppression counters cannot replace those protections.
+
+Use the existing app to initiate delivery after its save and display the
+existing admin reports. Keep background processing independent of an open student or teacher
+page; do not introduce app polling or a second retry mechanism. Measure the
+fully retained path before claiming a cost reduction. A smaller recipient cap
+or slower schedule is acceptable only with adequate measured queue progress.
+This workload constraint does not authorize a new service, a broader product
+action migration, or a redesign of Book's established backend.
+
 ### Implementor's next actions
 
 1. Integrate and verify the two focused reporting fixes in the first batch:
    retain a new failure for an old event and omit an unproven recipient ID.
 2. Measure normal `retry_due` delivery and realistic queue drain within the
-   free-plan limits. The 7.424 ms interrupted-`retrying` recovery canary proves
-   readback/reporting only; it does not close the normal-delivery CPU gate.
+   free-plan limits after minimizing the retained Worker work above. The
+   normal one-event/two-recipient canary used 12.422 ms CPU and 13 subrequests;
+   its delivery succeeded but its free-plan budget gate remains open. The
+   7.424 ms interrupted-`retrying` recovery canary proves readback/reporting
+   only; it does not close that normal-delivery gate.
 3. Finish first-batch teacher/student homework delivery and failure checks.
    Verify CORS for the actual authorized browser domain, including
    `https://hocthem.net` when it is the signed-in target; a command that works
