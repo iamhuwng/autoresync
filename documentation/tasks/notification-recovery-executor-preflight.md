@@ -1,5 +1,7 @@
 # Notification executor deployment preflight — DEPLOYMENT HELD
 
+**Corrected source verification:** [CI 36265610109](https://github.com/iamhuwng/autoresync/actions/runs/36265610109) passed on `136634e919897a2529d74d3e1eb23a1856398e78`. The final eight-file affected Workerd run passes 38/38, including both fast backend failures reproduced red before the two-line fix. The scheduler reports AggregateError, preserves attempt-2 claims and still attempts its second RPC; later interruption recovery sends no third notice. Six runtime files are authorized after the planner's sibling-path correction. Deployment remains HELD; no live account-capacity or visible-admin proof is inferred.
+
 Read-only receipt, September 27 local / September 26 UTC. No Worker, namespace,
 schedule, Firebase, or product mutation occurred. Routine Wrangler OAuth refresh
 restored the existing account session; no credential values were printed or saved.
