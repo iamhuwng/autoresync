@@ -6,12 +6,17 @@ QA records before making deployed-state claims.
 
 The new implementation owner is [Implement notification recovery — rotation 2](codex://threads/01a0dc11-397e-7a40-b59f-01940d8e685c)
 (GPT-6 Sol/high). The prior [notification implementor](codex://threads/01a0d9b4-3601-76c1-bff5-3440a1f762f2)
-thread stopped at a Codex usage limit and was archived; its worktree remains
-active for the new owner. Continue its existing checkout at
-`C:/Users/The Lord/.codex/worktrees/6dbb/luyentap-prd0062` on
-`codex/notification-recovery-rotation`. Do not discard its uncommitted work
-or the `output/notification-recovery/` evidence directory. The canonical
-project checkout has unrelated dirty PRD work.
+thread stopped at a Codex usage limit. Its `6dbb` checkout disappeared after
+retirement. The new owner created
+`C:/Users/The Lord/.codex/worktrees/notification-recovery-rotation/luyentap-prd0062`
+from the pushed `codex/notification-recovery-rotation` ref. At creation it was
+detached at `70d9519b`; confirm its current Git state before edits. The old
+tracked-but-uncommitted student dashboard draft and untracked
+`output/notification-recovery/` QA files were **absent** from the new checkout.
+Their old diff and observations remain in the saved thread; reconstitute only
+the needed source change after review and redo any necessary live proof. The
+committed source/docs are preserved on the pushed branch. The canonical project
+checkout has unrelated dirty PRD work.
 
 ## User intent and governing decisions
 
@@ -27,7 +32,7 @@ The source is the saved root discussion at `C:/Users/The Lord/.codex/sessions/20
 
 ## Source and deployed evidence at rotation
 
-- Worktree HEAD `4b3997ca` includes the native Firebase `if-match: null_etag` inbox create optimization, the explicit notification-navigation fix, cached homework OAuth reuse, atomic RTDB result/index deletion, and the corrected OAuth test budget. Its only tracked uncommitted files at this checkpoint are `src/pages/StudentDashboardPage.jsx` and `src/pages/StudentDashboardPage.navigation.test.jsx`: they mark explicit student notification clicks `userInitiated` and adjust expectations. Review and finish them; they are not a released proof. Untracked `output/notification-recovery/` contains QA evidence.
+- Implementation source commit `4b3997ca` includes the native Firebase `if-match: null_etag` inbox create optimization, the explicit notification-navigation fix, cached homework OAuth reuse, atomic RTDB result/index deletion, and the corrected OAuth test budget. Later `f392e3b1` and `70d9519b` update only recovery documentation. The old uncommitted `src/pages/StudentDashboardPage.jsx` and navigation-test draft marked explicit student notification clicks `userInitiated`; it did not transfer to the new checkout. The old untracked QA evidence files also did not transfer. Rebuild only if still necessary; repeat dependent proof.
 - Last recorded Worker deployment is `2a1df6dc-0772-49ed-9edc-36b7e0572ef6` with `NOTIFICATION_RETRY_BATCH=class-homework`, one `*/2 * * * *` Cron, and the separate cached homework token change. Re-read the active version/bindings/trigger before further deployment or claims. Last recorded Hosting release is `sites/kahut1/releases/1790391739218000`, version `8b3746631a8336c0`, at 03:02:19 UTC, following the selective atomic-cleanup source; verify the served assets and real browser before calling that fix live.
 - Native inbox create on Worker version `5daa8079-128f-40e3-9218-44138a30367d` delivered both class recipients. Cold normal class retry measured **14.735 ms CPU / 10 subrequests**; warm normal measured **8.110 ms / 9**; a warm success with prior issue measured **9.550 ms / 12** and saved recovery evidence. The two warm samples pass the 10 ms target; cold still fails. These were measured before the cached homework token change and are not a controlled proof of full capacity.
 - Earlier real homework submission and closed-app retry reached the teacher inbox/read flag, but baseline retry cost **14.212 ms CPU / 9 subrequests**. The cached-token Worker deployment is recorded, but its populated homework CPU result was not recorded before the old turn stopped. Do not infer a pass.
@@ -36,8 +41,8 @@ The source is the saved root discussion at `C:/Users/The Lord/.codex/sessions/20
 
 ## Next work and release gates
 
-1. Inspect HEAD, tracked/untracked changes, current deployment and QA records. Preserve the student dashboard draft and evidence. Reconcile the recorded cached-token deployment and its populated CPU measurement or measure it on a fresh exact-source case. Do not change the second Cron or activate another family.
-2. Finish the student notification navigation draft with focused tests and a real browser click. Verify a fresh homework submit, teacher notice/Open/read flag, and reset's atomic canonical/index cleanup and reset notice using authorized test accounts. Report the old orphan QA indexes separately from fresh behavior.
+1. Inspect HEAD, tracked/untracked changes, current deployment and QA records in the **new** worktree. Recover only verified old QA evidence if the app exposes a snapshot; otherwise repeat the dependent proof. Reconcile the recorded cached-token deployment and its populated CPU measurement or measure it on a fresh exact-source case. Do not change the second Cron or activate another family.
+2. Recreate the small student notification navigation draft if still needed, with focused tests and a real browser click. Verify a fresh homework submit, teacher notice/Open/read flag, and reset's atomic canonical/index cleanup and reset notice using authorized test accounts. Report the old orphan QA indexes separately from fresh behavior.
 3. Resolve cold CPU and throughput with the smallest safe change **inside the retained trusted/background path**, preserving source authority, concurrency, one retry, idempotency, read flags, and suppression. Existing `RetryFamilyGate.recordSuccess` retains `lastIssuePath`, apparently causing every later success to update the same recovery issue. Review one-time recovery evidence and concurrent failure semantics before altering it. Do not trade a four-hour queue for a narrow CPU pass or introduce a new service.
 4. Complete the first-batch failure-pattern/suppression and admin browser proof at realistic scale. Resolve the four unapproved action-owner migrations using the [route audit](notification-recovery-route-boundary.md), then consolidate remaining ordinary wake calls behind the shared producer. Activate later families only in verified batches with source/rules/Hosting/Worker readback. Verify Book's committed notice flow.
 5. Establish an evidence-backed outage interval per group, preview the [35-row historical ledger](notification-recovery-historical-backfill.md), then perform only proven, deduplicated backfill and readback. No historical backfill has been run. Do not mark the system complete before every required group and real client path is verified.
