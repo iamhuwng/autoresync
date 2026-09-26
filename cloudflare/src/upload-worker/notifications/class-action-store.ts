@@ -145,9 +145,11 @@ export class FirebaseClassActionStorage implements ClassActionStorage {
       userRole: 'service',
       duplicateCount: 1,
       contextData: { actionId: intent.actionId, classId: intent.classId, kind: intent.kind, reasonCode,
-        failedRecipientCount, failedRecipientIds: intent.kind === 'join-pending'
-          ? failedRecipientCount === 2 ? [intent.studentId, intent.teacherId] : [intent.teacherId]
-          : [intent.studentId] },
+        failedRecipientCount,
+        ...(intent.kind === 'join-pending' && failedRecipientCount === 1 ? {} : {
+          failedRecipientIds: intent.kind === 'join-pending'
+            ? [intent.studentId, intent.teacherId] : [intent.studentId],
+        }) },
     }, existing.etag)) await this.gate.recordTerminalFailure('class-membership', intent.actionId, path);
   }
 }

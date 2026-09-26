@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   performClassAction,
   missingClassIntentRecipients,
@@ -7,6 +7,10 @@ import {
   type ClassNotificationIntent,
 } from '../src/upload-worker/notifications/class-action.ts';
 import { InMemoryNotificationCommandRepository } from '../src/upload-worker/notifications/repository.ts';
+import { FirebaseClassActionStorage } from '../src/upload-worker/notifications/class-action-store.ts';
+import { FirebaseRtdbRestClient } from '../src/upload-worker/listening-authoring/rtdb.ts';
+
+afterEach(() => vi.restoreAllMocks());
 
 const classId = 'CLASS1';
 const studentId = 'student1';
@@ -125,5 +129,24 @@ describe('trusted class membership action', () => {
     const read = async (path: string) => snapshot[path] ?? null;
     expect(await missingClassIntentRecipients(intent, read)).toBe(0);
     expect(repository.snapshot()).toEqual(snapshot);
+  });
+
+  it('does not guess a recipient from a one-recipient pending-join failure count', async () => {
+    const { rows, storage, repository } = fixture();
+    await performClassAction({ command: command('join-pending'), actorUid: studentId,
+      storage, repository: () => repository, now: () => 1_800_000_000_000 });
+    const intent = rows.get(`notification_intents/${actionId}`) as ClassNotificationIntent;
+    vi.spyOn(FirebaseRtdbRestClient.prototype, 'readWithEtag').mockResolvedValue({ data: null, etag: '"0"' });
+    const write = vi.spyOn(FirebaseRtdbRestClient.prototype, 'writeIfMatch').mockResolvedValue(true);
+    const remote = new FirebaseClassActionStorage({
+      FIREBASE_DB_URL: 'https://example.test', FIREBASE_PROJECT_ID: 'test',
+      NOTIFICATION_COMMAND_GOOGLE_SA_KEY: '{}',
+    });
+
+    await remote.reportFailure(intent, 1, 'inbox_missing_after_claim');
+
+    const issue = write.mock.calls[0][1] as { contextData: Record<string, unknown> };
+    expect(issue.contextData.failedRecipientCount).toBe(1);
+    expect(issue.contextData).not.toHaveProperty('failedRecipientIds');
   });
 });

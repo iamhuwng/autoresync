@@ -26,6 +26,7 @@ import {
   query,
   ref,
   remove,
+  update,
 } from 'firebase/database';
 import DiagnosticViewerModal, {
   type DiagnosticBundle,
@@ -1017,17 +1018,23 @@ const AdminReportsPage: React.FC = () => {
           : {};
       const errorDateKeys = Object.keys(errorsByDate).filter((key) => key < cutoffDate);
       const eventDateKeys = Object.keys(eventsByDate).filter((key) => key < cutoffDate);
-      const errorRecords = errorDateKeys.reduce(
-        (total, key) => total + Object.keys(errorsByDate[key] || {}).length,
-        0
+      const cutoffTimestamp = Date.parse(`${cutoffDate}T00:00:00.000Z`);
+      const expiredErrorPaths = errorDateKeys.flatMap((key) =>
+        Object.entries(errorsByDate[key] || {}).filter(([, value]) => {
+          const timestamp = value && typeof value === 'object'
+            ? (value as Record<string, unknown>).timestamp : undefined;
+          return typeof timestamp !== 'number' || timestamp < cutoffTimestamp;
+        }).map(([id]) => `${key}/${id}`)
       );
+      const errorRecords = expiredErrorPaths.length;
       const eventRecords = eventDateKeys.reduce(
         (total, key) => total + Object.keys(eventsByDate[key] || {}).length,
         0
       );
 
       await Promise.all([
-        ...errorDateKeys.map((key) => remove(ref(database, `/reports/errors/${key}`))),
+        ...(expiredErrorPaths.length ? [update(ref(database, '/reports/errors'),
+          Object.fromEntries(expiredErrorPaths.map((path) => [path, null])))] : []),
         ...eventDateKeys.map((key) => remove(ref(database, `/reports/events/${key}`))),
       ]);
 
