@@ -6,6 +6,8 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree; comm
 
 **Rotation note:** the [current handoff](notification-recovery-rotation-handoff-2026-09-26.md) and [release record](notification-recovery-release-candidate.md) govern live status. Source entries below do not imply all 35 variants have passed real browser delivery, CPU, or backfill gates.
 
+**Current source reconciliation (2026-09-27, `787501e9`):** see the [ownership recommendation and caller counts](notification-recovery-route-boundary.md#current-ownership-recommendation-2026-09-27). Rows 10/15/16 retain historical descriptions: `sendExpirationWarning` and `deadlineReminderService.ts`/`processStudentReminders` have since been removed, with no replacement producer. Rows 17, 29-31, and 33-35 remain ordinary app-owned saves followed by eight specialized delivery wakes; common-client consolidation remains open. The four Worker product-owner migrations remain unapproved. This reconciliation changes no runtime or activation gate.
+
 | # | Event | Saved authority and recipient | Delivery state |
 |---:|---|---|---|
 | 1 | Assignment request approved, teacher | RTDB assignment decision and intent; request teacher | Ordinary action, shared committed-event dispatch; immediate attempt, one later retry, admin issue |

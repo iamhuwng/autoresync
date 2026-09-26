@@ -2,7 +2,45 @@
 
 Source inspected on 2026-09-26. No additional families were activated. The agreed common trusted notification writer is separate from product mutation ownership. The recorded narrow product-action exception is class membership, whose rejection deletes prior proof. Existing inbox rule denial does not authorize moving other product actions. The [rotation handoff](notification-recovery-rotation-handoff-2026-09-26.md) is the current execution checkpoint; this audit remains the action-owner decision input.
 
-## Ordinary actions
+## Current ownership recommendation (2026-09-27)
+
+Read-only source review at `787501e9`; no action owners, rules, runtime, or activation changed. The earlier audit below is retained as historical input. Planner review is required before implementation.
+
+| Unapproved migration | Recommended product owner | Decisive evidence and remaining condition |
+|---|---|---|
+| Question/overall feedback | App atomic feedback/history/initial-intent save; Worker delivery | `feedback-notification-action-store.ts:112-136` expresses one multipath save. Saved result supplies student/question identity (`feedback-notification-action.ts:130-140`). Replace introduced action-token permissions with narrowly authorized, source-bound rules; preserve canonical question mirrors and unrelated result fields. |
+| Result marked reviewed | App atomic review/initial-intent save; Worker delivery | `result-review-action-store.ts:103-109` patches review fields and intent. Enforce one pending-to-reviewed transition, canonical ownership, saved student/reviewer/time, and replay protection. Follow the [visibility policy](../architecture/result-view/visibility-policy.md), not raw teacher IDs alone. |
+| Manual THCS question grade | App coordinated grade/initial-intent save; Worker delivery | `grade-notification-action-store.ts:69-79` admin-PATCHes a whole question snapshot plus intent without question revision CAS. Teacher-selected points need no trusted scoring computation. Resolve score/status/history linkage and AI/manual concurrency before changing ownership. |
+| Course announcement | App ownership remains the target; snapshot contract OPEN | Worker reads enrollments (`course-announcement-action.ts:407`), then CAS-creates only the announcement (`course-announcement-action-store.ts:110`). No roster-revision CAS or deleted recipient proof. Current rules do not demonstrate app-only complete recipient capture. Decide the trusted immutable snapshot contract first; a narrow snapshot capture/seal may be necessary without relocating the product write. |
+
+Worker-only intent permissions introduced by the implementation are not necessity proof. Keep inbox creation, delivery-state mutation, retry claims, suppression, and reporting trusted. Preserve established Book ownership and the approved narrow class exception.
+
+### Conditions for a coordinated owner change
+
+- Feedback: bind create-only history/event, actor/student/time/text, and stored question identity at commit. Current replay compares identity/kind/question, not text (`feedback-notification-action.ts:119-126`). Question retry requires the current feedback event while overall retry uses history (`feedback-notification-retry.ts:32-41`); resolve this asymmetry deliberately. Existing browser delete helpers conflict with parent permissions (`feedbackService.ts:449,469`); preserve occurrence history when resolving deletes.
+- Review: preserve saved student/reviewer/time/owner verification (`result-review-retry.ts:23`), concurrent transition protection, and unrelated score/feedback/history fields.
+- Manual grade: [PRD grading flow](0028-prd-thcs-thpt-test-system-phase2.md#453-grading-submission-flow) also requires grading status and scaled-score recalculation. Current Worker commit performs neither and does not update canonical result aggregates/history. Coordinate batch/AI writers (`BatchGradingPanel.tsx:79`, `thcsWritingGrading.service.ts:301`) with teacher precedence/revision protection. Ancestor `game_sessions/$sessionCode` grants owner writes (`database.rules.json:1362`); child write denials alone cannot protect grade evidence or immutable answer/max-score/test identity.
+- Announcement: accepting arbitrary browser recipients loses completeness/authenticity; recomputing recipients during delayed delivery loses the original snapshot. Bind immutable text/time and the complete filtered active-enrollment set, preserve that set after roster changes, and enforce exact replay identity. Current HMAC and source permissions do not justify the entire Worker mutation.
+
+### Ordinary caller and event reconciliation
+
+The [inventory](PRD0062/evidence/notification-producer-inventory.md) contains **17 unique app producer paths**: **10 shared wake calls in six paths**, plus **eight ordinary specialized wake calls in six paths**. `homeworkManager.ts` is an additional intent producer, not a wake caller. `testResults.service.ts` is counted once despite its shared completion and unapproved review callers.
+
+| Remaining ordinary wake | Atomic source/intent evidence | Wake callsites | Matrix rows |
+|---|---|---|---|
+| Manual reminder | Firestore batch, `homeworkManager.ts:507-531` | `TeacherHomeworkDetailPage.tsx:865,906` | 17 |
+| Session opened/start/end | RTDB root updates, `sessionManager.js:250`, `useMonitorControls.ts:378,838` | `sessionManager.js:270`, `useMonitorControls.ts:380,892` | 33-35 |
+| THCS assigned/fully graded | Assignment intent, `homeworkManager.ts:195`; result intent/save, `testResults.service.ts:865,921` | `THCSHomeworkAssignDialog.tsx:288`, `THCSPracticeView.tsx:672`, `THCSTestLayout.tsx:616` | 29-31 |
+
+Consolidate these identity-only wake mappings in existing `notificationProducerClient.ts`, retaining specialized server resolvers. Use saved reminder/session event IDs and THCS authority record IDs. Preserve route bodies, keys, response checks, nonblocking caller behavior, and attempt budgets. Session event/queue construction stays with its source writer. No new endpoint or product-owner migration is needed for this transport consolidation.
+
+The scan included JS/JSX/TS/TSX: active legacy-adapter imports are inbox reader/read-flag consumers only. `deadlineReminderService.ts` and `enrollmentManager.ts:sendExpirationWarning` are absent; historical matrix rows 10/15/16 are removed, unimplemented variants, not current dormant producers. THCS rows 30/31 converge on one canonical occurrence/notice. Book already uses the shared emitter/repository (`book-emitter.ts:348`); separate live proof remains required, without another client HTTP hop.
+
+Deployment/migration, later-family activation, and historical backfill remain held. Visible admin verification remains an OPEN browser gate. This review supplies source evidence only.
+
+Verification: existing `notificationProducerInventory.test.ts` passed 3/3 on 2026-09-27 using canonical dependencies against this worktree. No runtime, permission, or browser check was rerun for this documentation-only audit; those gates remain separate.
+
+## Earlier ordinary-action audit (2026-09-26)
 
 | Family | Product action owner in current source | Notification delivery owner |
 |---|---|---|
