@@ -82,7 +82,7 @@ export function NotificationBell({ userId, role = 'student' }: NotificationBellP
         });
 
         if (resolution.status === 'allowed') {
-            navigateTo(resolution.destination, resolution.params, { reason: 'notification_open' });
+            navigateTo(resolution.destination, resolution.params, { reason: 'notification_open', userInitiated: true });
         }
 
         return resolution;

@@ -222,4 +222,15 @@ describe('NavigationService', () => {
       reason: 'loop_detected',
     });
   });
+
+  it('allows repeated user opens of the same verified homework notification', () => {
+    for (let visit = 0; visit < 3; visit += 1) {
+      setPath('/teacher/homework/other-homework');
+      expect(service.navigateTo('TEACHER_HOMEWORK_DETAIL', { homeworkId: 'notified-homework' }, {
+        reason: 'notification_open', userInitiated: true,
+      })).toEqual({ success: true, destination: '/teacher/homework/notified-homework' });
+      vi.advanceTimersByTime(300);
+    }
+    expect(mockNavigate).toHaveBeenCalledTimes(3);
+  });
 });
