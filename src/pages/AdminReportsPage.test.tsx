@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminReportsPage from './AdminReportsPage';
 
@@ -15,6 +15,7 @@ const {
   queryMock,
   refMock,
   removeMock,
+  updateMock,
 } = vi.hoisted(() => ({
   getMock: vi.fn(),
   limitToLastMock: vi.fn((_count: number) => ({ kind: 'limit' })),
@@ -48,6 +49,7 @@ const {
   queryMock: vi.fn((target: { path?: string }) => target),
   refMock: vi.fn((_database: unknown, path: string) => ({ path })),
   removeMock: vi.fn(),
+  updateMock: vi.fn(),
 }));
 
 vi.mock('../services/firebase', () => ({
@@ -69,6 +71,7 @@ vi.mock('firebase/database', () => ({
   query: queryMock,
   ref: refMock,
   remove: removeMock,
+  update: updateMock,
 }));
 
 vi.mock('../hooks/useAuth', () => ({
@@ -153,6 +156,7 @@ describe('AdminReportsPage', () => {
     queryMock.mockClear();
     refMock.mockClear();
     removeMock.mockReset();
+    updateMock.mockReset();
   });
 
   it('shows an empty unresolved diagnostics state when the reporting map is empty', async () => {
@@ -183,6 +187,27 @@ describe('AdminReportsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Delayed notification recovery failed/ }));
     fireEvent.click(screen.getByRole('button', { name: 'View Full Diagnostic' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('Delayed notification recovery failed');
+  });
+
+  it('keeps a newly reported failure when purging its old event-date bucket', async () => {
+    getMock.mockImplementation(({ path }: { path: string }) => Promise.resolve({
+      val: () => path === '/reports/errors' ? {
+        '2020-01-01': {
+          expired: { timestamp: Date.parse('2020-01-01T12:00:00Z') },
+          newFailure: { timestamp: Date.now() },
+        },
+      } : null,
+    }));
+
+    render(<AdminReportsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Purge Old Data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Purge', exact: true }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledWith(
+      { path: '/reports/errors' }, { '2020-01-01/expired': null }
+    ));
+    expect(removeMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/Deleted 1 error records/)).toBeInTheDocument();
   });
 
   it('renders unresolved diagnostics from the RTDB map payload', async () => {
