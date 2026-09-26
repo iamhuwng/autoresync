@@ -5,13 +5,13 @@ import type { FirebaseRtdbRestClient } from '../src/upload-worker/listening-auth
 describe('notification retry family gate', () => {
   it('suppresses after three distinct consecutive terminal failures and keeps fresh success evidence', () => {
     let state: RetryFamilyState = { consecutiveFailures: 0, retrySuppressed: false };
-    state = afterTerminalFailure(state, 'action-a');
-    state = afterTerminalFailure(state, 'action-a');
+    state = afterTerminalFailure(state, 'action-a', 100);
+    state = afterTerminalFailure(state, 'action-a', 100);
     expect(state.consecutiveFailures).toBe(1);
-    state = afterTerminalFailure(state, 'action-b');
-    state = afterTerminalFailure(state, 'action-a');
+    state = afterTerminalFailure(state, 'action-b', 101);
+    state = afterTerminalFailure(state, 'action-a', 100);
     expect(state.consecutiveFailures).toBe(2);
-    state = afterTerminalFailure(state, 'action-c');
+    state = afterTerminalFailure(state, 'action-c', 102);
     expect(state.retrySuppressed).toBe(true);
     state = afterSuccess(state, 123);
     expect(state).toMatchObject({ retrySuppressed: true, consecutiveFailures: 3, lastSuccessAt: 123 });
@@ -24,8 +24,8 @@ describe('notification retry family gate', () => {
   });
 
   it('resets the consecutive pattern on success before suppression', () => {
-    const state = afterSuccess(afterTerminalFailure({ consecutiveFailures: 0, retrySuppressed: false }, 'a'), 456);
-    expect(afterTerminalFailure(state, 'b')).toMatchObject({ consecutiveFailures: 1, retrySuppressed: false });
+    const state = afterSuccess(afterTerminalFailure({ consecutiveFailures: 0, retrySuppressed: false }, 'a', 100), 456);
+    expect(afterTerminalFailure(state, 'b', 500)).toMatchObject({ consecutiveFailures: 1, retrySuppressed: false });
   });
 
   it('does not write healthy success bookkeeping without a failure or issue to update', async () => {
@@ -42,7 +42,7 @@ describe('notification retry family gate', () => {
     const issuePath = 'reports/errors/2026-09-26/action-a';
     const rows = new Map<string, unknown>([
       ['notification_retry_families/class-membership', {
-        consecutiveFailures: 3, retrySuppressed: true, failedActionIds: ['action-a'], lastIssuePath: issuePath,
+        consecutiveFailures: 3, retrySuppressed: true, failedActionIds: ['action-a'], lastIssuePath: issuePath, lastFailureAt: 100,
       }],
       [issuePath, { id: 'action-a', timestamp: 100, contextData: { actionId: 'action-a' } }],
     ]);
@@ -68,7 +68,7 @@ describe('notification retry family gate', () => {
     const oldIssue = 'reports/errors/2026-09-26/action-a';
     const newIssue = 'reports/errors/2026-09-26/action-b';
     const rows = new Map<string, unknown>([
-      [familyPath, { consecutiveFailures: 1, retrySuppressed: false, lastIssuePath: oldIssue }],
+      [familyPath, { consecutiveFailures: 1, retrySuppressed: false, lastIssuePath: oldIssue, lastFailureAt: 100 }],
       [oldIssue, { contextData: { actionId: 'action-a' } }],
     ]);
     const client = {
@@ -76,12 +76,37 @@ describe('notification retry family gate', () => {
       writeIfMatch: vi.fn(async (path: string, value: unknown) => {
         rows.set(path, value);
         if (path === oldIssue) rows.set(familyPath, afterTerminalFailure(
-          rows.get(familyPath) as RetryFamilyState, 'action-b', newIssue));
+          rows.get(familyPath) as RetryFamilyState, 'action-b', 500, newIssue));
         return true;
       }),
     } as unknown as FirebaseRtdbRestClient;
     await new RetryFamilyGate(client).recordSuccess('class-membership', 456);
     expect(rows.get(familyPath)).toMatchObject({ lastIssuePath: newIssue, consecutiveFailures: 1 });
     expect(rows.get(oldIssue)).toMatchObject({ contextData: { lastSuccessAt: 456 } });
+  });
+
+  it('ignores delayed success observed before a newer failure, then records later verified recovery once', async () => {
+    const familyPath = 'notification_retry_families/class-membership';
+    const issuePath = 'reports/errors/2026-09-26/action-a';
+    const rows = new Map<string, unknown>([
+      [familyPath, afterTerminalFailure({ consecutiveFailures: 0, retrySuppressed: false }, 'action-a', 200, issuePath)],
+      [issuePath, { timestamp: 200, contextData: { actionId: 'action-a' } }],
+    ]);
+    const client = {
+      readWithEtag: vi.fn(async (path: string) => ({ data: rows.get(path) ?? null, etag: '"0"' })),
+      writeIfMatch: vi.fn(async (path: string, value: unknown) => { rows.set(path, value); return true; }),
+    } as unknown as FirebaseRtdbRestClient;
+    const gate = new RetryFamilyGate(client);
+    await gate.recordSuccess('class-membership', 100);
+    expect(client.writeIfMatch).not.toHaveBeenCalled();
+    expect(rows.get(familyPath)).toMatchObject({ consecutiveFailures: 1, lastFailureAt: 200, lastIssuePath: issuePath });
+    expect(rows.get(issuePath)).toEqual({ timestamp: 200, contextData: { actionId: 'action-a' } });
+    await gate.recordSuccess('class-membership', 300);
+    expect(rows.get(familyPath)).toMatchObject({ consecutiveFailures: 0, lastSuccessAt: 300 });
+    expect((rows.get(familyPath) as RetryFamilyState).lastIssuePath).toBeUndefined();
+    expect(rows.get(issuePath)).toMatchObject({ contextData: { lastSuccessAt: 300 } });
+    vi.mocked(client.writeIfMatch).mockClear();
+    await gate.recordSuccess('class-membership', 400);
+    expect(client.writeIfMatch).not.toHaveBeenCalled();
   });
 });

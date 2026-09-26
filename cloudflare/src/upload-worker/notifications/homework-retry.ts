@@ -323,7 +323,7 @@ export const retryDueHomeworkNotifications = async (
     if (backendFailure) break;
     if (!delivered) await reportFailure(admin, gate, intent, now, reasonCode);
     else if (fresh) {
-      try { await gate.recordSuccess('homework-submitted', now); } catch { /* Keep delivered intent moving. */ }
+      try { await gate.recordSuccess('homework-submitted', Date.now()); } catch { /* Keep delivered intent moving. */ }
     }
     await updateDelivery(env, { ...due, document: claimedDocument }, { state: delivered ? 'done' : 'failed', attempts: 2, dueAt: DONE_DUE_AT }, fetchImpl, token);
   }

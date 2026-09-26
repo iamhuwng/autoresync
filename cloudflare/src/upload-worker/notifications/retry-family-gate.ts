@@ -8,6 +8,7 @@ export type RetryFamilyState = {
   failedActionIds?: string[];
   retrySuppressed: boolean;
   lastSuccessAt?: number;
+  lastFailureAt?: number;
   lastIssuePath?: string;
 };
 const initialState: RetryFamilyState = { consecutiveFailures: 0, retrySuppressed: false };
@@ -20,6 +21,7 @@ const validState = (value: unknown): value is RetryFamilyState => {
     && (row.failedActionIds === undefined || (Array.isArray(row.failedActionIds)
       && row.failedActionIds.length <= 3 && row.failedActionIds.every((id) => typeof id === 'string')))
     && (row.lastSuccessAt === undefined || Number.isSafeInteger(row.lastSuccessAt))
+    && (row.lastFailureAt === undefined || Number.isSafeInteger(row.lastFailureAt))
     && (row.lastIssuePath === undefined || /^reports\/errors\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9_:-]{1,256}$/u.test(String(row.lastIssuePath)));
 };
 
@@ -30,11 +32,12 @@ export const notificationIssuePath = (issueId: string, occurredAt: number): stri
   return `reports/errors/${new Date(occurredAt).toISOString().slice(0, 10)}/${issueId}`;
 };
 
-export const afterTerminalFailure = (state: RetryFamilyState, actionId: string, issuePath?: string): RetryFamilyState =>
+export const afterTerminalFailure = (state: RetryFamilyState, actionId: string, at: number, issuePath?: string): RetryFamilyState =>
   state.failedActionIds?.includes(actionId) ? state : {
     ...state,
     consecutiveFailures: Math.min(3, state.consecutiveFailures + 1),
     failedActionIds: [...(state.failedActionIds ?? []), actionId].slice(-3),
+    lastFailureAt: Math.max(state.lastFailureAt ?? 0, at),
     ...(issuePath ? { lastIssuePath: issuePath } : {}),
     retrySuppressed: state.retrySuppressed || state.consecutiveFailures + 1 >= 3,
   };
@@ -65,21 +68,25 @@ export class RetryFamilyGate {
     if (issuePath && !/^reports\/errors\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9_:-]{1,256}$/u.test(issuePath)) {
       throw new Error('notification_issue_path_invalid');
     }
-    await this.change(family, (state) => afterTerminalFailure(state, actionId, issuePath));
+    const at = Date.now();
+    await this.change(family, (state) => afterTerminalFailure(state, actionId, at, issuePath));
   }
 
   async recordSuccess(family: string, at: number): Promise<void> {
     const state = await this.change(family, (current) =>
-      (current.consecutiveFailures === 0 && !current.lastIssuePath)
+      ((current.consecutiveFailures > 0 || current.lastIssuePath)
+        && (current.lastFailureAt === undefined || at <= current.lastFailureAt))
+        || (current.consecutiveFailures === 0 && !current.lastIssuePath)
         || (current.retrySuppressed && !current.lastIssuePath && current.lastSuccessAt !== undefined)
         ? current : afterSuccess(current, at));
     const issuePath = state.lastIssuePath;
-    if (!issuePath) return;
+    if (!issuePath || state.lastFailureAt === undefined || at <= state.lastFailureAt) return;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const issue = await this.client.readWithEtag<Record<string, unknown> | null>(issuePath);
       const context = issue.data?.contextData && typeof issue.data.contextData === 'object'
         && !Array.isArray(issue.data.contextData) ? issue.data.contextData as Record<string, unknown> : {};
-      if (!issue.data || Number.isSafeInteger(context.lastSuccessAt)
+      if (!issue.data || (Number.isSafeInteger(context.lastSuccessAt)
+        && Number(context.lastSuccessAt) > state.lastFailureAt)
         || await this.client.writeIfMatch(issuePath,
           { ...issue.data, contextData: { ...context, lastSuccessAt: at } }, issue.etag)) {
         await this.change(family, (current) => current.lastIssuePath === issuePath

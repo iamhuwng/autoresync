@@ -28,7 +28,7 @@ export const retryDueClassNotifications = async (env: Env, now = Date.now()): Pr
     const result = await deliverClassIntent(claimed, repository);
     if (result.backendFailure) break;
     if (result.delivered && result.fresh) {
-      try { await storage.recordSuccess(now); } catch { /* Preserve the delivered intent. */ }
+      try { await storage.recordSuccess(Date.now()); } catch { /* Preserve the delivered intent. */ }
     }
     if (!result.delivered) await storage.reportFailure(claimed, result.failedRecipientCount, 'inbox_conflict');
     await storage.updateIntent({
