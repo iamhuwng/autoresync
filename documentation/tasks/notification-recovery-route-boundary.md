@@ -1,6 +1,6 @@
 # Notification route boundary audit
 
-Source inspected on 2026-09-26. No additional families were activated. The agreed common trusted notification writer is separate from product mutation ownership. The recorded narrow product-action exception is class membership, whose rejection deletes prior proof. Existing inbox rule denial does not authorize moving other product actions.
+Source inspected on 2026-09-26. No additional families were activated. The agreed common trusted notification writer is separate from product mutation ownership. The recorded narrow product-action exception is class membership, whose rejection deletes prior proof. Existing inbox rule denial does not authorize moving other product actions. The [rotation handoff](notification-recovery-rotation-handoff-2026-09-26.md) is the current execution checkpoint; this audit remains the action-owner decision input.
 
 ## Ordinary actions
 

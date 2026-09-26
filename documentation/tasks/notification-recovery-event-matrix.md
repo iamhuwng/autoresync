@@ -4,6 +4,8 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree; comm
 
 **Routing decision update (2026-09-26):** the [plan](notification-system-recovery-plan.md#routing-decision-from-the-actual-discussion) requires shared trusted notification delivery while preserving ordinary product-action owners. Only Book's existing authority and the reviewed class-membership exception are established Worker action boundaries. Announcement, feedback, result-review, and manual THCS-grade mutations below describe current source, not approved migrations; hold their activation until their necessity review is resolved.
 
+**Rotation note:** the [current handoff](notification-recovery-rotation-handoff-2026-09-26.md) and [release record](notification-recovery-release-candidate.md) govern live status. Source entries below do not imply all 35 variants have passed real browser delivery, CPU, or backfill gates.
+
 | # | Event | Saved authority and recipient | Delivery state |
 |---:|---|---|---|
 | 1 | Assignment request approved, teacher | RTDB assignment decision and intent; request teacher | Ordinary action, shared committed-event dispatch; immediate attempt, one later retry, admin issue |

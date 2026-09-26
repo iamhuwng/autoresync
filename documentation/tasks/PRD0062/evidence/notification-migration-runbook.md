@@ -1,5 +1,7 @@
 # PRD0062 38B4 notification migration runbook and evidence template
 
+**Scope note (2026-09-26):** this historical flat-row migration runner is distinct from the [system recovery](../../notification-system-recovery-plan.md) and its [verified missed-event backfill](../../notification-recovery-historical-backfill.md). No outage backfill has run. Do not invoke this runner as a shortcut for the 35-event recovery ledger or infer an outage interval from legacy row shape. The [rotation handoff](../../notification-recovery-rotation-handoff-2026-09-26.md) records the current release gates.
+
 This runbook is for the deployment-only operator runner in
 `scripts/migrate-notifications.mjs`. It is not a browser flow and must not be
 run with a Firebase browser SDK, a user ID token, or credentials on argv.

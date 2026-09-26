@@ -1,6 +1,6 @@
 # Notification system recovery plan
 
-**Status:** the first-batch release record documents a live class/homework cutover; remaining families and historical backfill are open. Recheck remote state before further release claims.
+**Status (2026-09-26 rotation):** the first class/homework batch is live, but cold retry CPU, realistic backlog capacity, remaining families, Book verification, and historical backfill are open. Read the [current implementer handoff](notification-recovery-rotation-handoff-2026-09-26.md) and recheck remote state before further release claims. Older dated sections below are historical checkpoints.
 
 **Date:** 2026-09-26; routing boundary reconciled with the saved conversation
 
@@ -136,25 +136,26 @@ action migration, or a redesign of Book's established backend.
 
 ### Implementor's next actions
 
-1. Integrate and verify the two focused reporting fixes in the first batch:
-   retain a new failure for an old event and omit an unproven recipient ID.
-2. Measure normal `retry_due` delivery and realistic queue drain within the
-   free-plan limits after minimizing the retained Worker work above. The
-   latest normal one-event/two-recipient canary used 11.627 ms CPU and 11
-   subrequests after the corrective deployment; its delivery succeeded but
-   its free-plan budget gate remains open. The two focused attempts are
-   exhausted; the [CPU escalation](notification-recovery-cpu-escalation.md)
-   awaits the planner's next decision. The
-   7.424 ms interrupted-`retrying` recovery canary proves readback/reporting
-   only; it does not close that normal-delivery gate.
-3. Finish first-batch teacher/student homework delivery and failure checks.
-   Verify CORS for the actual authorized browser domain, including
-   `https://hocthem.net` when it is the signed-in target; a command that works
-   only from `kahut1.web.app` is insufficient. Keep later-family activation
-   and a second Cron trigger on hold.
-4. Before a later batch, resolve its product-action exceptions and route its
-   ordinary notification wake calls through the common producer. Manual
-   reminders, session transitions, and THCS still have specialized wake clients.
+1. Preserve and inspect the rotation checkout's unfinished student dashboard
+   notification click change and QA evidence. Verify current remote versions
+   before claiming any deployment. Finish fresh student/teacher homework and
+   reset browser proof, including atomic result/index cleanup, inbox link,
+   read flag, and the saved action outcome.
+2. Resolve first-batch **cold** populated CPU and realistic backlog progress
+   without moving ordinary product work into the Worker. Native conditional
+   inbox creation measured 14.735 ms CPU cold, 8.110 ms warm, and 9.550 ms
+   warm with a prior issue; only the warm samples fit the 10 ms target. The
+   cached homework token change is deployed, but its populated retry CPU was
+   not recorded before rotation. See the [CPU escalation and current evidence](notification-recovery-cpu-escalation.md).
+3. Verify bounded retry, three-distinct-failure suppression, admin issue and
+   genuine recovery evidence in the real client. Avoid permanent per-success
+   issue rewrites after recovery. Keep later families and the second Cron held
+   until CPU and throughput gates are met.
+4. Review the four unapproved Worker product-action migrations against app-owned
+   atomic source/intent writes. Consolidate ordinary manual-reminder, session,
+   and THCS wake calls behind the common producer before later activation;
+   verify Book separately. Complete evidence-backed, deduplicated backfill of
+   every provable missed notice only after the outage bounds are established.
 
 Use focused checks for changed delivery paths, affected permissions, retry
 containment, and representative load. A system-wide notification inventory is

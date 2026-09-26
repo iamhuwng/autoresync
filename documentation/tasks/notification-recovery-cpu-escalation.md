@@ -1,6 +1,17 @@
 # Notification retry CPU escalation
 
-Recorded 2026-09-26 02:17 UTC. The two focused correction attempts are exhausted. First-batch delivery is restored, but the measured normal class retry still exceeds the Workers Free 10 ms CPU limit. No third optimization, new service, later-family activation, or second Cron is being implemented.
+Recorded 2026-09-26 02:17 UTC; updated for the 04:49 UTC [implementer rotation](notification-recovery-rotation-handoff-2026-09-26.md). First-batch delivery works, but cold retry CPU and realistic queue progress remain open. The first two corrections below exhausted their escalation; the planner subsequently authorized the native `null_etag` create correction. The separate cached homework token change was deployed, but its populated CPU result was not recorded before rotation. No additional family or second Cron is approved.
+
+## Latest measured baseline before rotation
+
+| Path / Worker | CPU | Subrequests | Meaning |
+|---|---:|---:|---|
+| Native create, fresh two-recipient class retry, cold / `5daa8079` | 14.735 ms | 10 | Delivered; exceeds 10 ms target. |
+| Same normal class path, warm / `5daa8079` | 8.110 ms | 9 | Delivered; one sample within target. |
+| Same path with prior issue, warm / `5daa8079` | 9.550 ms | 12 | Delivered and saved recovery evidence; one sample within target. |
+| Earlier real closed-app homework retry / `741a9945` | 14.212 ms | 9 | Teacher notice delivered; exceeds target. |
+
+Warm passes do not close cold or sustained capacity. Version `2a1df6dc-0772-49ed-9edc-36b7e0572ef6` contains the later cached homework token change; no populated retry measurement is recorded for it. One class event every eight minutes implies about four hours to drain thirty simultaneously due actions, plus the initial one-hour wait. A measured realistic backlog result and cost of one-time recovery reporting remain required.
 
 ## Exact live evidence
 

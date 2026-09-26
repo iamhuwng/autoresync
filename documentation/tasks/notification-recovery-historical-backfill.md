@@ -1,6 +1,6 @@
 # Historical notification backfill reconciliation
 
-**Status:** read-only planning; no historical write or live preview has run (2026-09-24).
+**Status (2026-09-26 rotation):** read-only planning; no historical write or live preview is recorded. The [current handoff](notification-recovery-rotation-handoff-2026-09-26.md) leaves outage bounds and verified 35-row backfill open. Dated Hosting observations below are historical and must be refreshed before a preview or write.
 
 This ledger accounts for all 35 ordinary notice variants in the [event matrix](notification-recovery-event-matrix.md). “Candidate” means a saved record might prove the event; it is not permission to write a notice. For each recipient, a writer must prove the event time fell in the verified outage interval, the recipient belonged to the event at that time, the saved action actually committed, and the deterministic inbox ID is absent. Preserve an existing inbox row and its `read` flag. Rows 30 and 31 represent one canonical event, not two notices.
 

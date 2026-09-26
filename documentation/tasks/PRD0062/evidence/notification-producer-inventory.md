@@ -1,5 +1,7 @@
 # PRD0062 notification producer inventory
 
+**Current recovery boundary (2026-09-26):** use the [system plan](../../notification-system-recovery-plan.md), [route audit](../../notification-recovery-route-boundary.md), and [implementer handoff](../../notification-recovery-rotation-handoff-2026-09-26.md) for approval and live status. This source inventory does not approve every specialized action route. Ordinary app/Firebase product saves stay in place; the Worker owns only necessary verification, protected delivery, and the agreed minimal closed-app retry. Later families remain inactive pending verification.
+
 Ticket 38B1 inventory. This table follows current source callsites for the
 specialized trusted action clients. Reader-only consumers are excluded.
 The ordinary committed-event client sends only an event kind and saved record
@@ -37,13 +39,14 @@ intent before deriving its inbox row. Test completion, homework reset, and
 writing, assignment, and course decisions retain their existing trusted Worker resolvers and bounded retry paths.
 All use the same inbox repository and read flag.
 
-Specialized source-side clients commit or wake a bounded action handled by the
-Worker. Class membership, assignment approval, course request/type decision,
-course announcement, feedback, manual reminders, result review, THCS manual
-grading, and session transitions need Worker-owned action or intent changes;
-those clients remain explicit exceptions to the ordinary post-commit port.
-Their recipient and message content are still resolved from saved source
-records.
+Specialized source-side clients either wake trusted delivery after an ordinary
+app/Firebase save or call a Worker-owned action. Class membership is the
+reviewed narrow Worker action exception; Book's existing Worker authority is
+separate. Assignment approval, course request/type decisions, manual reminders,
+and session transitions keep their ordinary product owners. Current Worker
+mutations for course announcements, feedback, result review, and THCS manual
+grading still need necessity review before activation. Recipient and message
+content must be resolved from verified saved records in either route.
 The two unreferenced generic producer paths (`deadlineReminderService.ts` and
 `sendExpirationWarning` in `enrollmentManager.ts`) were removed. No active
 feature source calls the generic content-authoring adapter.
