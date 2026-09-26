@@ -541,8 +541,9 @@ they are not part of the 35 ordinary-producer variants above.
   Count distinct terminal failures once, trip after three consecutive failures
   in one family, and skip all its later retries while retaining saved intents.
   New actions must still make one immediate delivery attempt and report its
-  failure without retry. Show the latest successful fresh attempt in the
-  existing admin surface. A developer or operator clears suppression only
+  failure without retry. Annotate the reported issue with the first verified
+  successful fresh attempt after that failure; keep later healthy successes
+  from rewriting the same issue. A developer or operator clears suppression only
   after verifying a fix; do not build an admin toggle or rely on per-isolate
   memory.
 - Validate new outbox paths and every writable ancestor in RTDB/Firestore
