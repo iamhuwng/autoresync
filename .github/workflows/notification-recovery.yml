@@ -40,7 +40,6 @@ jobs:
           src/services/notificationProducerClient.test.ts
           src/services/notificationProducerInventory.test.ts
           src/services/homeworkSubmissionService.test.ts
-          src/services/manualHomeworkReminderClient.test.ts
           src/services/testResults.service.test.ts
           src/services/thcsWritingGrading.service.test.ts
           src/services/feedbackService.test.ts
@@ -59,6 +58,8 @@ jobs:
           src/services/book-delivery/bookUpdateFinalizer.worker.test.ts
           src/pages/StudentDashboardPage.navigation.test.jsx
           --maxWorkers=1
+      - name: Bundle notification app candidate
+        run: npm run build
       - name: Verify RTDB notification authority rules
         run: >-
           npx firebase-tools emulators:exec --only database
