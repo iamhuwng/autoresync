@@ -1,14 +1,15 @@
 import type React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '../test/test-utils';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { MantineProvider } from '@mantine/core';
-import { BrowserRouter } from 'react-router-dom';
+import { ToastContainer, toast } from '../components/modern';
 
 const mockNotificationsShow = vi.fn();
 const mockParseThcsText = vi.fn();
 const mockConvertParsedToThcsDraft = vi.fn();
+const mockCreateThcsDraft = vi.fn();
+const mockSaveNow = vi.fn();
 
 vi.mock('react-router-dom', async () => {
     const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -40,8 +41,12 @@ vi.mock('../hooks/thcs/useThcsAutoSave', () => ({
         isSaving: false,
         lastSavedAt: null,
         error: null,
-        saveNow: vi.fn(),
+        saveNow: mockSaveNow,
     }),
+}));
+
+vi.mock('../hooks/useFeatureTracking', () => ({
+    useFeatureTracking: () => ({ trackAction: vi.fn() }),
 }));
 
 vi.mock('../hooks/thcs/useThcsValidation', () => ({
@@ -63,7 +68,7 @@ vi.mock('@mantine/notifications', () => ({
 }));
 
 vi.mock('../services/thcsDraftService', () => ({
-    createThcsDraft: vi.fn(),
+    createThcsDraft: (...args: unknown[]) => mockCreateThcsDraft(...args),
 }));
 
 vi.mock('../services/thcsTestStorage', () => ({
@@ -218,19 +223,42 @@ const renderSurface = (props: Partial<React.ComponentProps<typeof THCSTestEditor
         onWideLayoutChange: vi.fn(),
     };
 
-    return render(
-        <BrowserRouter>
-            <MantineProvider>
-                <THCSTestEditorSurface {...defaultProps} {...props} />
-            </MantineProvider>
-        </BrowserRouter>
-    );
+    return render(<>
+        <ToastContainer />
+        <THCSTestEditorSurface {...defaultProps} {...props} />
+    </>);
 };
 
 describe('THCSTestEditorSurface', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        toast.clear();
         mockConvertParsedToThcsDraft.mockReset();
+    });
+
+    it('persists the test content into a newly created draft before announcing success', async () => {
+        mockCreateThcsDraft.mockResolvedValue({ success: true, data: { draftId: 'draft-new' } });
+        mockSaveNow.mockResolvedValue({ success: true });
+        const user = userEvent.setup();
+        renderSurface();
+
+        await user.click(screen.getByText('Start Blank'));
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        await waitFor(() => expect(mockSaveNow).toHaveBeenCalledWith('draft-new'));
+        expect(screen.getByRole('status')).toHaveTextContent('Saved draft');
+    });
+
+    it('shows the save failure and retains the draft for retry', async () => {
+        mockSaveNow.mockResolvedValue({ success: false, error: 'Permission denied' });
+        const user = userEvent.setup();
+        renderSurface({ initialDraftId: 'draft-existing' });
+
+        await user.click(screen.getByText('Start Blank'));
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Permission denied'));
+        expect(screen.queryByText('Saved draft')).not.toBeInTheDocument();
     });
 
     it('advances the shared wizard progress when Paste Text starts', async () => {

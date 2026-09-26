@@ -12,12 +12,10 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Container, Alert, Text } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
 import { doc, setDoc, getFirestore } from 'firebase/firestore';
 
 import { useAuth } from '../hooks/useAuth';
+import { useScreenSize } from '../core/platform/hooks/useScreenSize';
 import { useThcsDraft } from '../hooks/thcs/useThcsDraft';
 import { useThcsAutoSave } from '../hooks/thcs/useThcsAutoSave';
 import { useThcsValidation } from '../hooks/thcs/useThcsValidation';
@@ -25,7 +23,9 @@ import { useThcsValidation } from '../hooks/thcs/useThcsValidation';
 import { createThcsDraft } from '../services/thcsDraftService';
 import { generateThcsTestId, saveThcsTestToFirebase } from '../services/thcsTestStorage';
 import r2StorageService from '../services/r2Storage';
-import { Button } from '../components/modern';
+import { Button, toast } from '../components/modern';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { THCSPreviewOverlay } from '../components/thcs-editor/THCSPreviewOverlay';
 import { THCSParseReviewPanel } from '../components/thcs-editor/THCSParseReviewPanel';
 import { convertParsedToThcsDraft, parseThcsText } from '../services/test-creation/thcsDocumentParser.service';
@@ -306,7 +306,8 @@ export function THCSTestEditorSurface({
     onStepConfigChange,
 }: THCSTestEditorSurfaceProps) {
     const { user } = useAuth();
-    const isMobile = useMediaQuery('(max-width: 1023px)');
+    const { isDesktop } = useScreenSize();
+    const isMobile = !isDesktop;
 
     // ─── Wizard Step State ──────────────────────────────────────
     const [currentStep, setCurrentStep] = useState(0);
@@ -319,6 +320,7 @@ export function THCSTestEditorSurface({
     const [isDirty, setIsDirty] = useState(false);
     const [draftId, setDraftId] = useState<string | null>(initialDraftId || null);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [showPublishWarnings, setShowPublishWarnings] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [publishedTestId, setPublishedTestId] = useState<string | null>(null);
@@ -430,7 +432,7 @@ export function THCSTestEditorSurface({
         }));
         setIsDirty(true);
         setCurrentStep(1); // Jump to Questions step after applying template
-        notifications.show({ color: 'green', title: 'Template Applied', message: `Created ${templateSections.length} sections from template "${template.name}".` });
+        toast.success(`Applied template "${template.name}" with ${templateSections.length} sections.`);
     }, [resetPasteFlow]);
 
     const handleParsedProceed = useCallback((finalParsed: any) => {
@@ -448,14 +450,10 @@ export function THCSTestEditorSurface({
             setIsDirty(true);
             setCurrentStep(1); // Jump to Questions step after import
             const qCount = normalizedSections.reduce((sum, s) => sum + s.questions.length, 0);
-            notifications.show({
-                color: 'green',
-                title: '📄 Document Imported',
-                message: `Imported ${normalizedSections.length} sections with ${qCount} questions from document.`,
-            });
+            toast.success(`Imported ${normalizedSections.length} sections with ${qCount} questions from document.`);
         } catch (err) {
             console.error('Error converting parsed document:', err);
-            notifications.show({ color: 'red', title: 'Import Error', message: 'Failed to convert parsed document to editor format.' });
+            toast.error('Could not convert parsed document to editor format.');
         }
     }, [resetPasteFlow]);
 
@@ -502,7 +500,7 @@ export function THCSTestEditorSurface({
             setPromptCopied(true);
             setTimeout(() => setPromptCopied(false), 2000);
         } catch {
-            notifications.show({ color: 'red', title: 'Copy failed', message: 'Please copy manually' });
+            toast.error('Could not copy the prompt. Please copy manually.');
         }
     }, []);
 
@@ -519,6 +517,7 @@ export function THCSTestEditorSurface({
         data: autoSaveData,
         isDirty,
     });
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
 
     // ─── Validation ─────────────────────────────────────────────
     const { errors, warnings, isValid } = useThcsValidation({ metadata, sections });
@@ -650,24 +649,36 @@ export function THCSTestEditorSurface({
 
     // ─── Save Draft ─────────────────────────────────────────────
     const handleSaveDraft = useCallback(async () => {
-        if (!user?.uid) return;
-
-        if (!draftId) {
-            const result = await createThcsDraft(user.uid, metadata);
-            if (result.success && result.data) {
-                const newDraftId = result.data.draftId;
-                setDraftId(newDraftId);
-                onDraftCreated?.(newDraftId);
-                await saveNow();
-                setIsDirty(false);
-                notifications.show({ title: '💾 Draft saved', message: 'Your test has been saved.', color: 'green' });
-            }
-        } else {
-            await saveNow();
-            setIsDirty(false);
-            notifications.show({ title: '💾 Draft saved', message: 'Changes saved.', color: 'green' });
+        if (!user?.uid) {
+            toast.error('Could not save draft: sign in and try again.');
+            return;
         }
-    }, [draftId, metadata, onDraftCreated, saveNow, user]);
+
+        trackAction('saveDraft');
+        setIsSavingDraft(true);
+        try {
+            let currentDraftId = draftId;
+            if (!currentDraftId) {
+                const result = await createThcsDraft(user.uid, metadata);
+                if (!result.success || !result.data?.draftId) {
+                    throw new Error(result.error || 'Could not create draft');
+                }
+                currentDraftId = result.data.draftId;
+                setDraftId(currentDraftId);
+            }
+
+            const result = await saveNow(currentDraftId);
+            if (!result.success) throw new Error(result.error || 'Could not save draft');
+
+            setIsDirty(false);
+            toast.success('Saved draft.');
+            if (!draftId) onDraftCreated?.(currentDraftId);
+        } catch (error) {
+            toast.error(`Could not save draft: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setIsSavingDraft(false);
+        }
+    }, [draftId, metadata, onDraftCreated, saveNow, trackAction, user]);
 
     // ─── Publish ────────────────────────────────────────────────
     const handlePublish = useCallback(async () => {
@@ -679,6 +690,7 @@ export function THCSTestEditorSurface({
             return;
         }
 
+        trackAction('publishTest');
         setIsPublishing(true);
         setShowPublishWarnings(false);
 
@@ -768,42 +780,39 @@ export function THCSTestEditorSurface({
             setPublishedTestId(testId);
 
             setIsDirty(false);
-            notifications.show({
-                title: '✅ Test published!',
-                message: 'Your THCS-THPT test is now available.',
-                color: 'green',
-            });
+            toast.success('Published test. It is now available in My Content.');
             onPublished?.(testId);
 
         } catch (error) {
             console.error('Publish failed:', error);
-            notifications.show({
-                title: '❌ Publish failed',
-                message: error instanceof Error ? error.message : 'Unknown error',
-                color: 'red',
-            });
+            toast.error(`Could not publish test: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setIsPublishing(false);
         }
-    }, [draftId, isPublic, isValid, metadata, onPublished, publishedTestId, sections, showPublishWarnings, user, warnings]);
+    }, [draftId, isPublic, isValid, metadata, onPublished, publishedTestId, sections, showPublishWarnings, trackAction, user, warnings]);
 
     // ─── Duplicate ──────────────────────────────────────────────
     const handleDuplicate = useCallback(async () => {
         if (!user?.uid) return;
 
-        const dupMetadata = { ...metadata, title: `Copy of ${metadata.title}` };
-        const result = await createThcsDraft(user.uid, dupMetadata);
-        if (result.success && result.data) {
+        trackAction('duplicateTest');
+        try {
+            const dupMetadata = { ...metadata, title: `Copy of ${metadata.title}` };
+            const result = await createThcsDraft(user.uid, dupMetadata);
+            if (!result.success || !result.data?.draftId) {
+                throw new Error(result.error || 'Could not create draft');
+            }
             const newDraftId = result.data.draftId;
             const { updateThcsDraft } = await import('../services/thcsDraftService');
-            await updateThcsDraft(newDraftId, {
+            const saved = await updateThcsDraft(newDraftId, {
                 metadata: dupMetadata,
                 sections,
                 questionCount: sections.reduce((sum, s) => sum + s.questions.length, 0),
                 totalPoints: sections.reduce((sum, s) => sum + s.totalPoints, 0),
             } as any);
+            if (!saved.success) throw new Error(saved.error || 'Could not save draft copy');
 
-            notifications.show({ title: '📋 Duplicated!', message: 'A copy has been created.', color: 'blue' });
+            toast.success(`Created draft copy "${dupMetadata.title}".`);
             if (onDuplicateCreated) {
                 onDuplicateCreated(newDraftId);
             } else {
@@ -811,12 +820,14 @@ export function THCSTestEditorSurface({
                 setPublishedTestId(null);
                 setIsDirty(false);
             }
+        } catch (error) {
+            toast.error(`Could not duplicate test: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-    }, [metadata, onDuplicateCreated, sections, user]);
+    }, [metadata, onDuplicateCreated, sections, trackAction, user]);
 
     if (draftLoading) {
         return (
-            <Container size="lg" py="xl">
+            <div style={{ maxWidth: '64rem', margin: '0 auto', padding: '2rem' }}>
                 <div style={{ textAlign: 'center', padding: '4rem 0' }}>
                     <div style={{
                         width: 48, height: 48, margin: '0 auto 1rem',
@@ -825,20 +836,20 @@ export function THCSTestEditorSurface({
                         borderRadius: '50%',
                         animation: 'spin 1s linear infinite',
                     }} />
-                    <Text c="dimmed">Loading draft...</Text>
+                    <p style={{ color: '#64748b' }}>Loading draft...</p>
                     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </div>
-            </Container>
+            </div>
         );
     }
 
     if (draftError) {
         return (
-            <Container size="lg" py="xl">
-                <Alert color="red" title="Error Loading Draft" variant="light">
-                    {draftError}
-                </Alert>
-            </Container>
+            <div style={{ maxWidth: '64rem', margin: '0 auto', padding: '2rem' }}>
+                <div role="alert" style={{ padding: '1rem', border: '1px solid #fca5a5', borderRadius: '0.5rem', background: '#fef2f2', color: '#991b1b' }}>
+                    <strong>Error Loading Draft</strong> — {draftError}
+                </div>
+            </div>
         );
     }
 
@@ -863,11 +874,7 @@ export function THCSTestEditorSurface({
 
         const summary = formatMissingImageSummary(missingVisualImageQuestions);
 
-        notifications.show({
-            color: 'yellow',
-            title: 'Image required for visual reading questions',
-            message: `Please upload image(s) for visual prompt questions (e.g. sign/notice/poster/photo) before leaving Step 2. Missing: ${summary}.`,
-        });
+        toast.warning(`Upload images for visual prompt questions before leaving Step 2. Missing: ${summary}.`);
 
         console.warn(`[THCS Step2 Guard] Blocked navigation due to missing images: ${summary}`);
 
@@ -915,12 +922,12 @@ export function THCSTestEditorSurface({
                 minHeight: 0,
             }}>
                 <div>
-                    <Text fw={700} size="lg" style={{ color: '#1e293b', marginBottom: '0.25rem' }}>
+                    <h2 style={{ color: '#1e293b', margin: '0 0 0.25rem', fontSize: '1.125rem', fontWeight: 700 }}>
                         Paste Test Content
-                    </Text>
-                    <Text size="sm" c="dimmed">
+                    </h2>
+                    <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>
                         Import structured THCS content into the shared creation flow, then continue directly into Questions.
-                    </Text>
+                    </p>
                 </div>
 
                 <div style={{
@@ -934,12 +941,12 @@ export function THCSTestEditorSurface({
                 }}>
                     <span style={{ fontSize: '1.25rem' }}>🤖</span>
                     <div style={{ flex: 1 }}>
-                        <Text size="sm" fw={600} style={{ color: '#1e293b' }}>
+                        <p style={{ color: '#1e293b', fontSize: '0.875rem', fontWeight: 600, margin: 0 }}>
                             Copy the extraction prompt, run it with your test images, then paste the AI output here.
-                        </Text>
-                        <Text size="xs" c="dimmed">
+                        </p>
+                        <p style={{ color: '#64748b', fontSize: '0.75rem', margin: '0.25rem 0 0' }}>
                             This keeps the full test-making process inside one modal flow.
-                        </Text>
+                        </p>
                     </div>
                     <Button variant="primary" onClick={handleCopyExtractionPrompt}>
                         {promptCopied ? 'Copied' : 'Copy Prompt'}
@@ -989,12 +996,12 @@ export function THCSTestEditorSurface({
                     justifyContent: 'space-between',
                     gap: '1rem',
                 }}>
-                    <Text size="xs" c="dimmed">
+                    <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
                         {nonEmptyLineCount > 0 ? `${nonEmptyLineCount} lines ready to parse` : 'Paste content to continue'}
-                    </Text>
-                    <Text size="xs" c="dimmed">
+                    </span>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
                         The parser will detect sections, question types, and answer keys.
-                    </Text>
+                    </span>
                 </div>
             </div>
         );
@@ -1058,6 +1065,7 @@ export function THCSTestEditorSurface({
                         warnings={warnings}
                         isValid={isValid}
                         isPublishing={isPublishing}
+                        isSavingDraft={isSavingDraft}
                         publishedTestId={publishedTestId}
                         draftId={draftId}
                         userId={user?.uid || ''}
@@ -1127,7 +1135,9 @@ export function THCSTestEditorSurface({
                     )}
                     {/* Save Draft on Step 1 per mockup */}
                     {setupMode !== 'paste' && currentStep === 1 && (
-                        <Button variant="glass" onClick={handleSaveDraft}>Save Draft</Button>
+                        <Button variant="glass" onClick={handleSaveDraft} disabled={isSavingDraft}>
+                            {isSavingDraft ? 'Saving...' : 'Save Draft'}
+                        </Button>
                     )}
 
                     {/* Preview button on Steps 1 and 2 (Amendment G4) */}
@@ -1189,15 +1199,16 @@ export function THCSTestEditorSurface({
 
                 {/* Responsive warning */}
                 {isMobile && (
-                    <Alert color="yellow" mb="md" icon="⚠️" variant="light">
+                    <div role="status" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', border: '1px solid #fcd34d', borderRadius: '0.5rem', background: '#fffbeb', color: '#92400e' }}>
+                        ⚠️{' '}
                         This editor works best on desktop. Please use a larger screen for the best experience.
-                    </Alert>
+                    </div>
                 )}
 
                 {saveError && (
-                    <Alert color="red" mb="md" variant="light">
+                    <div role="alert" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', border: '1px solid #fca5a5', borderRadius: '0.5rem', background: '#fef2f2', color: '#991b1b' }}>
                         Save error: {saveError}
-                    </Alert>
+                    </div>
                 )}
 
                 {renderStep()}

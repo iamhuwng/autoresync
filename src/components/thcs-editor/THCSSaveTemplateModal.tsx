@@ -5,11 +5,13 @@
  * Extracted from THCSTestEditorPage to keep the large editor file manageable.
  */
 
-import { useState } from 'react';
-import { Modal, TextInput, Textarea, Switch, Button, Group, Stack, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { useEffect, useRef, useState } from 'react';
+import { Button, toast } from '../modern';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 import { saveTestAsTemplate } from '../../services/thcsTemplateService';
 import type { THCSTest } from '../../types/thcs-test.types';
+import './THCSNestedDialog.css';
 
 interface THCSSaveTemplateModalProps {
     opened: boolean;
@@ -22,21 +24,27 @@ export function THCSSaveTemplateModal({ opened, onClose, test }: THCSSaveTemplat
     const [description, setDescription] = useState('');
     const [isPublic, setIsPublic] = useState(false);
     const [saving, setSaving] = useState(false);
+    const dialogRef = useRef<HTMLDialogElement>(null);
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
+
+    useEffect(() => {
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        if (opened && !dialog.open) dialog.showModal();
+        if (!opened && dialog.open) dialog.close();
+    }, [opened]);
 
     const handleSave = async () => {
         if (!name.trim()) {
-            notifications.show({ color: 'red', message: 'Template name is required.' });
+            toast.error('Template name is required.');
             return;
         }
 
+        trackAction('saveTemplate');
         setSaving(true);
         try {
             const result = await saveTestAsTemplate(test, name.trim(), description.trim(), isPublic);
-            notifications.show({
-                color: 'green',
-                title: 'Template Saved',
-                message: `Template "${name.trim()}" saved successfully (ID: ${result.templateId.slice(0, 8)}…)`,
-            });
+            toast.success(`Saved template "${name.trim()}" (ID: ${result.templateId.slice(0, 8)}…).`);
             // Reset form and close
             setName('');
             setDescription('');
@@ -44,7 +52,7 @@ export function THCSSaveTemplateModal({ opened, onClose, test }: THCSSaveTemplat
             onClose();
         } catch (err) {
             console.error('[THCSSaveTemplateModal] Save failed:', err);
-            notifications.show({ color: 'red', message: 'Failed to save template. Please try again.' });
+            toast.error('Could not save template. Please try again.');
         } finally {
             setSaving(false);
         }
@@ -55,18 +63,19 @@ export function THCSSaveTemplateModal({ opened, onClose, test }: THCSSaveTemplat
     ).join(' · ');
 
     return (
-        <Modal
-            opened={opened}
+        <dialog
+            ref={dialogRef}
             onClose={onClose}
-            title="Save as Template"
-            centered
-            size="md"
+            onCancel={(event) => { event.preventDefault(); onClose(); }}
+            aria-label="Save as Template"
+            className="thcs-nested-dialog"
         >
-            <Stack gap="md">
-                <Text size="xs" c="dimmed">
+            <h2 className="thcs-nested-dialog__title">Save as Template</h2>
+            <div style={{ display: 'grid', gap: '1rem' }}>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '0.75rem' }}>
                     Templates save the structure only — section names, point distribution, and question types.
                     Question content is NOT included.
-                </Text>
+                </p>
 
                 {/* Preview */}
                 <div style={{
@@ -77,48 +86,53 @@ export function THCSSaveTemplateModal({ opened, onClose, test }: THCSSaveTemplat
                     fontSize: '0.8125rem',
                     color: '#64748b',
                 }}>
-                    <Text size="xs" fw={600} c="dark" mb={2}>
+                    <p style={{ margin: '0 0 0.125rem', fontSize: '0.75rem', fontWeight: 600 }}>
                         Structure: {(test.sections || []).length} section(s) · Grade {test.metadata?.gradeLevel || '?'}
-                    </Text>
-                    <Text size="xs" c="dimmed" lineClamp={2}>
+                    </p>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                         {sectionSummary || 'No sections'}
-                    </Text>
+                    </p>
                 </div>
 
-                <TextInput
-                    label="Template Name"
-                    placeholder="e.g. Đề Giữa Kì Lớp 9 – 4 kỹ năng"
-                    value={name}
-                    onChange={(e) => setName(e.currentTarget.value)}
-                    required
-                    autoFocus
-                />
+                <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                    Template Name
+                    <input
+                        placeholder="e.g. Đề Giữa Kì Lớp 9 – 4 kỹ năng"
+                        value={name}
+                        onChange={(e) => setName(e.currentTarget.value)}
+                        required
+                        style={{ padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem' }}
+                    />
+                </label>
 
-                <Textarea
-                    label="Description"
-                    placeholder="Describe the template structure..."
-                    value={description}
-                    onChange={(e) => setDescription(e.currentTarget.value)}
-                    rows={3}
-                />
+                <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                    Description
+                    <textarea
+                        placeholder="Describe the template structure..."
+                        value={description}
+                        onChange={(e) => setDescription(e.currentTarget.value)}
+                        rows={3}
+                        style={{ padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', resize: 'vertical' }}
+                    />
+                </label>
 
-                <Switch
-                    label="Share with other teachers (public)"
-                    description="Public templates are visible to all teachers in the template picker."
-                    checked={isPublic}
-                    onChange={(e) => setIsPublic(e.currentTarget.checked)}
-                />
+                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.875rem' }}>
+                    <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.currentTarget.checked)} />
+                    <span>Share with other teachers (public)
+                        <small style={{ display: 'block', color: '#64748b' }}>Public templates are visible to all teachers in the template picker.</small>
+                    </span>
+                </label>
 
-                <Group justify="flex-end" mt="sm">
-                    <Button variant="subtle" onClick={onClose} disabled={saving}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <Button variant="glass" onClick={onClose} disabled={saving}>
                         Cancel
                     </Button>
-                    <Button onClick={handleSave} loading={saving} color="violet">
-                        Save Template
+                    <Button variant="primary" onClick={handleSave} loading={saving}>
+                        {saving ? 'Saving...' : 'Save Template'}
                     </Button>
-                </Group>
-            </Stack>
-        </Modal>
+                </div>
+            </div>
+        </dialog>
     );
 }
 

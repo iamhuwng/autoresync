@@ -19,7 +19,7 @@ interface UseThcsAutoSaveReturn {
     isSaving: boolean;
     lastSavedAt: Date | null;
     error: string | null;
-    saveNow: () => Promise<void>;
+    saveNow: (targetDraftId?: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function useThcsAutoSave({ draftId, data, isDirty }: UseThcsAutoSaveInput): UseThcsAutoSaveReturn {
@@ -30,18 +30,19 @@ export function useThcsAutoSave({ draftId, data, isDirty }: UseThcsAutoSaveInput
     const dataRef = useRef(data);
     dataRef.current = data;
 
-    const performSave = useCallback(async () => {
-        if (!draftId) return;
+    const performSave = useCallback(async (targetDraftId = draftId): Promise<{ success: boolean; error?: string }> => {
+        if (!targetDraftId) return { success: false, error: 'Draft ID is missing' };
 
         setIsSaving(true);
         setError(null);
 
         try {
-            const result = await updateThcsDraft(draftId, dataRef.current);
+            const result = await updateThcsDraft(targetDraftId, dataRef.current);
             if (result.success) {
                 setLastSavedAt(new Date());
                 // Clear any offline backup on success
-                try { localStorage.removeItem(OFFLINE_KEY_PREFIX + draftId); } catch { /* noop */ }
+                try { localStorage.removeItem(OFFLINE_KEY_PREFIX + targetDraftId); } catch { /* noop */ }
+                return { success: true };
             } else {
                 throw new Error(result.error || 'Save failed');
             }
@@ -52,10 +53,11 @@ export function useThcsAutoSave({ draftId, data, isDirty }: UseThcsAutoSaveInput
             // Offline fallback — save to localStorage
             try {
                 localStorage.setItem(
-                    OFFLINE_KEY_PREFIX + draftId,
+                    OFFLINE_KEY_PREFIX + targetDraftId,
                     JSON.stringify(dataRef.current)
                 );
             } catch { /* localStorage might be full */ }
+            return { success: false, error: msg };
         } finally {
             setIsSaving(false);
         }
@@ -97,9 +99,9 @@ export function useThcsAutoSave({ draftId, data, isDirty }: UseThcsAutoSaveInput
         }
     }, [draftId]);
 
-    const saveNow = useCallback(async () => {
+    const saveNow = useCallback(async (targetDraftId?: string) => {
         if (timerRef.current) clearTimeout(timerRef.current);
-        await performSave();
+        return performSave(targetDraftId);
     }, [performSave]);
 
     return { isSaving, lastSavedAt, error, saveNow };

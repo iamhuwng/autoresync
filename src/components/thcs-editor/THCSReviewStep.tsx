@@ -8,8 +8,7 @@
  *                  Publish Settings card (Public toggle + Save as Template checkbox)
  *                  Actions card (Publish, Save as Draft, Duplicate)
  */
-import React, { useState } from 'react';
-import { Modal, Button as MButton, Checkbox } from '@mantine/core';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '../modern';
 import { THCSPreviewOverlay } from './THCSPreviewOverlay';
 import { THCSVersionDropdown } from './THCSVersionDropdown';
@@ -25,6 +24,7 @@ export interface THCSReviewStepProps {
     warnings: string[];
     isValid: boolean;
     isPublishing: boolean;
+    isSavingDraft: boolean;
     publishedTestId: string | null;
     draftId: string | null;
     userId: string;
@@ -47,6 +47,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
     warnings,
     isValid,
     isPublishing,
+    isSavingDraft,
     publishedTestId,
     draftId,
     userId,
@@ -63,6 +64,14 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
     const [showPreview, setShowPreview] = useState(false);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+    const publishWarningsDialog = useRef<HTMLDialogElement>(null);
+
+    useEffect(() => {
+        const dialog = publishWarningsDialog.current;
+        if (!dialog) return;
+        if (showPublishWarnings && !dialog.open) dialog.showModal();
+        if (!showPublishWarnings && dialog.open) dialog.close();
+    }, [showPublishWarnings]);
 
     const totalQuestions = sections.reduce((sum, s) => sum + s.questions.length, 0);
     const totalPoints = sections.reduce((sum, s) => sum + s.totalPoints, 0);
@@ -375,13 +384,14 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
                             </label>
                         </div>
 
-                        <Checkbox
-                            label="Save as Template"
-                            checked={saveAsTemplate}
-                            onChange={(e) => setSaveAsTemplate(e.currentTarget.checked)}
-                            size="sm"
-                            color="violet"
-                        />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem' }}>
+                            <input
+                                type="checkbox"
+                                checked={saveAsTemplate}
+                                onChange={(e) => setSaveAsTemplate(e.currentTarget.checked)}
+                            />
+                            Save as Template
+                        </label>
                     </div>
 
                     {/* Version Dropdown (for re-publish) */}
@@ -414,6 +424,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
 
                         <button
                             onClick={onSaveDraft}
+                            disabled={isSavingDraft}
                             style={{
                                 width: '100%',
                                 padding: '0.5rem',
@@ -427,7 +438,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
                                 marginBottom: '0.375rem',
                             }}
                         >
-                            💾 Save as Draft
+                            {isSavingDraft ? 'Saving...' : '💾 Save as Draft'}
                         </button>
 
                         {draftId && (
@@ -453,12 +464,27 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
             </div>
 
             {/* Publish Warnings Dialog */}
-            <Modal
-                opened={showPublishWarnings}
+            <dialog
+                ref={publishWarningsDialog}
+                aria-label="Publish with Warnings?"
                 onClose={() => onSetShowPublishWarnings(false)}
-                title="Publish with Warnings?"
-                centered
+                onCancel={(event) => {
+                    event.preventDefault();
+                    onSetShowPublishWarnings(false);
+                }}
+                onKeyDown={(event) => event.stopPropagation()}
+                style={{
+                    width: 'min(28rem, calc(100vw - 2rem))',
+                    maxWidth: 'calc(100vw - 2rem)',
+                    margin: 'auto',
+                    padding: '1.25rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.75rem',
+                    boxShadow: '0 24px 64px rgba(15,23,42,0.24)',
+                    color: '#1e293b',
+                }}
             >
+                <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Publish with Warnings?</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {warnings.map((w, i) => (
                         <div key={i} style={{
@@ -473,10 +499,10 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
                     ))}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
-                    <MButton variant="subtle" onClick={() => onSetShowPublishWarnings(false)}>Cancel</MButton>
-                    <MButton color="violet" onClick={onPublish}>Proceed Anyway</MButton>
+                    <Button variant="glass" onClick={() => onSetShowPublishWarnings(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={onPublish} disabled={isPublishing}>Proceed Anyway</Button>
                 </div>
-            </Modal>
+            </dialog>
 
             {/* Preview Overlay */}
             {showPreview && (
