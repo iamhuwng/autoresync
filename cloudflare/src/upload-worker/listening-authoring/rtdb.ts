@@ -441,7 +441,8 @@ export class FirebaseRtdbRestClient {
 
   async writeIfMatch(path: string, value: unknown, etag: string): Promise<boolean> {
     const auth = await this.requestAuth(path);
-    const response = await this.options.fetchImpl.call(globalThis, auth.url, {
+    const url = `${auth.url}${auth.url.includes('?') ? '&' : '?'}print=silent`;
+    const response = await this.options.fetchImpl.call(globalThis, url, {
       method: 'PUT',
       headers: {
         ...auth.headers,

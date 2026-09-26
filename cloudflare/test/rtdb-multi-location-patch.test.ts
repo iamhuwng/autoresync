@@ -29,6 +29,23 @@ const releaseClaims: CourseBookAuthority102ReleaseClaims = {
 };
 
 describe('FirebaseRtdbRestClient multi-location patch', () => {
+  it('suppresses unused conditional-write responses while preserving auth and conflict detection', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 412 }));
+    const client = new FirebaseRtdbRestClient({
+      env: { FIREBASE_DB_URL: 'https://database.example.test' },
+      fetchImpl: fetchImpl as typeof fetch,
+      getFirebaseAuthToken: async () => 'scoped-token', firebaseAuthToken: true,
+    });
+
+    expect(await client.writeIfMatch('notifications/student/action', { read: false }, '"expected"')).toBe(true);
+    expect(await client.writeIfMatch('notifications/student/action', { read: false }, '"stale"')).toBe(false);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(String(url)).toBe('https://database.example.test/notifications/student/action.json?auth=scoped-token&print=silent');
+    expect(init).toMatchObject({ method: 'PUT', headers: { 'if-match': '"expected"' }, body: '{"read":false}' });
+  });
+
   it('uses one scoped Firebase Auth PATCH at the root', async () => {
     const fetchImpl = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response('{}', { status: 200 }));
     const client = new FirebaseRtdbRestClient({

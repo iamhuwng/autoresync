@@ -62,8 +62,9 @@ describe('notification inbox external subrequests', () => {
         return new Response(JSON.stringify(intent ?? null), { headers: { etag: '"0"' } });
       }
       if (method === 'PUT') {
+        expect(new URL(url).searchParams.get('print')).toBe('silent');
         writes.push({ path, state: (JSON.parse(String(init?.body)) as { state?: string }).state });
-        return new Response('null');
+        return new Response(null, { status: 204 });
       }
       throw new Error(`unexpected ${method} ${url}`);
     };
