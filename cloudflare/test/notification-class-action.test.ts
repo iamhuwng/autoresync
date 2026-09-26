@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   performClassAction,
+  deliverClassIntent,
   missingClassIntentRecipients,
   type ClassActionCommand,
   type ClassActionStorage,
   type ClassNotificationIntent,
 } from '../src/upload-worker/notifications/class-action.ts';
-import { InMemoryNotificationCommandRepository } from '../src/upload-worker/notifications/repository.ts';
+import { FirebaseRestNotificationCommandRepository, InMemoryNotificationCommandRepository } from '../src/upload-worker/notifications/repository.ts';
 import { FirebaseClassActionStorage } from '../src/upload-worker/notifications/class-action-store.ts';
 import { FirebaseRtdbRestClient } from '../src/upload-worker/listening-authoring/rtdb.ts';
 
@@ -129,6 +130,39 @@ describe('trusted class membership action', () => {
     const read = async (path: string) => snapshot[path] ?? null;
     expect(await missingClassIntentRecipients(intent, read)).toBe(0);
     expect(repository.snapshot()).toEqual(snapshot);
+  });
+
+  it('resumes partial recipient delivery through conditional create while preserving the read recipient', async () => {
+    const { rows, storage, repository } = fixture();
+    await performClassAction({ command: command('join-pending'), actorUid: studentId,
+      storage, repository: () => repository, now: () => 1_800_000_000_000 });
+    const intent = rows.get(`notification_intents/${actionId}`) as ClassNotificationIntent;
+    const [studentPath, studentNotice] = Object.entries(repository.snapshot())[0];
+    const existing = { ...studentNotice, read: true };
+    const inbox = new Map<string, unknown>([[studentPath, existing]]);
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname.slice(1, -5);
+      if (init?.method === 'PUT') {
+        expect(init.headers).toMatchObject({ 'if-match': 'null_etag' });
+        if (inbox.has(path)) return new Response('', { status: 412 });
+        inbox.set(path, JSON.parse(String(init.body)));
+        return new Response('', { status: 200 });
+      }
+      return new Response(JSON.stringify(inbox.get(path) ?? null), { headers: { etag: '"existing"' } });
+    });
+    const remote = new FirebaseRestNotificationCommandRepository({
+      env: { FIREBASE_DB_URL: 'https://example.test',
+        NOTIFICATION_COMMAND_SERVICE_IDENTITY: 'notification@example.iam.gserviceaccount.com' },
+      fetchImpl, getAccessToken: async () => 'token',
+    });
+
+    await expect(deliverClassIntent(intent, remote)).resolves.toEqual({
+      delivered: true, failedRecipientCount: 0, backendFailure: false, fresh: true,
+    });
+    expect(inbox.size).toBe(2);
+    expect(inbox.get(studentPath)).toEqual(existing);
+    expect(fetchImpl.mock.calls.map(([, init]) => init?.method)).toEqual(['PUT', 'GET', 'PUT']);
+    expect(await missingClassIntentRecipients(intent, async (path) => inbox.get(path) ?? null)).toBe(0);
   });
 
   it('does not guess a recipient from a one-recipient pending-join failure count', async () => {

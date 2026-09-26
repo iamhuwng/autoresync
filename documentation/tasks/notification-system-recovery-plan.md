@@ -8,6 +8,10 @@
 
 ## Current design in brief
 
+- **Governing rule: if work can safely run in the app and its existing Firebase
+  services, it stays there. The Worker performs the minimum necessary work.**
+  Shared notification integration does not require shared Worker ownership of
+  product workflows.
 - Keep ordinary product actions in their existing owners and route persistent
   notices through one shared producer. A Worker may verify and deliver a saved
   event internally; this does not require moving the product action into it.
@@ -80,10 +84,28 @@ callers, rules, and relevant checks together when the boundary changes.
 
 ### Minimum notification Worker workload (2026-09-26)
 
-The user requires minimum Worker use and processing. Ordinary product logic,
+**App by default; Worker only when necessary.** For every responsibility kept
+in the Worker, identify the specific security/authority requirement or the
+closed-app background requirement that prevents the app and existing Firebase
+rules from handling it correctly. Being part of notifications, sharing a
+Worker module, or being easier to implement there is not sufficient reason.
+Apply this review to existing implementation as well as new work; remove
+unnecessary Worker responsibilities with their callers and affected checks.
+
+Ordinary product logic,
 source saves, UI/display formatting, toasts, and ordinary app reporting stay
 in the app and its existing shared services. The notification Worker is a
 small trust boundary, not the owner of those feature workflows.
+
+| Responsibility | Default owner |
+| --- | --- |
+| Product workflow, ordinary save, notification initiation, display formatting, toast, admin report display | App and existing shared Firebase services. |
+| Trusted verification and protected inbox write that Firebase rules cannot safely authorize directly | Minimum Worker boundary; accept only verified action/recipient/content evidence. |
+| The agreed single retry after apps close, protected attempt/suppression state, and its terminal report | Minimum background Worker path; do not add app polling or another retry mechanism. |
+
+App-prepared data remains untrusted until checked. Moving code into the app
+must not expose privileged credentials, permit arbitrary recipient/content
+writes, or make global failure suppression depend on one browser's state.
 
 The user explicitly retained **a minimal background retry for closed-app
 cases**. Therefore keep only the trusted work needed to:
@@ -118,8 +140,11 @@ action migration, or a redesign of Book's established backend.
    retain a new failure for an old event and omit an unproven recipient ID.
 2. Measure normal `retry_due` delivery and realistic queue drain within the
    free-plan limits after minimizing the retained Worker work above. The
-   normal one-event/two-recipient canary used 12.422 ms CPU and 13 subrequests;
-   its delivery succeeded but its free-plan budget gate remains open. The
+   latest normal one-event/two-recipient canary used 11.627 ms CPU and 11
+   subrequests after the corrective deployment; its delivery succeeded but
+   its free-plan budget gate remains open. The two focused attempts are
+   exhausted; the [CPU escalation](notification-recovery-cpu-escalation.md)
+   awaits the planner's next decision. The
    7.424 ms interrupted-`retrying` recovery canary proves readback/reporting
    only; it does not close that normal-delivery gate.
 3. Finish first-batch teacher/student homework delivery and failure checks.

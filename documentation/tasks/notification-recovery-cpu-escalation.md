@@ -28,6 +28,31 @@ The four-file focused x64 Workerd set passes 21 tests; Wrangler dry-run is 391.9
 - One class intent per eight-minute family visit means thirty simultaneously due class actions need thirty visits, roughly four hours after due time, plus the initial one-hour delay. This is a calculated capacity concern; realistic populated backlog drain has not been measured or accepted.
 - The older 7.424 ms interrupted-`retrying` report canary proves only readback/reporting. Empty Cron passes and mocked request budgets cannot close capacity.
 
+## Planner-authorized native create correction (2026-09-26)
+
+After the two-attempt escalation, the planner explicitly approved the existing Firebase `if-match: null_etag` create-if-absent pattern. The shared inbox repository now first attempts that protected PUT; on 412 it retains stored schema/semantic validation and the existing bounded conditional race fallback. It never confirms an unknown transport outcome. Product owners, gate concurrency, actor/recipient/content proof, retry claims/final state, schedule and other services are unchanged. `print=silent` remains absent.
+
+Direct live provider proof on isolated QA identity `e7ec646f-84d6-4be6-b61e-49655702e90c` returned 200 for absent creation and 412 for both an existing replay and conflicting content. Readback preserved `read=true`, original content and creation time. The exact QA row was conditionally removed with 200.
+
+Focused repository/class checks pass 19 tests, including overlapping creates, partial existing recipients, replay/schema/content conflicts and unknown transport. Budget and shared Book runtime checks pass 24 tests; one Book filesystem source test is excluded because Windows workerd cannot enumerate its encoded file URL. Its equivalent case-sensitive source/name checks were run in PowerShell and pass. The initial changed THCS budget assertion was corrected and rerun: ten absent inbox writes now total 13 requests instead of 23. Fresh two-recipient class retry now accounts for 10 cold / 9 warm requests; replay adds one failed PUT per existing row before the prior validation read. Success with an existing issue accounts for 13 cold / 12 warm. These counts are source/local proof only. Wrangler dry-run passes at 392.08 KiB; deployment and matching normal/recovery CPU measurements remain pending.
+
+## Read-only necessity comparison after escalation
+
+The updated governing rule was read on 2026-09-26: app/Firebase by default, Worker only for concrete authority or closed-app requirements. No implementation change follows from this comparison.
+
+| Current first-batch work | Necessity / removable-work assessment |
+|---|---|
+| Ordinary homework save, atomic source intent, start/submit orchestration, statistics, toast and admin display | Already app/Firebase owned. Keep them there; the observed statistics permission error does not justify migrating that save. |
+| Class membership mutation and durable evidence | Existing reviewed exception for rejection's deleted evidence. No new product ownership is approved by this CPU report. |
+| Due scan and conditional attempt/final-state writes | Needed for the agreed closed-app retry and concurrent invocation safety. App polling cannot replace them. |
+| Suppression read and latest success-state read | Needed to hold globally suppressed backlog and reset a concurrently changed failure streak correctly. Removing the second read based on an earlier healthy read would need concurrency proof. |
+| Inbox read, deterministic identity/content check and conditional create | Protect recipient/content authority, duplicate delivery and read flags. An unverified client success claim is insufficient. |
+| Healthy-success gate PUT | Removed in `7604a853` when no failure or issue needs updating. Required recovery writes remain. |
+| Homework retry's private `tokenFor` signer/exchange | It is separate from the existing RTDB client's cached token path, whose scopes already include Firestore. Manual reminder/reset stores already reuse that client. Reuse is a candidate for planner review; privileged token creation stays outside the browser. This would concern homework, not resolve the measured class overage by itself. |
+| Notice presentation strings | App can own presentation of verified structured event data, but current stored inbox content and conflict checks use canonical strings. Moving formatting needs an explicit coordinated contract/caller review; it cannot simply accept arbitrary browser content. No CPU saving is measured or claimed. |
+
+The measured class path has no identified ordinary product work that can simply be moved to the app while preserving its existing authority, one retry, and concurrent writes. Further decisions must weigh the necessary path against both CPU and queue capacity; placement in a Worker alone is not a justification.
+
 ## Product proof and remaining work
 
 Edge was recovered through a fresh tab with the existing Super Admin session. Student Test's real Reading V2 submission saved a submitted record and atomic notification intent at 02:07:48 UTC, while the incompatible version caused immediate notification failure. Delivery remains `retry_due`, attempts 1, naturally due at 03:07:48 UTC. A separate existing homework statistics update was denied by Firestore rules; the app caught it and the submission stayed committed. No stats or product-action owner migration was introduced.

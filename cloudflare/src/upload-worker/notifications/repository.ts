@@ -144,6 +144,15 @@ export class FirebaseRestNotificationCommandRepository implements NotificationCo
   async create(input: NotificationCommandWrite): Promise<NotificationCommandWriteResult> {
     if (!ID.test(input.recipientId)) throw new Error('invalid_notification_recipient');
     const path = pathFor(input.recipientId, input.operationId);
+    const next: StoredNotification = {
+      id: input.operationId,
+      ...clone(input.notification),
+      read: false,
+      createdAt: input.now,
+    };
+    if (await this.rtdb.writeIfMatch(path, next, 'null_etag')) {
+      return { status: 'created', notificationId: input.operationId };
+    }
     for (let attempt = 0; attempt < (this.options.maxRetries ?? MAX_RETRIES); attempt += 1) {
       const current = await this.rtdb.readWithEtag<unknown>(path);
       if (current.data !== null) {
@@ -155,12 +164,6 @@ export class FirebaseRestNotificationCommandRepository implements NotificationCo
           notificationId: input.operationId,
         };
       }
-      const next: StoredNotification = {
-        id: input.operationId,
-        ...clone(input.notification),
-        read: false,
-        createdAt: input.now,
-      };
       if (await this.rtdb.writeIfMatch(path, next, current.etag)) {
         return { status: 'created', notificationId: input.operationId };
       }

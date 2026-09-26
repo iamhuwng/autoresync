@@ -52,6 +52,18 @@ const parse = async (result: {
   body: Record<string, unknown>;
   init: ResponseInit;
 }) => ({ status: result.init.status, body: result.body });
+const firebaseRepository = (fetchImpl: typeof fetch) => new FirebaseRestNotificationCommandRepository({
+  env: {
+    FIREBASE_DB_URL: 'https://example.firebaseio.com',
+    NOTIFICATION_COMMAND_SERVICE_IDENTITY: 'notification@example.iam.gserviceaccount.com',
+  },
+  fetchImpl,
+  getAccessToken: async () => 'token',
+});
+const writeInput = () => ({
+  operationId, recipientId: 'student-1', notification: body().notification,
+  now: 1_722_220_000_000,
+});
 
 describe('Ticket 38B1 trusted notification command seam', () => {
   it('matches the canonical disabled #59 route reservation without composing a handler', () => {
@@ -210,7 +222,7 @@ describe('Ticket 38B1 trusted notification command seam', () => {
     }
   });
 
-  it('uses conditional Firebase persistence and replays without a second write', async () => {
+  it('creates with one conditional PUT and replays without resetting read state', async () => {
     const stored = {
       id: operationId,
       type: 'info',
@@ -224,11 +236,8 @@ describe('Ticket 38B1 trusted notification command seam', () => {
       createdAt: 1_722_220_000_000,
     };
     const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(new Response('null', {
-        status: 200,
-        headers: { etag: '"null"' },
-      }))
       .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(new Response('', { status: 412 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(stored), {
         status: 200,
         headers: { etag: '"existing"' },
@@ -248,11 +257,54 @@ describe('Ticket 38B1 trusted notification command seam', () => {
       now: 1_722_220_000_000,
     };
     await expect(repository.create(input)).resolves.toMatchObject({ status: 'created' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchImpl.mock.calls[0]?.[1].body)).toMatchObject({ read: false, createdAt: input.now });
     await expect(repository.create(input)).resolves.toMatchObject({ status: 'replayed' });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({
+    expect(fetchImpl.mock.calls[0]?.[1]).toMatchObject({
       method: 'PUT',
-      headers: expect.objectContaining({ 'if-match': '"null"' }),
+      headers: expect.objectContaining({ 'if-match': 'null_etag' }),
     });
+    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({ method: 'PUT', headers: expect.objectContaining({ 'if-match': 'null_etag' }) });
+    expect(fetchImpl.mock.calls[2]?.[1]).toMatchObject({ method: 'GET', headers: expect.objectContaining({ 'X-Firebase-ETag': 'true' }) });
+    expect(fetchImpl.mock.calls.every(([url]) => !String(url).includes('print=silent'))).toBe(true);
+    expect(stored.read).toBe(true);
+  });
+
+  it.each([{ title: 'Changed' }, { read: 'true' }, { extra: true }])('rejects existing semantic or schema conflict %j without overwriting it', async (override) => {
+    const input = writeInput();
+    const stored = { id: operationId, ...input.notification, read: true, createdAt: input.now, ...override };
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response('', { status: 412 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(stored), { headers: { etag: '"existing"' } }));
+    await expect(firebaseRepository(fetchImpl).create(input)).resolves.toMatchObject({ status: 'idempotency-conflict' });
+    expect(fetchImpl.mock.calls.map(([, init]) => init.method)).toEqual(['PUT', 'GET']);
+  });
+
+  it('lets overlapping creates produce one row and replay the losing create', async () => {
+    let stored: unknown = null;
+    let writes = 0;
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PUT') {
+        expect(init.headers).toMatchObject({ 'if-match': 'null_etag' });
+        if (stored !== null) return new Response('', { status: 412 });
+        stored = JSON.parse(String(init.body));
+        writes += 1;
+        return new Response('', { status: 200 });
+      }
+      return new Response(JSON.stringify(stored), { headers: { etag: '"existing"' } });
+    });
+    const repository = firebaseRepository(fetchImpl);
+    const results = await Promise.all([repository.create(writeInput()), repository.create(writeInput())]);
+    expect(results.map(({ status }) => status).sort()).toEqual(['created', 'replayed']);
+    expect(writes).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not confirm creation after a conditional PUT transport failure', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('connection lost'));
+    await expect(firebaseRepository(fetchImpl).create(writeInput())).rejects.toThrow('connection lost');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0]?.[1].method).toBe('PUT');
   });
 });
