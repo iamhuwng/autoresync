@@ -57,6 +57,8 @@ export interface NavigationOptions {
   reason?: string;
   /** Force navigation even if already navigating */
   force?: boolean;
+  /** Explicit user navigation may revisit paths recorded by loop detection. */
+  userInitiated?: boolean;
   /** Delay navigation by X milliseconds */
   delay?: number;
   /** Explicit router state to forward to the destination (e.g. { resultId, showResult }) */

@@ -127,7 +127,7 @@ class NavigationService {
 
     // Guard: Check for navigation loops
     const loopDetected = this.isNavigationLoop(from, to);
-    if (loopDetected) {
+    if (loopDetected && !options?.userInitiated) {
       this.log('🔴 Navigation loop detected!', {
         from,
         to,

@@ -118,7 +118,7 @@ describe('NotificationBell', () => {
             expect(mockNavigateTo).toHaveBeenCalledWith(
                 'TEACHER_GRADING_DETAIL',
                 { submissionId: '-submission-1' },
-                { reason: 'notification_open' },
+                { reason: 'notification_open', userInitiated: true },
             );
         });
     });
