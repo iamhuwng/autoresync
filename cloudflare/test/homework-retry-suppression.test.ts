@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { recordHomeworkImmediateOutcome } from '../src/upload-worker/notifications/homework-retry.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { hasCommittedHomeworkNotification, recordHomeworkImmediateOutcome } from '../src/upload-worker/notifications/homework-retry.ts';
+
+afterEach(() => vi.restoreAllMocks());
 
 const pem = (bytes: ArrayBuffer): string => {
   const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
@@ -30,7 +32,12 @@ describe('suppressed homework delivery', () => {
       if (this !== globalThis) throw new TypeError('fetch receiver was lost');
       const url = String(raw);
       const method = init?.method ?? 'GET';
-      if (url === 'https://oauth2.googleapis.com/token') return new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }));
+      if (url === 'https://oauth2.googleapis.com/token') {
+        const assertion = new URLSearchParams(String(init?.body)).get('assertion')!;
+        const claims = JSON.parse(atob(assertion.split('.')[1].replace(/-/gu, '+').replace(/_/gu, '/')));
+        expect(claims.scope.split(' ')).toContain('https://www.googleapis.com/auth/datastore');
+        return new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }));
+      }
       if (url.endsWith(':runQuery')) return new Response(JSON.stringify([{ document: {
         name: 'projects/test/databases/(default)/documents/homework_submissions/submission1',
         updateTime: '2026-01-01T00:00:00Z',
@@ -61,5 +68,29 @@ describe('suppressed homework delivery', () => {
     });
     await recordHomeworkImmediateOutcome(env, input, false, 300, fetchImpl);
     expect(steps).toEqual(['report', 'failed']);
+    const oauthCalls = () => vi.mocked(fetchImpl).mock.calls.filter(([url]) => String(url) === 'https://oauth2.googleapis.com/token').length;
+    expect(oauthCalls()).toBe(1);
+    await expect(hasCommittedHomeworkNotification(env, input, fetchImpl)).resolves.toBe(true);
+    expect(oauthCalls()).toBe(1);
+
+    // Validation still runs before a warm cached token can be returned.
+    const requests = vi.mocked(fetchImpl).mock.calls.length;
+    await expect(hasCommittedHomeworkNotification({ ...env,
+      NOTIFICATION_COMMAND_SERVICE_IDENTITY: 'other@example.test',
+    }, input, fetchImpl)).rejects.toThrow('notification_command_service_identity_mismatch');
+    await expect(hasCommittedHomeworkNotification({ ...env,
+      NOTIFICATION_COMMAND_GOOGLE_SA_KEY: '{}',
+    }, input, fetchImpl)).rejects.toThrow('invalid_notification_command_service_key');
+    expect(vi.mocked(fetchImpl).mock.calls).toHaveLength(requests);
+
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 56 * 60 * 1000);
+    await expect(hasCommittedHomeworkNotification(env, input, fetchImpl)).resolves.toBe(true);
+    expect(oauthCalls()).toBe(2);
+
+    vi.mocked(Date.now).mockReturnValue(Date.now() + 56 * 60 * 1000);
+    vi.mocked(fetchImpl).mockResolvedValueOnce(new Response(JSON.stringify({ access_token: '' })));
+    await expect(hasCommittedHomeworkNotification(env, input, fetchImpl)).rejects.toThrow('google_oauth_failed:invalid_response');
+    vi.mocked(fetchImpl).mockResolvedValueOnce(new Response('unavailable', { status: 503 }));
+    await expect(hasCommittedHomeworkNotification(env, input, fetchImpl)).rejects.toThrow('google_oauth_failed:503');
   });
 });

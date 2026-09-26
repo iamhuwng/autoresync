@@ -1,4 +1,3 @@
-import { SignJWT, importPKCS8 } from 'jose';
 import { buildRoute } from '../../../../src/constants/routes.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import {
@@ -47,23 +46,13 @@ const decodeDocument = (document: FirestoreDocument): Submission => ({
 });
 
 const tokenFor = async (env: Env, fetchImpl: typeof fetch): Promise<string> => {
-  const key = JSON.parse(required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY')) as { client_email?: string; private_key?: string };
+  const keyJson = required(env, 'NOTIFICATION_COMMAND_GOOGLE_SA_KEY');
+  const key = JSON.parse(keyJson) as { client_email?: string; private_key?: string };
   if (!key.client_email || !key.private_key) throw new Error('invalid_notification_command_service_key');
   if (key.client_email !== required(env, 'NOTIFICATION_COMMAND_SERVICE_IDENTITY')) {
     throw new Error('notification_command_service_identity_mismatch');
   }
-  const privateKey = await importPKCS8(key.private_key, 'RS256');
-  const now = Math.floor(Date.now() / 1000);
-  const assertion = await new SignJWT({ iss: key.client_email, sub: key.client_email, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600, scope: 'https://www.googleapis.com/auth/datastore' })
-    .setProtectedHeader({ alg: 'RS256' }).sign(privateKey);
-  const response = await fetchImpl.call(globalThis, 'https://oauth2.googleapis.com/token', {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
-  });
-  if (!response.ok) throw new Error(`homework_retry_token_failed:${response.status}`);
-  const result = await response.json() as { access_token?: unknown };
-  if (typeof result.access_token !== 'string') throw new Error('homework_retry_token_invalid');
-  return result.access_token;
+  return new FirebaseRtdbRestClient({ env: { GOOGLE_SA_KEY: keyJson }, fetchImpl }).getAccessToken();
 };
 
 const notificationOperationId = (operationKey: string): string => {
