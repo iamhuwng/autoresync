@@ -2,6 +2,8 @@
 
 Source review: 2026-09-24, isolated `codex/notification-recovery` worktree; committed-event routing updated 2026-09-25 on `codex/notification-combined-release`. These 35 rows cover the ordinary variants in the recovery plan. All delivered items use the existing RTDB `notifications/{recipientId}/{notificationId}` inbox and read flag. This is source status, not deployment proof. Book update notifications use the same inbox but are outside these 35 variants.
 
+**Routing decision update (2026-09-26):** the [plan](notification-system-recovery-plan.md#routing-decision-from-the-actual-discussion) requires shared trusted notification delivery while preserving ordinary product-action owners. Only Book's existing authority and the reviewed class-membership exception are established Worker action boundaries. Announcement, feedback, result-review, and manual THCS-grade mutations below describe current source, not approved migrations; hold their activation until their necessity review is resolved.
+
 | # | Event | Saved authority and recipient | Delivery state |
 |---:|---|---|---|
 | 1 | Assignment request approved, teacher | RTDB assignment decision and intent; request teacher | Ordinary action, shared committed-event dispatch; immediate attempt, one later retry, admin issue |
@@ -17,17 +19,17 @@ Source review: 2026-09-24, isolated `codex/notification-recovery` worktree; comm
 | 11 | Course archived | `courses` and enrollments | Current archive invariant excludes active enrollments, so no recipient event occurs |
 | 12 | Course type approved | RTDB type decision and intent; requesting teacher | Ordinary decision, shared committed-event dispatch, bounded retry |
 | 13 | Course type rejected | Same decision and intent; requesting teacher | Same bounded path |
-| 14 | Course announcement | Worker commits announcement and intent; server resolves enrolled roster | Bounded 10-recipient passes and one later retry per failure |
+| 14 | Course announcement | Current source: Worker commits announcement and intent; server resolves enrolled roster | Action-owner review required before activation; bounded delivery remains required |
 | 15 | Ordinary homework due soon | Firestore assignment and reminder status | Dormant `processStudentReminders` has no caller. No active recovered event |
 | 16 | THCS homework due soon | Same source | Same dormant path |
 | 17 | Teacher manual homework reminder | Firestore assignment override and immutable reminder intent; assigned student | Ordinary action, specialized Worker delivery wake and bounded retry |
 | 18 | Homework submitted | Firestore submission transaction holds intent; RTDB result proves student and teacher | Shared committed-event port; Worker validates saved intent, bounded retry |
 | 19 | Homework reset | Firestore reset transaction and immutable event; prior submission student | Shared committed-event port to reset resolver, bounded retry |
-| 20 | Per-question feedback saved | Worker commits feedback and signed intent under canonical result; result student | Specialized feedback action, bounded retry |
-| 21 | Overall feedback saved | Same source; result student | Same bounded path |
+| 20 | Per-question feedback saved | Current source: Worker commits feedback and signed intent under canonical result; result student | Action-owner review required before activation; bounded delivery remains required |
+| 21 | Overall feedback saved | Same current source; result student | Same unresolved action-owner decision as row 20 |
 | 22 | Ordinary test completed | RTDB result creation and separate completion intent; result student | Shared committed-event port to completion resolver; excludes THCS duplicate, bounded retry |
-| 23 | Result marked reviewed | Worker commits review transition and intent; result student | Specialized review action, bounded retry |
-| 24 | Individual THCS question manually graded | Worker atomically commits authorized session grade and separate intent; saved answer student | Specialized manual grade action, bounded retry |
+| 23 | Result marked reviewed | Current source: Worker commits review transition and intent; result student | Action-owner review required before activation; bounded delivery remains required |
+| 24 | Individual THCS question manually graded | Current source: Worker atomically commits authorized session grade and separate intent; saved answer student | Action-owner review required before activation; bounded delivery remains required |
 | 25 | Writing grade published | Firestore grade and immutable intent; submission student | Shared committed-event port to writing resolver, bounded retry |
 | 26 | Solo writing practice submitted, student | Firestore materialization intent and RTDB result; submitting student | Shared committed-event port to writing resolver, bounded retry |
 | 27 | Class-session writing auto-submitted | Firestore submission intent plus RTDB session/result; session student | Shared committed-event port to writing resolver, bounded retry |
@@ -48,10 +50,19 @@ already committed its canonical record and durable event. They are routing
 duplication to consolidate behind the shared producer, not product-action
 migrations. Actual Worker-owned product actions include class membership,
 announcements, feedback, result review, and manual THCS grading. Keep each
-exception only with its own authority or atomicity proof. All delivered
+non-class migration on hold until the planner reviews its necessity; atomic
+coupling in current code alone does not establish that necessity. Ordinary
+manual-reminder, session, and THCS wake clients still need consolidation behind
+the common producer. All delivered
 notices still use the shared inbox and read-preserving repository.
+
+### Historical pre-cutover evidence
+
+The checkpoints below predate the first-batch cutover. Read the
+[release record](notification-recovery-release-candidate.md) for subsequent
+evidence; this routing revision makes no new remote-state claim.
 
 - Linux CI run 35984381971 passed RTDB rules (33/33), Firestore rules (26/26), Workerd (60/60), and the Wrangler dry-run bundle. The Windows RTDB emulator still cannot bind its loopback transport here.
 - The local Worker tests and bundle prove source behavior only. Refresh Cloudflare authentication, Worker identity and secret bindings, and live RTDB rule reconciliation before release. The `class-homework` setting now gates action routes as well as scheduled retries.
 - Historical backfill is not executed. The [35-row reconciliation](notification-recovery-historical-backfill.md) records each variant's evidence gate. The Hosting file history narrows possible exposure, but does not prove each missed recipient or a continuous outage interval. The read-only preview script currently covers class and homework only.
-- The selective class/homework Hosting source is built and tested on `codex/notification-class-homework-hosting` at `c3e83309`; no live delivery browser flow or combined Hosting deployment has been verified.
+- At the `c3e83309` checkpoint, the selective class/homework Hosting source was built and tested on `codex/notification-class-homework-hosting`; live delivery and combined Hosting deployment were not yet verified. Subsequent first-batch evidence belongs in the release record.

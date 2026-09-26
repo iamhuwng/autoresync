@@ -2,6 +2,8 @@
 
 Checked against source on 2026-09-25. The release candidate config has one `*/2 * * * *` trigger and `NOTIFICATION_RETRY_BATCH=class-homework`. It rotates class membership, homework submission, manual homework reminder, and homework reset retries, one bounded family every two minutes. Each first-batch family is visited every eight minutes, including the two action routes exposed in the selective Hosting artifact. The full-family stage requires a separate config change to `NOTIFICATION_RETRY_BATCH=all` plus a `* * * * *` bulk trigger. The full schedule below has three bulk families and 14 small-family slots, including two each for class and homework submission; both triggers can fire on even minutes.
 
+**Current populated CPU gate (2026-09-26): open.** Version `f5f1448a-04e7-440a-99ef-5a1096271fb4` ran one normal `retry_due` pending-join intent at 01:44:16 UTC, claimed attempt 2, delivered both recipients, and marked it done. Cloudflare measured one successful invocation, zero errors, 13 subrequests, and **12.422 ms CPU**. Reducing the class pass to one intent still does not fit the 10 ms Workers Free CPU limit on this branch. The 7.424 ms interrupted-retry report below does not close this gate. Further family activation and populated backlog proof remain on hold pending a measured correction.
+
 | Queue | Maximum interval between its passes | Maximum delay after a one-hour retry due time |
 |---|---:|---:|
 | Course announcement, THCS homework, session | 3 minutes | 3 minutes |

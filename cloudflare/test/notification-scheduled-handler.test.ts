@@ -75,6 +75,10 @@ describe('composed notification Worker scheduled handler', () => {
     expect(blocked.headers.get('Vary')).toBe('Origin, Access-Control-Request-Method, Access-Control-Request-Headers');
     expect(feedbackFetch).not.toHaveBeenCalled();
 
+    const customDomain = await worker.fetch(post('/feedback-notifications/actions', 'https://hocthem.net'), env);
+    expect(customDomain.status).toBe(503);
+    expect(customDomain.headers.get('Access-Control-Allow-Origin')).toBe('https://hocthem.net');
+
     const disallowed = await worker.fetch(post('/feedback-notifications/actions', 'https://evil.example'), env);
     expect(disallowed.status).toBe(503);
     expect(disallowed.headers.has('Access-Control-Allow-Origin')).toBe(false);

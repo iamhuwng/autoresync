@@ -2,7 +2,7 @@
 
 **Status:** the first-batch release record documents a live class/homework cutover; remaining families and historical backfill are open. Recheck remote state before further release claims.
 
-**Date:** 2026-09-25
+**Date:** 2026-09-26; routing boundary reconciled with the saved conversation
 
 **Scope:** existing in-app notifications for teachers and students, including Book actions
 
@@ -11,9 +11,9 @@
 - Keep ordinary product actions in their existing owners and route persistent
   notices through one shared producer. A Worker may verify and deliver a saved
   event internally; this does not require moving the product action into it.
-- Keep Worker-owned product actions only when trusted code must commit the
-  transition and durable event together, or a later reader cannot prove the
-  occurrence and recipient. Require that proof per action.
+- Preserve Book's existing Worker authority and the reviewed class-membership
+  exception. Other product-action migrations need a specific necessity review
+  before activation; current implementation alone does not approve them.
 - Deliver to the existing inbox once immediately and retry at most once.
   Three consecutive terminal failures from distinct actions suppress later
   retries for that notice family. New actions still attempt immediate delivery
@@ -21,6 +21,84 @@
 - The proposed full scheduler is conditional. Do not add its second Cron
   trigger or expand families until populated CPU and realistic backlog meet
   the free-plan limits.
+
+## Routing decision from the actual discussion
+
+This section governs implementation. The route audit and event matrix describe
+current source; they do not approve additional architecture changes.
+
+The saved root chat, [Fix class join notification](codex://threads/01a0ce28-2c56-7c52-b758-340e83143402), records these decisions on 2026-09-24 (UTC):
+
+- **05:27:** preserve the ordinary notification API, inbox, bell, and read
+  state; put a small trusted writer behind the API. The former
+  `.write: auth != null` permission must not be restored unchanged.
+- **06:07:** use one notification system with different ways to reach it.
+  Ordinary features retain their workflow and shared producer; Book emits
+  after its existing Worker action commits. The user then requested the plan.
+- **06:17:** the user chose one retry, then admin reporting. Background retry
+  was added after the trusted-writer decision; it does not justify moving
+  ordinary product saves into a Worker.
+- **06:54:** the planner approved class join/add/approve/reject as a narrow
+  action exception because rejection deletes the prior request evidence.
+
+Here, **standard route** means the existing ordinary product save plus the
+shared notification interface. Notification creation uses trusted delivery,
+currently implemented by the notification Worker. It does not mean retaining
+the old unrestricted browser inbox writer.
+
+```text
+Ordinary action: existing Firebase save -> shared producer -> trusted delivery
+Book action: existing Book Worker commit -> trusted delivery
+Class exception: trusted membership commit + intent -> trusted delivery
+Trusted delivery -> existing Firebase inbox -> existing bell
+```
+
+Persist the minimum action evidence with the ordinary save where possible.
+Trusted delivery verifies that evidence and resolves recipients/content.
+Book may reuse that delivery module internally; no extra HTTP hop is required.
+A delivery failure after commit leaves the saved action successful. A failure
+of a Worker-owned action before commit is an action failure, not a saved action
+with a missing notice.
+
+### Product-action exception decisions
+
+| Action owner | Decision for this recovery |
+| --- | --- |
+| Ordinary Firebase actions | Keep their existing product mutations; consolidate delivery wake calls behind the shared producer. |
+| Existing Book Workers | Preserve their established product authority and shared inbox emission. |
+| Class join/add/approve/reject | Reviewed narrow exception: commit membership/projection and notification evidence together. |
+| Course announcement, feedback save, result review, manual THCS question grade | Worker mutations exist in current source, but necessity remains unproven. Hold activation pending the review below. |
+
+For each of the four unresolved migrations, compare the existing ordinary save
+with an authorized atomic source-and-intent save. Keep the ordinary owner if
+it can meet the recipient, occurrence, and integrity requirements. Retain a
+Worker mutation only with a concrete authority barrier or independently
+required trusted action boundary reviewed by the planner. A Worker-signed
+intent rule introduced by this implementation, or the fact that source and
+intent now share a Worker patch, is not sufficient justification. Update
+callers, rules, and relevant checks together when the boundary changes.
+
+### Implementor's next actions
+
+1. Integrate and verify the two focused reporting fixes in the first batch:
+   retain a new failure for an old event and omit an unproven recipient ID.
+2. Measure normal `retry_due` delivery and realistic queue drain within the
+   free-plan limits. The 7.424 ms interrupted-`retrying` recovery canary proves
+   readback/reporting only; it does not close the normal-delivery CPU gate.
+3. Finish first-batch teacher/student homework delivery and failure checks.
+   Verify CORS for the actual authorized browser domain, including
+   `https://hocthem.net` when it is the signed-in target; a command that works
+   only from `kahut1.web.app` is insufficient. Keep later-family activation
+   and a second Cron trigger on hold.
+4. Before a later batch, resolve its product-action exceptions and route its
+   ordinary notification wake calls through the common producer. Manual
+   reminders, session transitions, and THCS still have specialized wake clients.
+
+Use focused checks for changed delivery paths, affected permissions, retry
+containment, and representative load. A system-wide notification inventory is
+required; a general Cloudflare platform redesign or unrelated service testing
+is outside this recovery. Preserve the agreed one retry, admin pattern
+reporting/suppression, verified backfill, and existing inbox/read flags.
 
 ## Historical execution baseline (verified 2026-09-24 before source composition)
 
@@ -272,10 +350,11 @@ action commits. It need not call the browser-facing HTTP route merely to share
 the inbox. Preserve Book's committed-only, one-notice-per-student-per-update,
 safe-link, and no-hidden-answer requirements.
 
-### Current source boundary (2026-09-25)
+### Current source boundary (reviewed 2026-09-26)
 
 `dispatchCommittedNotification` currently covers saved homework
-submission/reset, test completion, and writing submission/grade events. Expand
+submission/reset, assignment and course decisions, test completion, and
+writing submission/grade events. Expand
 this ordinary feature port to other already committed actions. It accepts
 only a registered event kind, saved record ID, and any needed occurrence ID;
 it does not accept a recipient, title, message, or destination. Trusted
@@ -284,18 +363,15 @@ must not each own a separate Worker URL or delivery client. Each resolver
 verifies source authority and writes to the same inbox with deterministic
 identity and bounded retry.
 
-Assignment and course decisions, manual reminders, THCS assignment/fully
-graded events, and session transitions already save their product outcome in
-the ordinary app path; their specialized Worker endpoints mostly wake
-notification delivery. Consolidate those wake calls behind the shared
-producer without moving the product actions. Class membership is a genuine
-Worker-owned action because rejection deletes its prior request proof. Manual
-THCS grading has a trusted atomic grade-and-event boundary. Announcements
-currently use a server-owned roster snapshot. Feedback and result review are
-Worker-owned in current source but are candidates for ordinary atomic saves;
-their browser rules currently deny the Worker-signed intent, so move them
-only with a proven rules and event-write design. Do not treat the desire for
-a retry alone as proof that an action must move into the Worker.
+Manual reminders, THCS assignment/fully graded events, and session transitions
+save their product outcome in the ordinary app path but still use specialized
+delivery wake clients. Consolidate those calls behind the shared producer
+without moving the product actions. Class membership is the reviewed action
+exception. Announcements, feedback, result review, and manual THCS question
+grading are current Worker mutations awaiting the necessity review above.
+See the [route boundary audit](notification-recovery-route-boundary.md) for
+source owners. Neither a retry nor current intent permissions establish that
+an ordinary product action must move into the Worker.
 
 ### Class transition decision (2026-09-24)
 
@@ -432,7 +508,9 @@ they are not part of the 35 ordinary-producer variants above.
 Within each batch, update its callers, trusted policy, durable intent, rules,
 focused tests, admin diagnostics, and browser proof together. Deploy server
 support before app code that invokes it. A partially supported family is still
-incomplete; track each variant individually.
+incomplete; track each variant individually. Resolve any product-action owner
+decision before activating the affected family; a delivery event appearing in
+this inventory is not permission to migrate its product save.
 
 ### 5. Recover missed notices
 
@@ -454,6 +532,11 @@ incomplete; track each variant individually.
 
 ## Checks and release gate
 
+- **Routing boundary:** ordinary source saves remain in their existing owners;
+  notification-only failures do not make those saves depend on the Worker.
+  Check each product-action exception against the decisions above before its
+  release. Consolidate specialized delivery clients into the common producer
+  as their families are restored, without adding a parallel inbox writer.
 - **Focused correctness:** table-driven checks for each event's valid actor,
   wrong actor/recipient, incomplete or stale action, repeated request, and
   safe destination. Test partial bulk replay and a backend outage. Avoid tests
@@ -500,7 +583,7 @@ incomplete; track each variant individually.
 - **Completion:** every applicable existing event variant has a verified
   producer-to-recipient path, ordinary callers use the shared producer with
   no feature-specific delivery URLs or clients, and Worker-owned product
-  actions have documented authority/atomicity proof. There are no broad
+  actions have reviewed necessity and authority/atomicity proof. There are no broad
   browser content writes, the Book events reach the same inbox, missed
   provable events are reconciled, and unresolved delivery failures appear once
   in admin reports. Record any unverified event or remote rule state plainly;

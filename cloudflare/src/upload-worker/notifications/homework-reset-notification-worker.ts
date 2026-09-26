@@ -4,7 +4,7 @@ import { FirebaseHomeworkResetNotificationStorage } from './homework-reset-actio
 import { FirebaseRestNotificationCommandRepository, type NotificationCommandRepository, type NotificationCommandRepositoryEnv } from './repository.ts';
 
 const ACTION_PATH = '/homework-reset-notifications/actions';
-const ALLOWED_ORIGINS = new Set(['https://kahut1.web.app', 'http://localhost:5173', 'http://localhost:5174']);
+const ALLOWED_ORIGINS = new Set(['https://kahut1.web.app', 'https://hocthem.net', 'http://localhost:5173', 'http://localhost:5174']);
 
 type Env = Readonly<Record<string, unknown>>;
 type FirebaseVerifier = ReturnType<typeof createFirebaseVerifier>;

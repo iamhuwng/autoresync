@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InMemoryNotificationCommandRepository } from '../src/upload-worker/notifications/repository.ts';
 import { createHomeworkSubmissionNotificationWorker } from '../src/upload-worker/notifications/homework-submission-worker.ts';
+import { createHomeworkResetNotificationWorker } from '../src/upload-worker/notifications/homework-reset-notification-worker.ts';
 
 const resultId = 'writing-result-1';
 const canonicalResult = {
@@ -20,6 +21,23 @@ const verifier = (uid: string) => ({
 });
 
 describe('homework submission event dispatch', () => {
+  it('allows first-batch preflight from the deployed custom domain and rejects unrelated origins', async () => {
+    for (const [path, worker] of [
+      ['/book-notifications/commands', createHomeworkSubmissionNotificationWorker()],
+      ['/homework-reset-notifications/actions', createHomeworkResetNotificationWorker()],
+    ] as const) {
+      const preflight = (origin: string) => new Request(`https://worker.test${path}`, {
+        method: 'OPTIONS', headers: { Origin: origin },
+      });
+      const allowed = await worker.fetch(preflight('https://hocthem.net'), env);
+      expect(allowed.status).toBe(204);
+      expect(allowed.headers.get('Access-Control-Allow-Origin')).toBe('https://hocthem.net');
+      const denied = await worker.fetch(preflight('https://evil.example'), env);
+      expect(denied.status).toBe(403);
+      expect(denied.headers.has('Access-Control-Allow-Origin')).toBe(false);
+    }
+  });
+
   it('derives the recipient and content from a committed result and intent', async () => {
     const repository = new InMemoryNotificationCommandRepository();
     const hasCommittedIntent = vi.fn(async () => true);

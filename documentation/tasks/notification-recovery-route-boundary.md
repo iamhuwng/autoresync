@@ -13,7 +13,7 @@ Source inspected on 2026-09-26. No additional families were activated. The agree
 | Session lifecycle and THCS practice/homework | Existing browser source mutation; session commits event/intent in the same RTDB update | Specialized Worker dispatch resolves the saved event |
 | Book assignment/update | Existing Book Worker saga/authority surfaces | Book emitter and the same `FirebaseRestNotificationCommandRepository` inbox |
 
-`src/services/notificationProducerClient.ts` sends saved identities to Cloudflare for every ordinary family above. It preserves the ordinary product mutations, but does **not** preserve their previous browser inbox-delivery route. `notificationService.ts:createNotification` still contains the old direct RTDB write; current rules deny new inbox content and allow only the recipient's false-to-true read flag.
+`src/services/notificationProducerClient.ts` sends saved homework, assignment/course-decision, test, and writing identities to Cloudflare. Manual reminders, session transitions, and THCS events still use specialized wake clients; their consolidation into the common producer remains open. These delivery calls preserve ordinary product mutations while replacing the previous browser inbox-delivery route, as discussed and recorded in the [plan](notification-system-recovery-plan.md#routing-decision-from-the-actual-discussion). `notificationService.ts:createNotification` still contains the old direct RTDB write; current rules deny new inbox content and allow only the recipient's false-to-true read flag.
 
 ## Worker-owned product-action exceptions introduced in notification source
 

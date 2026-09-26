@@ -28,6 +28,7 @@ const ENROLLMENT_ACTION_PATH = '/enrollment-notifications/actions';
 const ASSIGNMENT_ACTION_PATH = '/assignment-notifications/actions';
 const ALLOWED_ORIGINS = new Set([
   'https://kahut1.web.app',
+  'https://hocthem.net',
   'http://localhost:5173',
   'http://localhost:5174',
 ]);

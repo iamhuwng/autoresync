@@ -107,6 +107,7 @@ const firstBatchActionPaths = new Set([
 ]);
 const allowedOrigins = new Set([
   'https://kahut1.web.app',
+  'https://hocthem.net',
   'http://localhost:5173',
   'http://localhost:5174',
 ]);
