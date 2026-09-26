@@ -109,7 +109,10 @@ record per result where existing evidence cannot suffice, but requires the
 supported-context/occurrence-proof table before implementation and adversarial
 ancestor-shaped emulator proof before permission approval. Existing editable
 snapshots do not become trusted by freezing them. Authority implementation
-stays separate from the ordinary transport milestone.
+stays separate from the ordinary transport milestone. The [context/occurrence
+proposal](notification-feedback-review-authority-proposal.md) starts with
+individual IELTS Writing homework; existing source-create and identity grants
+still need focused protection, so no cohort is currently proven.
 Ordinary transport checks passed. The recovered harness verified a teacher
 reminder save, one shared POST/200, student inbox receipt, correct homework
 destination, and unread acknowledgement (11 to 10); see the boundary record.
