@@ -131,11 +131,11 @@ describe('notification inbox external subrequests', () => {
     await retryDueHomeworkNotifications(env, now, { fetchImpl, repository });
     expect(patches).toHaveLength(1);
     expect(patches.every((patch) => JSON.stringify(patch).includes('failed'))).toBe(true);
-    expect(calls.filter((call) => call.startsWith('POST https://oauth2.googleapis.com/token'))).toHaveLength(2);
+    expect(calls.filter((call) => call.startsWith('POST https://oauth2.googleapis.com/token'))).toHaveLength(1);
     expect(calls.filter((call) => call.startsWith('POST https://firestore.googleapis.com/'))).toHaveLength(1);
     expect(calls.filter((call) => call.startsWith('GET https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(3);
     expect(calls.filter((call) => call.startsWith('PUT https://temp-a1437-default-rtdb.firebaseio.com'))).toHaveLength(2);
-    expect(calls).toHaveLength(9);
+    expect(calls).toHaveLength(8);
   });
 
   it('bounds manual-reminder and homework-reset terminal retries to one intent per pass', async () => {
