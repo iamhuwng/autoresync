@@ -3,15 +3,21 @@ import { FirebaseClassActionStorage } from './class-action-store.ts';
 import {
   FirebaseRestNotificationCommandRepository,
   type NotificationCommandRepositoryEnv,
+  type NotificationCommandRepository,
 } from './repository.ts';
 
 type Env = Readonly<Record<string, unknown>>;
 
 /** One bounded hourly pass. A claimed retry is never sent a third time. */
-export const retryDueClassNotifications = async (env: Env, now = Date.now()): Promise<void> => {
-  const storage = new FirebaseClassActionStorage(env);
-  const repository = new FirebaseRestNotificationCommandRepository({
+export const retryDueClassNotifications = async (env: Env, now = Date.now(), dependencies: {
+  fetchImpl?: typeof fetch;
+  repository?: NotificationCommandRepository;
+} = {}): Promise<void> => {
+  const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch;
+  const storage = new FirebaseClassActionStorage(env, fetchImpl);
+  const repository = dependencies.repository ?? new FirebaseRestNotificationCommandRepository({
     env: env as NotificationCommandRepositoryEnv,
+    fetchImpl,
   });
   for (const due of await storage.dueIntents(now, 1)) {
     if (due.state === 'retrying') {

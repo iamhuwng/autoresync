@@ -1,5 +1,7 @@
 # Notification recovery implementer rotation handoff
 
+**September 27 source candidate:** **SOURCE IMPLEMENTATION AUTHORIZED, DEPLOYMENT HELD** after the planner reviewed `7df467c2`. The singleton native DO replaces direct scheduled dispatch and adds a cleared 20-second provider deadline. The final eight-file focused run passes 36 checks, including the production-exported singleton native RPC binding and aborted-write recovery. The real maximum contention branch uses 47 requests. Unknown inbox delivery stays claimed at attempt 2; interruption recovery performs no third send. Candidate/recovery dry-run bundles are 367.39/367.54 KiB; pause-trigger dry-run passes. The [recovery procedure](notification-recovery-executor-recovery.md) keeps the same class/binding/migration and pauses only notification Cron; pre-DO `be0c3e4e` cannot be rolled back across the lifecycle migration. Exact-source CI and consolidated planner review precede any deployment. Fresh admin visibility, DO CPU/duration and bounded live backlog remain open.
+
 **Checkpoint:** 2026-09-26 04:49 UTC. This is a continuation, not a completion
 or a new architecture approval. Recheck current source, remote versions, and
 QA records before making deployed-state claims.

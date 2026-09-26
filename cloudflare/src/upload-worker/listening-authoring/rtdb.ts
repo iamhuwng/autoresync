@@ -77,12 +77,9 @@ class TokenCache {
   private cachedToken: string | null = null;
   private expiresAt = 0;
 
-  constructor(
-    private readonly saKeyJson: string,
-    private readonly fetchImpl: typeof fetch,
-  ) {}
+  constructor(private readonly saKeyJson: string) {}
 
-  async getToken(): Promise<string> {
+  async getToken(fetchImpl: typeof fetch): Promise<string> {
     if (this.cachedToken && Date.now() < this.expiresAt - REFRESH_BUFFER_MS) {
       return this.cachedToken;
     }
@@ -109,7 +106,7 @@ class TokenCache {
       .setProtectedHeader({ alg: 'RS256' })
       .sign(privateKey);
 
-    const response = await this.fetchImpl.call(globalThis, OAUTH2_TOKEN_URL, {
+    const response = await fetchImpl.call(globalThis, OAUTH2_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
@@ -129,10 +126,10 @@ class TokenCache {
 }
 
 const tokenCaches = new Map<string, TokenCache>();
-const getTokenCache = (saKeyJson: string, fetchImpl: typeof fetch): TokenCache => {
+const getTokenCache = (saKeyJson: string): TokenCache => {
   let cache = tokenCaches.get(saKeyJson);
   if (!cache) {
-    cache = new TokenCache(saKeyJson, fetchImpl);
+    cache = new TokenCache(saKeyJson);
     tokenCaches.set(saKeyJson, cache);
   }
   return cache;
@@ -466,7 +463,7 @@ export class FirebaseRtdbRestClient {
   getAccessToken(): Promise<string> {
     const saKey = this.options.env.GOOGLE_SA_KEY?.trim();
     if (!saKey) throw new Error('missing_google_sa_key');
-    return getTokenCache(saKey, this.options.fetchImpl).getToken();
+    return getTokenCache(saKey).getToken(this.options.fetchImpl);
   }
 
   private async requestAuth(path: string, query?: FirebaseRtdbQuery): Promise<{

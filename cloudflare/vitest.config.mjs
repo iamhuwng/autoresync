@@ -5,8 +5,12 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       remoteBindings: false,
+      main: './test/fixtures/notification-rpc-worker.js',
       wrangler: { configPath: './wrangler.jsonc' },
       miniflare: {
+        durableObjects: {
+          NOTIFICATION_RETRY_EXECUTOR: { className: 'NotificationRetryExecutor', useSQLite: true },
+        },
         bindings: {
           UPLOAD_GRANT_SECRET: 'TEST_ONLY_NOT_A_SECRET',
         },

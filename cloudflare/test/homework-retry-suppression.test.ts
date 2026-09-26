@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hasCommittedHomeworkNotification, recordHomeworkImmediateOutcome } from '../src/upload-worker/notifications/homework-retry.ts';
+import { FirebaseRtdbRestClient } from '../src/upload-worker/listening-authoring/rtdb.ts';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -11,6 +12,38 @@ const field = (value: unknown): unknown => typeof value === 'string' ? { stringV
   : typeof value === 'number' ? { integerValue: String(value) }
     : { mapValue: { fields: Object.fromEntries(Object.entries(value as Record<string, unknown>)
       .map(([name, item]) => [name, field(item)])) } };
+
+describe('shared OAuth token cache', () => {
+  it('uses the requesting client transport when a shared token needs refreshing', async () => {
+    const key = await crypto.subtle.generateKey({
+      name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256',
+    }, true, ['sign', 'verify']);
+    const env = { GOOGLE_SA_KEY: JSON.stringify({
+      client_email: 'notification-transport@example.test',
+      private_key: pem(await crypto.subtle.exportKey('pkcs8', key.privateKey)),
+    }) };
+    const defaultFetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async function (this: unknown, input) {
+      expect(this).toBe(globalThis);
+      expect(String(input)).toBe('https://oauth2.googleapis.com/token');
+      return new Response(JSON.stringify({ access_token: 'first-token', expires_in: 3600 }));
+    });
+    const first = new FirebaseRtdbRestClient({ env, fetchImpl: globalThis.fetch });
+    await expect(first.getAccessToken()).resolves.toBe('first-token');
+    const currentFetch = vi.fn<typeof fetch>(async function (this: unknown, input) {
+      expect(this).toBe(globalThis);
+      expect(String(input)).toBe('https://oauth2.googleapis.com/token');
+      return new Response(JSON.stringify({ access_token: 'current-token', expires_in: 3600 }));
+    });
+    const current = new FirebaseRtdbRestClient({ env, fetchImpl: currentFetch });
+    await expect(current.getAccessToken()).resolves.toBe('first-token');
+    expect(currentFetch).not.toHaveBeenCalled();
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 56 * 60 * 1000);
+    await expect(current.getAccessToken()).resolves.toBe('current-token');
+    expect(defaultFetch).toHaveBeenCalledTimes(1);
+    expect(currentFetch).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('suppressed homework delivery', () => {
   it('reports a verified immediate failure before marking the retry unavailable', async () => {

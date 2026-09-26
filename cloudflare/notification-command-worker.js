@@ -1,45 +1,14 @@
 import { createHomeworkSubmissionNotificationWorker } from './src/upload-worker/notifications/homework-submission-worker.ts';
-import { retryDueClassNotifications } from './src/upload-worker/notifications/class-retry.ts';
-import { retryDueHomeworkNotifications } from './src/upload-worker/notifications/homework-retry.ts';
-import {
-  createResultReviewNotificationWorker,
-  retryDueResultReviewNotifications,
-} from './src/upload-worker/notifications/result-review-action.ts';
-import { retryDueCourseTypeDecisionNotifications } from './src/upload-worker/notifications/course-type-decision-worker.ts';
+import { createResultReviewNotificationWorker } from './src/upload-worker/notifications/result-review-action.ts';
 import { createFeedbackNotificationWorker } from './src/upload-worker/notifications/feedback-notification-action.ts';
-import { retryDueFeedbackNotifications } from './src/upload-worker/notifications/feedback-notification-retry.ts';
-import { retryDueDeadlineNotifications } from './src/upload-worker/notifications/deadline-notification-worker.ts';
-import { retryDueCourseRequestNotifications } from './src/upload-worker/notifications/enrollment-action.ts';
-import { FirebaseCourseRequestNotificationStorage } from './src/upload-worker/notifications/enrollment-action-store.ts';
-import { retryDueAssignmentNotifications } from './src/upload-worker/notifications/assignment-action.ts';
-import { FirebaseAssignmentNotificationStorage } from './src/upload-worker/notifications/assignment-action-store.ts';
-import { FirebaseRestNotificationCommandRepository } from './src/upload-worker/notifications/repository.ts';
-import {
-  createCourseAnnouncementNotificationWorker,
-  retryDueCourseAnnouncementNotifications,
-} from './src/upload-worker/notifications/course-announcement-action.ts';
-import {
-  createHomeworkResetNotificationWorker,
-  retryDueHomeworkResetNotifications,
-} from './src/upload-worker/notifications/homework-reset-notification-worker.ts';
-import {
-  createThcsNotificationWorker,
-  retryDueThcsNotificationsForEnv,
-} from './src/upload-worker/notifications/thcs-notification-worker.ts';
+import { createCourseAnnouncementNotificationWorker } from './src/upload-worker/notifications/course-announcement-action.ts';
+import { createHomeworkResetNotificationWorker } from './src/upload-worker/notifications/homework-reset-notification-worker.ts';
+import { createThcsNotificationWorker } from './src/upload-worker/notifications/thcs-notification-worker.ts';
 import { createSessionNotificationActionWorker } from './src/upload-worker/notifications/session-notification-action.ts';
-import { retryDueSessionNotifications } from './src/upload-worker/notifications/session-notification-retry.ts';
-import {
-  createWritingNotificationWorker,
-  retryDueWritingNotificationsForEnv,
-} from './src/upload-worker/notifications/writing-grade-notification-worker.ts';
-import {
-  createTestCompleteNotificationWorker,
-  retryDueTestCompleteNotificationsForEnv,
-} from './src/upload-worker/notifications/test-complete-notification-worker.ts';
-import {
-  createGradeNotificationWorker,
-  retryDueGradeNotificationsForEnv,
-} from './src/upload-worker/notifications/grade-notification-worker.ts';
+import { createWritingNotificationWorker } from './src/upload-worker/notifications/writing-grade-notification-worker.ts';
+import { createTestCompleteNotificationWorker } from './src/upload-worker/notifications/test-complete-notification-worker.ts';
+import { createGradeNotificationWorker } from './src/upload-worker/notifications/grade-notification-worker.ts';
+export { NotificationRetryExecutor } from './src/upload-worker/notifications/notification-retry-executor.js';
 
 const worker = createHomeworkSubmissionNotificationWorker();
 const resultReviewWorker = createResultReviewNotificationWorker();
@@ -51,37 +20,6 @@ const sessionWorker = createSessionNotificationActionWorker();
 const writingWorker = createWritingNotificationWorker();
 const testCompleteWorker = createTestCompleteNotificationWorker();
 const gradeWorker = createGradeNotificationWorker();
-const retryRepository = (env) => new FirebaseRestNotificationCommandRepository({ env });
-const bulkRetryFamilies = [
-  retryDueCourseAnnouncementNotifications,
-  retryDueThcsNotificationsForEnv,
-  retryDueSessionNotifications,
-];
-const smallRetryFamilies = [
-  retryDueClassNotifications,
-  retryDueHomeworkNotifications,
-  retryDueResultReviewNotifications,
-  retryDueCourseTypeDecisionNotifications,
-  retryDueClassNotifications,
-  retryDueHomeworkNotifications,
-  retryDueFeedbackNotifications,
-  retryDueDeadlineNotifications,
-  (env) => retryDueCourseRequestNotifications(
-    new FirebaseCourseRequestNotificationStorage(env), retryRepository(env)),
-  (env) => retryDueAssignmentNotifications(
-    new FirebaseAssignmentNotificationStorage(env), retryRepository(env)),
-  retryDueHomeworkResetNotifications,
-  retryDueWritingNotificationsForEnv,
-  retryDueTestCompleteNotificationsForEnv,
-  retryDueGradeNotificationsForEnv,
-];
-// ponytail: One due intent per first-batch slot on Workers Free; raise throughput only after populated CPU proof.
-const firstBatchRetryFamilies = [
-  retryDueClassNotifications,
-  retryDueHomeworkNotifications,
-  retryDueDeadlineNotifications,
-  retryDueHomeworkResetNotifications,
-];
 const notificationActionPaths = new Set([
   '/book-notifications/commands',
   '/class-notifications/actions',
@@ -166,16 +104,17 @@ export default {
     return worker.fetch(request, env);
   },
   scheduled(event, env, context) {
-    const bulk = event.cron === '* * * * *';
-    // The first cutover runs one bounded retry family per invocation.
-    // An unknown value fails closed instead of activating every producer.
-    const batch = env.NOTIFICATION_RETRY_BATCH;
-    if (batch !== 'class-homework' && batch !== 'all') return;
-    if (batch === 'class-homework' && bulk) return;
-    const activeSmallFamilies = batch === 'class-homework' ? firstBatchRetryFamilies : smallRetryFamilies;
-    const families = bulk ? bulkRetryFamilies : activeSmallFamilies;
-    const minute = Math.floor(event.scheduledTime / 60_000);
-    const slot = Math.floor(minute / (bulk ? 1 : 2)) % families.length;
-    context.waitUntil(families[slot](env));
+    if (event.cron !== '*/2 * * * *' || env.NOTIFICATION_RETRY_BATCH !== 'class-homework') return;
+    if (!env.NOTIFICATION_RETRY_EXECUTOR) throw new Error('notification_retry_executor_missing');
+    const executor = env.NOTIFICATION_RETRY_EXECUTOR.getByName('first-batch');
+    const rotating = ['homework-submission', 'manual-reminder', 'homework-reset'];
+    const slot = Math.floor(event.scheduledTime / 120_000) % rotating.length;
+    context.waitUntil((async () => {
+      const failures = [];
+      for (const family of ['class-membership', rotating[slot]]) {
+        try { await executor.retry(family); } catch (error) { failures.push(error); }
+      }
+      if (failures.length) throw new AggregateError(failures, 'notification_retry_failed');
+    })());
   },
 };

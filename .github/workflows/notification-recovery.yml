@@ -113,6 +113,7 @@ jobs:
           test/writing-notification-worker.test.ts
           test/notification-subrequest-budget.test.ts
           test/notification-scheduled-handler.test.ts
+          test/notification-retry-executor.test.ts
           test/homework-submission-notification-worker.test.ts
           test/test-complete-notification-action.test.ts
           test/grade-notification-action.test.ts
@@ -120,3 +121,8 @@ jobs:
       - name: Bundle notification Worker
         working-directory: cloudflare
         run: npx wrangler deploy --dry-run --config wrangler.notifications.jsonc --outdir /tmp/notification-worker-bundle
+      - name: Prepare and bundle same-class notification recovery
+        run: |
+          node scripts/prepare-notification-recovery.mjs
+          cd cloudflare
+          npx wrangler deploy --dry-run --config tmp/notification-recovery/wrangler.notifications.recovery.jsonc --outdir /tmp/notification-recovery-bundle

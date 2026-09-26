@@ -9,6 +9,10 @@
   "preview_urls": false,
   "observability": { "enabled": true },
   "triggers": { "crons": ["*/2 * * * *"] },
+  "durable_objects": {
+    "bindings": [{ "name": "NOTIFICATION_RETRY_EXECUTOR", "class_name": "NotificationRetryExecutor" }]
+  },
+  "migrations": [{ "tag": "v1-notification-retry-executor", "new_sqlite_classes": ["NotificationRetryExecutor"] }],
   "ratelimits": [
     {
       "name": "NOTIFICATION_RATE_LIMITER",

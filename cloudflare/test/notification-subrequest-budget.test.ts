@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { env as workerEnv } from 'cloudflare:workers';
+import { runInDurableObject } from 'cloudflare:test';
 import { FirebaseRestNotificationCommandRepository } from '../src/upload-worker/notifications/repository.ts';
 import { FirebaseDeadlineNotificationStorage } from '../src/upload-worker/notifications/deadline-action-store.ts';
 import { FirebaseHomeworkResetNotificationStorage } from '../src/upload-worker/notifications/homework-reset-action-store.ts';
@@ -7,6 +9,7 @@ import { createDeadlineNotificationHandlers } from '../src/upload-worker/notific
 import { createHomeworkResetNotificationHandlers } from '../src/upload-worker/notifications/homework-reset-action.ts';
 import { retryDueClassNotifications } from '../src/upload-worker/notifications/class-retry.ts';
 import { retryDueHomeworkNotifications } from '../src/upload-worker/notifications/homework-retry.ts';
+import { NotificationRetryExecutor } from '../src/upload-worker/notifications/notification-retry-executor.js';
 
 const pem = (bytes: ArrayBuffer): string => {
   const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
@@ -19,6 +22,132 @@ const firestoreValue = (value: unknown): unknown => typeof value === 'string' ? 
       .map(([name, item]) => [name, firestoreValue(item)])) } };
 
 describe('notification inbox external subrequests', () => {
+  it('caps contention at 47 requests and preserves an aborted class claim without a third send', async () => {
+    const key = await crypto.subtle.generateKey({
+      name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256',
+    }, true, ['sign', 'verify']);
+    const identity = 'notification-executor-contention@example.test';
+    const env = {
+      FIREBASE_DB_URL: 'https://temp-a1437-default-rtdb.firebaseio.com',
+      FIREBASE_PROJECT_ID: 'temp-a1437',
+      NOTIFICATION_COMMAND_SERVICE_IDENTITY: identity,
+      NOTIFICATION_COMMAND_GOOGLE_SA_KEY: JSON.stringify({
+        client_email: identity, private_key: pem(await crypto.subtle.exportKey('pkcs8', key.privateKey)),
+      }),
+    };
+    const now = Date.now();
+    const intents = [1, 2].map((index) => ({
+      actionId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      kind: 'join-pending', classId: 'class1', studentId: `student${index}`,
+      actorUid: 'teacher1', teacherId: 'teacher1', occurredAt: now - 2000,
+      className: 'Example Class', studentName: `Student ${index}`,
+      dueAt: now - 1, attempts: 1, state: 'retry_due',
+    }));
+    const intentPath = `/notification_intents/${intents[0].actionId}.json`;
+    const gatePath = '/notification_retry_families/class-membership.json';
+    const issuePath = `/reports/errors/${new Date(now - 2000).toISOString().slice(0, 10)}/${intents[0].actionId}.json`;
+    const rows = new Map<string, Record<string, unknown>>([
+      [intentPath, { ...intents[0] }],
+      [gatePath, { consecutiveFailures: 1, failedActionIds: ['prior-failure'], retrySuppressed: false,
+        lastFailureAt: now - 1000, lastIssuePath: issuePath.slice(1, -5) }],
+      [issuePath, { id: intents[0].actionId, contextData: {} }],
+    ]);
+    const rounds = new Map<string, number>();
+    const calls: Array<{ path: string; method: string; init?: RequestInit }> = [];
+    let abortInbox: (() => void) | undefined;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      const path = new URL(url).pathname;
+      const method = init?.method ?? 'GET';
+      calls.push({ path, method, init });
+      if (url === 'https://oauth2.googleapis.com/token') {
+        return new Response(JSON.stringify({ access_token: 'contention-token', expires_in: 3600 }));
+      }
+      if (!url.startsWith(env.FIREBASE_DB_URL)) throw new Error(`unexpected ${method} ${url}`);
+      if (method === 'GET' && path === '/notification_intents.json') {
+        const limit = Number(new URL(url).searchParams.get('limitToFirst'));
+        expect(limit).toBe(1);
+        return new Response(JSON.stringify(Object.fromEntries(intents.slice(0, limit).map((intent) => [intent.actionId, rows.get(`/notification_intents/${intent.actionId}.json`) ?? intent]))));
+      }
+      if (method === 'GET') return new Response(JSON.stringify(rows.get(path) ?? null), { headers: { etag: '"0"' } });
+      if (method !== 'PUT') throw new Error(`unexpected ${method} ${url}`);
+      if (path.startsWith('/notifications/') && abortInbox) {
+        abortInbox();
+        init?.signal?.throwIfAborted();
+      }
+      const next = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      const phase = path === intentPath ? String(next.state)
+        : path === gatePath ? Object.hasOwn(next, 'lastIssuePath') ? 'recover' : 'clear'
+          : 'write';
+      const roundKey = `${path}:${phase}`;
+      const round = (rounds.get(roundKey) ?? 0) + 1;
+      rounds.set(roundKey, round);
+      const requiredRounds = path.startsWith('/notifications/') ? 5
+        : path === intentPath && phase === 'retrying' ? 1 : 3;
+      if (round < requiredRounds) return new Response('null', { status: 412 });
+      rows.set(path, next);
+      return new Response('null');
+    };
+    vi.stubGlobal('fetch', fetchImpl);
+    try {
+      await runInDurableObject(workerEnv.UPLOAD_GRANT_REPLAY_LEDGER.getByName('notification-budget-native-state'),
+        async (_instance, state) => {
+          await new NotificationRetryExecutor(state, env).retry('class-membership');
+          const signal = calls[0].init?.signal;
+          expect(signal).toBeInstanceOf(AbortSignal);
+          expect(signal?.aborted).toBe(false);
+          expect(calls.every(({ init }) => init?.signal === signal)).toBe(true);
+        });
+    } finally { vi.unstubAllGlobals(); }
+    expect(calls).toHaveLength(47);
+    expect(calls.filter(({ path }) => path === '/token')).toHaveLength(1);
+    expect(calls.filter(({ method }) => method === 'GET')).toHaveLength(23);
+    expect(calls.filter(({ method }) => method === 'PUT')).toHaveLength(23);
+    expect(calls.every(({ init }) => init?.redirect === 'error')).toBe(true);
+    expect(rows.get(intentPath)).toMatchObject({ state: 'done', attempts: 2 });
+    expect(intents[1]).toMatchObject({ state: 'retry_due', attempts: 1 });
+    const inbox = [...rows].filter(([path]) => path.startsWith('/notifications/'));
+    expect(inbox).toHaveLength(2);
+    expect(inbox.every(([, row]) => row.read === false)).toBe(true);
+    expect(rows.get(gatePath)).toMatchObject({ consecutiveFailures: 0, failedActionIds: [], retrySuppressed: false });
+    expect(rows.get(gatePath)).not.toHaveProperty('lastIssuePath');
+    expect(rows.get(issuePath)?.contextData).toMatchObject({ lastSuccessAt: expect.any(Number) });
+
+    // An unknown inbox write must retain the claim; recovery only checks inboxes.
+    rows.set(intentPath, { ...intents[0] });
+    for (const [path] of inbox) rows.delete(path);
+    rounds.clear();
+    calls.length = 0;
+    const timeout = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((expire: () => void) => {
+      abortInbox = expire;
+      return 123;
+    }) as typeof setTimeout);
+    const clear = vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => {});
+    vi.stubGlobal('fetch', fetchImpl);
+    try {
+      await runInDurableObject(workerEnv.UPLOAD_GRANT_REPLAY_LEDGER.getByName('notification-abort-native-state'),
+        async (_instance, state) => {
+          await expect(new NotificationRetryExecutor(state, env).retry('class-membership'))
+            .rejects.toThrow('notification_retry_deadline');
+        });
+      expect(rows.get(intentPath)).toMatchObject({ state: 'retrying', attempts: 2 });
+      expect(calls.filter(({ path, method }) => path.startsWith('/notifications/') && method === 'PUT')).toHaveLength(1);
+      timeout.mockRestore();
+      clear.mockRestore();
+      abortInbox = undefined;
+      rows.set(intentPath, { ...rows.get(intentPath), dueAt: now - 1 });
+      calls.length = 0;
+      await runInDurableObject(workerEnv.UPLOAD_GRANT_REPLAY_LEDGER.getByName('notification-interrupted-native-state'),
+        async (_instance, state) => { await new NotificationRetryExecutor(state, env).retry('class-membership'); });
+      expect(rows.get(intentPath)).toMatchObject({ state: 'failed', attempts: 2 });
+      expect(calls.some(({ path, method }) => path.startsWith('/notifications/') && method === 'PUT')).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
+  });
+
   it('bounds a populated class membership retry to one delivered intent', async () => {
     const key = await crypto.subtle.generateKey({
       name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
