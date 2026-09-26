@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import type { Database } from 'firebase/database';
-import type { THCSTest } from '../../types/thcs-test.types';
-import { saveThcsTestToFirebase } from '../../services/thcsTestStorage';
+import type { THCSQuestion, THCSTest } from '../../types/thcs-test.types';
+import { publishTestUpdate, saveThcsTestToFirebase, updateThcsTestInFirebase } from '../../services/thcsTestStorage';
 
 const client = vi.hoisted(() => ({ database: undefined as Database | undefined }));
 vi.mock('../../services/firebase', () => ({ get database() { return client.database; } }));
@@ -35,14 +35,26 @@ describe('THCS publish database authorization', () => {
     const test: THCSTest = {
       id: 'thcs-new', testType: 'THCS-THPT',
       metadata: { title: 'Publish regression', duration: 45, gradeLevel: 9, examType: 'entrance' },
-      sections: [], questionCount: 1, totalPoints: 1,
+      sections: [{
+        id: 'section-1', name: 'Grammar', order: 0, totalPoints: 1, pointMode: 'auto',
+        instructionText: 'Choose the answer', isCustomInstruction: false, layout: 'single-column',
+        questions: [{
+          id: 'question-1', questionNumber: 1, type: 'mcq-grammar', questionText: 'QA question',
+          options: ['One', 'Two', 'Three', 'Four'], correctAnswer: 'A',
+          blankCount: undefined, blankAnswers: undefined,
+        } as THCSQuestion],
+      }], questionCount: 1, totalPoints: 1,
       createdBy: 'teacher-1', ownerId: 'teacher-1', isPublic, isComplete: true,
       createdAt: 1700000000000, updatedAt: 1700000000000,
     };
     expect(await saveThcsTestToFirebase(test)).toEqual({ success: true, testId: test.id });
     expect((await database.ref(`tests/${test.id}`).once('value')).val().publishedAt).toBeTypeOf('number');
+    expect((await database.ref(`tests/${test.id}/sections/0/questions/0`).once('value')).val()).not.toHaveProperty('blankCount');
     expect((await database.ref(`material_catalog/material_summary_indexes/v1/by_owner/teacher-1/${test.id}`).once('value')).val().producerId).toBe('thcs-thpt');
     expect(await saveThcsTestToFirebase({ ...test, metadata: { ...test.metadata, title: 'Republished' } })).toEqual({ success: true, testId: test.id });
+    expect(await updateThcsTestInFirebase(test.id, { sections: test.sections })).toEqual({ success: true });
+    await publishTestUpdate(test.id, { ...test, metadata: { ...test.metadata, title: 'Direct republish' } }, 'teacher-1');
+    expect((await database.ref(`tests/${test.id}/metadata/title`).once('value')).val()).toBe('Direct republish');
   });
 
   it('keeps private existing tests and absent-row reads protected from other roles', async () => {
