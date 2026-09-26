@@ -1423,40 +1423,33 @@ export async function deleteTestResult(resultId: string): Promise<void> {
       throw new Error('Result not found');
     }
 
-    // Delete main record
-    const resultRef = ref(database, `test_results/${resultId}`);
-    await set(resultRef, null);
-
-    // Delete session index
-    const sessionIndexRef = ref(database, `test_results_by_session/${result.sessionCode}/${resultId}`);
-    await set(sessionIndexRef, null);
-
-    // Delete student index
-    const studentIndexRef = ref(database, `test_results_by_student/${result.studentId}/${resultId}`);
-    await set(studentIndexRef, null);
+    // Index rules authorize deletion from the canonical result's pre-write state.
+    const updates: Record<string, null> = {
+      [`test_results/${resultId}`]: null,
+      [`test_results_by_session/${result.sessionCode}/${resultId}`]: null,
+      [`test_results_by_student/${result.studentId}/${resultId}`]: null,
+    };
 
     if (isSoloPracticeResult(result)) {
-      const soloPracticeIndexRef = ref(database, `test_results_solo_practice_by_student/${result.studentId}/${resultId}`);
-      await set(soloPracticeIndexRef, null);
+      updates[`test_results_solo_practice_by_student/${result.studentId}/${resultId}`] = null;
     }
 
     const teacherIndexOwnerId = getTeacherIndexOwnerId(result);
     if (teacherIndexOwnerId) {
-      const teacherIndexRef = ref(database, `test_results_by_teacher/${teacherIndexOwnerId}/${resultId}`);
-      await set(teacherIndexRef, null);
+      updates[`test_results_by_teacher/${teacherIndexOwnerId}/${resultId}`] = null;
     }
 
     const canonicalCourseId = getCanonicalCourseIndexId(result);
     if (canonicalCourseId) {
-      const courseIndexRef = ref(database, `test_results_by_course/${canonicalCourseId}/${result.studentId}/${resultId}`);
-      await set(courseIndexRef, null);
+      updates[`test_results_by_course/${canonicalCourseId}/${result.studentId}/${resultId}`] = null;
     }
 
     const canonicalClassId = getCanonicalClassIndexId(result);
     if (canonicalClassId) {
-      const classIndexRef = ref(database, `test_results_by_class/${canonicalClassId}/${result.studentId}/${resultId}`);
-      await set(classIndexRef, null);
+      updates[`test_results_by_class/${canonicalClassId}/${result.studentId}/${resultId}`] = null;
     }
+
+    await update(ref(database), updates);
 
     try {
       await clearUnresolvedResultVisibilityReport(resultId);
