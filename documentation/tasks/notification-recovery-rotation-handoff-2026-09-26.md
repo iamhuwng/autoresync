@@ -4,6 +4,8 @@
 or a new architecture approval. Recheck current source, remote versions, and
 QA records before making deployed-state claims.
 
+**Current update, 05:28 UTC:** source `bee5a7d3` passed [CI 36219800815](https://github.com/iamhuwng/autoresync/actions/runs/36219800815). Exact-source local student/teacher browser QA verified notification navigation and read flags, a fresh homework submission and teacher notice, and reset cleanup of the exact canonical result plus session/student/teacher indexes. The [release record](notification-recovery-release-candidate.md) gives IDs and the Firebase readback. Wrangler deployment status now shows Worker `d4da93f2-37a2-4a23-bda2-faeada990cf7` at 100%; version readback retains `fetch`, `scheduled`, both secret bindings, `NOTIFICATION_RETRY_BATCH=class-homework`, and the deploy retained one `*/2 * * * *` Cron. This focused release fixes repeated recovery-issue rewrites. Cold populated CPU, realistic backlog drain, fresh admin recovery proof, later families, Book verification, and historical backfill remain open. The older `2a1df6dc` reference below is the rotation-time snapshot.
+
 The new implementation owner is [Implement notification recovery — rotation 2](codex://threads/01a0dc11-397e-7a40-b59f-01940d8e685c)
 (GPT-6 Sol/high). The prior [notification implementor](codex://threads/01a0d9b4-3601-76c1-bff5-3440a1f762f2)
 thread stopped at a Codex usage limit. Its `6dbb` checkout disappeared after
