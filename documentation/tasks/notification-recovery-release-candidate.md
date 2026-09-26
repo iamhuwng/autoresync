@@ -2,6 +2,10 @@
 
 **Prepared:** 2026-09-24. **Current status (2026-09-26):** first-batch Firebase rules, notification Worker, and selective Hosting are deployed to `temp-a1437` / `kahut1`. The first-batch retry gate is now deployed too. Later notification families and historical backfill remain staged separately. The dated preparation and readback sections below record earlier states.
 
+## Restored delivery and CPU escalation (2026-09-26 02:17 UTC)
+
+Source `7604a853` deployed as `741a9945-cf7b-4718-a8f6-228db440c034` at 02:08:42 UTC. At 02:16:11 UTC the retained class canary completed attempt 2 exactly once; both expected inbox rows were read back with correct original time, links, and unread state. Tail confirms this version, no exception, and successful Cron outcome. GraphQL records one request, zero errors, 11 subrequests, and **11.627 ms CPU**. Supported transport and delivery are restored; the normal retry still exceeds the 10 ms target. Two materially different focused attempts are exhausted. See the [CPU escalation report](notification-recovery-cpu-escalation.md) for evidence, the failed silent-write attempt, the 15-request cold recovery branch, and calculated four-hour class backlog concern. Further CPU changes await planner decision; later families and the second Cron remain held.
+
 ## Focused CPU corrections (2026-09-26 02:09 UTC)
 
 - CORS source `e32c9ba1` deployed as `333a16e9-9b9f-4df3-a41c-01e6427604f6`. Live preflights from the existing `https://hocthem.net` domain succeed for Book, class, deadline, and homework-reset routes; an unrelated origin remains denied and later feedback actions remain inactive.
