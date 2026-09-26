@@ -1,5 +1,7 @@
 # Notification retry executor recovery
 
+**Exact-source verification:** [CI 36264700700](https://github.com/iamhuwng/autoresync/actions/runs/36264700700) passed on `4b94ccb7d58422ad2ac2a19ec222af4ec1c5775b`: app notification services, RTDB/Firestore authority, atomic result/index deletion, Workerd actions, candidate bundle and same-class recovery generator/bundle. The final local focused run passed 36/36. Source review found no concrete defects; the production-exported singleton native RPC check closes the construction-only proof gap. **DEPLOYMENT HELD** pending the planner's consolidated decision. No DO provisioning, remote pause/deploy/resume or backlog seed has run for this candidate.
+
 ## Scope and status
 
 Source preparation and local bundle verification only. **All remote pause,
