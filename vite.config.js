@@ -26,6 +26,27 @@ export default defineConfig(({ mode }) => {
   }
 
   if (mode === 'production') {
+    const readingV2RolloutMode = process.env.VITE_READING_V2_ROLLOUT_MODE || env.VITE_READING_V2_ROLLOUT_MODE;
+    if (!['off', 'internal-only', 'teacher-preview', 'public'].includes(readingV2RolloutMode)) {
+      throw new Error('Production builds require an explicit VITE_READING_V2_ROLLOUT_MODE.');
+    }
+    if (readingV2RolloutMode === 'teacher-preview' || readingV2RolloutMode === 'public') {
+      const submissionEndpoint = process.env.VITE_READING_V2_SUBMISSION_ENDPOINT || env.VITE_READING_V2_SUBMISSION_ENDPOINT;
+      try {
+        if (new URL(submissionEndpoint || '').protocol !== 'https:') throw new Error();
+      } catch {
+        throw new Error('Production Reading V2 rollout requires an HTTPS VITE_READING_V2_SUBMISSION_ENDPOINT.');
+      }
+    }
+
+    const backupWorkerUrl = process.env.VITE_BACKUP_WORKER_URL || env.VITE_BACKUP_WORKER_URL;
+    try {
+      const parsed = new URL(backupWorkerUrl || '');
+      if (parsed.protocol !== 'https:' || parsed.href !== `${parsed.origin}/`) throw new Error();
+    } catch {
+      throw new Error('Production homework assignment requires VITE_BACKUP_WORKER_URL as an exact HTTPS origin.');
+    }
+
     const databaseUrl = process.env.VITE_FIREBASE_DATABASE_URL || env.VITE_FIREBASE_DATABASE_URL;
     try {
       const parsed = new URL(databaseUrl || '');
