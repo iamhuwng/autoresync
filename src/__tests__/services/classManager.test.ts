@@ -371,19 +371,56 @@ describe('Class Manager - Remove Student', () => {
     await cleanupTestData();
   });
 
-  it('should remove student from class, legacy session, and matching class-based enrollments', async () => {
+  it('should remove student from class and matching class-based enrollments', async () => {
     const result = await removeStudentFromClass(testClassId, TEST_STUDENT_UID);
     expect(result.success).toBe(true);
 
     const classData = await getClass(testClassId);
     expect(classData?.students[TEST_STUDENT_UID]).toBeUndefined();
 
-    const legacyPlayerSnapshot = await get(ref(database, `game_sessions/${testClassId}/players/${TEST_STUDENT_UID}`));
-    expect(legacyPlayerSnapshot.exists()).toBe(false);
-
     const enrollments = (await get(ref(database, 'course_enrollments'))).val() as Record<string, unknown>;
     expect(enrollments?.['enrollment-remove']).toBeUndefined();
     expect(enrollments?.['enrollment-keep']).toBeDefined();
+  });
+
+  it('keeps canonical roster removal durable when optional cleanup is denied', async () => {
+    const updateMock = vi.mocked(update);
+    const originalUpdate = updateMock.getMockImplementation();
+
+    if (!originalUpdate) {
+      throw new Error('Expected mocked firebase update implementation');
+    }
+
+    const touchedPaths: string[] = [];
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    updateMock.mockImplementation(async (target, updates) => {
+      const targetPath = (target as { path: string }).path;
+      const paths = Object.keys(updates).map((key) => (
+        [targetPath, normalizePath(key)].filter(Boolean).join('/')
+      ));
+      touchedPaths.push(...paths);
+
+      if (paths.some((path) => path.startsWith(`student_classes/${TEST_STUDENT_UID}/${testClassId}`)
+        || path.startsWith('course_enrollments/'))) {
+        throw new Error('permission_denied');
+      }
+
+      return originalUpdate(target, updates);
+    });
+
+    try {
+      const result = await removeStudentFromClass(testClassId, TEST_STUDENT_UID);
+
+      expect(result.success).toBe(true);
+      expect((await get(ref(database, `classes/${testClassId}/students/${TEST_STUDENT_UID}`))).exists()).toBe(false);
+      expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`))).exists()).toBe(true);
+      expect((await get(ref(database, 'course_enrollments/enrollment-remove'))).exists()).toBe(true);
+      expect(touchedPaths.some((path) => path.startsWith(`game_sessions/${testClassId}`))).toBe(false);
+    } finally {
+      updateMock.mockImplementation(originalUpdate);
+      warnSpy.mockRestore();
+    }
   });
 
   it('should return an error when student does not exist in class', async () => {

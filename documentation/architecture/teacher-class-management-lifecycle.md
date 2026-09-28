@@ -44,6 +44,14 @@ Best-effort cleanup must not roll back the class delete. If projection cleanup
 fails because of rules, stale membership projections may remain until explicit
 maintenance or a later canonical write path cleans them.
 
+## Student Removal Contract
+
+`removeStudentFromClass(classId, studentId)` must treat removal from
+`classes/{classId}/students/{studentId}` as the durable success boundary.
+Cleanup of `student_classes` membership projections and class-based course
+enrollments is best-effort and must not block or reverse canonical roster
+removal. Student removal must not write to class-backed `game_sessions` rows.
+
 ## Legacy Game Session Boundary
 
 Class creation still writes a legacy compatibility row at:
