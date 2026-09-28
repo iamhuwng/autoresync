@@ -22,6 +22,7 @@ const env = {
 };
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   aiRun.mockReset();
 });
@@ -174,6 +175,34 @@ it('routes Gemini through the authenticated US relay without a direct fallback',
   expect(await quota.json()).toEqual({ error: '{"error":"[redacted] [redacted] quota exceeded"}' });
   expect(relay).toHaveBeenCalledTimes(1);
   expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('generativelanguage'))).toBe(true);
+});
+
+it('backs off and retries transient Gemini capacity failures at the Worker boundary', async () => {
+  vi.useFakeTimers();
+  const id = '11111111-1111-4111-8111-111111111111';
+  const relay = vi.fn()
+    .mockResolvedValueOnce(Response.json({ error: { code: 503, status: 'UNAVAILABLE' } }, { status: 503 }))
+    .mockResolvedValueOnce(Response.json({ error: { code: 503, status: 'UNAVAILABLE' } }, { status: 503 }))
+    .mockResolvedValueOnce(Response.json({ candidates: [{ content: { parts: [{ text: 'Done' }] } }] }));
+  vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, options?: RequestInit) => {
+    if (String(url).includes('firebase')) return Response.json({ role: 'teacher', status: 'active' });
+    return relay(url, options);
+  }));
+  const responsePromise = makeWorker().fetch(new Request('https://worker.example/ai/gemini', {
+    method: 'POST',
+    headers: { Origin: 'http://localhost:5173', Authorization: 'Bearer valid-token', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyId: id, model: 'gemini-2.5-flash', prompt: 'Hello' }),
+  }), {
+    ...env,
+    GEMINI_RELAY_TOKEN: 'relay-secret',
+    AI_KEYS: { get: async () => ({ id, provider: 'gemini', key: 'gemini-provider-secret', isActive: true }) },
+  });
+
+  await vi.runAllTimersAsync();
+  const response = await responsePromise;
+
+  expect(response.status).toBe(200);
+  expect(relay).toHaveBeenCalledTimes(3);
 });
 
 it('returns a distinct 429 error for per-user AI throttling', async () => {

@@ -1,6 +1,7 @@
 const KEY_PREFIX = 'ai-key:';
 const MAX_REQUEST_BYTES = 180_000;
 const GEMINI_RELAY_URL = 'https://gemini-us-relay.hocthem.deno.net/generateContent';
+const GEMINI_RETRY_DELAYS_MS = [1_000, 2_000];
 const MODELS = {
   groq: new Set(['qwen/qwen3.8-27b']),
   gemini: new Set(['gemini-2.5-flash']),
@@ -114,6 +115,23 @@ function normalizeGroqRequest(body) {
   };
 }
 
+async function fetchProvider(provider, url, init) {
+  const retryDelays = provider === 'gemini' ? GEMINI_RETRY_DELAYS_MS : [];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetch(url, init);
+      if (response.status !== 503 || attempt === retryDelays.length) return response;
+      await response.body?.cancel();
+    } catch (error) {
+      if (attempt === retryDelays.length) throw error;
+    }
+    await new Promise((resolve) => setTimeout(
+      resolve,
+      retryDelays[attempt] + Math.floor(Math.random() * 250),
+    ));
+  }
+}
+
 async function proxyProvider(request, env, auth, provider) {
   const limited = await env.THCS_RATE_LIMITER.limit({ key: `ai:${auth.uid}` });
   if (!limited?.success) return json({ error: 'rate_limited' }, 429);
@@ -136,7 +154,7 @@ async function proxyProvider(request, env, auth, provider) {
     ? { Authorization: `Bearer ${entry.key}`, 'Content-Type': 'application/json' }
     : { Authorization: `Bearer ${env.GEMINI_RELAY_TOKEN}`, 'X-Provider-Key': entry.key, 'Content-Type': 'application/json' };
   try {
-    const upstream = await fetch(url, {
+    const upstream = await fetchProvider(provider, url, {
       method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(120_000),
     });
     let result = (await upstream.text()).replaceAll(entry.key, '[redacted]');
