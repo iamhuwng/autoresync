@@ -42,6 +42,20 @@ it('allows browser preflight for AI key management methods', async () => {
   }
 });
 
+it('allows AI preflight from the production custom domain', async () => {
+  const response = await makeWorker().fetch(new Request('https://worker.example/ai/keys', {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'https://hocthem.net',
+      'Access-Control-Request-Method': 'GET',
+      'Access-Control-Request-Headers': 'authorization',
+    },
+  }), env);
+
+  expect(response.status).toBe(204);
+  expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://hocthem.net');
+});
+
 it('allows a teacher and sends a bounded, non-thinking Gemma request', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ role: 'teacher', status: 'active' })));
   aiRun.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: 'Restructured test text.' } }] });

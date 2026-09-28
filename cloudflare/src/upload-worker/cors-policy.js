@@ -1,4 +1,5 @@
 const APPROVED_ORIGINS = new Set([
+  'https://hocthem.net',
   'https://kahut1.web.app',
   'http://localhost:5173',
   'http://localhost:5174',
