@@ -84,7 +84,10 @@ export interface PipelineDebug {
     issuesFound: string[];
     auditLog: RepairAuditEntry[];
     compromisedSections: CompromiseResult['compromisedSections'];
-    skippedSections: CompromiseResult['skippedSections'];
+    skippedSections: Array<Omit<CompromiseResult['skippedSections'][number], 'sectionIndex'> & {
+        sectionIndex: -1;
+        sourceSectionIndex: number;
+    }>;
     hasInferredAnswers: boolean;
     inferredAnswerCount: number;
     pipeline: string;
@@ -102,6 +105,17 @@ export interface ParsedTest {
 }
 
 export type Result<T> = { success: true; data: T } | { success: false; error: string };
+
+/** Keep source positions for diagnostics without letting the review UI badge parsed sections by index. */
+export function preserveSkippedSourceIndices(
+    skippedSections: CompromiseResult['skippedSections'],
+): PipelineDebug['skippedSections'] {
+    return skippedSections.map(({ sectionIndex, ...section }) => ({
+        ...section,
+        sectionIndex: -1 as const,
+        sourceSectionIndex: sectionIndex,
+    }));
+}
 
 // -- Regex Patterns (PRD §4.12.3) --
 
@@ -579,26 +593,81 @@ function backfillQuestionTextFromSource(sections: ParsedSection[], sourceText: s
     if (!sourceText.trim()) return 0;
 
     const rawSource = createRawSourceArtifact(sourceText);
-    const sourceQuestions = new Map(
-        rawSource.questionBlocks
-            .filter(block => block.questionText.trim())
-            .map(block => [block.questionNumber, block.questionText.trim()]),
-    );
+    const parsedQuestions = sections.flatMap(section => section.questions);
+    const sourceQuestions = rawSource.questionBlocks;
+    const uniqueSourceQuestions = new Map<number, string>();
+    const duplicateNumbers = new Set<number>();
+    for (const block of sourceQuestions) {
+        if (uniqueSourceQuestions.has(block.questionNumber)) duplicateNumbers.add(block.questionNumber);
+        else uniqueSourceQuestions.set(block.questionNumber, block.questionText.trim());
+    }
 
     let backfilled = 0;
-    for (const section of sections) {
-        for (const question of section.questions) {
-            if (question.text.trim()) continue;
+    for (const [index, question] of parsedQuestions.entries()) {
+        if (question.text.trim()) continue;
 
-            const sourceQuestionText = sourceQuestions.get(question.questionNumber);
-            if (!sourceQuestionText) continue;
+        const positional = sourceQuestions.length === parsedQuestions.length ? sourceQuestions[index] : undefined;
+        const sourceQuestionText = positional?.questionNumber === question.questionNumber
+            ? positional.questionText.trim()
+            : duplicateNumbers.has(question.questionNumber) ? '' : uniqueSourceQuestions.get(question.questionNumber);
+        if (!sourceQuestionText) continue;
 
-            question.text = sourceQuestionText;
-            backfilled++;
-        }
+        question.text = sourceQuestionText;
+        backfilled++;
     }
 
     return backfilled;
+}
+
+/** Restore source identity only when every option group proves the AI kept source order. */
+export function restoreParsedTestFromSource(
+    parsedTest: ParsedTest,
+    sourceText: string,
+    sourceAnswerKey: Record<number, string>,
+): boolean {
+    const source = createRawSourceArtifact(sourceText);
+    const sourceAnswerBlock = source.answerKeyBlock;
+    if (!sourceAnswerBlock) return false;
+    const questions = parsedTest.sections.flatMap(section => section.questions);
+    const body = source.normalizedText.slice(0, sourceAnswerBlock.anchor.startOffset);
+    const sourceQuestions = [...body.matchAll(/^(?:Question|C[aâ]u|Q)\s+(\d+)[.):][ \t]*(.*)([\s\S]*?)(?=^(?:Question|C[aâ]u|Q)\s+\d+[.):]|^(?:Exercise|Part|Section|Phần)\s+\d+|$(?![\s\S]))/gim)]
+        .map(match => {
+            const lines = `${match[2]}\n${match[3]}`.trim().split('\n');
+            const optionStart = lines.findIndex(line => /^[A-H][.):]\s/.test(line));
+            return {
+                localNumber: Number(match[1]),
+                text: lines.slice(0, optionStart < 0 ? lines.length : optionStart).join(' ').trim(),
+                options: lines.filter(line => /^[A-H][.):]\s/.test(line)).map(line => line.replace(/^[A-H][.):]\s*/, '').trim()),
+            };
+        });
+    const count = sourceQuestions.length;
+    if (count === 0 || questions.length !== count || Object.keys(sourceAnswerKey).length !== count) return false;
+    if (Object.keys(sourceAnswerBlock.answers).length !== count ||
+        !sourceQuestions.every((_block, index) => sourceAnswerBlock.answers[index + 1] === sourceAnswerKey[index + 1])) return false;
+    if (!questions.every((question, index) => {
+        const block = sourceQuestions[index]!;
+        const normalizeOption = (value: string) => value.replace(/^[A-H][.):]\s*/, '').replace(/\s+/g, ' ').trim();
+        return sourceAnswerKey[index + 1]
+            && (question.questionNumber === block.localNumber || question.questionNumber === index + 1)
+            && block.options.length > 0
+            && block.options.length === question.options?.length
+            && block.options.every((option, optionIndex) => normalizeOption(option) === normalizeOption(question.options![optionIndex]!));
+    })) return false;
+
+    const passages = [...source.normalizedText.matchAll(/^PASSAGE:[^\n]*\n([\s\S]*?)(?=^Question\s+\d+[.):])/gm)]
+        .map(match => match[1]!.trim());
+    const sectionsWithPassage = parsedTest.sections.filter(section => section.passageText);
+    if (passages.length !== sectionsWithPassage.length) return false;
+
+    questions.forEach((question, index) => {
+        const number = index + 1;
+        question.questionNumber = number;
+        question.text = sourceQuestions[index]!.text;
+        question.correctAnswer = sourceAnswerKey[number];
+    });
+    parsedTest.answerKey = { ...sourceAnswerKey };
+    sectionsWithPassage.forEach((section, index) => { section.passageText = passages[index]; });
+    return true;
 }
 
 export function repairParsedSectionStructure(
@@ -989,6 +1058,7 @@ export async function parseThcsText(
         if (repairStats.mergedOrphanReadingSections > 0 || repairStats.backfilledQuestionTexts > 0) {
             console.log('[parseThcsText] Structural repair:', repairStats);
         }
+        restoreParsedTestFromSource(parsedTest, cleaned, sourceAnswerKey);
 
         // --- Stage 6: Type Classification ---------------------------
         console.log(`[parseThcsText] Stage 6: Classifying ${parsedTest.sections.length} sections`);
@@ -1083,7 +1153,7 @@ export async function parseThcsText(
             issuesFound: validationReport.issues.map(i => i.code),
             auditLog: allAuditEntries,
             compromisedSections: compromiseResult?.compromisedSections || [],
-            skippedSections: compromiseResult?.skippedSections || [],
+            skippedSections: preserveSkippedSourceIndices(compromiseResult?.skippedSections || []),
             hasInferredAnswers: inferredAnswerCount > 0 || (aiResult?.hasInferredAnswers ?? false),
             inferredAnswerCount,
             pipeline: 'v2-brain-janitor-grunt',
@@ -1170,21 +1240,11 @@ async function callGroqDirectPlainText(
     temperature = 0.1,
 ): Promise<string | null> {
     try {
-        const { default: Groq } = await import('groq-sdk');
-        const { getEnv } = await import('../../config/env.config');
-        const { getDecryptedKeys } = await import('../api-keys.service');
+        const { default: Groq } = await import('../ai/browser-provider-clients');
+        const { getActiveKeyIds } = await import('../api-keys.service');
         const { benchKey, filterBenchedKeys } = await import('../key-cooldown.service');
 
-        // Load Firestore (admin-managed) keys FIRST — they're more likely to be fresh
-        const allKeys: string[] = [];
-        try {
-            const firestoreKeys = await getDecryptedKeys('groq');
-            for (const k of firestoreKeys) { if (k && !allKeys.includes(k)) allKeys.push(k); }
-        } catch (_) { /* ignore */ }
-        // Then fallback to .env keys
-        const env = getEnv();
-        const legacyKey = env.VITE_GROQ_API_KEY;
-        if (legacyKey && legacyKey.trim().length > 0 && !legacyKey.includes('your_') && !allKeys.includes(legacyKey)) allKeys.push(legacyKey);
+        const allKeys = await getActiveKeyIds('groq');
 
         if (allKeys.length === 0) return null;
 
@@ -1199,7 +1259,7 @@ async function callGroqDirectPlainText(
         const outputBudgets = [4096, 2048, 1024];
         for (let i = 0; i < keys.length; i++) {
             // maxRetries: 0 — the parser handles output-size retries and key rotation.
-            const client = new Groq({ apiKey: keys[i], dangerouslyAllowBrowser: true, maxRetries: 0 });
+            const client = new Groq({ apiKey: keys[i] });
             for (const maxTokens of outputBudgets) {
                 try {
                     const completion = await client.chat.completions.create({

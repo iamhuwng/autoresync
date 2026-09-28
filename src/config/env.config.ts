@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getDecryptedKeys } from '../services/api-keys.service';
+import { getActiveKeyIds } from '../services/api-keys.service';
 
 /**
  * Environment variable schema
@@ -17,35 +17,7 @@ const envSchema = z.object({
   VITE_FIREBASE_MESSAGING_SENDER_ID: z.string().min(1, 'Firebase messaging sender ID required'),
   VITE_FIREBASE_APP_ID: z.string().min(1, 'Firebase app ID required'),
 
-  // Google Gemini AI (at least one key required)
-  VITE_GEMINI_API_KEY_1: z.string().optional(),
-  VITE_GEMINI_API_KEY_2: z.string().optional(),
-  VITE_GEMINI_API_KEY_3: z.string().optional(),
-  VITE_GEMINI_API_KEY_4: z.string().optional(),
-  VITE_GEMINI_API_KEY_5: z.string().optional(),
-
-  // Groq group repair keys (optional)
-  VITE_GROQ_API_KEY: z.string().optional(),
-  VITE_GROQ_API_KEY_1: z.string().optional(),
-  VITE_GROQ_API_KEY_2: z.string().optional(),
-  VITE_GROQ_API_KEY_3: z.string().optional(),
-  VITE_GROQ_API_KEY_4: z.string().optional(),
-  VITE_GROQ_API_KEY_5: z.string().optional(),
-}).refine(
-  (data) => {
-    // At least one Gemini API key must be provided
-    return [
-      data.VITE_GEMINI_API_KEY_1,
-      data.VITE_GEMINI_API_KEY_2,
-      data.VITE_GEMINI_API_KEY_3,
-      data.VITE_GEMINI_API_KEY_4,
-      data.VITE_GEMINI_API_KEY_5,
-    ].some(key => !!key);
-  },
-  {
-    message: 'At least one Gemini API key required (VITE_GEMINI_API_KEY_1-5)',
-  }
-);
+});
 
 /**
  * Validated environment variables
@@ -65,17 +37,6 @@ export const loadEnv = (): Env => {
     VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
     VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
     VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
-    VITE_GEMINI_API_KEY_1: import.meta.env.VITE_GEMINI_API_KEY_1,
-    VITE_GEMINI_API_KEY_2: import.meta.env.VITE_GEMINI_API_KEY_2,
-    VITE_GEMINI_API_KEY_3: import.meta.env.VITE_GEMINI_API_KEY_3,
-    VITE_GEMINI_API_KEY_4: import.meta.env.VITE_GEMINI_API_KEY_4,
-    VITE_GEMINI_API_KEY_5: import.meta.env.VITE_GEMINI_API_KEY_5,
-    VITE_GROQ_API_KEY: import.meta.env.VITE_GROQ_API_KEY,
-    VITE_GROQ_API_KEY_1: import.meta.env.VITE_GROQ_API_KEY_1,
-    VITE_GROQ_API_KEY_2: import.meta.env.VITE_GROQ_API_KEY_2,
-    VITE_GROQ_API_KEY_3: import.meta.env.VITE_GROQ_API_KEY_3,
-    VITE_GROQ_API_KEY_4: import.meta.env.VITE_GROQ_API_KEY_4,
-    VITE_GROQ_API_KEY_5: import.meta.env.VITE_GROQ_API_KEY_5,
   };
 
   const result = envSchema.safeParse(rawEnv);
@@ -110,29 +71,4 @@ export const getEnv = (): Env => {
 /**
  * Load all Gemini API keys (with rotation support)
  */
-export const loadAllGeminiApiKeys = async (): Promise<string[]> => {
-  const env = getEnv();
-  const keys: string[] = [];
-
-  // Load keys from VITE_GEMINI_API_KEY_1 through VITE_GEMINI_API_KEY_5
-  for (let i = 1; i <= 5; i++) {
-    const key = env[`VITE_GEMINI_API_KEY_${i}` as keyof Env] as string | undefined;
-    if (key && key.trim().length > 0 && !key.includes('your_')) {
-      keys.push(key);
-    }
-  }
-
-  // Load from Firestore (encrypted keys)
-  try {
-    const firestoreKeys = await getDecryptedKeys('gemini');
-    for (const key of firestoreKeys) {
-      if (key && !keys.includes(key)) {
-        keys.push(key);
-      }
-    }
-  } catch (error) {
-    console.warn('[Gemini] Failed to load Firestore keys:', error);
-  }
-
-  return keys;
-};
+export const loadAllGeminiApiKeys = (): Promise<string[]> => getActiveKeyIds('gemini');

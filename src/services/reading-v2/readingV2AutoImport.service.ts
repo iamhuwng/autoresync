@@ -1744,6 +1744,7 @@ const autoV4PassageTitle = (
 const autoV4PassageSourceContent = (
   passageNumber: number,
   sourceLedger: ReadingV2AutoSourceLedger,
+  passageTitle?: string,
 ): string | undefined => {
   const passage = sourceLedger.passages.find((candidate) => candidate.passageNumber === passageNumber);
   if (!passage) {
@@ -1778,6 +1779,35 @@ const autoV4PassageSourceContent = (
     .join('\n')
     .trim();
 
+  // Some tests place the first question group before the passage prose.
+  const titleLine = passageTitle && firstQuestionLine
+    ? sourceLedger.lineIndex.find((line) =>
+        line.lineNumber > firstQuestionLine
+        && line.lineNumber < (nextPassageLine ?? sourceLedger.lineCount + 1)
+        && /^\s*#{1,6}\s+/.test(line.rawText)
+        && cleanAutoV4TitleText(line.rawText) === cleanAutoV4TitleText(passageTitle)
+      )
+    : undefined;
+  if (titleLine) {
+    const nextQuestionLine = sourceLedger.questionRanges
+      .filter((range) => range.passageNumber === passageNumber && range.lineNumber > titleLine.lineNumber)
+      .map((range) => range.lineNumber)
+      .sort((left, right) => left - right)[0];
+    const titledBodyEnd = Math.min(
+      nextQuestionLine ?? Infinity,
+      nextPassageLine ?? Infinity,
+      firstAnswerLine ?? Infinity,
+      firstRepeatedTitleLine ?? Infinity,
+      sourceLedger.lineCount + 1,
+    ) - 1;
+    const titledBody = sourceLinesBetween(sourceLedger, titleLine.lineNumber + 1, titledBodyEnd)
+      .filter((line) => !pollutionLineNumbers.has(line.lineNumber))
+      .map((line) => line.text)
+      .join('\n')
+      .trim();
+    if (titledBody.length > body.length) return titledBody;
+  }
+
   return body.length > 0 ? body : undefined;
 };
 
@@ -1795,7 +1825,11 @@ const autoV4PassageSourceDiagnostics = (
 ): readonly ReadingV2AutoImportDiagnostic[] =>
   passagesResult.passages.flatMap((passage, index) => {
     const passageNumber = passageNumberFromAutoV4Passage(passage, index, sourceLedger);
-    const sourceContent = autoV4PassageSourceContent(passageNumber, sourceLedger);
+    const sourceContent = autoV4PassageSourceContent(
+      passageNumber,
+      sourceLedger,
+      autoV4PassageTitle(passage, passageNumber, sourceLedger),
+    );
     if (!sourceContent) {
       return [];
     }
@@ -2766,7 +2800,7 @@ const buildAutoPayloadFromAutoV4Results = (input: {
       const materialQuestions = questionsByMaterialIndex.get(materialIndex) ?? [];
       const groups = autoV4QuestionGroupsForMaterial(passageNumber, materialQuestions, input.sourceLedger);
       const passageTitle = autoV4PassageTitle(passage, passageNumber, input.sourceLedger);
-      const sourcePassageContent = autoV4PassageSourceContent(passageNumber, input.sourceLedger);
+      const sourcePassageContent = autoV4PassageSourceContent(passageNumber, input.sourceLedger, passageTitle);
 
       return {
         passageNumber,

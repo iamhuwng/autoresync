@@ -10,14 +10,13 @@ const probe = vi.hoisted(() => ({
     aiText: null as string | null,
 }));
 
-vi.mock('groq-sdk', () => ({
+vi.mock('../ai/browser-provider-clients', () => ({
     default: class {
         chat = { completions: { create: probe.create } };
         constructor(options: { apiKey: string }) { probe.keys.push(options.apiKey); }
     },
 }));
-vi.mock('../../config/env.config', () => ({ getEnv: () => ({}) }));
-vi.mock('../api-keys.service', () => ({ getDecryptedKeys: async () => ['groq-one', 'groq-two'] }));
+vi.mock('../api-keys.service', () => ({ getActiveKeyIds: async () => ['groq-one', 'groq-two'] }));
 vi.mock('../key-cooldown.service', () => ({
     benchKey: probe.bench,
     filterBenchedKeys: (keys: string[]) => keys,

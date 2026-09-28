@@ -17,6 +17,14 @@ const envDir = sharedEnvFiles.some((name) => fs.existsSync(path.join(sharedEnvDi
   : repoRoot;
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, envDir, '');
+  const providerKeys = Object.keys({ ...env, ...process.env }).filter((key) =>
+    /^VITE_(?:GROQ|GEMINI)_API_KEY(?:_\d+)?$/.test(key) || /^VITE_GOOGLE_API_KEY(?:_\d+)?$/.test(key),
+  );
+  if (providerKeys.some((key) => env[key] || process.env[key])) {
+    throw new Error(`Provider API keys cannot be embedded in the browser bundle: ${providerKeys.join(', ')}`);
+  }
+
   const bookEnv = {
     ...loadEnv(mode, sharedEnvDir, 'VITE_BOOK_'),
     ...loadEnv(mode, repoRoot, 'VITE_BOOK_'),

@@ -1492,6 +1492,43 @@ describe('readingV2AutoImport.service', () => {
     expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
   });
 
+  it('copies passage prose when the source puts questions before the passage title', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'You should spend about 20 minutes on Questions 1-2, which are based on Reading Passage 1 below.',
+      'Questions 1-2',
+      'Choose the correct heading for each paragraph.',
+      '1 Which paragraph describes the opening of the archive?',
+      '2 Which paragraph explains why the archive moved?',
+      '### The source passage title',
+      '**A**',
+      'The archive opened in 1998 under Alice Morgan. Its original records are preserved for readers.',
+      '**B**',
+      'The second paragraph explains why the archive moved to a new building in 2012.',
+    ].join('\n');
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Preposed questions fixture' },
+      {
+        v4Extractor: v4ExtractorFor({ passageTitle: 'The source passage title' }),
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const section = normalized.document.sections[normalized.document.sectionIds[0]!]!;
+    const stimulus = normalized.document.stimuli[section.stimulusIds[0]!]!;
+    expect(stimulus.title).toBe('The source passage title');
+    expect(stimulus.content.kind).toBe('passage-content');
+    if (stimulus.content.kind !== 'passage-content') return;
+    const passageText = stimulus.content.paragraphs.map((paragraph) => paragraph.text).join('\n');
+    expect(passageText).toContain('The archive opened in 1998 under Alice Morgan.');
+    expect(passageText).toContain('The second paragraph explains why the archive moved');
+    expect(passageText).not.toContain('Choose the correct heading for each paragraph.');
+  });
+
   it('copies Auto V4 passage body from raw source when provider passage prose drifts', async () => {
     const raw = [
       'READING PASSAGE 1',

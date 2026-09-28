@@ -5,7 +5,7 @@ import { loadAllGeminiApiKeys } from '../../config/env.config';
 import { isKeyBenched } from '../key-cooldown.service';
 
 // Mock Google Generative AI
-vi.mock('@google/generative-ai', () => ({
+vi.mock('./browser-provider-clients', () => ({
   GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
     getGenerativeModel: vi.fn().mockReturnValue({
       generateContent: vi.fn(),
@@ -76,6 +76,13 @@ describe('Gemini Provider', () => {
   });
 
   describe('Initialization', () => {
+    it('recovers when Worker keys become available after an empty inventory', async () => {
+      vi.mocked(loadAllGeminiApiKeys).mockResolvedValueOnce([]);
+      expect((await provider.testConnection()).success).toBe(false);
+      expect((await provider.testConnection()).success).toBe(true);
+      expect(loadAllGeminiApiKeys).toHaveBeenCalledTimes(2);
+    });
+
     it('should start uninitialized before first use', () => {
       const status = provider.getStatus();
 
@@ -84,7 +91,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should initialize with API keys on first parse', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockResolvedValue({
           response: {
@@ -113,7 +120,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should refresh Gemini clients when new keys appear after initial initialization', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const { loadAllGeminiApiKeys } = await import('../../config/env.config');
       const mockModel = {
         generateContent: vi.fn().mockResolvedValue({
@@ -146,7 +153,7 @@ describe('Gemini Provider', () => {
 
   describe('Split Parsing Retries', () => {
     it('retries questions+answers on blocked Gemini key before provider fallback', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       vi.mocked(loadAllGeminiApiKeys).mockResolvedValue(['usable-key', 'blocked-key']);
       const attemptedKeys: string[] = [];
 
@@ -187,7 +194,7 @@ describe('Gemini Provider', () => {
     });
 
     it('retries questions+answers on 503 high demand across keys', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       let callCount = 0;
 
       const mockModel = {
@@ -231,7 +238,7 @@ describe('Gemini Provider', () => {
 
   describe('Parse Chunk', () => {
     it('should successfully parse chunk', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockResolvedValue({
           response: {
@@ -268,7 +275,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should handle API errors', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockRejectedValue(new Error('API Error')),
       };
@@ -287,7 +294,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should extract JSON from markdown code blocks', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockResolvedValue({
           response: {
@@ -307,7 +314,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should handle invalid JSON responses', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockResolvedValue({
           response: {
@@ -329,7 +336,7 @@ describe('Gemini Provider', () => {
 
   describe('API Key Rotation', () => {
     it('should skip keys that are already benched in the shared cooldown registry', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const { isKeyBenched } = await import('../key-cooldown.service');
       const firstKeyGenerate = vi.fn();
       const secondKeyGenerate = vi.fn().mockResolvedValue({
@@ -359,7 +366,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should rotate keys on rate limit error', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const { benchKey } = await import('../key-cooldown.service');
       let callCount = 0;
 
@@ -395,7 +402,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should detect rate limit patterns', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const errorPatterns = [
         '429: Rate limit',
         'rate limit exceeded',
@@ -435,7 +442,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should fail after all keys exhausted', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockRejectedValue(new Error('429: Rate limit')),
       };
@@ -454,7 +461,7 @@ describe('Gemini Provider', () => {
     });
 
     it('rotates structured JSON generation when selected key is expired', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const { benchKey } = await import('../key-cooldown.service');
       const expiredKeyGenerate = vi.fn().mockRejectedValue(
         new Error('[400] API key expired. Please renew the API key. [{"reason":"API_KEY_INVALID"}]'),
@@ -486,7 +493,7 @@ describe('Gemini Provider', () => {
     });
 
     it('waits and retries structured JSON once on temporary 503 high-demand errors', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const generateContent = vi.fn()
         .mockRejectedValueOnce(new Error('503 This model is currently experiencing high demand. Please try again in 0.001s.'))
         .mockResolvedValueOnce({
@@ -508,7 +515,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should rotate keys on temporary 503 high-demand errors for questions+answers', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       let callCount = 0;
       const mockModel = {
         generateContent: vi.fn().mockImplementation(() => {
@@ -561,7 +568,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should update request count', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockResolvedValue({
           response: {
@@ -589,7 +596,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should track last error', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockRejectedValue(new Error('Test error')),
       };
@@ -608,7 +615,7 @@ describe('Gemini Provider', () => {
 
   describe('Connection Test', () => {
     it('should test connection successfully', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockResolvedValue({
           response: { text: () => 'test' },
@@ -626,7 +633,7 @@ describe('Gemini Provider', () => {
     });
 
     it('should handle connection test failure', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockRejectedValue(new Error('Connection failed')),
       };
@@ -647,7 +654,7 @@ describe('Gemini Provider', () => {
 
   describe('Reset', () => {
     it('should reset error state', async () => {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       const mockModel = {
         generateContent: vi.fn().mockRejectedValue(new Error('Test error')),
       };

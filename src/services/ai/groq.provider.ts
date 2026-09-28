@@ -1,4 +1,4 @@
-﻿import type { Chunk } from '../../types/document.types';
+import type { Chunk } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
 import type {
   IAIService,
@@ -9,18 +9,19 @@ import type {
   WritingSuggestionBatchResponse,
   WritingSuggestionScope,
 } from './ai.service';
-import { getEnv } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
-import { getDecryptedKeys } from '../api-keys.service';
+import { getActiveKeyIds } from '../api-keys.service';
 import { extractJSON } from '../test-creation/ai-json-repair';
 import { benchKey, isKeyBenched } from '../key-cooldown.service';
 
 // Type-only import to avoid eager loading
 type Groq = any;
 
+export const GROQ_MODEL = 'qwen/qwen3.8-27b';
+
 /**
  * Groq AI provider implementation (fallback)
- * Uses Llama 3.3 70B Versatile model
+ * Uses Qwen 3.8 27B for structured extraction and grading.
  * Supports multiple API keys with rotation
  */
 export class GroqProvider implements IAIService {
@@ -28,7 +29,6 @@ export class GroqProvider implements IAIService {
   private apiKeys: string[] = [];
   private currentKeyIndex = 0;
   private requestCount = 0;
-  private sdkLoaded = false;
   private sdkLoadPromise: Promise<any> | null = null;
 
   // Track exhausted keys
@@ -51,54 +51,18 @@ export class GroqProvider implements IAIService {
    * Lazy load the Groq SDK
    */
   private async loadSDK(): Promise<any> {
-    if (this.sdkLoaded) {
-      return;
-    }
-
     if (!this.sdkLoadPromise) {
-      this.sdkLoadPromise = import('groq-sdk').then((module) => {
-        this.sdkLoaded = true;
-        return module;
-      });
+      this.sdkLoadPromise = import('./browser-provider-clients');
     }
 
     return this.sdkLoadPromise;
   }
 
   /**
-   * Load all Groq API keys from .env and Firestore
+   * Load active Groq key IDs from the Worker
    */
   private async loadAllGroqApiKeys(): Promise<string[]> {
-    const keys: string[] = [];
-
-    // Load from Firestore (admin-managed) FIRST — they're more likely to be fresh
-    try {
-      const firestoreKeys = await getDecryptedKeys('groq');
-      for (const key of firestoreKeys) {
-        if (key && !keys.includes(key)) {
-          keys.push(key);
-        }
-      }
-    } catch (error) {
-      console.warn('[Groq] Failed to load Firestore keys:', error);
-    }
-
-    // Then load from .env as fallback
-    const env = getEnv();
-    const legacyKey = env.VITE_GROQ_API_KEY;
-    if (legacyKey && legacyKey.trim().length > 0 && !legacyKey.includes('your_') && !keys.includes(legacyKey)) {
-      keys.push(legacyKey);
-    }
-
-    // Check for numbered keys (future env expansion)
-    for (let i = 1; i <= 5; i++) {
-      const key = (env as any)[`VITE_GROQ_API_KEY_${i}`] as string | undefined;
-      if (key && key.trim().length > 0 && !key.includes('your_') && !keys.includes(key)) {
-        keys.push(key);
-      }
-    }
-
-    return keys;
+    return getActiveKeyIds('groq');
   }
 
   /**
@@ -121,7 +85,6 @@ export class GroqProvider implements IAIService {
       this.clients = this.apiKeys.map((apiKey, index) => {
         const client = new Groq({
           apiKey,
-          dangerouslyAllowBrowser: true,
           maxRetries: 0, // Disable SDK internal retries on 429 — we handle key rotation ourselves
         });
         console.log(`✅ Groq client ${index + 1}/${this.apiKeys.length} initialized`);
@@ -219,6 +182,34 @@ export class GroqProvider implements IAIService {
     return -1; // All keys exhausted
   }
 
+  private async createCompletionWithKeyRotation(request: Record<string, unknown>, initialKeyIndex: number): Promise<{ completion: any; keyIndex: number }> {
+    let keyIndex = initialKeyIndex;
+    let lastError: unknown;
+    const attempted = new Set<number>();
+
+    while (attempted.size < this.clients.length) {
+      attempted.add(keyIndex);
+      try {
+        const client = this.clients[keyIndex];
+        if (!client) throw new Error('No client available');
+        return { completion: await client.chat.completions.create(request), keyIndex };
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        if (!this.isRateLimitError(message) && !this.isHardKeyError(message)) throw error;
+
+        this.markKeyExhausted(keyIndex, this.isRateLimitError(message) ? 'Rate limit' : 'Key rejected');
+        const nextKey = Array.from({ length: this.clients.length }, (_, offset) => (keyIndex + offset + 1) % this.clients.length)
+          .find((candidate) => !attempted.has(candidate) && !this.isKeyExhausted(candidate));
+        if (nextKey === undefined) break;
+        keyIndex = nextKey;
+        this.currentKeyIndex = keyIndex;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('All Groq API keys exhausted or rejected');
+  }
+
   /**
    * Clean up expired exhausted keys
    */
@@ -235,6 +226,7 @@ export class GroqProvider implements IAIService {
   }
 
   private isRateLimitError(errorMessage?: string): boolean {
+    if (errorMessage?.includes('user_rate_limited')) return false;
     return !!errorMessage && (
       errorMessage.includes('429') ||
       errorMessage.includes('rate limit') ||
@@ -243,7 +235,9 @@ export class GroqProvider implements IAIService {
   }
 
   private isHardKeyError(errorMessage?: string): boolean {
+    if (errorMessage?.includes('user_unauthorized') || errorMessage?.includes('user_account_disabled')) return false;
     return !!errorMessage && (
+      errorMessage.includes('401') ||
       errorMessage.includes('403') ||
       errorMessage.toLowerCase().includes('forbidden') ||
       errorMessage.toLowerCase().includes('invalid api key') ||
@@ -308,7 +302,7 @@ export class GroqProvider implements IAIService {
    */
   async parseChunk(chunk: Chunk): Promise<Result<AIParseResult>> {
     // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
+    if (this.clients.length === 0) {
       await this.initialize();
     }
 
@@ -336,9 +330,10 @@ export class GroqProvider implements IAIService {
     // Check for rate limit error
     const isRateLimitError = this.isRateLimitError(result.error);
 
-    if (isRateLimitError) {
-      console.warn(`⚠️ [Groq] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+    if (isRateLimitError || this.isHardKeyError(result.error)) {
+      const reason = isRateLimitError ? 'Rate limit' : 'Key rejected';
+      console.warn(`⚠️ [Groq] ${reason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
+      this.markKeyExhausted(this.currentKeyIndex, reason);
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -356,8 +351,8 @@ export class GroqProvider implements IAIService {
           return retryResult;
         }
 
-        if (this.isRateLimitError(retryResult.error)) {
-          this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+        if (this.isRateLimitError(retryResult.error) || this.isHardKeyError(retryResult.error)) {
+          this.markKeyExhausted(this.currentKeyIndex, this.isRateLimitError(retryResult.error) ? 'Rate limit' : 'Key rejected');
           continue;
         }
 
@@ -387,7 +382,7 @@ export class GroqProvider implements IAIService {
       }
 
       const completion = await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         messages: [
           {
             role: 'system',
@@ -984,7 +979,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    */
   async parsePassagesOnly(text: string): Promise<Result<{ passages: AIParseResult['passages']; confidence: number; }>> {
     // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
+    if (this.clients.length === 0) {
       await this.initialize();
     }
 
@@ -1014,13 +1009,13 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
     }
 
     // Check for rate limit error
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    const isRateLimitError = this.isRateLimitError(result.error);
+    const isHardKeyError = this.isHardKeyError(result.error);
 
-    if (isRateLimitError) {
-      console.warn(`⚠️ [Groq parsePassagesOnly] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+    if (isRateLimitError || isHardKeyError) {
+      const reason = isRateLimitError ? 'Rate limit' : 'Key rejected';
+      console.warn(`⚠️ [Groq parsePassagesOnly] ${reason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
+      this.markKeyExhausted(this.currentKeyIndex, reason);
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -1038,8 +1033,8 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
-          this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+        if (this.isRateLimitError(retryResult.error) || this.isHardKeyError(retryResult.error)) {
+          this.markKeyExhausted(this.currentKeyIndex, this.isRateLimitError(retryResult.error) ? 'Rate limit' : 'Key rejected');
           continue;
         }
 
@@ -1070,7 +1065,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
 
       const chunk = { id: 'passages-only', number: 1, text, wordCount: text.split(/\s+/).length, startIndex: 0, endIndex: text.length, isLast: true };
       const completion = await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: 'You are an expert passage extractor. Return only valid JSON, no markdown.' },
           { role: 'user', content: this.buildPassagesOnlyPrompt(chunk) },
@@ -1114,7 +1109,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    */
   async parseQuestionsAndAnswers(text: string): Promise<Result<{ questions: AIParseResult['questions']; answerKey: AIParseResult['answerKey']; confidence: number; }>> {
     // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
+    if (this.clients.length === 0) {
       await this.initialize();
     }
 
@@ -1165,9 +1160,10 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       };
     }
 
-    if (this.isRateLimitError(result.error)) {
-      console.warn(`⚠️ [Groq parseQuestionsAndAnswers] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+    if (this.isRateLimitError(result.error) || this.isHardKeyError(result.error)) {
+      const reason = this.isRateLimitError(result.error) ? 'Rate limit' : 'Key rejected';
+      console.warn(`⚠️ [Groq parseQuestionsAndAnswers] ${reason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
+      this.markKeyExhausted(this.currentKeyIndex, reason);
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -1185,8 +1181,8 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (this.isRateLimitError(retryResult.error)) {
-          this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+        if (this.isRateLimitError(retryResult.error) || this.isHardKeyError(retryResult.error)) {
+          this.markKeyExhausted(this.currentKeyIndex, this.isRateLimitError(retryResult.error) ? 'Rate limit' : 'Key rejected');
           continue;
         }
 
@@ -1217,7 +1213,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
 
       const chunk = { id: 'questions-answers', number: 1, text, wordCount: text.split(/\s+/).length, startIndex: 0, endIndex: text.length, isLast: true };
       const completion = await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: 'You are an expert question and answer parser. Return only valid JSON, no markdown.' },
           { role: 'user', content: this.buildQuestionsAndAnswersPrompt(chunk) },
@@ -1275,7 +1271,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
     originalSentence: string,
     context?: { sentenceStarter?: string; keyword?: string }
   ): Promise<Result<{ score: number; confidence: number; feedback: string }>> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Groq clients not initialized' };
 
     this.cleanupExhaustedKeys();
@@ -1306,15 +1302,15 @@ Consider: grammar correctness, meaning preservation, natural English.
 Respond with JSON only:
 {"score": 0-100, "confidence": 0-100, "feedback": "brief constructive feedback"}`;
 
-      const completion = await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+      const { completion } = await this.createCompletionWithKeyRotation({
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: 'You are an English grading expert. Return only valid JSON.' },
           { role: 'user', content: prompt },
         ],
         temperature: 0.1,
         max_tokens: 256,
-      });
+      }, this.currentKeyIndex);
 
       const text = completion.choices[0]?.message?.content;
       if (!text) throw new Error('Empty response from Groq');
@@ -1332,8 +1328,8 @@ Respond with JSON only:
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.status.lastError = msg;
-      if (msg.includes('429') || msg.includes('rate limit')) {
-        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      if (this.isRateLimitError(msg) || this.isHardKeyError(msg)) {
+        this.markKeyExhausted(this.currentKeyIndex, this.isRateLimitError(msg) ? 'Rate limit' : 'Key rejected');
       }
       return { success: false, error: `Writing grading failed: ${msg}` };
     }
@@ -1348,7 +1344,7 @@ Respond with JSON only:
     questionType: 'fill-in' | 'writing',
     context?: { sentenceStarter?: string; keyword?: string }
   ): Promise<Result<Array<{ answer: string; confidence: number }>>> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Groq clients not initialized' };
 
     this.cleanupExhaustedKeys();
@@ -1376,15 +1372,15 @@ Only suggest answers that are grammatically correct and semantically equivalent.
 Respond with JSON array only:
 [{"answer": "suggested answer", "confidence": 0-100}]`;
 
-      const completion = await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+      const { completion } = await this.createCompletionWithKeyRotation({
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: 'You are an English teacher. Return only valid JSON array.' },
           { role: 'user', content: prompt },
         ],
         temperature: 0.3,
         max_tokens: 512,
-      });
+      }, this.currentKeyIndex);
 
       const text = completion.choices[0]?.message?.content;
       if (!text) throw new Error('Empty response from Groq');
@@ -1403,8 +1399,8 @@ Respond with JSON array only:
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.status.lastError = msg;
-      if (msg.includes('429') || msg.includes('rate limit')) {
-        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      if (this.isRateLimitError(msg) || this.isHardKeyError(msg)) {
+        this.markKeyExhausted(this.currentKeyIndex, this.isRateLimitError(msg) ? 'Rate limit' : 'Key rejected');
       }
       return { success: false, error: `Suggestion generation failed: ${msg}` };
     }
@@ -1479,7 +1475,7 @@ Respond with JSON array only:
       keyLeaseId?: string | null;
     } = {}
   ): Promise<Result<WritingSuggestionBatchResponse>> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Groq clients not initialized' };
 
     this.cleanupExhaustedKeys();
@@ -1502,9 +1498,9 @@ Respond with JSON array only:
         throw new Error('No client available');
       }
 
-      const modelName = 'llama-3.3-70b-versatile';
+      const modelName = GROQ_MODEL;
       const rawPrompt = this.buildWritingSuggestionPrompt(request);
-      const completion = await client.chat.completions.create({
+      const { completion, keyIndex: usedKeyIndex } = await this.createCompletionWithKeyRotation({
         model: modelName,
         messages: [
           {
@@ -1518,7 +1514,7 @@ Respond with JSON array only:
         ],
         temperature: options.temperature ?? 0.1,
         max_tokens: options.maxOutputTokens ?? 8192,
-      });
+      }, this.currentKeyIndex);
 
       const rawResponse = completion.choices[0]?.message?.content || '';
       const repairedParsedJson = extractJSON(rawResponse) as Record<string, any>;
@@ -1538,14 +1534,14 @@ Respond with JSON array only:
           repairedParsedJson,
           finishReason: completion.choices[0]?.finish_reason ?? null,
           usageMetadata: (completion as unknown as { usage?: Record<string, unknown> }).usage ?? null,
-          keyLeaseId: options.keyLeaseId ?? null,
+          keyLeaseId: usedKeyIndex === options.preferredKeyIndex ? options.keyLeaseId ?? null : null,
         },
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.status.lastError = msg;
-      if (msg.includes('429') || msg.includes('rate limit') || msg.includes('403')) {
-        this.markKeyExhausted(this.currentKeyIndex, msg.includes('403') ? '403 Forbidden' : 'Rate limit');
+      if (this.isRateLimitError(msg) || this.isHardKeyError(msg)) {
+        this.markKeyExhausted(this.currentKeyIndex, this.isRateLimitError(msg) ? 'Rate limit' : 'Key rejected');
       }
       return { success: false, error: `Writing suggestion batch failed: ${msg}` };
     }
@@ -1555,11 +1551,11 @@ Respond with JSON array only:
     prompt: string,
     options: AIStructuredGenerationOptions = {}
   ): Promise<Result<unknown>> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Groq clients not initialized' };
 
     this.cleanupExhaustedKeys();
-    const selectedKeyIndex = (
+    let selectedKeyIndex = (
       typeof options.preferredKeyIndex === 'number'
       && this.clients[options.preferredKeyIndex]
       && !this.isKeyExhausted(options.preferredKeyIndex)
@@ -1576,12 +1572,14 @@ Respond with JSON array only:
 
       const requestedMaxTokens = options.maxOutputTokens ?? 4096;
       const tokenBudgets = this.structuredJsonTokenBudgets(requestedMaxTokens);
-      const modelName = options.model ?? 'llama-3.3-70b-versatile';
+      const modelName = options.model ?? GROQ_MODEL;
       let completion: any | null = null;
       let rateLimitRetryCount = 0;
       let rateLimitRetryWaitMs = 0;
-      const createStructuredCompletion = (maxTokens: number) =>
-        client.chat.completions.create({
+      const createStructuredCompletion = (keyIndex: number, maxTokens: number) => {
+        const client = this.clients[keyIndex];
+        if (!client) throw new Error('No client available');
+        return client.chat.completions.create({
           model: modelName,
           messages: [
             {
@@ -1597,11 +1595,12 @@ Respond with JSON array only:
           max_tokens: maxTokens,
           response_format: options.responseFormat ?? { type: 'json_object' },
         });
+      };
 
       for (const maxTokens of tokenBudgets) {
         while (!completion) {
           try {
-            completion = await createStructuredCompletion(maxTokens);
+            completion = await createStructuredCompletion(selectedKeyIndex, maxTokens);
             break;
           } catch (error) {
             const msg = error instanceof Error ? error.message : 'Unknown error';
@@ -1622,12 +1621,25 @@ Respond with JSON array only:
               continue;
             }
 
-            if (!this.isRequestTooLargeError(msg) || !nextBudget) {
-              throw error;
+            if (this.isRequestTooLargeError(msg) && nextBudget) {
+              console.warn(`⚠️ [Groq structured] Request too large, retrying with max_tokens=${nextBudget}...`);
+              break;
             }
 
-            console.warn(`⚠️ [Groq structured] Request too large, retrying with max_tokens=${nextBudget}...`);
-            break;
+            if (this.isRateLimitError(msg) || this.isHardKeyError(msg)) {
+              const reason = this.isRateLimitError(msg) ? 'Rate limit' : 'Key rejected';
+              this.markKeyExhausted(selectedKeyIndex, reason);
+              this.currentKeyIndex = selectedKeyIndex;
+              const nextKey = this.getNextAvailableKey();
+              if (nextKey !== -1) {
+                selectedKeyIndex = nextKey;
+                rateLimitRetryCount = 0;
+                rateLimitRetryWaitMs = 0;
+                continue;
+              }
+            }
+
+            throw error;
           }
         }
 
@@ -1646,7 +1658,7 @@ Respond with JSON array only:
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.status.lastError = msg;
-      if (msg.includes('429') || msg.includes('rate limit')) {
+      if (this.isRateLimitError(msg)) {
         this.markKeyExhausted(selectedKeyIndex, 'Rate limit');
       } else if (this.isRequestTooLargeError(msg)) {
         this.markKeyExhausted(selectedKeyIndex, 'Rate limit');
@@ -1662,7 +1674,7 @@ Respond with JSON array only:
     readonly fingerprint: string;
     readonly available: boolean;
   }[]> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     this.cleanupExhaustedKeys();
 
     return this.clients.map((_, index) => ({
@@ -1684,7 +1696,7 @@ Respond with JSON array only:
    */
   async testConnection(): Promise<Result> {
     // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
+    if (this.clients.length === 0) {
       await this.initialize();
     }
 
@@ -1698,7 +1710,7 @@ Respond with JSON array only:
         return { success: false, error: 'No client available' };
       }
       await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         messages: [{ role: 'user', content: 'Test' }],
         max_tokens: 10,
       });

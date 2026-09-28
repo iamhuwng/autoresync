@@ -6,7 +6,82 @@
  * rules (cite markers, markdown headers, whitespace) still work.
  */
 import { describe, it, expect } from 'vitest';
-import { repairParsedSectionStructure } from './thcsDocumentParser.service';
+import {
+    preserveSkippedSourceIndices,
+    repairParsedSectionStructure,
+    restoreParsedTestFromSource,
+} from './thcsDocumentParser.service';
+
+describe('skipped source section debug indices', () => {
+    it('does not mark compressed parsed sections skipped while retaining source indices', () => {
+        const skips = preserveSkippedSourceIndices([1, 6, 7].map(sectionIndex => ({
+            sectionIndex,
+            type: 'listening',
+            reason: 'Requires audio.',
+        })));
+        const parsedSections = Array.from({ length: 7 }, (_, index) => ({ name: `parsed-${index}` }));
+
+        expect(skips.map(skip => skip.sourceSectionIndex)).toEqual([1, 6, 7]);
+        expect(parsedSections.some((_section, index) => skips.some(skip => skip.sectionIndex === index))).toBe(false);
+    });
+});
+
+describe('source-order THCS answer binding', () => {
+    it('restores globally keyed answers, empty cloze stems, and complete passages after exercise-local numbering resets', () => {
+        const source = `TITLE: Sample
+Exercise 1 [TYPE: mcq-grammar]
+Question 1. First question?
+A. first
+B. second
+Question 2. Second question?
+A. first
+B. second
+Exercise 2 [TYPE: reading-cloze-mcq]
+PASSAGE:
+A family story begins here.
+
+It continues with another complete paragraph.
+Question 1.
+A. in
+B. on
+Question 2. Last question?
+A. yes
+B. no
+ANSWER KEY
+1. A
+2. B
+3. B
+4. A`;
+        const parsed: any = {
+            sections: [
+                { name: 'Grammar', passageText: undefined, questions: [
+                    { questionNumber: 1, text: 'First question?', options: ['first', 'second'], correctAnswer: 'A' },
+                    { questionNumber: 2, text: 'Second question?', options: ['first', 'second'], correctAnswer: 'B' },
+                ] },
+                { name: 'Reading', passageText: 'A family story begins here.', questions: [
+                    { questionNumber: 1, text: 'Contaminated from another exercise', options: ['in', 'on'], correctAnswer: 'A' },
+                    { questionNumber: 2, text: 'Last question?', options: ['yes', 'no'], correctAnswer: 'B' },
+                ] },
+            ],
+            answerKey: { 1: 'A', 2: 'B' },
+        };
+
+        expect(restoreParsedTestFromSource(parsed, source, { 1: 'A', 2: 'B', 3: 'B', 4: 'A' })).toBe(true);
+        expect(parsed.sections.flatMap((section: any) => section.questions).map((question: any) => question.questionNumber)).toEqual([1, 2, 3, 4]);
+        expect(parsed.sections.flatMap((section: any) => section.questions).map((question: any) => question.correctAnswer)).toEqual(['A', 'B', 'B', 'A']);
+        expect(parsed.sections[1].questions[0].text).toBe('');
+        expect(parsed.sections[1].passageText).toBe('A family story begins here.\n\nIt continues with another complete paragraph.');
+        expect(parsed.answerKey).toEqual({ 1: 'A', 2: 'B', 3: 'B', 4: 'A' });
+    });
+
+    it('does not remap answers when source options do not prove question alignment', () => {
+        const source = 'TITLE: Sample\\nExercise 1 [TYPE: mcq-grammar]\\nQuestion 1. First?\\nA. red\\nB. blue\\nANSWER KEY\\n1. B';
+        const parsed: any = { sections: [{ questions: [{ questionNumber: 1, text: 'Changed?', options: ['wrong', 'blue'], correctAnswer: 'A' }] }], answerKey: { 1: 'A' } };
+
+        expect(restoreParsedTestFromSource(parsed, source, { 1: 'B' })).toBe(false);
+        expect(parsed.sections[0].questions[0].correctAnswer).toBe('A');
+    });
+});
 
 // preCleanText is not exported, so we replicate its logic for testing.
 // This ensures the test stays in sync with the actual implementation.

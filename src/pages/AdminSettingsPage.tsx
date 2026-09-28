@@ -14,7 +14,7 @@ import { AdminTagManager } from '../components/admin/AdminTagManager';
 import { TestTypeAdminPanel } from '../components/admin/TestTypeAdminPanel';
 import { PublicBookReviewPanel } from '../components/admin/PublicBookReviewPanel';
 import { AdminLayout } from '../components/navigation';
-import { Card, Button, Input } from '../components/modern';
+import { Card, Button, Input, toast } from '../components/modern';
 import {
     IconKey,
     IconPlus,
@@ -36,7 +36,6 @@ import {
     deleteAPIKey,
     subscribeToAPIKeys,
 } from '../services/api-keys.service';
-import { getEnv } from '../config/env.config';
 import { database } from '../services/firebase';
 import { reportingService } from '../services/reportingService';
 import {
@@ -52,7 +51,6 @@ import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
 interface KeyCardProps {
     entry: APIKeyEntry;
-    isEnvKey?: boolean;
     onToggle: (id: string, isActive: boolean) => void;
     onDelete: (id: string) => void;
 }
@@ -84,7 +82,7 @@ type AdminSettingsSection = 'api_keys' | 'tags' | 'reporting' | 'test_types' | '
 // Sub-components
 // ============================================================================
 
-const KeyCard: React.FC<KeyCardProps> = ({ entry, isEnvKey, onToggle, onDelete }) => {
+const KeyCard: React.FC<KeyCardProps> = ({ entry, onToggle, onDelete }) => {
     const [confirmDelete, setConfirmDelete] = useState(false);
 
     const formatDate = (timestamp: number) => {
@@ -124,35 +122,14 @@ const KeyCard: React.FC<KeyCardProps> = ({ entry, isEnvKey, onToggle, onDelete }
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                     <span style={{ fontWeight: '600', color: '#1e293b' }}>{entry.label}</span>
-                    {isEnvKey && (
-                        <span
-                            style={{
-                                fontSize: '0.7rem',
-                                padding: '0.15rem 0.4rem',
-                                background: 'rgba(99, 102, 241, 0.1)',
-                                color: '#6366f1',
-                                borderRadius: '4px',
-                                fontWeight: '600',
-                            }}
-                        >
-                            .env
-                        </span>
-                    )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: '#64748b' }}>
                     <span style={{ fontFamily: 'monospace' }}>{entry.keyPreview}</span>
                     {entry.createdAt && <span>Added {formatDate(entry.createdAt)}</span>}
-                    {entry.requestCount > 0 && (
-                        <span style={{ color: '#10b981' }}>{entry.requestCount} requests</span>
-                    )}
-                    {entry.errorCount > 0 && (
-                        <span style={{ color: '#ef4444' }}>{entry.errorCount} errors</span>
-                    )}
                 </div>
             </div>
 
             {/* Actions */}
-            {!isEnvKey && (
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                         onClick={() => onToggle(entry.id, !entry.isActive)}
@@ -222,7 +199,6 @@ const KeyCard: React.FC<KeyCardProps> = ({ entry, isEnvKey, onToggle, onDelete }
                         </button>
                     )}
                 </div>
-            )}
         </div>
     );
 };
@@ -257,7 +233,7 @@ const AddKeyModal: React.FC<AddKeyModalProps> = ({ isOpen, provider, onClose, on
             await onAdd(provider, label.trim(), apiKey.trim());
             onClose();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to add key');
+            console.error('[AdminSettings] Key save failed:', err);
         } finally {
             setLoading(false);
         }
@@ -698,7 +674,6 @@ const AdminSettingsPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [addModalProvider, setAddModalProvider] = useState<AIProvider | null>(null);
-    const [envKeys, setEnvKeys] = useState<{ gemini: string[]; groq: string[] }>({ gemini: [], groq: [] });
     const [activeSection, setActiveSection] = useState<AdminSettingsSection>('api_keys');
 
     const isSuperAdmin = profile?.role === 'super_admin';
@@ -735,34 +710,7 @@ const AdminSettingsPage: React.FC = () => {
         []
     );
 
-    // Load .env keys on mount
-    useEffect(() => {
-        if (!isSuperAdmin) return;
-
-        try {
-            const env = getEnv();
-            const geminiKeys: string[] = [];
-            const groqKeys: string[] = [];
-
-            // Check Gemini keys from .env
-            for (let i = 1; i <= 5; i++) {
-                const key = env[`VITE_GEMINI_API_KEY_${i}` as keyof typeof env] as string | undefined;
-                if (key && key.trim().length > 0 && !key.includes('your_')) {
-                    geminiKeys.push(key);
-                }
-            }
-            // Check Groq key from .env
-            if (env.VITE_GROQ_API_KEY && !env.VITE_GROQ_API_KEY.includes('your_')) {
-                groqKeys.push(env.VITE_GROQ_API_KEY);
-            }
-
-            setEnvKeys({ gemini: geminiKeys, groq: groqKeys });
-        } catch (error) {
-            console.warn('[Settings] Failed to load env keys:', error);
-        }
-    }, [isSuperAdmin]);
-
-    // Subscribe to Firestore keys
+    // Refresh Worker key metadata while this page is open.
     useEffect(() => {
         if (!isSuperAdmin) return;
 
@@ -810,17 +758,36 @@ const AdminSettingsPage: React.FC = () => {
 
     const handleAddKey = useCallback(async (provider: AIProvider, label: string, key: string) => {
         if (!user?.uid) throw new Error('Not authenticated');
-        await addAPIKey(provider, label, key, user.uid);
+        try {
+            await addAPIKey(provider, label, key);
+            reportingService.trackAction('adminPanel', 'addAIKey', { provider });
+            toast.success(`Added ${provider} key.`);
+        } catch (error) {
+            toast.error(`Could not add ${provider} key.`);
+            throw error;
+        }
     }, [user?.uid]);
 
     const handleToggleKey = useCallback(async (provider: AIProvider, keyId: string, isActive: boolean) => {
         if (!user?.uid) return;
-        await updateAPIKey(provider, keyId, { isActive }, user.uid);
+        try {
+            await updateAPIKey(keyId, isActive);
+            reportingService.trackAction('adminPanel', 'toggleAIKey', { provider, isActive });
+            toast.success(`${provider} key ${isActive ? 'activated' : 'deactivated'}.`);
+        } catch {
+            toast.error(`Could not update ${provider} key.`);
+        }
     }, [user?.uid]);
 
     const handleDeleteKey = useCallback(async (provider: AIProvider, keyId: string) => {
         if (!user?.uid) return;
-        await deleteAPIKey(provider, keyId, user.uid);
+        try {
+            await deleteAPIKey(keyId);
+            reportingService.trackAction('adminPanel', 'deleteAIKey', { provider });
+            toast.success(`Removed ${provider} key.`);
+        } catch {
+            toast.error(`Could not remove ${provider} key.`);
+        }
     }, [user?.uid]);
 
     const trackAdminAction = useCallback(
@@ -852,44 +819,8 @@ const AdminSettingsPage: React.FC = () => {
         setAddModalOpen(true);
     };
 
-    // Convert .env keys to display format
-    const envKeyEntries = {
-        gemini: envKeys.gemini.map((key, index) => ({
-            id: `env_gemini_${index}`,
-            provider: 'gemini' as AIProvider,
-            label: index === 0 && envKeys.gemini.length === 1 ? 'Default Key' : `Env Key ${index + 1}`,
-            encryptedKey: '',
-            keyPreview: `${key.substring(0, 4)}...${key.substring(key.length - 8)}`,
-            createdAt: 0,
-            createdBy: 'system',
-            isActive: true,
-            requestCount: 0,
-            errorCount: 0,
-        })),
-        groq: envKeys.groq.map((key, index) => ({
-            id: `env_groq_${index}`,
-            provider: 'groq' as AIProvider,
-            label: 'Default Key',
-            encryptedKey: '',
-            keyPreview: `${key.substring(0, 4)}...${key.substring(key.length - 8)}`,
-            createdAt: 0,
-            createdBy: 'system',
-            isActive: true,
-            requestCount: 0,
-            errorCount: 0,
-        })),
-    };
-
-    // Combine env + Firestore keys
-    const geminiKeys = [
-        ...envKeyEntries.gemini,
-        ...Object.values(config?.gemini || {}),
-    ];
-
-    const groqKeys = [
-        ...envKeyEntries.groq,
-        ...Object.values(config?.groq || {}),
-    ];
+    const geminiKeys = Object.values(config?.gemini || {});
+    const groqKeys = Object.values(config?.groq || {});
 
     if (!isSuperAdmin) {
         return (
@@ -1046,7 +977,6 @@ const AdminSettingsPage: React.FC = () => {
                                         <KeyCard
                                             key={entry.id}
                                             entry={entry}
-                                            isEnvKey={entry.id.startsWith('env_')}
                                             onToggle={(id, isActive) => handleToggleKey('gemini', id, isActive)}
                                             onDelete={(id) => handleDeleteKey('gemini', id)}
                                         />
@@ -1102,7 +1032,6 @@ const AdminSettingsPage: React.FC = () => {
                                         <KeyCard
                                             key={entry.id}
                                             entry={entry}
-                                            isEnvKey={entry.id.startsWith('env_')}
                                             onToggle={(id, isActive) => handleToggleKey('groq', id, isActive)}
                                             onDelete={(id) => handleDeleteKey('groq', id)}
                                         />
@@ -1118,8 +1047,7 @@ const AdminSettingsPage: React.FC = () => {
                                 <div>
                                     <strong>How it works:</strong>
                                     <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
-                                        <li>Keys from <code>.env</code> file are loaded first (shown with badge)</li>
-                                        <li>Keys added here are stored encrypted in Firestore</li>
+                                        <li>Keys are stored in server-only Cloudflare KV and never returned to the browser after saving</li>
                                         <li>All active keys are used in rotation for load balancing</li>
                                         <li>Deactivate keys to temporarily disable them without deleting</li>
                                     </ul>

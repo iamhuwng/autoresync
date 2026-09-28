@@ -1,16 +1,18 @@
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ToastContainer, toast } from '../components/modern';
 
 import AdminSettingsPage from './AdminSettingsPage';
 
-const { authState, getAPIKeysMock, logoutMock, navigateToMock, reportingTrackActionMock } =
+const { authState, getAPIKeysMock, addAPIKeyMock, logoutMock, navigateToMock, reportingTrackActionMock } =
   vi.hoisted(() => ({
     authState: {
       user: { uid: 'super-admin-1' },
       profile: { role: 'super_admin' as string },
     },
     getAPIKeysMock: vi.fn(),
+    addAPIKeyMock: vi.fn(),
     logoutMock: vi.fn(),
     navigateToMock: vi.fn(),
     reportingTrackActionMock: vi.fn(),
@@ -96,7 +98,7 @@ vi.mock('firebase/database', () => ({
 
 vi.mock('../services/api-keys.service', () => ({
   getAPIKeys: getAPIKeysMock,
-  addAPIKey: vi.fn(),
+  addAPIKey: addAPIKeyMock,
   updateAPIKey: vi.fn(),
   deleteAPIKey: vi.fn(),
   subscribeToAPIKeys: vi.fn((callback: (config: unknown) => void) => {
@@ -119,6 +121,8 @@ describe('AdminSettingsPage Test Type settings', () => {
     logoutMock.mockReset();
     navigateToMock.mockReset();
     reportingTrackActionMock.mockReset();
+    addAPIKeyMock.mockReset().mockResolvedValue({ id: 'worker-key-1' });
+    toast.clear();
   });
 
   it('mounts Test Type management only for super admins', async () => {
@@ -178,5 +182,20 @@ describe('AdminSettingsPage Test Type settings', () => {
 
     expect(screen.getByText('Access Denied')).toBeInTheDocument();
     expect(screen.queryByText('Test Type Management')).not.toBeInTheDocument();
+  });
+
+  it('adds a key through Worker management, tracks the action, and announces success', async () => {
+    render(<><AdminSettingsPage /><ToastContainer /></>);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Add Key' }))[0]!);
+    fireEvent.change(screen.getByPlaceholderText('e.g., Production Key 1'), { target: { value: 'Primary' } });
+    fireEvent.change(screen.getByPlaceholderText('AIza...'), { target: { value: 'provider-key-value' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add Key' }).at(-1)!);
+
+    await waitFor(() => {
+      expect(addAPIKeyMock).toHaveBeenCalledWith('gemini', 'Primary', 'provider-key-value');
+      expect(reportingTrackActionMock).toHaveBeenCalledWith('adminPanel', 'addAIKey', { provider: 'gemini' });
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('Added gemini key.');
   });
 });
