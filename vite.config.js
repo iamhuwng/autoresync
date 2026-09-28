@@ -25,6 +25,23 @@ export default defineConfig(({ mode }) => {
     throw new Error(`Provider API keys cannot be embedded in the browser bundle: ${providerKeys.join(', ')}`);
   }
 
+  if (mode === 'production') {
+    const workerUrl = process.env.VITE_THCS_GEMMA_WORKER_URL || env.VITE_THCS_GEMMA_WORKER_URL;
+    try {
+      const parsed = new URL(workerUrl || '');
+      if (
+        parsed.protocol !== 'https:'
+        || parsed.username
+        || parsed.password
+        || parsed.pathname !== '/'
+        || parsed.search
+        || parsed.hash
+      ) throw new Error();
+    } catch {
+      throw new Error('Production builds require VITE_THCS_GEMMA_WORKER_URL as an exact HTTPS origin.');
+    }
+  }
+
   const publicEnv = loadEnv(mode, envDir, 'VITE_');
   const bookEnv = {
     ...loadEnv(mode, sharedEnvDir, 'VITE_BOOK_'),

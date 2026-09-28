@@ -41,6 +41,14 @@ vi.mock('../key-cooldown.service', () => ({
   isKeyBenched: vi.fn(() => false),
   shouldBenchGeminiKeyError: vi.fn((message: string) => {
     const normalized = String(message || '').toLowerCase();
+    if (
+      normalized.includes('user_rate_limited')
+      || normalized.includes('user_unauthorized')
+      || normalized.includes('user_account_disabled')
+    ) {
+      return false;
+    }
+
     return normalized.includes('403')
       || normalized.includes('forbidden')
       || normalized.includes('blocked')
@@ -399,6 +407,21 @@ describe('Gemini Provider', () => {
       expect(result.success).toBe(true);
       expect(callCount).toBe(2); // First attempt + retry with rotated key
       expect(benchKey).toHaveBeenCalled();
+    });
+
+    it('does not rotate or bench keys for Worker-owned user rate limits', async () => {
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
+      const { benchKey } = await import('../key-cooldown.service');
+      const generateContent = vi.fn().mockRejectedValue(new Error('429 user_rate_limited'));
+      vi.mocked(GoogleGenerativeAI).mockImplementation(() => ({
+        getGenerativeModel: vi.fn().mockReturnValue({ generateContent }),
+      }) as any);
+
+      const result = await provider.parseChunk(mockChunk);
+
+      expect(result.success).toBe(false);
+      expect(generateContent).toHaveBeenCalledTimes(1);
+      expect(benchKey).not.toHaveBeenCalled();
     });
 
     it('should detect rate limit patterns', async () => {

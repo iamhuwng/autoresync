@@ -15,19 +15,13 @@ const requiredKeys = [
   'VITE_FIREBASE_STORAGE_BUCKET',
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'VITE_FIREBASE_APP_ID',
-];
-
-const geminiKeys = [
-  'VITE_GEMINI_API_KEY_1',
-  'VITE_GEMINI_API_KEY_2',
-  'VITE_GEMINI_API_KEY_3',
-  'VITE_GEMINI_API_KEY_4',
-  'VITE_GEMINI_API_KEY_5',
+  'VITE_THCS_GEMMA_WORKER_URL',
 ];
 
 const sharedEnvDir = path.resolve(
   process.env.LUYENTAP_ENV_DIR || path.join(os.homedir(), '.luyentap', 'env'),
 );
+const envFileNames = ['.env', '.env.local', '.env.development', '.env.development.local'];
 const sharedEnvFile = path.join(sharedEnvDir, '.env');
 const repoEnvFile = path.join(repoRoot, '.env');
 const envTemplateFile = path.join(repoRoot, 'env.example.txt');
@@ -60,15 +54,17 @@ const parseEnvKeys = (text) => {
   return values;
 };
 
-const getEffectiveValues = async (filePath, trackedKeys = []) => {
+const getEffectiveValues = async (filePaths, trackedKeys = []) => {
   const values = new Map();
 
-  if (filePath && await fileExists(filePath)) {
-    const fileValues = parseEnvKeys(await readFile(filePath, 'utf8'));
-    for (const [key, value] of fileValues) values.set(key, value);
+  for (const filePath of filePaths) {
+    if (await fileExists(filePath)) {
+      const fileValues = parseEnvKeys(await readFile(filePath, 'utf8'));
+      for (const [key, value] of fileValues) values.set(key, value);
+    }
   }
 
-  for (const key of new Set([...requiredKeys, ...geminiKeys, ...trackedKeys])) {
+  for (const key of new Set([...requiredKeys, ...trackedKeys])) {
     if (process.env[key]) values.set(key, process.env[key]);
   }
 
@@ -77,31 +73,50 @@ const getEffectiveValues = async (filePath, trackedKeys = []) => {
 
 const validate = (values) => {
   const missing = requiredKeys.filter((key) => !values.get(key));
-  const hasGeminiKey = geminiKeys.some((key) => Boolean(values.get(key)));
-  if (!hasGeminiKey) missing.push('VITE_GEMINI_API_KEY_1..5 (at least one)');
+  const workerUrl = values.get('VITE_THCS_GEMMA_WORKER_URL');
+  if (workerUrl) {
+    try {
+      const parsed = new URL(workerUrl);
+      if (
+        parsed.protocol !== 'https:'
+        || parsed.username
+        || parsed.password
+        || parsed.pathname !== '/'
+        || parsed.search
+        || parsed.hash
+      ) {
+        missing.push('VITE_THCS_GEMMA_WORKER_URL (exact HTTPS origin required)');
+      }
+    } catch {
+      missing.push('VITE_THCS_GEMMA_WORKER_URL (exact HTTPS origin required)');
+    }
+  }
   return missing;
 };
 
-const resolveActiveEnvFile = async () => {
-  if (await fileExists(sharedEnvFile)) return sharedEnvFile;
-  if (await fileExists(repoEnvFile)) return repoEnvFile;
-  return null;
+const resolveActiveEnvFiles = async () => {
+  const sharedFiles = envFileNames.map((name) => path.join(sharedEnvDir, name));
+  const repoFiles = envFileNames.map((name) => path.join(repoRoot, name));
+  const sharedDirIsActive = (await Promise.all(sharedFiles.map(fileExists))).some(Boolean);
+  const candidateFiles = sharedDirIsActive ? sharedFiles : repoFiles;
+  return (await Promise.all(candidateFiles.map(async (filePath) => (
+    await fileExists(filePath) ? filePath : null
+  )))).filter(Boolean);
 };
 
 const printStatus = async () => {
-  const activeEnvFile = await resolveActiveEnvFile();
+  const activeEnvFiles = await resolveActiveEnvFiles();
   const templateValues = await fileExists(envTemplateFile)
     ? parseEnvKeys(await readFile(envTemplateFile, 'utf8'))
     : new Map();
   const templateKeys = [...templateValues.keys()];
-  const values = await getEffectiveValues(activeEnvFile, templateKeys);
+  const values = await getEffectiveValues(activeEnvFiles, templateKeys);
   const missing = validate(values);
   const templateMissing = templateKeys.filter((key) => !values.get(key));
 
   console.log(`LuyenTap shared env directory: ${sharedEnvDir}`);
-  console.log(`Active env file: ${activeEnvFile || '(none; checking process environment only)'}`);
-  console.log(`Configured required keys: ${requiredKeys.length - missing.filter((key) => key.startsWith('VITE_FIREBASE_')).length}/${requiredKeys.length} Firebase`);
-  console.log(`Gemini key configured: ${geminiKeys.some((key) => Boolean(values.get(key))) ? 'yes' : 'no'}`);
+  console.log(`Active env file(s): ${activeEnvFiles.length > 0 ? activeEnvFiles.join(', ') : '(none; checking process environment only)'}`);
+  console.log(`Configured required keys: ${requiredKeys.length - missing.length}/${requiredKeys.length}`);
 
   if (templateMissing.length > 0) {
     console.warn('Current env template keys not configured (feature-specific functionality may be unavailable):');
@@ -118,8 +133,8 @@ const printStatus = async () => {
 };
 
 const bootstrap = async () => {
-  if (await fileExists(sharedEnvFile)) {
-    console.log(`Shared env already exists: ${sharedEnvFile}`);
+  if ((await Promise.all(envFileNames.map((name) => fileExists(path.join(sharedEnvDir, name))))).some(Boolean)) {
+    console.log(`Shared env already exists in ${sharedEnvDir}`);
     return printStatus();
   }
 

@@ -66,6 +66,14 @@ export function shouldBenchGeminiKeyError(errorMessage: string): boolean {
         return false;
     }
 
+    if (
+        normalized.includes('user_rate_limited')
+        || normalized.includes('user_unauthorized')
+        || normalized.includes('user_account_disabled')
+    ) {
+        return false;
+    }
+
     return (
         normalized.includes('403')
         || normalized.includes('forbidden')
