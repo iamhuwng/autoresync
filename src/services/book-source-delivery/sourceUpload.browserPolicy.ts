@@ -2,6 +2,7 @@ export interface BookSourceBrowserPolicyEnv {
   readonly VITE_BOOK_SOURCE_CONTROL_WORKER_URL?: string;
   readonly VITE_BOOK_SOURCE_RECONCILIATION_WORKER_URL?: string;
   readonly VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN?: string;
+  readonly VITE_THCS_GEMMA_WORKER_URL?: string;
 }
 
 const exactHttpsOrigin = (value: string | undefined, label: string): string | null => {
@@ -41,6 +42,10 @@ export const createBookSourcePreviewCsp = (
     env.VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN,
     'VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN',
   );
+  const thcsGemmaOrigin = exactHttpsOrigin(
+    env.VITE_THCS_GEMMA_WORKER_URL,
+    'VITE_THCS_GEMMA_WORKER_URL',
+  );
   if (!controlOrigin && !b2Origin && !reconciliationOrigin) return undefined;
   if (!controlOrigin || !reconciliationOrigin || !b2Origin) {
     throw new Error(
@@ -60,5 +65,6 @@ export const createBookSourcePreviewCsp = (
     controlOrigin,
     reconciliationOrigin,
     b2Origin,
+    ...(thcsGemmaOrigin ? [thcsGemmaOrigin] : []),
   ].join(' ');
 };

@@ -17,6 +17,17 @@ describe('Book Source production-preview browser policy', () => {
     expect(policy).not.toContain('*.backblazeb2.com');
   });
 
+  it('permits only the configured THCS AI Worker origin', () => {
+    const policy = createBookSourcePreviewCsp({
+      VITE_BOOK_SOURCE_CONTROL_WORKER_URL: 'https://book-source-control.example',
+      VITE_BOOK_SOURCE_RECONCILIATION_WORKER_URL: 'https://book-source-reconciliation.example',
+      VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN: 'https://s3.us-west-004.backblazeb2.com',
+      VITE_THCS_GEMMA_WORKER_URL: 'https://thcs-gemma.example',
+    });
+    expect(policy).toContain('https://thcs-gemma.example');
+    expect(policy).not.toContain('*.workers.dev');
+  });
+
   it.each([
     [{
       VITE_BOOK_SOURCE_CONTROL_WORKER_URL: 'https://control.example/path',

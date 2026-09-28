@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
     throw new Error(`Provider API keys cannot be embedded in the browser bundle: ${providerKeys.join(', ')}`);
   }
 
+  const publicEnv = loadEnv(mode, envDir, 'VITE_');
   const bookEnv = {
     ...loadEnv(mode, sharedEnvDir, 'VITE_BOOK_'),
     ...loadEnv(mode, repoRoot, 'VITE_BOOK_'),
@@ -36,7 +37,7 @@ export default defineConfig(({ mode }) => {
     Object.entries(bookEnv).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
   );
   const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
-  const bookSourcePreviewCsp = createBookSourcePreviewCsp({ ...process.env, ...bookEnv });
+  const bookSourcePreviewCsp = createBookSourcePreviewCsp({ ...publicEnv, ...process.env, ...bookEnv });
 
   return {
     // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.
