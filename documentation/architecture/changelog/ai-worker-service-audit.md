@@ -1,7 +1,7 @@
 # AI Worker service audit — 2026-09-24
 
-Status: migration release blocked; this is not a production completion record.
-The dated checkpoints below supersede earlier observations where stated.
+Status: production cutover completed on 2026-09-28. The final closure record at
+the end supersedes earlier blocked checkpoints where stated.
 
 All inference and infrastructure added for this migration must remain on free
 tiers. Do not enable paid plans, credits, automatic top-ups, or billed fallback.
@@ -426,3 +426,77 @@ their source-checkout provenance is uncertain. The service-level canary
 checks and exact-source fidelity report remain separate evidence. The
 corrected THCS and Reading browser flows must be rechecked from an identified
 isolated build before production cutover.
+
+## Production cutover closure — 2026-09-28
+
+Authoritative deployed source is `f8af64d1e16c2b0ecc5ecec877fb9251760bfad4`
+on `codex/ai-secure-hosting`. Commit `84fa383d` composed the net secure-AI
+source onto the Hosting line while retaining `23a4728d`'s class-removal
+durability fix; `f8af64d` added only production-input validation. The
+composition allowlist was limited to the Worker and relay, AI live-check
+scripts, AI/security rules and tests, AuthContext role hardening, THCS fidelity
+regressions, environment documentation, and this audit. A direct commit/file
+comparison confirmed that the class-management source and its architecture
+record remained from the production-preserving line rather than being replaced
+by the AI port. No Gateway experiment/revert commits were replayed.
+
+The fixed-US Deno app retained code build `vq1pcwj70bk8`; only `RELAY_TOKEN`
+was rotated. Unauthenticated `/health` returned 401 and the fresh bearer
+returned 200. The same bearer was then provisioned, without value readback, to:
+
+- canary Worker secret version `10892051-c538-4145-bcfc-1acb4de6ce11`,
+  deployment `31d140a1-b6ff-4da6-babc-f30d521a5af7`; its exact source version
+  remained `2788b4ca-c524-47c9-91e6-3c7efe864fa2`;
+- production Worker secret version `e40706a4-1102-4d1c-b6b6-aa0e61395c34`,
+  secret deployment `035ed360-7eed-41b6-b0b3-aeb1815ba4fb`.
+
+The exact candidate Worker source was released as version
+`a5f8a023-9c3a-4cb9-92dd-76db2a108c74`, deployment
+`ccfe17fa-f1d9-4886-8d19-e872be0a2be6`, at
+`https://thcs-gemma.iamhuwng.workers.dev`. Authenticated production service
+checks returned 200 from `/ai/keys`, `/ai/gemini`, and `/thcs/gemma`.
+`/ai/groq` returned 401 for the first invalid stored slot and the browser later
+observed the next slot return 200; no browser provider URL or credential was
+used. The inventory contained ten metadata records and no secret-value field.
+
+The exact `f8af64d` Hosting build used the authoritative public Firebase
+configuration and production Worker origin. Its root entry was
+`/assets/index-ap-vxjJ_.js` with SHA-256
+`ED5F273EE1FEFA8495074F01E153E392F1B4494641FAE8245056EC4712CE84AD`.
+The bundle contained the production Worker origin, no canary origin, no direct
+Groq/Gemini provider URL, no Groq key pattern, and no Google-style key other
+than the public Firebase API key. Firebase Hosting live version
+`projects/temp-a1437/sites/kahut1/versions/5d5f7012a905bb05` was released as
+`projects/temp-a1437/sites/kahut1/channels/live/releases/1790609884602000` at
+2026-09-28T15:38:04.602Z.
+
+Authenticated Edge production smoke used the built-in teacher quick login.
+The enabled THCS Paste Text flow parsed a bounded two-question source and its
+resource timing showed only production Worker calls: `/ai/keys` 200, first
+`/ai/groq` 401, next `/ai/groq` 200. Nothing was saved or published. Reading V2
+creation remains rollout-disabled in the production UI; its required exact
+candidate acceptance had already passed against the canary with `/ai/keys` and
+`/ai/gemini` both 200. The exact 158-question final-candidate run retained all
+158 questions and answers, two passages, globally unique numbering, and zero
+stem, option, answer, or passage mismatches. The bounded forced-fallback test
+proved Groq failure reached `/thcs/gemma` before `/ai/gemini`.
+
+Security-rule closure ran after the application cutover. The focused emulator
+test passed 2/2 using the established short Windows temp path: a new user could
+create only a `student` or `teacher` initial role and could not self-promote;
+authenticated clients could neither read nor write `settings/api_keys`, while
+trusted fixture access confirmed the document remained present. Production
+RTDB rules compiled and released successfully, then read back as an exact
+semantic match with SHA-256
+`EB2676C2E20B98F7B3BC65479BEF2CBC079E7D7DD53E31DF662BBAF3635CFE6C`.
+Only after that proof, Firestore rules compiled and released as ruleset
+`projects/temp-a1437/rulesets/1a3afec8-f7c4-493f-8097-1b9e4d48a7cb` at
+2026-09-28T15:54:29.822142Z. The authenticated production browser then received
+403 from direct Firestore `settings/api_keys` access and 200 from Worker
+`/ai/keys`, with ten metadata records and no secret field. Trusted Firestore
+access still returned 200 for the retained legacy document; it was not deleted.
+
+The accidental Deno CLI newline-only `deno.jsonc` change and generated
+`deno.lock` were removed. Canary Reading and THCS reports remain preserved
+under ignored `output/ai-worker-canary` and `output/thcs-158-canary`; no other
+tracked worktree changes remained at closure.
