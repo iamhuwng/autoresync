@@ -420,11 +420,8 @@ service cloud.firestore {
 
     // API Keys Configuration
     match /settings/api_keys {
-      // Only authenticated users can read (or specific admin roles depending on app structure)
-      // Since it's client-side, we limit to authenticated users.
-      // Ideally, a custom claim like `request.auth.token.admin == true` would be best,
-      // but restricting to at least authenticated users is better than public access.
-      allow read, write: if request.auth != null;
+      // Provider secrets live only in the authenticated AI Worker KV namespace.
+      allow read, write: if false;
     }
 
     // Homework tag configuration

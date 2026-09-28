@@ -6,6 +6,9 @@
   "workers_dev": true,
   "preview_urls": false,
   "ai": { "binding": "AI" },
+  "kv_namespaces": [
+    { "binding": "AI_KEYS", "id": "3dcc67de4309453fb6ba789b7a357215" }
+  ],
   "ratelimits": [
     {
       "name": "THCS_RATE_LIMITER",

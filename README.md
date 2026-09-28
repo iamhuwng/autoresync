@@ -257,7 +257,7 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 
 - **Node.js 18+** and npm
 - Firebase project with Realtime Database & Auth enabled
-- Google Gemini API key (for AI extraction)
+- Cloudflare Worker account for the AI gateway
 - *(Optional)* Cloudflare R2 account (for file storage)
 
 ### Installation
@@ -284,9 +284,6 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
    VITE_FIREBASE_MESSAGING_SENDER_ID=
    VITE_FIREBASE_APP_ID=
 
-   # AI (required for test extraction)
-   VITE_GEMINI_API_KEY=
-
    # Cloudflare R2 / Listening Worker endpoints
    # Use the deployed Worker URL for local dev and production builds.
    VITE_R2_UPLOAD_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
@@ -299,12 +296,14 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 
    ```
 
-   To enable the optional THCS Cloudflare fallback, deploy `cloudflare/thcs-gemma-worker.js`
-   with `cloudflare/wrangler.thcs-gemma.jsonc` in your Cloudflare account. Set that
-   Wrangler config's Firebase project ID and database URL to this installation's
-   Firebase project, then set `VITE_THCS_GEMMA_WORKER_URL` to the deployed Worker URL
-   when building the app. Leave it empty to use Groq followed by Gemini. The Worker
-   uses a Workers AI binding; do not put a Cloudflare API token in a `VITE_` variable.
+   Deploy `cloudflare/thcs-gemma-worker.js` with `cloudflare/wrangler.thcs-gemma.jsonc`
+   in this installation's Cloudflare account. Create a private Workers KV namespace,
+   set its ID on the `AI_KEYS` binding, and set the Firebase project ID and database URL
+   to this installation's Firebase project. Set `VITE_THCS_GEMMA_WORKER_URL` to the
+   deployed Worker URL when building the app. A trusted Firebase administrator must
+   assign the first `super_admin` role in Realtime Database. That administrator then
+   adds Groq and Gemini keys in Admin Settings. Never put provider keys in a `VITE_`
+   variable; Vite embeds those values in public JavaScript.
 
 4. Start development server:
    ```bash

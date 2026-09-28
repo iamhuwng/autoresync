@@ -75,7 +75,7 @@ ANSWER KEY
     });
 
     it('does not remap answers when source options do not prove question alignment', () => {
-        const source = 'TITLE: Sample\\nExercise 1 [TYPE: mcq-grammar]\\nQuestion 1. First?\\nA. red\\nB. blue\\nANSWER KEY\\n1. B';
+        const source = 'TITLE: Sample\nExercise 1 [TYPE: mcq-grammar]\nQuestion 1. First?\nA. red\nB. blue\nANSWER KEY\n1. B';
         const parsed: any = { sections: [{ questions: [{ questionNumber: 1, text: 'Changed?', options: ['wrong', 'blue'], correctAnswer: 'A' }] }], answerKey: { 1: 'A' } };
 
         expect(restoreParsedTestFromSource(parsed, source, { 1: 'B' })).toBe(false);

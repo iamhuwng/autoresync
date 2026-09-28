@@ -152,7 +152,7 @@ describe('AuthContext', () => {
     });
   });
 
-  it('should auto-promote Super Admin email to super_admin role', async () => {
+  it('does not grant super admin from a public environment variable', async () => {
     const superAdminEmail = 'admin@example.com';
     
     // Mock environment variable
@@ -186,15 +186,8 @@ describe('AuthContext', () => {
       </AuthProvider>
     );
     
-    await waitFor(() => {
-      expect(mockSet).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          role: 'super_admin',
-          email: superAdminEmail
-        })
-      );
-    });
+    await waitFor(() => expect(screen.getByTestId('profile').textContent).toBe('no-profile'));
+    expect(mockSet).not.toHaveBeenCalled();
     
     vi.unstubAllEnvs();
   });

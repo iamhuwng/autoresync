@@ -16,6 +16,7 @@ vi.mock('../ai/browser-provider-clients', () => ({
         constructor(options: { apiKey: string }) { probe.keys.push(options.apiKey); }
     },
 }));
+vi.mock('../../config/env.config', () => ({ getEnv: () => ({}) }));
 vi.mock('../api-keys.service', () => ({ getActiveKeyIds: async () => ['groq-one', 'groq-two'] }));
 vi.mock('../key-cooldown.service', () => ({
     benchKey: probe.bench,
