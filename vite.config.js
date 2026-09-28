@@ -26,6 +26,18 @@ export default defineConfig(({ mode }) => {
   }
 
   if (mode === 'production') {
+    const databaseUrl = process.env.VITE_FIREBASE_DATABASE_URL || env.VITE_FIREBASE_DATABASE_URL;
+    try {
+      const parsed = new URL(databaseUrl || '');
+      const hostname = parsed.hostname.toLowerCase();
+      if (parsed.protocol !== 'https:'
+        || !(hostname.endsWith('.firebaseio.com') || hostname.endsWith('.firebasedatabase.app'))) {
+        throw new Error();
+      }
+    } catch {
+      throw new Error('Production builds require VITE_FIREBASE_DATABASE_URL for a Firebase RTDB host.');
+    }
+
     const workerUrl = process.env.VITE_THCS_GEMMA_WORKER_URL || env.VITE_THCS_GEMMA_WORKER_URL;
     try {
       const parsed = new URL(workerUrl || '');

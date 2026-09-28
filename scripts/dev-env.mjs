@@ -73,6 +73,23 @@ const getEffectiveValues = async (filePaths, trackedKeys = []) => {
 
 const validate = (values) => {
   const missing = requiredKeys.filter((key) => !values.get(key));
+  const databaseUrl = values.get('VITE_FIREBASE_DATABASE_URL');
+  if (databaseUrl) {
+    try {
+      const parsed = new URL(databaseUrl);
+      const hostname = parsed.hostname.toLowerCase();
+      const isFirebaseHost = hostname.endsWith('.firebaseio.com')
+        || hostname.endsWith('.firebasedatabase.app');
+      const isLocalEmulator = ['localhost', '127.0.0.1', '[::1]'].includes(hostname);
+      if (!((parsed.protocol === 'https:' && isFirebaseHost)
+        || (parsed.protocol === 'http:' && isLocalEmulator))) {
+        missing.push('VITE_FIREBASE_DATABASE_URL (Firebase RTDB URL or local emulator URL required)');
+      }
+    } catch {
+      missing.push('VITE_FIREBASE_DATABASE_URL (Firebase RTDB URL or local emulator URL required)');
+    }
+  }
+
   const workerUrl = values.get('VITE_THCS_GEMMA_WORKER_URL');
   if (workerUrl) {
     try {
