@@ -500,3 +500,32 @@ The accidental Deno CLI newline-only `deno.jsonc` change and generated
 `deno.lock` were removed. Canary Reading and THCS reports remain preserved
 under ignored `output/ai-worker-canary` and `output/thcs-158-canary`; no other
 tracked worktree changes remained at closure.
+
+## Reading V2 rollout repair — 2026-09-29
+
+The preceding Hosting version `6a8b29e3c2b341f7` (released
+2026-09-28T11:48:12Z from the `77bcf94c` release snapshot) compiled Reading V2
+as `public`, passage-asset visibility as `opt-in`, and Reading Passage Library,
+Reading Passage Homework, Material Books, and Book Editor as enabled. Its bundle
+also contained the trusted Reading V2 submission and backup Worker URLs.
+
+The `f8af64d` build released as `5d5f7012a905bb05` at
+2026-09-28T15:38:04Z used an intentionally narrow public environment that
+omitted those values. The compiled rollout consequently defaulted to `off`,
+passage visibility to `hidden`, and the four material capabilities to disabled.
+The missing backup Worker URL also made production homework assignment fail
+before sending a request. This was a Hosting build-input regression, not a
+Reading V2 source retirement. Provider API keys remain excluded from browser
+builds.
+
+Commit `42ac23f8` adds production build checks for an explicit Reading V2
+rollout mode, an HTTPS submission endpoint when Reading V2 is exposed, and an
+exact HTTPS backup Worker origin. The repair build restored the prior public
+feature settings and trusted endpoints while retaining the secure production
+AI Worker. The focused Reading V2 tests passed 26/26 and the production build
+and bundle budget passed. Firebase Hosting version `cfcfd85e8ff04372` was
+released at 2026-09-28T18:08:35Z. Live `index.html` SHA-256
+`08498E77121C675EE0D5EEC2DD7F7B079959EA4B2C74FD9878E618840652259B`
+matched the built artifact. In the authenticated production teacher browser,
+Reading V2 could be selected and advanced to the Details step; Reading Passage
+and Book tabs were visible. No test or homework was created during verification.
