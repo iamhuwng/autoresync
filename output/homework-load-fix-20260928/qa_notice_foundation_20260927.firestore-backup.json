@@ -1,0 +1,24 @@
+{
+  "name": "projects/temp-a1437/databases/(default)/documents/homework_assignments/qa_notice_foundation_20260927",
+  "createTime": "2026-09-27T10:18:23.698301Z",
+  "updateTime": "2026-09-27T10:18:23.698301Z",
+  "fields": {
+    "createdBy": { "stringValue": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2" },
+    "id": { "stringValue": "qa_notice_foundation_20260927" },
+    "materialType": { "stringValue": "thcs-test" },
+    "target": {
+      "mapValue": {
+        "fields": {
+          "studentIds": {
+            "arrayValue": {
+              "values": [
+                { "stringValue": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62" }
+              ]
+            }
+          },
+          "type": { "stringValue": "students" }
+        }
+      }
+    }
+  }
+}
