@@ -63,13 +63,14 @@ interface THCSSectionBlockProps {
     onDelete: () => void;
     onMoveUp: () => void;
     onMoveDown: () => void;
+    onTrackAction?: (actionName: string, metadata?: Record<string, unknown>) => void;
 }
 
 const READING_INTENTS: THCSQuestionType[] = ['reading-cloze-mcq', 'reading-comprehension', 'reading-announcement', 'reading-cloze-wordbank'];
 
 const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
     section, sectionIndex, totalSections, globalQuestionOffset, draftId,
-    onUpdate, onDelete, onMoveUp, onMoveDown,
+    onUpdate, onDelete, onMoveUp, onMoveDown, onTrackAction,
 }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const deleteDialogRef = useRef<HTMLDialogElement>(null);
@@ -553,6 +554,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                             onMoveDown={() => handleMoveQuestion(qi, 1)}
                                             canMoveUp={qi > 0}
                                             canMoveDown={qi < section.questions.length - 1}
+                                            onTrackAction={onTrackAction}
                                         />
                                     </SortableQuestionItem>
                                 ))}

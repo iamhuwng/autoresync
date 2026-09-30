@@ -12,12 +12,10 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Container, Alert, Text } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
 import { doc, setDoc, getFirestore } from 'firebase/firestore';
 
 import { useAuth } from '../hooks/useAuth';
+import { useScreenSize } from '../core/platform/hooks/useScreenSize';
 import { useThcsDraft } from '../hooks/thcs/useThcsDraft';
 import { useThcsAutoSave } from '../hooks/thcs/useThcsAutoSave';
 import { useThcsValidation } from '../hooks/thcs/useThcsValidation';
@@ -25,7 +23,9 @@ import { useThcsValidation } from '../hooks/thcs/useThcsValidation';
 import { createThcsDraft } from '../services/thcsDraftService';
 import { generateThcsTestId, saveThcsTestToFirebase } from '../services/thcsTestStorage';
 import r2StorageService from '../services/r2Storage';
-import { Button } from '../components/modern';
+import { Button, toast } from '../components/modern';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { THCSPreviewOverlay } from '../components/thcs-editor/THCSPreviewOverlay';
 import { THCSParseReviewPanel } from '../components/thcs-editor/THCSParseReviewPanel';
 import { convertParsedToThcsDraft, parseThcsText } from '../services/test-creation/thcsDocumentParser.service';
@@ -144,7 +144,7 @@ const PASTE_WIZARD_STEPS: WizardStep[] = [
     { label: 'Review & Publish', icon: '✅' },
 ];
 
-function getMissingVisualQuestionImages(sections: THCSSection[]): MissingImageQuestion[] {
+export function getMissingVisualQuestionImages(sections: THCSSection[]): MissingImageQuestion[] {
     const missing: MissingImageQuestion[] = [];
 
     sections.forEach((section) => {
@@ -154,7 +154,7 @@ function getMissingVisualQuestionImages(sections: THCSSection[]): MissingImageQu
                 (question.intent ? STEP2_ALWAYS_VISUAL_TYPES_REQUIRING_IMAGE.has(question.intent) : false) ||
                 shouldRequireImageForReadingAnnouncement(section, question);
 
-            if (requiresImage && !question.imageUrl?.trim()) {
+            if (requiresImage && !question.imageUrl?.trim() && !question.imageCaption?.trim()) {
                 missing.push({
                     sectionName: section.name,
                     questionNumber: question.questionNumber,
@@ -306,7 +306,8 @@ export function THCSTestEditorSurface({
     onStepConfigChange,
 }: THCSTestEditorSurfaceProps) {
     const { user } = useAuth();
-    const isMobile = useMediaQuery('(max-width: 1023px)');
+    const { isDesktop } = useScreenSize();
+    const isMobile = !isDesktop;
 
     // ─── Wizard Step State ──────────────────────────────────────
     const [currentStep, setCurrentStep] = useState(0);
@@ -430,7 +431,7 @@ export function THCSTestEditorSurface({
         }));
         setIsDirty(true);
         setCurrentStep(1); // Jump to Questions step after applying template
-        notifications.show({ color: 'green', title: 'Template Applied', message: `Created ${templateSections.length} sections from template "${template.name}".` });
+        toast.success(`Applied template "${template.name}" with ${templateSections.length} sections.`);
     }, [resetPasteFlow]);
 
     const handleParsedProceed = useCallback((finalParsed: any) => {
@@ -448,14 +449,10 @@ export function THCSTestEditorSurface({
             setIsDirty(true);
             setCurrentStep(1); // Jump to Questions step after import
             const qCount = normalizedSections.reduce((sum, s) => sum + s.questions.length, 0);
-            notifications.show({
-                color: 'green',
-                title: '📄 Document Imported',
-                message: `Imported ${normalizedSections.length} sections with ${qCount} questions from document.`,
-            });
+            toast.success(`Imported ${normalizedSections.length} sections with ${qCount} questions from document.`);
         } catch (err) {
             console.error('Error converting parsed document:', err);
-            notifications.show({ color: 'red', title: 'Import Error', message: 'Failed to convert parsed document to editor format.' });
+            toast.error('Could not convert parsed document to editor format.');
         }
     }, [resetPasteFlow]);
 
@@ -502,7 +499,7 @@ export function THCSTestEditorSurface({
             setPromptCopied(true);
             setTimeout(() => setPromptCopied(false), 2000);
         } catch {
-            notifications.show({ color: 'red', title: 'Copy failed', message: 'Please copy manually' });
+            toast.error('Could not copy the prompt. Please copy manually.');
         }
     }, []);
 
@@ -519,9 +516,10 @@ export function THCSTestEditorSurface({
         data: autoSaveData,
         isDirty,
     });
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
 
     // ─── Validation ─────────────────────────────────────────────
-    const { errors, warnings, isValid } = useThcsValidation({ metadata, sections });
+    const { metadataErrors, errors, warnings, isValid } = useThcsValidation({ metadata, sections });
 
     // ─── Unsaved Changes Warning ────────────────────────────────
     useEffect(() => {
@@ -660,12 +658,12 @@ export function THCSTestEditorSurface({
                 onDraftCreated?.(newDraftId);
                 await saveNow();
                 setIsDirty(false);
-                notifications.show({ title: '💾 Draft saved', message: 'Your test has been saved.', color: 'green' });
+                toast.success('Saved draft.');
             }
         } else {
             await saveNow();
             setIsDirty(false);
-            notifications.show({ title: '💾 Draft saved', message: 'Changes saved.', color: 'green' });
+            toast.success('Saved draft.');
         }
     }, [draftId, metadata, onDraftCreated, saveNow, user]);
 
@@ -768,20 +766,12 @@ export function THCSTestEditorSurface({
             setPublishedTestId(testId);
 
             setIsDirty(false);
-            notifications.show({
-                title: '✅ Test published!',
-                message: 'Your THCS-THPT test is now available.',
-                color: 'green',
-            });
+            toast.success('Published test. It is now available in My Content.');
             onPublished?.(testId);
 
         } catch (error) {
             console.error('Publish failed:', error);
-            notifications.show({
-                title: '❌ Publish failed',
-                message: error instanceof Error ? error.message : 'Unknown error',
-                color: 'red',
-            });
+            toast.error(`Could not publish test: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setIsPublishing(false);
         }
@@ -803,7 +793,7 @@ export function THCSTestEditorSurface({
                 totalPoints: sections.reduce((sum, s) => sum + s.totalPoints, 0),
             } as any);
 
-            notifications.show({ title: '📋 Duplicated!', message: 'A copy has been created.', color: 'blue' });
+            toast.success(`Created draft copy "${dupMetadata.title}".`);
             if (onDuplicateCreated) {
                 onDuplicateCreated(newDraftId);
             } else {
@@ -816,7 +806,7 @@ export function THCSTestEditorSurface({
 
     if (draftLoading) {
         return (
-            <Container size="lg" py="xl">
+            <div style={{ maxWidth: '64rem', margin: '0 auto', padding: '2rem' }}>
                 <div style={{ textAlign: 'center', padding: '4rem 0' }}>
                     <div style={{
                         width: 48, height: 48, margin: '0 auto 1rem',
@@ -825,20 +815,20 @@ export function THCSTestEditorSurface({
                         borderRadius: '50%',
                         animation: 'spin 1s linear infinite',
                     }} />
-                    <Text c="dimmed">Loading draft...</Text>
+                    <p style={{ color: '#64748b' }}>Loading draft...</p>
                     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </div>
-            </Container>
+            </div>
         );
     }
 
     if (draftError) {
         return (
-            <Container size="lg" py="xl">
-                <Alert color="red" title="Error Loading Draft" variant="light">
-                    {draftError}
-                </Alert>
-            </Container>
+            <div style={{ maxWidth: '64rem', margin: '0 auto', padding: '2rem' }}>
+                <div role="alert" style={{ padding: '1rem', border: '1px solid #fca5a5', borderRadius: '0.5rem', background: '#fef2f2', color: '#991b1b' }}>
+                    <strong>Error Loading Draft</strong> — {draftError}
+                </div>
+            </div>
         );
     }
 
@@ -852,29 +842,34 @@ export function THCSTestEditorSurface({
                 : '';
 
     const missingVisualImageQuestions = getMissingVisualQuestionImages(sections);
+    const isStep1MetadataGuardActive = currentStep === 0 && setupMode === 'options' && metadataErrors.length > 0;
     const isStep2ImageGuardActive = currentStep === 1 && missingVisualImageQuestions.length > 0;
     const missingVisualImageSummary = formatMissingImageSummary(missingVisualImageQuestions);
 
     // ─── Step Navigation ────────────────────────────────────────
     const isEditMode = !!initialDraftId;
 
+    const guardStep1Metadata = () => {
+        if (metadataErrors.length === 0) return true;
+        trackAction('thcsSetupValidationBlocked', { missingFields: metadataErrors });
+        toast.warning(`Complete the required setup fields before continuing: ${metadataErrors.join(' ')}`);
+        return false;
+    };
+
     const guardStep2MissingVisualImages = () => {
         if (missingVisualImageQuestions.length === 0) return true;
 
         const summary = formatMissingImageSummary(missingVisualImageQuestions);
 
-        notifications.show({
-            color: 'yellow',
-            title: 'Image required for visual reading questions',
-            message: `Please upload image(s) for visual prompt questions (e.g. sign/notice/poster/photo) before leaving Step 2. Missing: ${summary}.`,
-        });
+        toast.warning(`Add an image or visual text alternative before leaving Step 2. Missing: ${summary}.`);
 
-        console.warn(`[THCS Step2 Guard] Blocked navigation due to missing images: ${summary}`);
+        console.warn(`[THCS Step2 Guard] Blocked navigation due to missing visual prompts: ${summary}`);
 
         return false;
     };
 
     const handleNext = () => {
+        if (currentStep === 0 && !guardStep1Metadata()) return;
         if (currentStep === 1 && !guardStep2MissingVisualImages()) return;
         if (currentStep < 3) setCurrentStep(currentStep + 1);
     };
@@ -885,6 +880,7 @@ export function THCSTestEditorSurface({
 
     const handleStepChange = (step: number) => {
         if (isEditMode || step <= currentStep) {
+            if (currentStep === 0 && step > 0 && !guardStep1Metadata()) return;
             if (currentStep === 1 && step > 1 && !guardStep2MissingVisualImages()) return;
             setCurrentStep(step);
         }
@@ -915,12 +911,12 @@ export function THCSTestEditorSurface({
                 minHeight: 0,
             }}>
                 <div>
-                    <Text fw={700} size="lg" style={{ color: '#1e293b', marginBottom: '0.25rem' }}>
+                    <h2 style={{ color: '#1e293b', margin: '0 0 0.25rem', fontSize: '1.125rem', fontWeight: 700 }}>
                         Paste Test Content
-                    </Text>
-                    <Text size="sm" c="dimmed">
+                    </h2>
+                    <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>
                         Import structured THCS content into the shared creation flow, then continue directly into Questions.
-                    </Text>
+                    </p>
                 </div>
 
                 <div style={{
@@ -934,12 +930,12 @@ export function THCSTestEditorSurface({
                 }}>
                     <span style={{ fontSize: '1.25rem' }}>🤖</span>
                     <div style={{ flex: 1 }}>
-                        <Text size="sm" fw={600} style={{ color: '#1e293b' }}>
+                        <p style={{ color: '#1e293b', fontSize: '0.875rem', fontWeight: 600, margin: 0 }}>
                             Copy the extraction prompt, run it with your test images, then paste the AI output here.
-                        </Text>
-                        <Text size="xs" c="dimmed">
+                        </p>
+                        <p style={{ color: '#64748b', fontSize: '0.75rem', margin: '0.25rem 0 0' }}>
                             This keeps the full test-making process inside one modal flow.
-                        </Text>
+                        </p>
                     </div>
                     <Button variant="primary" onClick={handleCopyExtractionPrompt}>
                         {promptCopied ? 'Copied' : 'Copy Prompt'}
@@ -989,12 +985,12 @@ export function THCSTestEditorSurface({
                     justifyContent: 'space-between',
                     gap: '1rem',
                 }}>
-                    <Text size="xs" c="dimmed">
+                    <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
                         {nonEmptyLineCount > 0 ? `${nonEmptyLineCount} lines ready to parse` : 'Paste content to continue'}
-                    </Text>
-                    <Text size="xs" c="dimmed">
+                    </span>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
                         The parser will detect sections, question types, and answer keys.
-                    </Text>
+                    </span>
                 </div>
             </div>
         );
@@ -1013,9 +1009,14 @@ export function THCSTestEditorSurface({
                             isEditMode={isEditMode}
                             onMetadataChange={handleMetadataChange}
                             onIsPublicChange={handleIsPublicChange}
-                            onTemplateSelect={handleTemplateSelect}
-                            onStartPasteText={handleStartPasteText}
+                            onTemplateSelect={(template) => {
+                                if (guardStep1Metadata()) handleTemplateSelect(template);
+                            }}
+                            onStartPasteText={() => {
+                                if (guardStep1Metadata()) handleStartPasteText();
+                            }}
                             onStartBlank={() => {
+                                if (!guardStep1Metadata()) return;
                                 resetPasteFlow();
                                 setParsedMetadataProposal(null);
                                 setCurrentStep(1);
@@ -1032,6 +1033,7 @@ export function THCSTestEditorSurface({
                         onSectionDelete={handleSectionDelete}
                         onSectionMove={handleSectionMove}
                         onAddSection={handleAddSection}
+                        onTrackAction={trackAction}
                         onReorder={(newSections) => {
                             setSections(newSections);
                             setIsDirty(true);
@@ -1139,15 +1141,33 @@ export function THCSTestEditorSurface({
                         <Button
                             variant="primary"
                             onClick={handleNext}
-                            disabled={isStep2ImageGuardActive}
-                            title={isStep2ImageGuardActive
-                                ? 'Upload images for visual reading questions before continuing.'
-                                : undefined}
+                            disabled={isStep1MetadataGuardActive || isStep2ImageGuardActive}
+                            title={isStep1MetadataGuardActive
+                                ? 'Complete the required setup fields before continuing.'
+                                : isStep2ImageGuardActive
+                                    ? 'Add an image or visual text alternative before continuing.'
+                                    : undefined}
                         >
                             {stepNextLabels[currentStep]}
                         </Button>
                     )}
                 </div>
+
+                {isStep1MetadataGuardActive && (
+                    <div role="status" style={{
+                        maxWidth: '420px',
+                        fontSize: '0.75rem',
+                        lineHeight: 1.45,
+                        color: '#92400e',
+                        background: '#fffbeb',
+                        border: '1px solid #fcd34d',
+                        borderRadius: '0.5rem',
+                        padding: '0.5rem 0.625rem',
+                    }}>
+                        <strong>Complete the required setup fields before continuing.</strong>
+                        <div>{metadataErrors.join(' ')}</div>
+                    </div>
+                )}
 
                 {isStep2ImageGuardActive && (
                     <div style={{
@@ -1160,9 +1180,9 @@ export function THCSTestEditorSurface({
                         borderRadius: '0.5rem',
                         padding: '0.5rem 0.625rem',
                     }}>
-                        <strong>Step 2 is blocked until required visual-prompt images are uploaded.</strong>
+                        <strong>Step 2 is blocked until each visual prompt has an image or text alternative.</strong>
                         <div>Missing: {missingVisualImageSummary}.</div>
-                        <div>Use the <strong>Add Image</strong> button inside each question card.</div>
+                        <div>Use <strong>Add Image</strong>, <strong>Paste screenshot</strong>, or the visual text field inside each question card.</div>
                     </div>
                 )}
             </div>
@@ -1189,15 +1209,16 @@ export function THCSTestEditorSurface({
 
                 {/* Responsive warning */}
                 {isMobile && (
-                    <Alert color="yellow" mb="md" icon="⚠️" variant="light">
+                    <div role="status" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', border: '1px solid #fcd34d', borderRadius: '0.5rem', background: '#fffbeb', color: '#92400e' }}>
+                        ⚠️{' '}
                         This editor works best on desktop. Please use a larger screen for the best experience.
-                    </Alert>
+                    </div>
                 )}
 
                 {saveError && (
-                    <Alert color="red" mb="md" variant="light">
+                    <div role="alert" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', border: '1px solid #fca5a5', borderRadius: '0.5rem', background: '#fef2f2', color: '#991b1b' }}>
                         Save error: {saveError}
-                    </Alert>
+                    </div>
                 )}
 
                 {renderStep()}

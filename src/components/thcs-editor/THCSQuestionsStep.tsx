@@ -21,6 +21,7 @@ export interface THCSQuestionsStepProps {
     onSectionMove: (index: number, direction: -1 | 1) => void;
     onAddSection: () => void;
     onReorder: (newSections: THCSSection[]) => void;
+    onTrackAction?: (actionName: string, metadata?: Record<string, unknown>) => void;
 }
 
 const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
@@ -32,6 +33,7 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
     onSectionMove,
     onAddSection,
     onReorder,
+    onTrackAction,
 }) => {
     const [activeSectionId, setActiveSectionId] = useState<string | null>(
         sections.length > 0 ? sections[0]!.id : null
@@ -335,6 +337,7 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                             onDelete={() => onSectionDelete(selectedIndex)}
                             onMoveUp={() => onSectionMove(selectedIndex, -1)}
                             onMoveDown={() => onSectionMove(selectedIndex, 1)}
+                            onTrackAction={onTrackAction}
                         />
                     )}
 

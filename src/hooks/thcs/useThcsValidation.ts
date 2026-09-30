@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import type { THCSTestMetadata, THCSSection } from '../../types/thcs-test.types';
 
 interface ValidationResult {
+    metadataErrors: string[];
     errors: string[];
     warnings: string[];
     isValid: boolean;
@@ -18,22 +19,23 @@ export function useThcsValidation({
     sections: THCSSection[];
 }): ValidationResult {
     return useMemo(() => {
-        const errors: string[] = [];
+        const metadataErrors: string[] = [];
         const warnings: string[] = [];
 
         // === ERRORS (block publish) ===
         if (!metadata.title?.trim()) {
-            errors.push('Test title is required.');
+            metadataErrors.push('Test title is required.');
         }
         if (!metadata.duration || metadata.duration <= 0) {
-            errors.push('Test duration must be greater than 0.');
+            metadataErrors.push('Test duration must be greater than 0.');
         }
         if (!metadata.gradeLevel) {
-            errors.push('Grade level is required.');
+            metadataErrors.push('Grade level is required.');
         }
         if (!metadata.examType?.trim()) {
-            errors.push('Exam type is required.');
+            metadataErrors.push('Exam type is required.');
         }
+        const errors = [...metadataErrors];
 
         // Section-level
         sections.forEach((section) => {
@@ -147,6 +149,7 @@ export function useThcsValidation({
         });
 
         return {
+            metadataErrors,
             errors,
             warnings,
             isValid: errors.length === 0,

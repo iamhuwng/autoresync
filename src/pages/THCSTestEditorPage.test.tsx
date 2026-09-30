@@ -9,6 +9,9 @@ import { BrowserRouter } from 'react-router-dom';
 const mockNotificationsShow = vi.fn();
 const mockParseThcsText = vi.fn();
 const mockConvertParsedToThcsDraft = vi.fn();
+const { mockValidationState } = vi.hoisted(() => ({
+    mockValidationState: { enforceMetadata: false },
+}));
 
 vi.mock('react-router-dom', async () => {
     const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -45,11 +48,19 @@ vi.mock('../hooks/thcs/useThcsAutoSave', () => ({
 }));
 
 vi.mock('../hooks/thcs/useThcsValidation', () => ({
-    useThcsValidation: () => ({
-        errors: [],
-        warnings: [],
-        isValid: true,
-    }),
+    useThcsValidation: ({ metadata }: {
+        metadata: { title?: string; duration?: number; gradeLevel?: number; examType?: string };
+    }) => {
+        const metadataErrors = mockValidationState.enforceMetadata
+            ? [
+                !metadata.title?.trim() ? 'Test title is required.' : '',
+                !metadata.duration || metadata.duration <= 0 ? 'Test duration must be greater than 0.' : '',
+                !metadata.gradeLevel ? 'Grade level is required.' : '',
+                !metadata.examType?.trim() ? 'Exam type is required.' : '',
+            ].filter(Boolean)
+            : [];
+        return { metadataErrors, errors: metadataErrors, warnings: [], isValid: metadataErrors.length === 0 };
+    },
 }));
 
 vi.mock('@mantine/hooks', () => ({
@@ -208,7 +219,38 @@ vi.mock('../components/ai/AIMaintenanceBanner', () => ({
     default: () => null,
 }));
 
-import { THCSTestEditorSurface } from './THCSTestEditorPage';
+import { getMissingVisualQuestionImages, THCSTestEditorSurface } from './THCSTestEditorPage';
+import type { THCSSection } from '../types/thcs-test.types';
+
+const visualSection = (imageUrl?: string, imageCaption?: string): THCSSection => ({
+    id: 'signs',
+    name: 'Signs',
+    order: 0,
+    totalPoints: 1,
+    pointMode: 'auto',
+    instructionText: 'Look at the sign.',
+    isCustomInstruction: false,
+    layout: 'single-column',
+    questions: [{
+        id: 'q1',
+        questionNumber: 1,
+        type: 'mcq-sign-notice',
+        intent: 'mcq-sign-notice',
+        questionText: 'What does it mean?',
+        options: ['A', 'B', 'C', 'D'],
+        correctAnswer: 'A',
+        imageUrl,
+        imageCaption,
+    }],
+});
+
+describe('THCS visual prompt requirement', () => {
+    it('accepts either an uploaded image or a teacher-entered text alternative', () => {
+        expect(getMissingVisualQuestionImages([visualSection()])).toHaveLength(1);
+        expect(getMissingVisualQuestionImages([visualSection('https://example.test/sign.png')])).toHaveLength(0);
+        expect(getMissingVisualQuestionImages([visualSection(undefined, 'NO PARKING')])).toHaveLength(0);
+    });
+});
 
 const renderSurface = (props: Partial<React.ComponentProps<typeof THCSTestEditorSurface>> = {}) => {
     const defaultProps = {
@@ -231,6 +273,26 @@ describe('THCSTestEditorSurface', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockConvertParsedToThcsDraft.mockReset();
+        mockValidationState.enforceMetadata = false;
+    });
+
+    it('keeps Step 1 active until all publish-required metadata is complete', async () => {
+        mockValidationState.enforceMetadata = true;
+        const user = userEvent.setup();
+        renderSurface();
+
+        const next = screen.getByRole('button', { name: /Next: Questions/i });
+        expect(next).toBeDisabled();
+        expect(screen.getByText(/Test title is required.*Exam type is required/)).toBeInTheDocument();
+
+        await user.click(screen.getByText('Start Blank'));
+        expect(screen.queryByText('Questions Step')).not.toBeInTheDocument();
+
+        await user.type(screen.getByLabelText('Test Title'), 'Grade 9 Midterm');
+        await user.type(screen.getByLabelText('Exam Type'), 'midterm');
+        await waitFor(() => expect(next).toBeEnabled());
+        await user.click(next);
+        expect(screen.getByText('Questions Step')).toBeInTheDocument();
     });
 
     it('advances the shared wizard progress when Paste Text starts', async () => {

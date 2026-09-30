@@ -189,6 +189,17 @@ const THCSQuestionRenderer: React.FC<THCSQuestionRendererProps> = ({
                     )}
                 </>
             )}
+            {!question.imageUrl && question.imageCaption?.trim() && (
+                <div
+                    aria-label="Visual prompt text"
+                    style={{
+                        marginBottom: '0.75rem', padding: '0.75rem 1rem', whiteSpace: 'pre-wrap',
+                        border: '1px solid #cbd5e1', borderRadius: '0.5rem', background: '#f8fafc', color: '#1e293b',
+                    }}
+                >
+                    {question.imageCaption}
+                </div>
+            )}
             {/* Phase 2: Fill-in renderer */}
             {isFillIn && (
                 <THCSFillInRenderer
