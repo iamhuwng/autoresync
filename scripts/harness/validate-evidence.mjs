@@ -40,9 +40,10 @@ function collectionInvocation(invocation) {
   return invocation.tool === 'playwright' && command === 'test' && rest.includes('--list');
 }
 
-function canonicalInvocationCommand(invocation) {
-  if (invocation.tool === 'doctor') return ['node', 'scripts/harness/run-tool.mjs', '--doctor', invocation.project, ...invocation.arguments];
-  return ['node', 'scripts/harness/run-tool.mjs', invocation.tool, invocation.project, ...invocation.arguments];
+function canonicalInvocationCommand(invocation, audit) {
+  const prefix = ['node', 'scripts/harness/run-tool.mjs', ...(audit ? ['--audit'] : [])];
+  if (invocation.tool === 'doctor') return [...prefix, '--doctor', invocation.project, ...invocation.arguments];
+  return [...prefix, invocation.tool, invocation.project, ...invocation.arguments];
 }
 
 function protectedPathValid(state, label, errors) {
@@ -173,7 +174,7 @@ function validateSidecar(sidecar, options) {
   }
   if (evidence?.harness?.name !== HARNESS_CONTRACT.name || evidence.harness.version !== HARNESS_CONTRACT.version || evidence.harness.protocolVersion !== HARNESS_CONTRACT.protocolVersion) errors.push('harness version/protocol mismatch');
   if (!evidence.invocation || typeof evidence.invocation.cwd !== 'string' || typeof evidence.invocation.project !== 'string' || typeof evidence.invocation.tool !== 'string' || !Array.isArray(evidence.invocation.command) || !Array.isArray(evidence.invocation.arguments)) errors.push('invocation provenance is incomplete');
-  else if (JSON.stringify(evidence.invocation.command) !== JSON.stringify(canonicalInvocationCommand(evidence.invocation))) errors.push('invocation command is not canonical');
+  else if (JSON.stringify(evidence.invocation.command) !== JSON.stringify(canonicalInvocationCommand(evidence.invocation, evidence.harness?.audit === true))) errors.push('invocation command is not canonical');
   if (!evidence.source || !isFullSha(evidence.source.commit) || typeof evidence.source.dirty !== 'boolean' || !isHash(evidence.source.dirtyFingerprint)) errors.push('source provenance is incomplete');
   else {
     if (evidence.source.commit !== options.expectCommit) errors.push('source commit does not match --expect-commit');

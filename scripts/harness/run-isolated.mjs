@@ -12,7 +12,7 @@ const repositoryRoot = path.resolve(harnessDirectory, '..', '..');
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
 export const contentHash = (value) => hash(Buffer.isBuffer(value) ? value.toString('utf8').replace(/\r\n/gu, '\n') : value);
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
-const commandResult = (command, args, options = {}) => spawnSync(command, args, { encoding: 'utf8', shell: false, ...options });
+const commandResult = (command, args, options = {}) => spawnSync(command, args, { encoding: 'utf8', shell: false, maxBuffer: 64 * 1024 * 1024, ...options });
 const failure = (code, message) => Object.assign(new Error(message), { code });
 const evidenceTimestamp = () => new Date().toISOString();
 const EVIDENCE_PHASES = Object.freeze(['dependencyPreparation', 'capabilityPreparation', 'sourceMirror', 'toolExecution', 'finalization']);
@@ -898,12 +898,15 @@ async function main() {
       const requested = invocation.toolArguments.length ? invocation.toolArguments : toolNames.filter((name) => packageDependencies(project.manifest)[HARNESS_CONTRACT.tools[name].package]);
       remediationTool = requested[0] || 'doctor';
       for (const name of requested) if (!toolNames.includes(name)) throw failure('TOOL_UNSUPPORTED', `unsupported doctor capability: ${name}`);
-      const windowsTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'windows-x64');
+      const windowsTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'windows-x64' && HARNESS_CONTRACT.tools[name].dependencySource !== 'project');
       if (windowsTools.length) beginEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
       const dependency = windowsTools.length ? await ensureDependencies(project, cacheBase, source) : null;
       if (windowsTools.length) endEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
       beginEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
       if (dependency) for (const name of windowsTools) evidence.capabilities.push(...preflightTool(project, dependency, name, null, cacheBase).resources);
+      for (const name of requested.filter((name) => HARNESS_CONTRACT.tools[name]?.dependencySource === 'project')) {
+        evidence.capabilities.push(...preflightTool(project, { root: project.projectRoot }, name, null, cacheBase).resources);
+      }
       const wslTools = requested.filter((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'wsl');
       for (const name of wslTools) {
         assertToolDeclared(project, name);
@@ -921,9 +924,11 @@ async function main() {
     const declaredTool = assertToolDeclared(project, invocation.tool);
     assertInvocationMode(invocation.tool, declaredTool, invocation.toolArguments);
     if (declaredTool.runtime === 'windows-x64') beginEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
-    const dependency = declaredTool.runtime === 'windows-x64' ? await ensureDependencies(project, cacheBase, source) : null;
+    const dependency = declaredTool.dependencySource === 'project'
+      ? { root: project.projectRoot }
+      : declaredTool.runtime === 'windows-x64' ? await ensureDependencies(project, cacheBase, source) : null;
     if (declaredTool.runtime === 'windows-x64') endEvidencePhase(evidence, 'dependencyPreparation', evidenceFile);
-    if (dependency) dependencyCacheStateBefore = dependencyCacheState(dependency.root);
+    if (dependency?.identity) dependencyCacheStateBefore = dependencyCacheState(dependency.root);
     beginEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
     let prepared = null;
     if (dependency) prepared = preflightTool(project, dependency, invocation.tool, invocation.toolArguments[0], cacheBase);
@@ -932,7 +937,7 @@ async function main() {
     endEvidencePhase(evidence, 'capabilityPreparation', evidenceFile);
     executionRoot = path.join(cacheBase, 'runs', runId);
     fs.mkdirSync(executionRoot, { recursive: true, mode: 0o700 });
-      writeRunReceipt(cacheBase, runId, { status: 'in_progress', dependencyRoot: dependency?.root ?? null, evidenceFile });
+    writeRunReceipt(cacheBase, runId, { status: 'in_progress', dependencyRoot: dependency?.identity ? dependency.root : null, evidenceFile });
     let executionRepositoryRoot = repositoryRoot;
     let executionProjectRoot = project.projectRoot;
     if (declaredTool.auditSourceMode === 'snapshot') {
@@ -945,7 +950,7 @@ async function main() {
     } else {
       fs.mkdirSync(executionRoot, { recursive: true });
     }
-    evidence.dependencyCache = dependency ? { identity: dependency.identity, root: dependency.root, npmVersion: dependency.npmVersion } : null;
+    evidence.dependencyCache = dependency?.identity ? { identity: dependency.identity, root: dependency.root, npmVersion: dependency.npmVersion } : null;
     evidence.executionWorkspace = { identity: runId, mode: declaredTool.auditSourceMode, root: executionRoot, repository: executionRepositoryRoot, project: executionProjectRoot };
     process.stderr.write(`harness ${HARNESS_CONTRACT.version}: ${invocation.tool} project=${invocation.relativeProjectPath} run=${runId}\n`);
     beginEvidencePhase(evidence, 'toolExecution', evidenceFile);

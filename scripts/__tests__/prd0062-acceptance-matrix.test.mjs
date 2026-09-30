@@ -11,6 +11,7 @@ import { createPrd0062StudentRuntimePersistenceFixture } from '../../e2e/prd0062
 import {
   loadPrd0062AcceptanceMatrix,
   LEGACY_BACKUP_RECOVERY_COMMAND,
+  PLAYWRIGHT_COMMAND,
   STUDENT_ACCESSIBILITY_DEVICE_COMMAND,
   validatePrd0062AcceptanceMatrix,
 } from '../lib/prd0062-acceptance-matrix.mjs';
@@ -75,7 +76,7 @@ test('rejects 51C2 suite drift from student mobile localhost quick-login contrac
   assert.match(errors, /AC-AD-001: wrong browser suite command/);
   assert.match(errors, /AC-AD-001: must use F-VOCAB-65/);
   assert.match(errors, /AC-AD-001: artifact path must be case-scoped/);
-  assert.equal(STUDENT_ACCESSIBILITY_DEVICE_COMMAND, 'node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-mobile e2e/prd0062-student-accessibility-device.spec.ts');
+  assert.equal(STUDENT_ACCESSIBILITY_DEVICE_COMMAND, `${PLAYWRIGHT_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-mobile e2e/prd0062-student-accessibility-device.spec.ts`);
 });
 
 test('rejects 51C1 suite drift from student localhost quick-login contract', () => {

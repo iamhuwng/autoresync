@@ -49,7 +49,7 @@ try {
     const matrixPath = path.join(rootDir, 'documentation/architecture/data/prd0062-activity-coverage.matrix.json');
     const fixtureRun = spawnSync(
       process.execPath,
-      [path.join(rootDir, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', fixtureChecker, matrixPath],
+      [path.join(rootDir, 'scripts/tooling-where.mjs'), '--exec', 'vite-node', '--mode', 'test', fixtureChecker, matrixPath],
       { cwd: rootDir, encoding: 'utf8' },
     );
     let fixtureResult;

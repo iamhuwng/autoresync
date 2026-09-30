@@ -53,13 +53,13 @@ const walkCommandFields = (value: unknown, pathName: string, callback: (command:
   }
 };
 
-const assertHarnessCommand = (command: string, commandPath: string, issues: AnyRecord[]) => {
-  const harnessTool = /^node scripts\/harness\/run-tool\.mjs\s+(?:playwright\s+\.\s+test|(?:vite|vitest|vite-node|wrangler)\s+\.)(?:\s|$)/u;
-  if (/\bplaywright\b/iu.test(command) && !/^node scripts\/harness\/run-tool\.mjs playwright \. test(?:\s|$)/u.test(command)) {
-    issue(issues, 'harness-command-drift', commandPath, 'Playwright commands must use node scripts/harness/run-tool.mjs playwright . test.');
+const assertStatelessCommand = (command: string, commandPath: string, issues: AnyRecord[]) => {
+  const resolverTool = /^node scripts\/tooling-where\.mjs --exec (?:playwright|vite|vitest|vite-node|cloudflare-wrangler|r2-wrangler)(?:\s|$)/u;
+  if (/\bplaywright\b/iu.test(command) && !/^node scripts\/tooling-where\.mjs --exec playwright test(?:\s|$)/u.test(command)) {
+    issue(issues, 'tool-command-drift', commandPath, 'Playwright commands must use node scripts/tooling-where.mjs --exec playwright test.');
   }
-  if (/\bnpx\b|\b(?:vite|vitest|wrangler)\b/iu.test(command) && !harnessTool.test(command)) {
-    issue(issues, 'harness-command-drift', commandPath, 'Direct npx, vite, vitest, or wrangler commands are not accepted; use the repository harness.');
+  if (/\bnpx\b|\b(?:vite|vitest|vite-node|wrangler)\b/iu.test(command) && !resolverTool.test(command)) {
+    issue(issues, 'tool-command-drift', commandPath, 'Tool commands must use the stateless repository resolver.');
   }
 };
 
@@ -220,7 +220,7 @@ export const validatePrd0062AcceptanceConformance = ({ rootDir = process.cwd(), 
     issue(issues, 'fixture-manifest-hash-drift', '$.fixtureManifest.sha256', 'Deterministic fixture manifest hash differs from the frozen authority hash.');
   }
   for (const harnessIssue of validateHarnessContract({ rootDir })) issues.push(harnessIssue);
-  walkCommandFields(matrix, '$', (command, commandPath) => assertHarnessCommand(command, commandPath, issues));
+  walkCommandFields(matrix, '$', (command, commandPath) => assertStatelessCommand(command, commandPath, issues));
   const manifestRoots = new Set<string>();
   for (const entry of manifest.entries ?? []) {
     if (manifestRoots.has(entry.cleanupRoot)) issue(issues, 'duplicate-fixture-cleanup-root', `$.fixtureManifest.entries.${entry.id}`, 'Fixture cleanup roots must be unique.');

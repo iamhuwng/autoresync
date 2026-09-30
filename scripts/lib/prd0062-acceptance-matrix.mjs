@@ -23,11 +23,11 @@ const TIMER_INVARIANTS = [
   'no-completion-effect',
 ];
 export const OWNER_TICKETS = new Set(['51B1', '51B2', '51C1', '51C2', '51D1', '51D2', '51E']);
-export const PLAYWRIGHT_HARNESS_COMMAND = 'node scripts/harness/run-tool.mjs playwright . test';
-const TEACHER_AUTHORING_ASSIGNMENT_COMMAND = `${PLAYWRIGHT_HARNESS_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium e2e/prd0062-teacher-authoring-assignment.spec.ts`;
-const TEACHER_UPDATES_REPLACEMENT_RESULTS_COMMAND = `${PLAYWRIGHT_HARNESS_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium e2e/prd0062-teacher-updates-replacement-results.spec.ts`;
-export const STUDENT_ACCESSIBILITY_DEVICE_COMMAND = `${PLAYWRIGHT_HARNESS_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-mobile e2e/prd0062-student-accessibility-device.spec.ts`;
-const STUDENT_RUNTIME_PERSISTENCE_COMMAND = `${PLAYWRIGHT_HARNESS_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-desktop e2e/prd0062-student-runtime-persistence.spec.ts`;
+export const PLAYWRIGHT_COMMAND = 'node scripts/tooling-where.mjs --exec playwright test';
+const TEACHER_AUTHORING_ASSIGNMENT_COMMAND = `${PLAYWRIGHT_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium e2e/prd0062-teacher-authoring-assignment.spec.ts`;
+const TEACHER_UPDATES_REPLACEMENT_RESULTS_COMMAND = `${PLAYWRIGHT_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium e2e/prd0062-teacher-updates-replacement-results.spec.ts`;
+export const STUDENT_ACCESSIBILITY_DEVICE_COMMAND = `${PLAYWRIGHT_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-mobile e2e/prd0062-student-accessibility-device.spec.ts`;
+const STUDENT_RUNTIME_PERSISTENCE_COMMAND = `${PLAYWRIGHT_COMMAND} --config playwright.prd0062-acceptance.config.mjs --project=student-chromium-desktop e2e/prd0062-student-runtime-persistence.spec.ts`;
 export const LEGACY_BACKUP_RECOVERY_COMMAND = 'npm run test:prd0062:legacy-backup-recovery';
 const REQUIRED_METRIC_FIELDS = ['fixtureId', 'command', 'timestamp', 'artifact', 'failureRetry', 'approvedExceptionRef'];
 const CANONICAL_SOURCES = [

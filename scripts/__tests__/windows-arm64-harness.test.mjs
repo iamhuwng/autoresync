@@ -33,7 +33,7 @@ import {
   wslFailureCodeFromStderr,
 } from '../harness/run-isolated.mjs';
 import { acquireWslWranglerInstallLock, cachedWranglerEnvironment, ensureWranglerCache, readWranglerDependencyContext, runCachedWrangler, withWranglerCacheLease, wranglerDependencyAliases, wslCacheRoot, wslWranglerLockOwner } from '../harness/run-wsl-wrangler.mjs';
-import { assertActiveGenericSkill, assertRepositorySkillAuthority, repositoryAuthorityReport, skillSourcesFromPromptInput } from '../harness/skill-authority.mjs';
+import { actualSkillAuthorityReport, repositoryAuthorityReport, repositorySkillCollisions, skillSourcesFromPromptInput } from '../harness/skill-authority.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const fixtureRoot = path.join(repositoryRoot, 'scripts', 'harness', '__fixtures__');
@@ -108,18 +108,18 @@ test('contract is executable, generic, and self-describing', () => {
   const output = execFileSync(process.execPath, [path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--contract'], { cwd: repositoryRoot, encoding: 'utf8' });
   assert.deepEqual(JSON.parse(output), HARNESS_CONTRACT);
   assert.equal(HARNESS_CONTRACT.grammar.endsWith('<tool> <project> [...args]'), true);
-  assert.equal(HARNESS_CONTRACT.tools.wrangler.runtime, 'wsl');
+  assert.equal(HARNESS_CONTRACT.tools.wrangler.runtime, 'windows-x64');
   assert.equal(HARNESS_CONTRACT.tools.playwright.capabilities[0].kind, 'browser');
   assert.equal(HARNESS_CONTRACT.tools.firebase.capabilities[0].minimumMajor, 21);
   assert.deepEqual(HARNESS_CONTRACT.tools.firebase.capabilities[0].commands, ['emulators:exec', 'emulators:start']);
   assert.deepEqual(HARNESS_CONTRACT.tools.playwright.capabilities[0].commands, ['test', 'show-report']);
   assert.deepEqual(HARNESS_CONTRACT.resolutionOrder, ['discover', 'reuse', 'adapt', 'install', 'verify']);
-  assert.equal(HARNESS_CONTRACT.version, '4.0.1');
-  assert.equal(HARNESS_CONTRACT.protocolVersion, 6);
+  assert.equal(HARNESS_CONTRACT.version, '5.0.0');
+  assert.equal(HARNESS_CONTRACT.protocolVersion, 7);
   assert.equal(HARNESS_CONTRACT.dependencyCacheProtocolVersion, 3);
-  assert.equal(HARNESS_CONTRACT.authority.genericSkill.name, 'run-windows-arm64-tools');
-  assert.equal(HARNESS_CONTRACT.authority.genericSkill.revision, '4.0.0');
-  assert.equal(HARNESS_CONTRACT.authority.wsl.sourcePolicy, 'selected-windows-checkout');
+  assert.equal(HARNESS_CONTRACT.authority.genericSkill, undefined);
+  assert.equal(HARNESS_CONTRACT.authority.wsl, undefined);
+  assert.equal(HARNESS_CONTRACT.authority.sourceAuthority, 'windows-checkout');
   assert.match(remediationFor('BROWSER_RUNTIME_MISSING', 'web', 'playwright').stages.verify[0], /--doctor web playwright/u);
   assert.equal(wranglerDependencyCacheIdentity({ version: '4.0.0', nodeVersion: 'v22.17.1', nodeAbi: '127', architecture: 'x64', npmVersion: '10.9.2', manifestSha256: 'b'.repeat(64), lockSha256: 'a'.repeat(64) }), '4.0.0-nodev22.17.1-abi127-x64-npm10.9.2-manifestbbbbbbbbbbbb-lockaaaaaaaaaaaa-protocol3');
   for (const code of ['WSL_WRANGLER_CACHE_INVALID', 'WSL_WRANGLER_CACHE_INCOMPLETE', 'WSL_WRANGLER_INSTALL_FAILED', 'WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', 'WSL_WRANGLER_PROTOCOL_INVALID']) {
@@ -127,47 +127,59 @@ test('contract is executable, generic, and self-describing', () => {
   }
 });
 
-test('repository skill authority rejects generic collisions', () => {
+test('repository skill collisions remain informational', () => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-skill-authority-'));
   const writeSkill = (file, name) => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `---\nname: ${name}\ndescription: focused test skill\n---\n`);
   };
   try {
-    assert.equal(assertRepositorySkillAuthority(temporary).genericSkill.name, HARNESS_CONTRACT.authority.genericSkill.name);
+    assert.deepEqual(repositorySkillCollisions(temporary), []);
     const collision = path.join(temporary, '.agents', 'skills', 'collision', 'SKILL.md');
-    writeSkill(collision, HARNESS_CONTRACT.authority.genericSkill.name);
-    assert.throws(() => assertRepositorySkillAuthority(temporary), { code: 'HARNESS_CONTRACT_MISMATCH' });
+    writeSkill(collision, 'run-windows-arm64-tools');
+    assert.deepEqual(repositorySkillCollisions(temporary), [{ name: 'run-windows-arm64-tools', file: fs.realpathSync.native(collision) }]);
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
   }
 });
 
-test('authority report and Codex prompt parsing expose one generic source and selected boundary', () => {
+test('authority report and Codex prompt parsing expose checkout boundary and discovered sources', () => {
   const report = repositoryAuthorityReport(repositoryRoot, 'wrangler');
   assert.equal(report.authoritativeCheckoutRoot, repositoryRoot);
-  assert.equal(report.selectedExecutionBoundary.runtime, 'wsl');
-  assert.equal(report.selectedExecutionBoundary.sourceMode, 'live');
+  assert.equal(report.selectedExecutionBoundary.runtime, 'windows-x64');
+  assert.equal(report.selectedExecutionBoundary.sourceMode, undefined);
   assert.equal(report.selectedExecutionBoundary.auditSourceMode, 'live');
-  assert.equal(report.selectedExecutionBoundary.wslRole, 'execution-substrate-only');
   const genericSource = path.join(os.tmpdir(), 'user-skills', 'run-windows-arm64-tools', 'SKILL.md');
   const promptInput = [{ content: [{ type: 'input_text', text: `<skills_instructions>\n- run-windows-arm64-tools: generic (file: ${genericSource})\n</skills_instructions>` }] }];
   assert.deepEqual(skillSourcesFromPromptInput(promptInput, 'run-windows-arm64-tools'), [path.resolve(genericSource)]);
 });
 
-test('active generic skill selection fails closed on stale revision', () => {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-generic-skill-revision-'));
-  const source = path.join(temporary, 'run-windows-arm64-tools', 'SKILL.md');
-  const writeRevision = (revision) => {
-    fs.mkdirSync(path.dirname(source), { recursive: true });
-    fs.writeFileSync(source, `---\nname: run-windows-arm64-tools\ndescription: generic test skill\nmetadata:\n  revision: "${revision}"\n---\n`);
-  };
+test('generic skill discovery is informational and accepts any discovered revision', () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-generic-skill-report-'));
+  const genericRoot = path.join(temporary, 'codex-skills');
+  const resourceRoot = path.join(temporary, 'agent-skills');
+  const genericSource = path.join(genericRoot, 'run-windows-arm64-tools', 'SKILL.md');
+  const resourceSource = path.join(resourceRoot, 'mantine-vitest-testing', 'SKILL.md');
   try {
-    writeRevision('4.0.0');
-    assert.equal(assertActiveGenericSkill([source], repositoryRoot).revision, '4.0.0');
-    writeRevision('1.0.0');
-    assert.throws(() => assertActiveGenericSkill([source], repositoryRoot), { code: 'HARNESS_CONTRACT_MISMATCH' });
-    assert.throws(() => assertActiveGenericSkill([source, source], repositoryRoot), { code: 'HARNESS_CONTRACT_MISMATCH' });
+    fs.mkdirSync(path.dirname(genericSource), { recursive: true });
+    fs.mkdirSync(path.dirname(resourceSource), { recursive: true });
+    fs.writeFileSync(genericSource, '---\nname: run-windows-arm64-tools\nmetadata:\n  revision: "1.0.0"\n---\n');
+    fs.writeFileSync(resourceSource, '---\nname: mantine-vitest-testing\nmetadata:\n  revision: "2.4.0"\n---\n');
+    const promptInput = [{ content: [{ type: 'input_text', text: [
+      `- \`r0\` = \`${genericRoot.replaceAll('\\', '/') }\``,
+      `- \`r10\` = \`${resourceRoot.replaceAll('\\', '/') }\``,
+      '- run-windows-arm64-tools: generic (file: r0/run-windows-arm64-tools/SKILL.md)',
+      '- mantine-vitest-testing: React component testing (file: r10/mantine-vitest-testing/SKILL.md)',
+    ].join('\n') }] }];
+    const codexProbe = `process.stdout.write(${JSON.stringify(JSON.stringify(promptInput))})`;
+    const report = actualSkillAuthorityReport(repositoryRoot, 'vitest', { codexCommand: process.execPath, codexArguments: ['-e', codexProbe] });
+    assert.equal(report.skillDiscovery.available, true);
+    assert.equal(report.skillDiscovery.policy, 'informational');
+    assert.deepEqual(skillSourcesFromPromptInput(promptInput, 'run-windows-arm64-tools'), [path.resolve(genericSource)]);
+    assert.deepEqual(report.skillDiscovery.discovered.map(({ name, source, revision }) => ({ name, source, revision })), [
+      { name: 'run-windows-arm64-tools', source: path.resolve(genericSource), revision: '1.0.0' },
+      { name: 'mantine-vitest-testing', source: path.resolve(resourceSource), revision: '2.4.0' },
+    ]);
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
   }
@@ -884,17 +896,16 @@ test('WSL helper failures retain their specific remediation code', () => {
   assert.equal(remediationFor(code, 'cloudflare', 'wrangler').code, code);
 });
 
-test('snapshot harness rejects live watchers while WSL Wrangler keeps live worktree source', () => {
+test('snapshot harness rejects live watchers while Wrangler audits the live worktree', () => {
   assert.throws(() => assertInvocationMode('vite', HARNESS_CONTRACT.tools.vite, []), { code: 'LIVE_WORKLOAD_REQUIRES_CHECKOUT' });
   assert.throws(() => assertInvocationMode('vite', HARNESS_CONTRACT.tools.vite, ['dev']), { code: 'LIVE_WORKLOAD_REQUIRES_CHECKOUT' });
   assert.throws(() => assertInvocationMode('vitest', HARNESS_CONTRACT.tools.vitest, ['watch']), { code: 'LIVE_WORKLOAD_REQUIRES_CHECKOUT' });
   assert.doesNotThrow(() => assertInvocationMode('vite', HARNESS_CONTRACT.tools.vite, ['build']));
   assert.doesNotThrow(() => assertInvocationMode('vitest', HARNESS_CONTRACT.tools.vitest, ['run']));
-  assert.equal(HARNESS_CONTRACT.tools.wrangler.normalSourceMode, 'live');
   assert.equal(HARNESS_CONTRACT.tools.wrangler.auditSourceMode, 'live');
 });
 
-test('ordinary harness execution preserves selected-project dependency metadata', { timeout: 30_000 }, async () => {
+test('audit harness execution preserves selected-project dependency metadata', { timeout: 30_000 }, async () => {
   const container = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-protected-node-modules-'));
   const project = path.join(container, 'project');
   const cache = path.join(container, 'cache');
@@ -1052,20 +1063,25 @@ if (process.argv.includes('--simulate-timeout')) {
   } finally { fs.rmSync(container, { recursive: true, force: true }); }
 });
 
-test('supported root and Cloudflare package scripts route through the harness', () => {
-  for (const packagePath of ['package.json', 'cloudflare/package.json']) {
-    const scripts = JSON.parse(fs.readFileSync(path.join(repositoryRoot, packagePath), 'utf8')).scripts;
-    for (const [name, command] of Object.entries(scripts)) {
-      const intentionallyLive = packagePath === 'package.json' && ['dev', 'preview'].includes(name);
-      if (!intentionallyLive && /(^|\s|&&|;)(?:npx\s+)?(?:firebase(?:-tools)?|vite|vitest|vite-node|playwright|wrangler)(?:\s|$)|node_modules[\\/](?:firebase-tools|vite|vitest|vite-node|playwright|wrangler)/u.test(command)) {
-        assert.match(command, /scripts[\\/]harness[\\/]run-tool\.mjs/u, `${packagePath}#${name}`);
-      }
-    }
+test('ordinary package scripts use the stateless resolver while audit scripts retain the harness', () => {
+  const rootScripts = JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')).scripts;
+  const cloudflareScripts = JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'cloudflare/package.json'), 'utf8')).scripts;
+
+  for (const name of ['build', 'test', 'test:scripts:vitest', 'test:e2e']) {
+    assert.match(rootScripts[name], /scripts[\\/]tooling-where\.mjs --exec/u, `package.json#${name}`);
+    assert.doesNotMatch(rootScripts[name], /scripts[\\/]harness[\\/]run-tool\.mjs/u, `package.json#${name}`);
   }
-  assert.equal(JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')).scripts['deploy:hosting'], 'npm run build && node scripts/harness/run-tool.mjs --audit firebase . deploy --only hosting:kahut1');
+  for (const name of ['test', 'local', 'dev']) {
+    assert.match(cloudflareScripts[name], /scripts[\\/]tooling-where\.mjs --exec/u, `cloudflare/package.json#${name}`);
+    assert.doesNotMatch(cloudflareScripts[name], /scripts[\\/]harness[\\/]run-tool\.mjs/u, `cloudflare/package.json#${name}`);
+  }
+  for (const name of ['check', 'deploy', 'deployed-status', 'version-list', 'version-pin', 'rollback']) {
+    assert.match(cloudflareScripts[name], /scripts[\\/]harness[\\/]run-tool\.mjs --audit/u, `cloudflare/package.json#${name}`);
+  }
+  assert.equal(rootScripts['deploy:hosting'], 'npm run build && node scripts/harness/run-tool.mjs --audit firebase . deploy --only hosting:kahut1');
 });
 
-const x64Node = path.join(os.homedir(), 'Tools', 'node-x64', 'node.exe');
+const x64Node = path.join(os.homedir(), '.codex', 'tools', 'windows-arm64', 'node', '22-x64', 'node.exe');
 test('Windows x64 bootstrap failure names a contract remediation code', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
   const result = await run(process.execPath, [
     path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--doctor', '.', 'vitest',
@@ -1078,22 +1094,12 @@ test('Windows x64 bootstrap failure names a contract remediation code', { skip: 
   assert.ok(HARNESS_CONTRACT.remediations.X64_NODE_PREREQUISITE_MISSING);
 });
 
-test('ordinary Windows dispatcher preserves arguments without audit artifacts or retained source', { skip: process.platform !== 'win32' || !fs.existsSync(x64Node), timeout: 120_000 }, async () => {
-  const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-dispatcher-'));
-  try {
-    const result = await run(process.execPath, [
-      path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'),
-      'vite-node', 'scripts/harness/__fixtures__/synthetic-project',
-      'value with spaces', '--equals=a=b', 'quote"roundtrip',
-    ], repositoryRoot, { CODEX_HARNESS_ROOT: cache });
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(JSON.parse(result.stdout), { marker: 'base', arguments: ['value with spaces', '--equals=a=b', 'quote"roundtrip'] });
-    assert.doesNotMatch(result.stderr, /HARNESS_EVIDENCE/u);
-    assert.equal(fs.existsSync(path.join(cache, 'runs')), false);
-    assert.equal(fs.existsSync(path.join(cache, 'evidence')), false);
-    assert.equal(fs.existsSync(path.join(repositoryRoot, 'scripts/harness/__fixtures__/synthetic-project/node_modules')), false);
-    assert.deepEqual(fs.existsSync(path.join(cache, 'overlays')) ? fs.readdirSync(path.join(cache, 'overlays')) : [], []);
-  } finally {
-    fs.rmSync(cache, { recursive: true, force: true });
-  }
+test('ordinary Windows dispatcher rejects calls before creating compatibility state', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
+  const cache = path.join(os.tmpdir(), 'rejected-harness-' + crypto.randomUUID());
+  const result = await run(process.execPath, [
+    path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', 'value with spaces',
+  ], repositoryRoot, { CODEX_HARNESS_ROOT: cache });
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /requires --audit/u);
+  assert.equal(fs.existsSync(cache), false);
 });

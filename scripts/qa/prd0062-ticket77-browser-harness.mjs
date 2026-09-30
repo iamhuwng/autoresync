@@ -67,9 +67,9 @@ try {
     VITE_BOOK_DELIVERY_WORKER_URL: remoteWorkerUrl || 'http://localhost:8799',
   };
   const student = launch([
-    'scripts/harness/run-tool.mjs',
+    'scripts/tooling-where.mjs',
+    '--exec',
     'vite',
-    '.',
     'dev',
     '--host',
     'localhost',
@@ -80,9 +80,9 @@ try {
   await waitFor('http://localhost:5174/', student);
 
   const teacher = launch([
-    'scripts/harness/run-tool.mjs',
+    'scripts/tooling-where.mjs',
+    '--exec',
     'vite',
-    '.',
     'dev',
     '--host',
     'localhost',

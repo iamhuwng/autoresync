@@ -11,6 +11,7 @@ import { validateHarnessContract } from '../lib/prd0062-harness-contract.mjs';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const matrixPath = path.join(repoRoot, 'documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json');
 const checkerArgument = 'scripts/lib/prd0062-acceptance-conformance.ts';
+const resolverPath = path.join(repoRoot, 'scripts/tooling-where.mjs');
 const dispatcherPath = path.join(repoRoot, 'scripts/harness/run-tool.mjs');
 const x64WrapperPath = path.join(repoRoot, 'scripts/harness/run-x64.ps1');
 
@@ -39,7 +40,7 @@ const runSemantic = (matrix) => {
   const temporaryMatrixArgument = path.relative(repoRoot, temporaryMatrixPath).replaceAll(path.sep, '/');
   fs.writeFileSync(temporaryMatrixPath, `${JSON.stringify(matrix, null, 2)}\n`, 'utf8');
   try {
-    const result = spawnSync(process.execPath, [dispatcherPath, 'vite-node', '.', checkerArgument, temporaryMatrixArgument], {
+    const result = spawnSync(process.execPath, [resolverPath, '--exec', 'vite-node', '--mode', 'test', checkerArgument, temporaryMatrixArgument], {
       cwd: repoRoot,
       encoding: 'utf8',
     });
@@ -104,19 +105,21 @@ test('semantic authority rejects direct npx, vite, vitest, and wrangler command 
   matrix.cases[5].command = 'node scripts/harness/run-tool.mjs playwright wrong-project test --config stale.config.mjs';
   const result = runSemantic(matrix);
   assert.equal(result.status, 1);
-  assert.ok(result.output.issues.filter((issue) => issue.code === 'harness-command-drift').length >= 6);
+  assert.ok(result.output.issues.filter((issue) => issue.code === 'tool-command-drift').length >= 6);
 });
 
-test('harness dispatchers declare the supported tools and canonical Playwright entrypoint', () => {
+test('harness contract retains audit-only tools and canonical Playwright entrypoint', () => {
   const dispatcher = fs.readFileSync(dispatcherPath, 'utf8');
   const x64Wrapper = fs.readFileSync(x64WrapperPath, 'utf8');
   assert.ok(toolNames.includes('playwright'));
   assert.ok(toolNames.includes('vite-node'));
-  assert.equal(HARNESS_CONTRACT.grammar, 'node scripts/harness/run-tool.mjs [--audit] <tool> <project> [...args]');
+  assert.equal(HARNESS_CONTRACT.version, '5.0.0');
+  assert.equal(HARNESS_CONTRACT.protocolVersion, 7);
+  assert.equal(HARNESS_CONTRACT.grammar, 'node scripts/harness/run-tool.mjs --audit <tool> <project> [...args]');
   assert.equal(HARNESS_CONTRACT.tools.playwright.entry, '@playwright/test/cli.js');
   assert.equal(HARNESS_CONTRACT.tools['vite-node'].entry, 'vite-node/vite-node.mjs');
   assert.match(dispatcher, /HARNESS_CONTRACT/u);
-  assert.match(x64Wrapper, /run-normal\.mjs/u);
+  assert.doesNotMatch(x64Wrapper, /run-normal\.mjs/u);
   assert.match(x64Wrapper, /run-isolated\.mjs/u);
   assert.equal(fs.existsSync(dispatcherPath), true);
   assert.equal(fs.existsSync(x64WrapperPath), true);
@@ -138,7 +141,7 @@ test('harness contract validation fails closed when dispatchers are absent or om
   }
 });
 
-test('semantic CLI succeeds through the repository harness', () => {
+test('semantic CLI succeeds through the stateless repository resolver', () => {
   const result = spawnSync(process.execPath, [path.join(repoRoot, 'scripts/validate-prd0062-acceptance-matrix.mjs'), '--semantic'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -172,7 +175,8 @@ test('browser acceptance enables mutation controls only in its local Vite server
   assert.doesNotMatch(source, /process\.env\.VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION/u);
 });
 
-test('semantic checker dispatcher dependencies are present for the harness', () => {
+test('semantic checker and stateless resolver dependencies are present', () => {
+  assert.equal(fs.existsSync(resolverPath), true);
   assert.equal(fs.existsSync(dispatcherPath), true);
   assert.equal(fs.existsSync(x64WrapperPath), true);
   assert.equal(execFileSync(process.execPath, ['--version'], { encoding: 'utf8' }).startsWith('v'), true);

@@ -53,9 +53,11 @@ process.once('exit', stop);
 
 try {
   const fixture = launch([
-    'scripts/harness/run-tool.mjs',
+    'scripts/tooling-where.mjs',
+    '--exec',
     'vite-node',
-    '.',
+    '--mode',
+    'test',
     'scripts/qa/prd0062-ticket90-evaluation-fixture.ts',
   ]);
   await waitFor('http://localhost:8790/__health', fixture, 60_000);
@@ -64,9 +66,9 @@ try {
     VITE_BOOK_EVALUATION_WORKER_URL: 'http://localhost:8790',
   };
   const student = launch([
-    'scripts/harness/run-tool.mjs',
+    'scripts/tooling-where.mjs',
+    '--exec',
     'vite',
-    '.',
     'dev',
     '--host',
     'localhost',
@@ -76,9 +78,9 @@ try {
   ], env);
   await waitFor('http://localhost:5174/', student);
   const teacher = launch([
-    'scripts/harness/run-tool.mjs',
+    'scripts/tooling-where.mjs',
+    '--exec',
     'vite',
-    '.',
     'dev',
     '--host',
     'localhost',

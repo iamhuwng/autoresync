@@ -17,7 +17,7 @@ const matrixPath = path.join(rootDir, 'documentation/architecture/data/prd0062-a
 const emptyRegistryPath = path.join(rootDir, 'scripts/__tests__/fixtures/prd0062-activity-coverage/empty-runtime-registration-manifest.json');
 const runFixtureChecker = (fixtureChecker, matrixPathArgument) => spawnSync(
   process.execPath,
-  [path.join(rootDir, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', fixtureChecker, matrixPathArgument],
+  [path.join(rootDir, 'scripts/tooling-where.mjs'), '--exec', 'vite-node', '--mode', 'test', fixtureChecker, matrixPathArgument],
   { cwd: rootDir, encoding: 'utf8' },
 );
 const parseHarnessJson = (stdout) => JSON.parse(

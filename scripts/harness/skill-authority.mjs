@@ -44,14 +44,8 @@ export function repositorySkills(repositoryRoot) {
   return files.map((file) => ({ name: skillName(fs.readFileSync(file, 'utf8')), file: path.resolve(file) }));
 }
 
-export function assertRepositorySkillAuthority(repositoryRoot, authority = HARNESS_CONTRACT.authority) {
-  const root = fs.realpathSync.native(repositoryRoot);
-  const skills = repositorySkills(root);
-  const genericCollisions = skills.filter((skill) => skill.name === authority.genericSkill.name);
-  if (genericCollisions.length) {
-    throw failure('HARNESS_CONTRACT_MISMATCH', `repository skill collides with the user-scoped generic skill ${authority.genericSkill.name}: ${genericCollisions.map((skill) => skill.file).join(', ')}`);
-  }
-  return { authoritativeCheckoutRoot: root, genericSkill: authority.genericSkill };
+export function repositorySkillCollisions(repositoryRoot, name = 'run-windows-arm64-tools') {
+  return repositorySkills(fs.realpathSync.native(repositoryRoot)).filter((skill) => skill.name === name);
 }
 
 function stringsIn(value, strings = []) {
@@ -63,28 +57,54 @@ function stringsIn(value, strings = []) {
 
 export function skillSourcesFromPromptInput(promptInput, name) {
   const prefix = `- ${name}:`;
-  const sources = [];
-  for (const text of stringsIn(promptInput)) {
+  const { strings, aliases } = promptSkillContext(promptInput);
+  const sources = new Set();
+  for (const text of strings) {
     for (const line of text.split(/\r?\n/u)) {
       if (!line.startsWith(prefix)) continue;
       const source = line.match(/\(file:\s*(.+?)\)$/u)?.[1];
-      if (source) sources.push(path.resolve(source));
+      if (!source) continue;
+      if (path.isAbsolute(source)) sources.add(path.resolve(source));
+      else {
+        const alias = source.match(/^([^/\\]+)[/\\](.+)$/u);
+        if (alias && aliases.has(alias[1])) sources.add(path.resolve(aliases.get(alias[1]), alias[2]));
+      }
     }
   }
-  return [...new Set(sources)];
+  return [...sources];
 }
 
-export function assertActiveGenericSkill(sources, repositoryRoot, expected = HARNESS_CONTRACT.authority.genericSkill) {
-  if (sources.length !== 1) throw failure('HARNESS_CONTRACT_MISMATCH', `expected one active generic skill, found ${sources.length}: ${sources.join(', ')}`);
-  const identity = skillIdentity(sources[0]);
-  if (identity.name !== expected.name || identity.revision !== expected.revision) {
-    throw failure('HARNESS_CONTRACT_MISMATCH', `active generic skill identity/revision mismatch at ${identity.source}`);
+function promptSkillContext(promptInput) {
+  const strings = stringsIn(promptInput);
+  const aliases = new Map();
+  for (const text of strings) {
+    for (const line of text.split(/\r?\n/u)) {
+      const match = line.match(/^\s*-\s+`([^`]+)`\s*=\s*`([^`]+)`\s*$/u);
+      if (match && path.isAbsolute(match[2])) aliases.set(match[1], match[2]);
+    }
   }
-  const relative = path.relative(fs.realpathSync.native(repositoryRoot), identity.source);
-  if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
-    throw failure('HARNESS_CONTRACT_MISMATCH', `generic skill must be user-scoped outside the repository: ${identity.source}`);
+  return { strings, aliases };
+}
+
+function skillEntriesFromPromptInput(promptInput) {
+  const { strings, aliases } = promptSkillContext(promptInput);
+  const entries = new Map();
+  for (const text of strings) {
+    for (const line of text.split(/\r?\n/u)) {
+      const match = line.match(/^- (.+?): .*?\(file:\s*(.+?)\)$/u);
+      if (!match) continue;
+      const [, name, advertisedSource] = match;
+      let source = null;
+      if (path.isAbsolute(advertisedSource)) source = path.resolve(advertisedSource);
+      else {
+        const alias = advertisedSource.match(/^([^/\\]+)[/\\](.+)$/u);
+        if (alias && aliases.has(alias[1])) source = path.resolve(aliases.get(alias[1]), alias[2]);
+      }
+      const key = `${name}\0${source ?? advertisedSource}`;
+      entries.set(key, { name, advertisedSource, source });
+    }
   }
-  return { ...expected, source: identity.source };
+  return [...entries.values()];
 }
 
 export function selectedExecutionBoundary(repositoryRoot, toolName, contract = HARNESS_CONTRACT) {
@@ -96,16 +116,15 @@ export function selectedExecutionBoundary(repositoryRoot, toolName, contract = H
     authoritativeCheckoutRoot: fs.realpathSync.native(repositoryRoot),
     sourceAuthority: contract.authority.sourceAuthority,
     runtime: tool.runtime,
-    sourceMode: tool.normalSourceMode,
     auditSourceMode: tool.auditSourceMode,
-    ...(tool.runtime === 'wsl' ? { wslRole: contract.authority.wsl.role, wslSourcePolicy: contract.authority.wsl.sourcePolicy } : {}),
   };
 }
 
 export function repositoryAuthorityReport(repositoryRoot, toolName) {
-  const authority = assertRepositorySkillAuthority(repositoryRoot);
+  const authoritativeCheckoutRoot = fs.realpathSync.native(repositoryRoot);
   return {
-    ...authority,
+    authoritativeCheckoutRoot,
+    repositorySkillCollisions: repositorySkillCollisions(authoritativeCheckoutRoot),
     harness: {
       name: HARNESS_CONTRACT.name,
       version: HARNESS_CONTRACT.version,
@@ -130,12 +149,34 @@ export function actualSkillAuthorityReport(repositoryRoot, toolName, options = {
     shell: false,
     maxBuffer: 16 * 1024 * 1024,
   });
-  if (result.status !== 0) throw failure('HARNESS_CONTRACT_MISMATCH', `Codex skill discovery failed: ${(result.stderr || result.error?.message || `exit ${result.status}`).trim()}`);
+  if (result.status !== 0) {
+    return { ...report, skillDiscovery: { available: false, error: (result.stderr || result.error?.message || `exit ${result.status}`).trim() } };
+  }
   let promptInput;
   try { promptInput = JSON.parse(result.stdout); }
-  catch (error) { throw failure('HARNESS_CONTRACT_MISMATCH', `Codex skill discovery returned invalid JSON: ${error.message}`); }
-  const genericSources = skillSourcesFromPromptInput(promptInput, HARNESS_CONTRACT.authority.genericSkill.name);
-  return { ...report, activeGenericSkill: assertActiveGenericSkill(genericSources, report.authoritativeCheckoutRoot) };
+  catch (error) {
+    return { ...report, skillDiscovery: { available: false, error: `invalid JSON: ${error.message}` } };
+  }
+  const genericSkillName = HARNESS_CONTRACT.authority.genericSkill?.name ?? 'run-windows-arm64-tools';
+  const discovered = skillEntriesFromPromptInput(promptInput);
+  return {
+    ...report,
+    skillDiscovery: {
+      available: true,
+      policy: 'informational',
+      genericSkillName,
+      discovered: discovered.map(({ name, advertisedSource, source }) => {
+        if (!source) return { name, advertisedSource, readable: false };
+        try {
+          const identity = skillIdentity(source);
+          const relative = path.relative(report.authoritativeCheckoutRoot, identity.source);
+          const repositoryScoped = relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+          return { ...identity, repositoryScoped };
+        }
+        catch { return { name, advertisedSource, source, readable: false }; }
+      }),
+    },
+  };
 }
 
 async function main() {

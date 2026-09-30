@@ -40,7 +40,7 @@ if (runSemantic && issues.length === 0) {
   const checker = 'scripts/lib/prd0062-acceptance-conformance.ts';
   const result = spawnSync(
     process.execPath,
-    [path.join(rootDir, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', checker, ACCEPTANCE_MATRIX_PATH],
+    [path.join(rootDir, 'scripts/tooling-where.mjs'), '--exec', 'vite-node', '--mode', 'test', checker, ACCEPTANCE_MATRIX_PATH],
     { cwd: rootDir, encoding: 'utf8' },
   );
   try {

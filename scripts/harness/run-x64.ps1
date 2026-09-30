@@ -29,16 +29,12 @@ function Add-Candidate([string] $Candidate) {
     }
 }
 
-Add-Candidate $env:CODEX_X64_NODE
-Add-Candidate (Join-Path $env:USERPROFILE 'Tools\node-x64\node.exe')
-Add-Candidate (Join-Path $env:ProgramFiles 'nodejs\node.exe')
-if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
-    Add-Candidate (Join-Path ${env:ProgramFiles(x86)} 'nodejs\node.exe')
+$toolsRoot = if ([string]::IsNullOrWhiteSpace($env:CODEX_WINDOWS_TOOLS_ROOT)) {
+    Join-Path $env:USERPROFILE '.codex\tools\windows-arm64'
+} else {
+    $env:CODEX_WINDOWS_TOOLS_ROOT
 }
-if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-    Add-Candidate (Join-Path $env:LOCALAPPDATA 'Programs\nodejs\node.exe')
-}
-Get-Command node.exe -All -ErrorAction SilentlyContinue | ForEach-Object { Add-Candidate $_.Source }
+Add-Candidate (Join-Path $toolsRoot 'node\22-x64\node.exe')
 
 $nodePath = $null
 $discoveries = [System.Collections.Generic.List[string]]::new()
@@ -73,7 +69,7 @@ $discoveryJson = $discovery | ConvertTo-Json -Compress
 $env:CODEX_HARNESS_X64_DISCOVERY_B64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($discoveryJson))
 
 $runnerName = $env:CODEX_HARNESS_RUNNER
-if ($runnerName -notin @('run-normal.mjs', 'run-isolated.mjs')) {
+if ($runnerName -ne 'run-isolated.mjs') {
     Fail 'DISPATCH_PROTOCOL_MISMATCH' "unsupported runner selection: $runnerName"
 }
 $runner = Join-Path $PSScriptRoot $runnerName

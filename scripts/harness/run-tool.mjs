@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HARNESS_CONTRACT, toolNames } from './contract.mjs';
-import { assertRepositorySkillAuthority } from './skill-authority.mjs';
 
 const harnessDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(harnessDirectory, '..', '..');
@@ -17,7 +16,10 @@ if (process.argv[argumentOffset] === '--contract') {
 }
 
 const doctorMode = process.argv[argumentOffset] === '--doctor';
-if (auditMode || doctorMode) assertRepositorySkillAuthority(repositoryRoot);
+if (!auditMode && !doctorMode) {
+  process.stderr.write('harness dispatcher: ordinary execution uses scripts/tooling-where.mjs --exec <tool> [...args]; the evidence harness requires --audit\n');
+  process.exit(2);
+}
 const [tool, projectArgument, ...toolArguments] = doctorMode
   ? ['doctor', process.argv[argumentOffset + 1], ...process.argv.slice(argumentOffset + 2)]
   : process.argv.slice(argumentOffset);
@@ -46,7 +48,7 @@ const environment = {
     mode: doctorMode ? 'doctor' : 'run', audit: auditMode, tool, relativeProjectPath, toolArguments,
   }), 'utf8').toString('base64'),
 };
-const selectedRunner = path.join(harnessDirectory, auditMode || doctorMode ? 'run-isolated.mjs' : 'run-normal.mjs');
+const selectedRunner = path.join(harnessDirectory, 'run-isolated.mjs');
 let command = process.execPath;
 let args = [selectedRunner];
 let cwd = repositoryRoot;
