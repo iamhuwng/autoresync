@@ -183,9 +183,9 @@ async function readRtdb<T>(env: WorkerEnv, accessToken: string, path: string): P
     return body as T | null;
 }
 
-async function writeRtdb(env: WorkerEnv, accessToken: string, path: string, value: unknown): Promise<void> {
+async function writeRtdb(env: WorkerEnv, accessToken: string, path: string, value: unknown, method: 'PUT' | 'PATCH' = 'PUT'): Promise<void> {
     const response = await fetch(rtdbUrl(env, path), {
-        method: 'PUT',
+        method,
         headers: {
             Authorization: 'Bearer ' + accessToken,
             'Content-Type': 'application/json',
@@ -196,7 +196,7 @@ async function writeRtdb(env: WorkerEnv, accessToken: string, path: string, valu
     const body = parseJsonBody(text);
 
     if (!response.ok) {
-        throw new Error('Firebase RTDB PUT ' + path + ' failed (' + response.status + '): ' + firebaseErrorMessage(body));
+        throw new Error('Firebase RTDB ' + method + ' ' + path + ' failed (' + response.status + '): ' + firebaseErrorMessage(body));
     }
 }
 
@@ -497,7 +497,9 @@ async function resolveTarget(
                 className: target.className || classData.name,
             },
             totalAssigned: Object.keys(students).length,
-            authorizedStudentIds: [],
+            authorizedStudentIds: [...new Set(Object.entries(students).flatMap(([studentKey, entry]) =>
+                isRecord(entry) && typeof entry.uid === 'string' ? [studentKey, entry.uid] : [studentKey]
+            ))],
         };
     }
 
@@ -1108,7 +1110,7 @@ export async function handleCreateHomeworkAssignment(
                     materialTitle: content.materialTitle,
                 }),
             );
-            if (target.authorizedStudentIds.length > 0) {
+            if (target.target.type === 'students' && target.authorizedStudentIds.length > 0) {
                 await writeRtdb(
                     env,
                     accessToken,
@@ -1118,7 +1120,25 @@ export async function handleCreateHomeworkAssignment(
             }
         }
 
-        await createFirestoreDoc(env, accessToken, 'homework_assignments', assignmentId, homework);
+        const thcsGrantUpdates = Object.fromEntries(
+            (content.contentRef.contentKind === 'thcs_test' ? target.authorizedStudentIds : [])
+                .map(studentId => [studentId + '/' + assignmentId, true]),
+        );
+        const thcsGrantPath = 'homework_test_access/' + content.materialId;
+        const hasThcsGrants = Object.keys(thcsGrantUpdates).length > 0;
+        if (hasThcsGrants) {
+            await writeRtdb(env, accessToken, thcsGrantPath, thcsGrantUpdates, 'PATCH');
+        }
+
+        try {
+            await createFirestoreDoc(env, accessToken, 'homework_assignments', assignmentId, homework);
+        } catch (error) {
+            if (hasThcsGrants) {
+                await writeRtdb(env, accessToken, thcsGrantPath,
+                    Object.fromEntries(Object.keys(thcsGrantUpdates).map(path => [path, null])), 'PATCH');
+            }
+            throw error;
+        }
 
         return jsonResponse({
             assignmentId,

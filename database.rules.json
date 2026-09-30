@@ -1259,6 +1259,17 @@
         }
       }
     },
+    "homework_test_access": {
+      ".read": false,
+      ".write": false,
+      "$testId": {
+        "$studentId": {
+          "$homeworkId": {
+            ".validate": "newData.val() === true || !newData.exists()"
+          }
+        }
+      }
+    },
     "quizzes": {
       ".read": false,
       ".write": false,
@@ -1270,7 +1281,7 @@
     "tests": {
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'isPublic' && query.equalTo === true) || (query.orderByChild === 'ownerId' && query.equalTo === auth.uid) || (query.orderByChild === 'createdBy' && query.equalTo === auth.uid))",
       "$testId": {
-        ".read": "auth != null && (data.child('isPublic').val() === true || data.child('ownerId').val() === auth.uid || data.child('createdBy').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+        ".read": "auth != null && (data.child('isPublic').val() === true || data.child('ownerId').val() === auth.uid || data.child('createdBy').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (data.child('testType').val() === 'THCS-THPT' && data.child('publishedAt').isNumber() && root.child('homework_test_access').child($testId).child(auth.uid).hasChildren()))",
         ".write": "data.child('authoringVersioning').child('frozen').val() !== true && newData.child('authoringVersioning').child('frozen').val() !== true && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && (!data.exists() || data.child('ownerId').val() === auth.uid)) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')"
       },
       ".indexOn": [
