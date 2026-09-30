@@ -82,6 +82,7 @@ import SearchFilterBar from '../components/modern/SearchFilterBar';
 import TestTypeBlockModule from '../components/modern/TestTypeBlockModule';
 import TestTypePreferenceModal from '../components/modern/TestTypePreferenceModal';
 import MaterialListView from '../components/modern/MaterialListView';
+import MaterialPagination from '../components/modern/MaterialPagination';
 import BookCardGrid from '../components/modern/BookCardGrid';
 import MaterialSelectionToolbar from '../components/modern/MaterialSelectionToolbar';
 import { buildTestMaterialListRow, toReadingPassageRowModel } from '../components/modern/materialListAdapter';
@@ -2990,8 +2991,16 @@ const TeacherLobbyPage = () => {
   const currentLoadingMore = contentFilter === 'drafts' ? draftsLoadingMore
     : contentFilter === 'reading-passage' ? readingLoadingMore
       : contentFilter === 'book' ? bookLoadingMore : testsLoadingMore;
-  const handleLoadMore = () => {
-    trackAction('teacher_materials_load_more', { tab: contentFilter, testTypeId: activeTestTypeId });
+  const currentCount = contentFilter === 'drafts' ? visibleDrafts.length
+    : contentFilter === 'reading-passage' ? readingPassageRows.length
+      : contentFilter === 'book' ? bookRows.length : materialListRows.length;
+  const currentUnavailable = contentFilter === 'drafts' ? draftsLoading || draftsError
+    : contentFilter === 'reading-passage' ? readingPassageLoading || readingPassageError
+      : contentFilter === 'book' ? bookLoading || bookError : contentLoading || contentError;
+  const paginationScopeKey = JSON.stringify([contentFilter, readingQueryKey, bookQueryKey,
+    activeTestTypeId, searchTerm, skillFilter, visibilityFilter, thcsGradeFilter, thcsExamTypeFilter]);
+  const handleLoadMore = (source) => {
+    trackAction('teacher_materials_load_more', { tab: contentFilter, testTypeId: activeTestTypeId, source });
     if (contentFilter === 'drafts') void loadMoreDrafts();
     else if (contentFilter === 'reading-passage') setReadingPageRequest({ key: readingQueryKey, cursor: readingCursor });
     else if (contentFilter === 'book') setBookPageRequest({ key: bookQueryKey, cursor: bookCursor });
@@ -3303,6 +3312,7 @@ const TeacherLobbyPage = () => {
                       </Card>
                     ) : (
                       <MaterialListView
+                        showLoadedCount={false}
                         rows={readingPassageListRows}
                         itemLabel="Reading Passages"
                       />
@@ -3380,20 +3390,16 @@ const TeacherLobbyPage = () => {
                     </Card>
                   ) : (
                     <MaterialListView
+                      showLoadedCount={false}
                       rows={materialListRows}
                       itemLabel={contentFilter === 'public' ? 'public materials' : 'materials'}
                     />
                   )}
                 </>
               )}
-              {currentHasMore && (
-                <div className="teacher-materials-pagination">
-                  <p>Search and filters cover loaded results. Load more to include older items.</p>
-                  <button type="button" className="book-card__action" onClick={handleLoadMore}
-                    disabled={currentLoadingMore}>
-                    {currentLoadingMore ? 'Loading more...' : 'Load more'}
-                  </button>
-                </div>
+              {!currentUnavailable && (currentCount > 0 || currentHasMore) && (
+                <MaterialPagination count={currentCount} hasMore={currentHasMore}
+                  loading={currentLoadingMore} scopeKey={paginationScopeKey} onLoadMore={handleLoadMore} />
               )}
             </div>
           )}

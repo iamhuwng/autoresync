@@ -191,6 +191,15 @@ payloads just to decide card actions.
 
 ## Realtime Contract
 
+All five Lobby tabs share a compact pagination footer: the visible loaded count
+and `Recent first` label sit to the left of the centered `Load more` button.
+There is no helper paragraph. A downward mouse-wheel gesture while already at
+the document bottom, with the footer visible, requests the next cursor page.
+Arriving at the footer alone does not fetch another page. In-flight requests
+are locked against repeated gestures; dialogs and nested scroll panels retain
+their own wheel behavior. The button remains available for keyboard and touch
+users and disappears when there are no more pages.
+
 Realtime listeners must match the active summary scope:
 
 - owned assessment scope: `material_summary_indexes/v1/by_owner_family/{teacherId}/assessment`

@@ -2031,9 +2031,12 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     render(<TeacherLobbyPage />);
     await user.click(screen.getByRole('tab', { name: 'Book' }));
     expect(await screen.findByTestId('book-card-book-a')).toBeInTheDocument();
+    expect(screen.getByText('1 loaded - Recent first')).toBeInTheDocument();
+    expect(screen.queryByText(/Search and filters cover loaded results/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Load more' }));
     expect(await screen.findByTestId('book-card-book-b')).toBeInTheDocument();
     expect(screen.getByTestId('book-card-book-a')).toBeInTheDocument();
+    expect(screen.getByText('2 loaded - Recent first')).toBeInTheDocument();
     expect(mocks.listTeacherBooks).toHaveBeenLastCalledWith(expect.objectContaining({
       teacherId: 'teacher-1', scope: 'private',
     }), cursor);
