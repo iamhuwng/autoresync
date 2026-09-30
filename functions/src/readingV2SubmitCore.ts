@@ -1,3 +1,7 @@
+import { answerMatches, correctAnswerForInteraction, optionSetIdForInteraction } from '../../src/services/reading-v2/readingV2AnswerScoring';
+import { calculateIELTSReadingBandScore } from '../../src/config/scoring.config';
+import type { ReadingV2Interaction } from '../../src/types/readingV2.types';
+
 export const READING_V2_ENGINE = 'reading-v2';
 export const READING_V2_SCHEMA_VERSION = 1;
 
@@ -214,71 +218,6 @@ const parseAnswer = (value: unknown, index: number): ReadingV2TrustedSubmissionA
 export const getMaterialIdFromRequest = (
   request: Pick<ReadingV2TrustedSubmissionRequest, 'materialId'>,
 ): string => requiredString(request.materialId, 'materialId');
-
-const normalizeText = (
-  value: unknown,
-  options: { caseSensitive?: boolean; punctuationSensitive?: boolean },
-): string => {
-  const joined = Array.isArray(value) ? value.join('|') : String(value ?? '');
-  const cased = options.caseSensitive ? joined : joined.toLowerCase();
-  const punctuated = options.punctuationSensitive
-    ? cased
-    : cased.replace(/[^\p{L}\p{N}\s|]/gu, '');
-  return punctuated.replace(/\s+/g, ' ').trim();
-};
-
-const normalizeAnswerItems = (
-  value: unknown,
-  options: { caseSensitive?: boolean; punctuationSensitive?: boolean },
-): string[] => (Array.isArray(value) ? value : [value]).map((entry) => normalizeText(entry, options));
-
-const answerListsMatch = (
-  studentItems: readonly string[],
-  expectedItems: readonly string[],
-  orderMatters: boolean,
-): boolean => {
-  if (studentItems.length !== expectedItems.length) {
-    return false;
-  }
-
-  const left = orderMatters ? [...studentItems] : [...studentItems].sort();
-  const right = orderMatters ? [...expectedItems] : [...expectedItems].sort();
-  return left.every((entry, index) => entry === right[index]);
-};
-
-const answerMatches = (studentAnswer: unknown, interaction: Record<string, any>): boolean => {
-  const scoringRule = interaction.scoringRule ?? {};
-  const acceptableAnswers = Array.isArray(scoringRule.acceptableAnswers)
-    ? scoringRule.acceptableAnswers
-    : [];
-
-  if (acceptableAnswers.length === 0) {
-    return false;
-  }
-
-  if (Array.isArray(studentAnswer) || interaction.responseShape?.kind === 'multi-select') {
-    return answerListsMatch(
-      normalizeAnswerItems(studentAnswer, scoringRule),
-      normalizeAnswerItems(acceptableAnswers, scoringRule),
-      scoringRule.orderMatters !== false,
-    );
-  }
-
-  const normalizedStudent = normalizeText(studentAnswer, scoringRule);
-  return acceptableAnswers.some(
-    (answer: unknown) => normalizeText(answer, scoringRule) === normalizedStudent,
-  );
-};
-
-const correctAnswerForInteraction = (interaction: Record<string, any>): unknown => {
-  const acceptableAnswers = Array.isArray(interaction.scoringRule?.acceptableAnswers)
-    ? interaction.scoringRule.acceptableAnswers
-    : [];
-
-  return interaction.scoringRule?.orderMatters === false
-    ? [...acceptableAnswers]
-    : acceptableAnswers[0] ?? '';
-};
 
 const answerMapFromRuntime = (
   answers: readonly ReadingV2TrustedSubmissionAnswer[],
@@ -1126,8 +1065,8 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     throw new Error('Reading V2 review projection binding does not match the submitted snapshot.');
   }
 
-  const canonicalInteractions = orderedCanonicalInteractions(snapshot);
-  const canonicalInteractionMap = new Map(
+  const canonicalInteractions = orderedCanonicalInteractions(snapshot) as ReadingV2Interaction[];
+  const canonicalInteractionMap = new Map<string, ReadingV2Interaction>(
     canonicalInteractions.map((interaction) => [interaction.interactionId, interaction]),
   );
   input.request.answers.forEach((answer) => {
@@ -1182,7 +1121,9 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     const answer = runtimeAnswers[interaction.interactionId];
     const projectedInteraction = findProjectedInteraction(reviewProjection, interaction.interactionId);
     const maxScore = Number(interaction.scoringRule?.maxScore ?? 0);
-    const score = answerMatches(answer?.value, interaction) ? maxScore : 0;
+    const optionSetId = optionSetIdForInteraction(interaction);
+    const optionSet = optionSetId ? snapshot.document?.optionSets?.[optionSetId] : undefined;
+    const score = answerMatches(answer?.value, interaction, optionSet) ? maxScore : 0;
 
     return {
       interactionId: interaction.interactionId,
@@ -1191,7 +1132,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
       taskFamily: taskGroup.engineeringFamily,
       officialTaskType: taskGroup.officialTaskType,
       studentAnswer: answer?.value ?? '',
-      scoredAnswer: correctAnswerForInteraction(interaction),
+      scoredAnswer: correctAnswerForInteraction(interaction, optionSet),
       score,
       maxScore,
       reviewState: 'released',
@@ -1230,7 +1171,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     totalScore,
     maxScore,
     percentage,
-    bandScore: Math.round((percentage / 10) * 2) / 2,
+    bandScore: maxScore > 0 ? calculateIELTSReadingBandScore(totalScore, maxScore) : 0,
     questionResults: resultInteractions.map((interaction) => ({
       questionNumber: interaction.displayNumber,
       questionType: interaction.officialTaskType,

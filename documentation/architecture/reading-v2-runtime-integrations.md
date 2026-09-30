@@ -16,6 +16,23 @@ Runtime integrations must preserve these boundaries:
 - trusted submit validates against server-side or trusted projection data
 - result review uses review projection data under teacher/admin policy
 
+## Scoring Authority
+
+Trusted submission and local scoring use the same pure answer matcher and
+review-answer formatting in
+`src/services/reading-v2/readingV2AnswerScoring.ts`. This resolves option IDs
+against the snapshot's option labels and applies the judgement vocabulary's
+canonical aliases. Scalar answers and multi-select arrays retain their distinct
+response shapes; multi-select uses the snapshot's exact-set/order policy.
+
+Both result writers use `calculateIELTSReadingBandScore` from the shared scoring
+configuration, with earned/possible points and an explicit zero-total guard.
+The conversion uses Academic Reading thresholds; shorter practice tests scale
+to 40 questions and produce an estimated band, not a certified exam score.
+Neither path derives an IELTS band by dividing percentage by ten. Scoring still
+uses trusted, pinned snapshots; this shared module does not expose answer keys
+to student projections.
+
 ## Homework And Solo Practice
 
 - Homework launch must bind the assignment/submission context and return path.

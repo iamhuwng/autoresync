@@ -611,12 +611,15 @@ describe('readingV2ResultAdapter.service', () => {
     ).toThrow(/projection binding/i);
   });
 
-  it('builds an existing-shell saved result record with grouped Reading V2 review payload', () => {
+  it.each([
+    ['answer two', 9],
+    ['wrong', 5.5],
+  ])('builds a saved result for answer %s with IELTS band %s and grouped review', (secondAnswer, expectedBand) => {
     const taskType = 'sentence-completion';
     const attempt = captureReadingV2Attempt({
       attemptId: 'attempt-saved',
       studentId: 'student-1',
-      submitPayload: answerPayloadFor(taskType, ['answer one', 'wrong']),
+      submitPayload: answerPayloadFor(taskType, ['answer one', secondAnswer]),
       context: { mode: 'homework', homeworkId: 'homework-1' },
     });
     const result = scoreReadingV2Attempt({
@@ -642,6 +645,7 @@ describe('readingV2ResultAdapter.service', () => {
 
     expect(savedResult.deliveryEngine).toBe(READING_V2_ENGINE);
     expect(savedResult.testType).toBe('ielts-reading-v2');
+    expect(savedResult.bandScore).toBe(expectedBand);
     expect(savedResult.readingV2.reviewPayload.taskGroups[0].interactions).toHaveLength(2);
     expect(savedResult.readingV2.reviewPayload.taskGroups[0].stimulusContext[0]).toMatchObject({
       stimulusId: 'stimulus-sentence-completion',
