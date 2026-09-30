@@ -274,6 +274,10 @@ describe('readingV2PassageArchive.service', () => {
         materialId: 'passage-1',
         visibility: 'public',
       }),
+      'material_catalog/material_summary_indexes/v1/by_visibility_family/public/passage/passage-1': expect.objectContaining({
+        sourceSnapshotVersionId: 'snapshot-1',
+        hasStudentSafeProjection: true,
+      }),
       [getReadingV2ArchiveIndexPath('teacher-1', 'passage-1')]: null,
       [duplicateIndexPath]: expect.objectContaining({
         passageMaterialId: 'passage-1',

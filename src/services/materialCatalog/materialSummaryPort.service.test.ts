@@ -6,7 +6,9 @@ import {
   assertMaterialSummary,
   buildMaterialSummaryIndexCleanup,
   buildMaterialSummaryIndexPlan,
+  getMaterialSummaryPagePath,
   listActiveMaterialSummaries,
+  listMaterialSummaryPage,
   type MaterialSummary,
 } from './materialSummaryPort.service';
 
@@ -57,6 +59,10 @@ describe('materialSummaryPort.service', () => {
       'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/material-1',
       'material_catalog/material_summary_indexes/v1/by_visibility/private/material-1',
       'material_catalog/material_summary_indexes/v1/by_material_kind/full-test/material-1',
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment/material-1',
+      'material_catalog/material_summary_indexes/v1/by_visibility_family/private/assessment/material-1',
+      'material_catalog/material_summary_indexes/v1/by_owner_family_type/teacher-1/assessment/ielts/material-1',
+      'material_catalog/material_summary_indexes/v1/by_visibility_family_type/private/assessment/ielts/material-1',
       'material_catalog/material_summary_indexes/v1/by_test_type/ielts/material-1',
     ]);
     expect(plan[0]?.value).toMatchObject({
@@ -71,7 +77,7 @@ describe('materialSummaryPort.service', () => {
       lifecycleState: 'archived',
     }));
 
-    expect(cleanup).toHaveLength(4);
+    expect(cleanup).toHaveLength(8);
     expect(cleanup.every((write) => write.value === null)).toBe(true);
   });
 
@@ -299,5 +305,67 @@ describe('materialSummaryPort.service', () => {
       { scope: 'public' },
       { read: async () => null },
     )).resolves.toEqual([]);
+  });
+
+  it('reads 26 for a 25-row page and pages tied timestamps by RTDB key order', async () => {
+    const rows = Object.fromEntries(Array.from({ length: 27 }, (_, index) => {
+      const materialId = `item-${String(index).padStart(2, '0')}`;
+      return [materialId, summary({ materialId, updatedAt: '2026-07-06T00:00:00.000Z' })];
+    }));
+    const readPage = vi.fn(async (_path: string, limit: number, cursor?: { updatedAt: string; materialId: string }) =>
+      Object.fromEntries(Object.entries(rows)
+        .filter(([key]) => !cursor || key < cursor.materialId)
+        .slice(-limit)));
+    const query = { scope: 'owned' as const, ownerId: 'teacher-1', surfaceFamily: 'assessment' as const };
+
+    const first = await listMaterialSummaryPage(query, { readPage });
+    expect(readPage).toHaveBeenCalledWith(
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+      26,
+      undefined,
+    );
+    expect(first.rows).toHaveLength(25);
+    expect(first.rows[0].materialId).toBe('item-26');
+    expect(first.cursor).toEqual({ updatedAt: '2026-07-06T00:00:00.000Z', materialId: 'item-02' });
+    expect(first.hasMore).toBe(true);
+
+    const second = await listMaterialSummaryPage(query, { readPage }, { cursor: first.cursor! });
+    expect(readPage).toHaveBeenLastCalledWith(expect.any(String), 26, first.cursor);
+    expect(second.rows.map((row) => row.materialId)).toEqual(['item-01', 'item-00']);
+    expect(second.hasMore).toBe(false);
+  });
+
+  it('orders equal timestamps with RTDB integer keys before lexical keys', async () => {
+    const rows = Object.fromEntries(['2', 'a', '10', 'Z'].map((materialId) =>
+      [materialId, summary({ materialId })]));
+    const page = await listMaterialSummaryPage(
+      { scope: 'owned', ownerId: 'teacher-1' },
+      { readPage: async () => rows },
+    );
+    expect(page.rows.map((row) => row.materialId)).toEqual(['a', 'Z', '10', '2']);
+  });
+
+  it('selects exact compound paths and rejects invalid scope, kind, and type rows', async () => {
+    expect(getMaterialSummaryPagePath({ scope: 'public', materialKind: 'full-test' })).toBe(
+      'material_catalog/material_summary_indexes/v1/by_visibility_family/public/assessment',
+    );
+    expect(getMaterialSummaryPagePath({ scope: 'owned', ownerId: 'teacher-1', surfaceFamily: 'assessment', testTypeId: 'ielts' })).toBe(
+      'material_catalog/material_summary_indexes/v1/by_owner_family_type/teacher-1/assessment/ielts',
+    );
+    const readPage = vi.fn(async () => ({ 'material-1': summary() }));
+    await expect(listMaterialSummaryPage({ scope: 'public', surfaceFamily: 'assessment' }, { readPage })).rejects.toThrow(/invalid scope row/i);
+    await expect(listMaterialSummaryPage({ scope: 'owned', ownerId: 'teacher-1', materialKind: 'writing-prompt' }, { readPage })).rejects.toThrow(/invalid scope row/i);
+    await expect(listMaterialSummaryPage({ scope: 'owned', ownerId: 'teacher-1', surfaceFamily: 'assessment', testTypeId: 'toeic' }, { readPage })).rejects.toThrow(/invalid scope row/i);
+    expect(readPage).toHaveBeenCalledTimes(3);
+    await expect(listMaterialSummaryPage({ scope: 'owned', ownerId: 'bad/path' }, { readPage })).rejects.toThrow(/ownerId/i);
+    await expect(listMaterialSummaryPage({ scope: 'public', testTypeId: 'ielts' }, { readPage })).rejects.toThrow(/surfaceFamily/i);
+    expect(readPage).toHaveBeenCalledTimes(3);
+  });
+
+  it('rejects malformed page rows and accepts missing indexes as empty pages', async () => {
+    const query = { scope: 'owned' as const, ownerId: 'teacher-1' };
+    await expect(listMaterialSummaryPage(query, { readPage: async () => ({ broken: { updatedAt: '2026-07-06T00:00:00.000Z' } }) })).rejects.toThrow(MaterialSummaryContractError);
+    await expect(listMaterialSummaryPage(query, { readPage: async () => ({ wrongKey: summary() }) })).rejects.toThrow(/invalid scope row/i);
+    await expect(listMaterialSummaryPage(query, { readPage: async () => null })).resolves.toEqual({ rows: [], cursor: null, hasMore: false });
   });
 });

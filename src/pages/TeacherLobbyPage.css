@@ -324,3 +324,12 @@
     min-width: 145px;
   }
 }
+.teacher-materials-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}

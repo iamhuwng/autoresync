@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDoc, setDoc } from 'firebase/firestore';
+import { documentId, getDoc, getDocs, limit, orderBy, setDoc, startAfter, Timestamp, where } from 'firebase/firestore';
 import { get, push, update as updateDatabaseValue } from 'firebase/database';
 import {
   saveWritingDraft,
   publishWritingTest,
   ensureWritingEditableDraft,
+  listTeacherWritingDraftPage,
 } from './writingTestService';
+import { listTeacherThcsDraftPage } from './thcsDraftService';
 
 vi.mock('./firebase', () => ({
   database: {},
@@ -18,12 +20,19 @@ vi.mock('firebase/firestore', () => ({
   setDoc: vi.fn(),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
+  getFirestore: vi.fn(() => ({})),
   deleteDoc: vi.fn(),
   updateDoc: vi.fn(),
-  query: vi.fn(),
-  where: vi.fn(),
-  orderBy: vi.fn(),
-  Timestamp: class MockTimestamp {},
+  query: vi.fn((...args: unknown[]) => args),
+  where: vi.fn((...args: unknown[]) => ({ kind: 'where', args })),
+  orderBy: vi.fn((...args: unknown[]) => ({ kind: 'orderBy', args })),
+  documentId: vi.fn(() => '__name__'),
+  startAfter: vi.fn((...args: unknown[]) => ({ kind: 'startAfter', args })),
+  limit: vi.fn((...args: unknown[]) => ({ kind: 'limit', args })),
+  Timestamp: class MockTimestamp {
+    constructor(public seconds: number, public nanoseconds: number) {}
+    toDate() { return new Date(this.seconds * 1000 + Math.floor(this.nanoseconds / 1_000_000)); }
+  },
 }));
 
 vi.mock('firebase/database', () => ({
@@ -36,6 +45,10 @@ vi.mock('firebase/database', () => ({
 
 vi.mock('./draftCloudService', () => ({
   deepRemoveUndefined: (value: unknown) => value,
+  convertTimestamps: (value: { updatedAt: { toDate: () => Date } }) => ({
+    ...value,
+    updatedAt: value.updatedAt.toDate(),
+  }),
 }));
 
 vi.mock('./restoreGuard', () => ({
@@ -51,6 +64,40 @@ describe('writingTestService', () => {
     (setDoc as any).mockResolvedValue(undefined);
     (updateDatabaseValue as any).mockResolvedValue(undefined);
     (push as any).mockReturnValue({ key: 'generated-test-id' });
+  });
+
+  it.each([
+    ['THCS', 'thcs_drafts', listTeacherThcsDraftPage],
+    ['Writing', 'writing_drafts', listTeacherWritingDraftPage],
+  ])('%s draft page uses a bounded ordered Firestore cursor', async (_family, collectionPath, listPage) => {
+    const exactCursor = new Timestamp(1000, 123_456_789);
+    const rowTimestamp = new Timestamp(999, 987_654_321);
+    (getDocs as any).mockResolvedValueOnce({
+      docs: [{ id: 'draft-1', data: () => ({ updatedAt: rowTimestamp, createdAt: rowTimestamp }) }],
+    });
+
+    const result = await listPage('teacher-1', { updatedAt: exactCursor, id: 'previous-id' });
+    expect(result.success).toBe(true);
+    expect(where).toHaveBeenCalledWith('userId', '==', 'teacher-1');
+    expect(orderBy).toHaveBeenCalledWith('updatedAt', 'desc');
+    expect(documentId).toHaveBeenCalledOnce();
+    expect(orderBy).toHaveBeenCalledWith('__name__', 'desc');
+    expect(limit).toHaveBeenCalledWith(26);
+    expect(startAfter).toHaveBeenCalledWith(exactCursor, 'previous-id');
+    expect(getDocs).toHaveBeenCalledWith([
+      collectionPath,
+      { kind: 'where', args: ['userId', '==', 'teacher-1'] },
+      { kind: 'orderBy', args: ['updatedAt', 'desc'] },
+      { kind: 'orderBy', args: ['__name__', 'desc'] },
+      { kind: 'startAfter', args: [exactCursor, 'previous-id'] },
+      { kind: 'limit', args: [26] },
+    ]);
+    expect(result.data?.[0].cursorUpdatedAt).toBe(rowTimestamp);
+    expect(result.data?.[0].updatedAt).toEqual(rowTimestamp.toDate());
+
+    (getDocs as any).mockRejectedValueOnce(new Error('read failed'));
+    const failed = await listPage('teacher-1');
+    expect(failed).toEqual({ success: false, error: 'read failed' });
   });
 
   it('saves a brand-new writing draft without reading a missing Firestore document first', async () => {

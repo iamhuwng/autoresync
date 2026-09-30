@@ -69,6 +69,12 @@ Required rules:
 - Do not use emoji search icons in the input.
 - The icon must be visually inside the search input chrome, not hidden under the text caret or left padding.
 - `Create New Test` remains in the same row so the search/filter action area stays one coherent control band.
+- Test Type blocks are the category control. Do not reintroduce the coarse
+  IELTS/THCS-THPT dropdown. Assessment results expose Skill/Visibility context;
+  THCS/THPT Test Types expose Grade/Exam Type context.
+- Lists and grids expose Load More for bounded summary pages. Counts describe
+  loaded rows rather than claiming a total catalog count. Search/filter context
+  explicitly states when older rows remain available to load.
 
 ## Material Grid Card Contract
 

@@ -15,6 +15,7 @@ import {
   createMaterialBooksRepository,
   listPublicBookReviewQueue,
   listTeacherBooks,
+  listTeacherBooksPage,
   planMaterialBookTreeUpdate,
   rejectPublicBookReview,
   readMaterialBookPdfAuthority,
@@ -768,6 +769,28 @@ describe('materialBooks.service', () => {
     expect(repo.listBookNodes).not.toHaveBeenCalled();
   });
 
+  it('pages Book summaries through the bounded family and Test Type index without payload reads', async () => {
+    const readPage = vi.fn(async () => Object.fromEntries(Array.from({ length: 26 }, (_, index) => {
+      const book = metadata({ bookId: materialCatalogIds.bookId(`book-${index}`),
+        title: `Book ${index}`, updatedAt: `2026-06-${String(index + 1).padStart(2, '0')}T00:00:00.000Z` });
+      return [book.bookId, createMaterialBookSummary(book)];
+    })));
+    const read = vi.fn(async () => { throw new Error('Listing must not hydrate Book payloads.'); });
+    const repository = createMaterialBooksRepository({ read, readPage, write: vi.fn() });
+
+    const page = await listTeacherBooksPage({
+      teacherId: 'teacher-1', scope: 'private', testTypeId: materialCatalogIds.testTypeId('ielts'), repository,
+    });
+
+    expect(readPage).toHaveBeenCalledWith(
+      'material_catalog/material_summary_indexes/v1/by_owner_family_type/teacher-1/book/ielts', 26, undefined,
+    );
+    expect(page.rows).toHaveLength(25);
+    expect(page.hasMore).toBe(true);
+    expect(page.cursor).toEqual({ updatedAt: '2026-06-02T00:00:00.000Z', materialId: 'book-1' });
+    expect(read).not.toHaveBeenCalled();
+  });
+
   it('keeps Book listing available when Reading V2 summaries include delivery metadata', async () => {
     const book = metadata({
       bookId: materialCatalogIds.bookId('stable-book'),
@@ -829,7 +852,7 @@ describe('materialBooks.service', () => {
     ]);
   });
 
-  it('fails loudly when an owned Book summary has no canonical Book record', async () => {
+  it('lists an owned Book summary without reading canonical Book content', async () => {
     const book = metadata({ bookId: materialCatalogIds.bookId('missing-book') });
     const repo: MaterialBooksRepository = {
       readBook: vi.fn(async () => null),
@@ -847,10 +870,11 @@ describe('materialBooks.service', () => {
       scope: 'private',
       repository: repo,
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-    })).rejects.toThrow(/missing its owned canonical record: missing-book/);
+    })).resolves.toEqual([expect.objectContaining({ bookId: 'missing-book' })]);
+    expect(repo.readBook).not.toHaveBeenCalled();
   });
 
-  it('fails loudly when a public Book summary has no public projection', async () => {
+  it('lists a public Book summary without reading its public projection', async () => {
     const repo = {
       ...createRepo([
         metadata({
@@ -868,7 +892,27 @@ describe('materialBooks.service', () => {
       scope: 'public',
       repository: repo,
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-    })).rejects.toThrow(/missing its public projection: public-book/);
+    })).resolves.toEqual([expect.objectContaining({ bookId: 'public-book' })]);
+    expect(repo.readPublicBookProjection).not.toHaveBeenCalled();
+  });
+
+  it('rejects contradictory public and owner Book summary visibility', async () => {
+    const publicBook = metadata({ visibility: 'public-library-published', status: 'ready' });
+    const privateBook = metadata({ visibility: 'public-library-pending-review', status: 'ready' });
+    const repo = createRepo();
+    const listBookSummaries = vi.fn(async () => [
+      { ...createMaterialBookSummary(publicBook), bookVisibility: 'public-library-pending-review' as const },
+    ]);
+    await expect(listTeacherBooks({ teacherId: 'teacher-2', scope: 'public',
+      repository: { ...repo, listBookSummaries },
+    })).rejects.toThrow(/invalid listing fields/);
+
+    listBookSummaries.mockResolvedValueOnce([
+      { ...createMaterialBookSummary(privateBook), bookVisibility: 'public-library-published' as const },
+    ]);
+    await expect(listTeacherBooks({ teacherId: 'teacher-1', scope: 'private',
+      repository: { ...repo, listBookSummaries },
+    })).rejects.toThrow(/invalid listing fields/);
   });
 
   it('lists pending public Book review queue from the pending-review visibility index', async () => {

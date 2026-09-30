@@ -137,6 +137,7 @@ const toUniversalSummary = (
   lifecycleState: 'active' | 'archived' | 'removed',
   updatedAt: string,
   visibility = normalizeActiveVisibility(String(passage.visibility)),
+  hasStudentSafeProjection?: boolean,
 ) => createReadingV2PassageMaterialSummary({
   materialId: passage.materialId,
   ownerId: passage.ownerId,
@@ -148,6 +149,7 @@ const toUniversalSummary = (
   sourceSnapshotVersionId:
     passage.currentVersionId ?? passage.publishedSnapshotVersionId,
   sourceFullTestId: passage.sourceFullTestId,
+  hasStudentSafeProjection,
   updatedAt,
 });
 
@@ -482,6 +484,7 @@ export const restoreReadingV2PassageMaterial = async (
         'active',
         restoredAt,
         input.restoreVisibility,
+        true,
       ),
       toUniversalSummary(input.passage, 'archived', input.passage.updatedAt),
     ),

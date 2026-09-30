@@ -16,7 +16,7 @@ import {
 } from '../src/services/materialCatalog/materialSummaryReconciliation.service';
 
 const execFileAsync = promisify(execFile);
-const firebaseBinary = process.platform === 'win32' ? 'cmd' : 'firebase';
+const firebaseBinary = process.execPath;
 
 export interface MaterialSummaryReconciliationCliOptions {
   readonly projectId: string;
@@ -120,28 +120,31 @@ export const parseMaterialSummaryReconciliationArgs = (
 };
 
 const firebaseArgs = (args: readonly string[]): string[] =>
-  process.platform === 'win32' ? ['/c', 'firebase', ...args] : [...args];
+  [resolve('node_modules/firebase-tools/lib/bin/firebase.js'), ...args];
 
 const runFirebase = async (args: readonly string[]): Promise<string> => {
-  const { stdout } = await execFileAsync(firebaseBinary, firebaseArgs(args), {
-    cwd: process.cwd(),
-    maxBuffer: 100 * 1024 * 1024,
-  });
-  return stdout.trim();
+  const startedAt = Date.now();
+  try {
+    const { stdout } = await execFileAsync(firebaseBinary, firebaseArgs(args), {
+      cwd: process.cwd(),
+      maxBuffer: 100 * 1024 * 1024,
+      timeout: 600_000,
+    });
+    return stdout.trim();
+  } catch (error) {
+    const failure = error as Error & { code?: string | number; signal?: string; killed?: boolean; stdout?: string; stderr?: string };
+    throw new Error(
+      `Firebase CLI ${args[0]} failed: code=${failure.code ?? 'none'} signal=${failure.signal ?? 'none'} killed=${failure.killed ?? false} elapsedMs=${Date.now() - startedAt} stdoutBytes=${Buffer.byteLength(failure.stdout || '')} stderrBytes=${Buffer.byteLength(failure.stderr || '')}`,
+      { cause: error },
+    );
+  }
 };
 
 const readFirebaseJson = async (
   path: string,
   projectId: string,
-): Promise<unknown> => {
-  const output = await runFirebase([
-    'database:get',
-    `/${path}`,
-    '--project',
-    projectId,
-  ]);
-  return output ? JSON.parse(output) : null;
-};
+): Promise<unknown> =>
+  JSON.parse(await runFirebase(['database:get', `/${path}`, '--project', projectId]));
 
 const updateFirebaseRoot = async (
   payload: unknown,

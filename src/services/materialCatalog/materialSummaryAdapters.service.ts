@@ -72,6 +72,10 @@ export interface ReadingV2PassageSummarySource {
   readonly sourceFullTestId?: string;
   readonly hasBrokenRefs?: boolean;
   readonly brokenRefCount?: number;
+  readonly hasStudentSafeProjection?: boolean;
+  readonly sourceOrderDisplay?: string;
+  readonly sourceQuestionRange?: string;
+  readonly sourceFullTestTitle?: string;
   readonly updatedAt: string;
 }
 
@@ -103,6 +107,10 @@ export const createReadingV2PassageMaterialSummary = (
   sourceFullTestId: source.sourceFullTestId,
   hasBrokenRefs: source.hasBrokenRefs,
   brokenRefCount: source.brokenRefCount,
+  hasStudentSafeProjection: source.hasStudentSafeProjection,
+  sourceOrderDisplay: source.sourceOrderDisplay,
+  sourceQuestionRange: source.sourceQuestionRange,
+  sourceFullTestTitle: source.sourceFullTestTitle,
   updatedAt: source.updatedAt,
 }) as unknown as MaterialSummary;
 
@@ -209,6 +217,10 @@ export const createReadingV2MaterialSummary = (
       sourceFullTestId: metadata.sourceFullTestId,
       hasBrokenRefs: metadata.hasBrokenRefs,
       brokenRefCount: metadata.brokenRefCount,
+      ...projectionReadiness,
+      sourceOrderDisplay: metadata.sourceOrderDisplaySnapshot,
+      sourceQuestionRange: metadata.sourceQuestionRange,
+      sourceFullTestTitle: metadata.sourceTitleSnapshot,
       updatedAt: metadata.updatedAt,
     });
   }
@@ -262,5 +274,14 @@ export const createMaterialBookSummary = (
   tags: withFallback(book.tags, 'book'),
   hasBrokenRefs: book.hasBrokenRefs,
   brokenRefCount: book.brokenRefCount,
+  bookMode: book.bookMode ?? 'materials',
+  bookStatus: book.status,
+  bookVisibility: book.visibility,
+  authors: book.authors?.length ? book.authors : undefined,
+  subtitle: book.subtitle || undefined,
+  publisher: book.publisher || undefined,
+  series: book.series || undefined,
+  coverUrl: book.coverUrl || undefined,
+  brokenRefReasons: book.brokenRefReasons?.length ? book.brokenRefReasons : undefined,
   updatedAt: book.updatedAt,
 }) as unknown as MaterialSummary;

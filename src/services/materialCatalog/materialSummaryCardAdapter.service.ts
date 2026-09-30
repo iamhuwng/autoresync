@@ -51,6 +51,8 @@ export const adaptMaterialSummaryToTeacherCard = (
     studentSafeProjectionReady: summary.studentSafeProjectionReady,
     passageRefCount: summary.passageRefCount,
     tags: summary.tags,
+    gradeLevel: summary.gradeLevel,
+    examType: summary.examType,
     ...(readingV2
       ? {
           deliveryEngine: READING_V2_ENGINE,
@@ -59,6 +61,8 @@ export const adaptMaterialSummaryToTeacherCard = (
       : {}),
     metadata: {
       title: summary.title,
+      gradeLevel: summary.gradeLevel,
+      examType: summary.examType,
       description: summary.description ?? '',
       duration: summary.durationMinutes ?? 0,
       tags: summary.tags,

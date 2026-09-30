@@ -5,6 +5,7 @@ import {
   type MaterialTestTypeId,
 } from '../../types/materialCatalog.types';
 import { MATERIAL_KIND_TAXONOMY_REGISTRY } from './materialIntegrationRegistry';
+import { resolveMaterialTestTypeIdsFromLegacyTestType } from './materialTestTypeMapping.service';
 import {
   MATERIAL_SUMMARY_SCHEMA_VERSION,
   MaterialSummaryContractError,
@@ -48,15 +49,9 @@ const timestamp = (value: unknown): string => {
 };
 
 const testTypeId = (value: string): MaterialTestTypeId => {
-  const aliases: Record<string, string> = {
-    'thcs-thpt': 'thcs-thpt',
-    thcs: 'thcs-thpt',
-    thpt: 'thcs-thpt',
-    ielts: 'ielts',
-    toeic: 'toeic',
-  };
   const normalized = value.trim().toLowerCase().replace(/\s+/g, '-');
-  return materialCatalogIds.testTypeId(aliases[normalized] ?? normalized);
+  return resolveMaterialTestTypeIdsFromLegacyTestType(normalized)[0]
+    ?? materialCatalogIds.testTypeId(normalized);
 };
 
 const supportedKind = (value: unknown): MaterialCatalogMaterialKind | undefined =>
@@ -153,12 +148,14 @@ export const createLegacyTestMaterialSummary = (
   }
 
   const classification = classify(test);
-  const rawTestTypeIds = unique([
+  const explicitTestTypeIds = unique([
     ...stringArray(test.primaryTestTypeId),
     ...stringArray(test.testTypeIds),
+  ]);
+  const rawTestTypeIds = unique((explicitTestTypeIds.length ? explicitTestTypeIds : [
     ...stringArray(test.testType),
     ...stringArray(test.type),
-  ]).map(testTypeId);
+  ]).map(testTypeId));
   const resolvedTestTypeIds = rawTestTypeIds.length > 0
     ? rawTestTypeIds
     : [materialCatalogIds.testTypeId('custom')];
@@ -186,6 +183,8 @@ export const createLegacyTestMaterialSummary = (
     tags: rawTags.length > 0 ? rawTags : [classification.materialKind],
     questionCount: questionCount(test),
     durationMinutes: optionalNumber(test.duration),
+    gradeLevel: optionalNumber(metadata.gradeLevel),
+    examType: nonEmpty(metadata.examType),
     sourceSnapshotVersionId: nonEmpty(test.publishedSnapshotVersionId),
     hasBrokenRefs: typeof test.hasBrokenRefs === 'boolean'
       ? test.hasBrokenRefs

@@ -80,6 +80,21 @@ describe('materialSummaryReconciliation', () => {
 
     expect(second.operationCount).toBe(0);
     expect(second.operationDigest).toMatch(/^fnv1a-/);
+
+    repairedSnapshot.by_owner_family['teacher-1'].assessment['test-1'] = {
+      ...repairedSnapshot.by_owner_family['teacher-1'].assessment['test-1'], title: 'Stale title',
+    };
+    const drift = planMaterialSummaryReconciliation({
+      legacyTests: { 'test-1': legacyTest }, currentIndex: repairedSnapshot,
+    });
+    expect(drift.operations).toEqual([expect.objectContaining({
+      path: 'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment/test-1',
+      reason: 'stale',
+    })]);
+    repairedSnapshot.by_owner_family['teacher-1'].assessment['test-1'] = drift.operations[0].value;
+    expect(planMaterialSummaryReconciliation({
+      legacyTests: { 'test-1': legacyTest }, currentIndex: repairedSnapshot,
+    }).operationCount).toBe(0);
   });
 
   it('replaces malformed expected rows and fails closed on malformed canonical data', () => {
@@ -225,7 +240,7 @@ describe('materialSummaryReconciliation', () => {
       updatedAt: '2026-01-02T00:00:00.000Z',
     };
 
-    expect(buildMaterialSummaryParityReport(expected, {
+    expect(buildMaterialSummaryParityReport([...expected, inactiveSummary], {
       'test-1': expected[0],
       'archived-test': inactiveSummary,
     })).toMatchObject({
@@ -233,6 +248,7 @@ describe('materialSummaryReconciliation', () => {
       missingIds: [],
       orphanIds: [],
       currentCount: 1,
+      expectedCount: 1,
     });
   });
 });

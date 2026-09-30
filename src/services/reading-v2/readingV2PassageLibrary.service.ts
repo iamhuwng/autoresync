@@ -1,11 +1,14 @@
-import { get, ref, type Database } from 'firebase/database';
-import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
+import { endBefore, get, limitToLast, orderByChild, query as dbQuery, ref, type Database } from 'firebase/database';
+import { READING_V2_ENGINE, READING_V2_PRODUCT_LABEL } from '../../config/readingV2FeatureFlags';
 import { database as defaultDatabase } from '../firebase';
 import {
   type MaterialCatalogIndexRow,
 } from '../materialCatalog/materialCatalogIndexes.service';
 import {
+  compareMaterialSummaryRecency,
   listActiveMaterialSummaries,
+  listMaterialSummaryPage,
+  type MaterialSummaryPageCursor,
   type MaterialSummary,
 } from '../materialCatalog/materialSummaryPort.service';
 import type {
@@ -42,6 +45,8 @@ export interface ReadingV2PassageLibraryReader {
     snapshotVersionId: string,
   ) => Promise<Pick<ReadingV2DerivedProjection, 'content' | 'sourceSnapshotVersionId'> | null>;
   readonly readCanonicalMaterial?: (materialId: string) => Promise<unknown>;
+  readonly listSummaryPage?: (query: ReadingV2PassageLibraryIndexQuery, testTypeId?: MaterialTestTypeId | null, cursor?: MaterialSummaryPageCursor) => Promise<{ rows: MaterialSummary[]; cursor: MaterialSummaryPageCursor | null; hasMore: boolean }>;
+  readonly listArchiveRowsPage?: (teacherId: string, cursor?: MaterialSummaryPageCursor) => Promise<{ rows: MaterialCatalogIndexRow[]; cursor: MaterialSummaryPageCursor | null; hasMore: boolean }>;
 }
 
 export interface ReadingV2PassageLibraryAction {
@@ -111,6 +116,34 @@ export interface ListTeacherReadingPassagesInput {
   readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
 }
 
+export const listTeacherReadingPassagesPage = async (
+  input: ListTeacherReadingPassagesInput,
+  cursor?: MaterialSummaryPageCursor,
+): Promise<{ rows: ReadingV2PassageLibraryRow[]; cursor: MaterialSummaryPageCursor | null; hasMore: boolean }> => {
+  if (!input.teacherId) return { rows: [], cursor: null, hasMore: false };
+  const reader = input.reader ?? createReadingV2PassageLibraryFirebaseReader();
+  const page = input.scope === 'archived'
+    ? await reader.listArchiveRowsPage?.(input.teacherId, cursor)
+    : await reader.listSummaryPage?.({ scope: input.scope, teacherId: input.teacherId }, input.testTypeId, cursor);
+  if (!page) throw new Error('Bounded Reading Passage summary query is unavailable.');
+  const rows = await listTeacherReadingPassages({ ...input, reader: {
+    ...reader,
+    listSummaryRows: async () => page.rows,
+  } });
+  return { ...page, rows };
+};
+
+const readArchivePassagePage = async (database: Database, teacherId: string, cursor?: MaterialSummaryPageCursor) => {
+  const path = `material_catalog/material_archive_indexes/by_owner/${teacherId}/reading-passage`;
+  const snapshot = await get(dbQuery(ref(database, path), orderByChild('archivedAt'),
+    ...(cursor ? [endBefore(cursor.updatedAt, cursor.materialId)] : []), limitToLast(26)));
+  const rows = snapshot.exists() ? listArchiveRowsFromSnapshotValue(snapshot.val(), teacherId) : [];
+  rows.sort(compareMaterialSummaryRecency);
+  const page = rows.slice(0, 25);
+  const last = page.at(-1);
+  return { rows: page, cursor: last ? { updatedAt: last.updatedAt, materialId: last.materialId } : null, hasMore: rows.length > 25 };
+};
+
 export interface ReadingV2PassageArchiveRepository {
   readonly read: (path: string) => Promise<unknown>;
   readonly update: (updates: Record<string, unknown | null>) => Promise<void>;
@@ -145,10 +178,20 @@ const isReadingPassageMetadata = (value: unknown): value is ReadingV2MaterialMet
   typeof (value as ReadingV2MaterialMetadata).materialId === 'string' &&
   typeof (value as ReadingV2MaterialMetadata).ownerId === 'string';
 
-const listArchiveRowsFromSnapshotValue = (value: unknown): MaterialCatalogIndexRow[] =>
-  Object.values(value ?? {})
-    .filter(isArchiveIndexRow)
-    .map((row) => ({
+const listArchiveRowsFromSnapshotValue = (value: unknown, teacherId: string): MaterialCatalogIndexRow[] => {
+  if (value === null || value === undefined) return [];
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Reading Passage archive index returned an invalid payload.');
+  }
+  return Object.entries(value).map(([key, candidate]) => {
+    if (!isArchiveIndexRow(candidate) || candidate.materialId !== key ||
+      candidate.ownerId !== teacherId || !candidate.title ||
+      !['private', 'public'].includes(candidate.visibility) ||
+      !candidate.archivedAt || !candidate.currentVersionId) {
+      throw new Error(`Reading Passage archive index contains an invalid row: ${key}`);
+    }
+    const row = candidate;
+    return {
       materialId: row.materialId,
       ownerId: row.ownerId,
       title: row.title,
@@ -157,11 +200,25 @@ const listArchiveRowsFromSnapshotValue = (value: unknown): MaterialCatalogIndexR
       testTypeIds: [],
       testTypeMembership: {},
       updatedAt: row.archivedAt,
-    }));
+    };
+  });
+};
 
 export const createReadingV2PassageLibraryFirebaseReader = (
   database: Database = defaultDatabase,
 ): ReadingV2PassageLibraryReader => ({
+  async listSummaryPage(queryInput, testTypeId, cursor) {
+    return listMaterialSummaryPage(queryInput.scope === 'private'
+      ? { scope: 'owned', ownerId: queryInput.teacherId, surfaceFamily: 'passage', materialKind: 'reading-passage', testTypeId: testTypeId ?? undefined }
+      : { scope: 'public', surfaceFamily: 'passage', materialKind: 'reading-passage', testTypeId: testTypeId ?? undefined }, {
+      readPage: async (path, limit, pageCursor) => {
+        const snapshot = await get(dbQuery(ref(database, path), orderByChild('updatedAt'),
+          ...(pageCursor ? [endBefore(pageCursor.updatedAt, pageCursor.materialId)] : []), limitToLast(limit)));
+        return snapshot.exists() ? snapshot.val() : null;
+      },
+    }, { cursor });
+  },
+  listArchiveRowsPage: (teacherId, cursor) => readArchivePassagePage(database, teacherId, cursor),
   async listSummaryRows(queryInput) {
     if (queryInput.scope !== 'archived') {
       return listActiveMaterialSummaries(
@@ -184,7 +241,7 @@ export const createReadingV2PassageLibraryFirebaseReader = (
       return [];
     }
 
-    return listArchiveRowsFromSnapshotValue(snapshot.val());
+    return listArchiveRowsFromSnapshotValue(snapshot.val(), queryInput.teacherId);
   },
   async readMetadata(materialId) {
     const snapshot = await get(ref(database, readingV2StoragePaths.materialMetadata(materialId)));
@@ -418,6 +475,75 @@ export const listTeacherReadingPassages = async (
   });
   const readingPassageIndexRows = indexRows.filter((row) => row.materialKind === 'reading-passage');
 
+  if (input.scope !== 'archived') {
+    return readingPassageIndexRows
+      .filter((row): row is MaterialSummary => 'surfaceFamily' in row && row.surfaceFamily === 'passage')
+      .filter((row) => row.lifecycleState === 'active' && (input.scope === 'private'
+        ? row.ownerId === teacherId
+        : row.visibility === 'public'))
+      .filter((row) => !input.testTypeId || row.testTypeIds.includes(input.testTypeId))
+      .map((summary): ReadingV2PassageLibraryRow => {
+        const testTypes = summary.testTypeIds.map((testTypeId) =>
+          testTypeSummary(testTypeId, input.testTypeConfigs));
+        const isOwner = summary.ownerId === teacherId;
+        const hasStudentSafeProjection = summary.hasStudentSafeProjection === true;
+        const accessible = hasStudentSafeProjection && Boolean(summary.sourceSnapshotVersionId);
+        return {
+          id: summary.materialId,
+          materialId: summary.materialId,
+          ownerId: summary.ownerId,
+          deliveryEngine: READING_V2_ENGINE,
+          title: summary.title,
+          materialKind: 'reading-passage',
+          skill: 'Reading',
+          skillType: 'reading-v2',
+          questionCount: summary.questionCount ?? 0,
+          duration: summary.durationMinutes ?? 0,
+          durationMinutes: summary.durationMinutes ?? 0,
+          updatedAt: summary.updatedAt,
+          visibility: summary.visibility,
+          scope: input.scope,
+          isOwner,
+          selectable: accessible,
+          primaryTestTypeId: summary.primaryTestTypeId,
+          testTypeIds: summary.testTypeIds,
+          testTypes,
+          sourceOrderDisplay: summary.sourceOrderDisplay,
+          sourceQuestionRange: summary.sourceQuestionRange,
+          sourceFullTestId: summary.sourceFullTestId,
+          sourceFullTestTitle: summary.sourceFullTestTitle,
+          publishedSnapshotVersionId: summary.sourceSnapshotVersionId,
+          hasStudentSafeProjection,
+          accessible,
+          archived: false,
+          actions: buildActions(isOwner, input.scope),
+          metadata: {
+            title: summary.title,
+            description: summary.description,
+            tags: summary.tags,
+            visibility: summary.visibility,
+            materialKind: 'reading-passage',
+            deliveryEngine: READING_V2_ENGINE,
+            productLabel: READING_V2_PRODUCT_LABEL,
+            sourceOrderDisplay: summary.sourceOrderDisplay,
+            sourceQuestionRange: summary.sourceQuestionRange,
+            sourceFullTestTitle: summary.sourceFullTestTitle,
+            publishedSnapshotVersionId: summary.sourceSnapshotVersionId,
+          },
+        };
+      })
+      .filter((row) => {
+        const testTypes = row.testTypes;
+        const query = normalizeSearch(input.searchTerm);
+        return !query || [row.title, row.metadata.description, ...row.metadata.tags,
+          ...testTypes.flatMap((testType) => [testType.label, testType.shortLabel]),
+          row.sourceFullTestTitle, row.sourceOrderDisplay]
+          .filter((entry): entry is string => typeof entry === 'string')
+          .join(' ').toLowerCase().includes(query);
+      })
+      .sort(compareMaterialSummaryRecency);
+  }
+
   const rows = await Promise.all(
     readingPassageIndexRows
       .map(async (indexRow) => {
@@ -455,30 +581,16 @@ export const listTeacherReadingPassages = async (
           return null;
         }
 
-        let projection: Pick<ReadingV2DerivedProjection, 'content' | 'sourceSnapshotVersionId'> | null = null;
-
-        if (metadata.publishedSnapshotVersionId) {
-          try {
-            projection = await reader.readStudentSafeProjection?.(
-              metadata.materialId,
-              metadata.publishedSnapshotVersionId,
-            ) ?? null;
-          } catch {
-            projection = null;
-          }
-        }
-
-        return createRow({
+        return { ...createRow({
           metadata,
-          projection,
           scope: input.scope,
           teacherId,
           testTypeConfigs: input.testTypeConfigs,
-        });
+        }), updatedAt: indexRow.updatedAt };
       }),
   );
 
   return rows
     .filter((row): row is ReadingV2PassageLibraryRow => row !== null)
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    .sort(compareMaterialSummaryRecency);
 };

@@ -32,7 +32,7 @@ describe('useTestFilters', () => {
     expect(ids).not.toContain('2'); // not owned
     expect(ids).toContain('3'); // owned
     expect(ids).not.toContain('4'); // not owned
-    expect(ids).toContain('5'); // no owner = legacy
+    expect(ids).not.toContain('5'); // missing ownership is not owned
   });
 
   it('filters public content while retaining owned public materials', () => {
@@ -75,11 +75,12 @@ describe('useTestFilters', () => {
     expect(ids).toEqual(['7']);
   });
 
-  it('filters by test type in public library', () => {
+  it('applies grade context to the indexed Test Type result', () => {
     const { result } = renderHook(() => useTestFilters(mockTests, {
       ...defaultFilters,
       contentFilter: 'public',
-      testTypeFilter: 'THCS-THPT',
+      testTypeFilter: 'thcs',
+      thcsGradeFilter: '9',
     }));
 
     result.current.filteredTests.forEach(t => {
@@ -124,7 +125,7 @@ describe('useTestFilters', () => {
       userRole: 'super_admin',
     }));
 
-    expect(result.current.filteredTests.map(t => t.id)).toEqual(['1', '3', '5', '6', '7']);
+    expect(result.current.filteredTests.map(t => t.id)).toEqual(['1', '3']);
   });
 
   it('returns empty array when tests is empty', () => {

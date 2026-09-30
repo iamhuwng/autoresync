@@ -25,8 +25,10 @@ Runtime surfaces:
 
 Database/index anchors:
 
-- `material_catalog/material_summary_indexes/v1/by_owner/{teacherId}`
-- `material_catalog/material_summary_indexes/v1/by_visibility/public`
+- `material_catalog/material_summary_indexes/v1/by_owner_family/{teacherId}/{surfaceFamily}`
+- `material_catalog/material_summary_indexes/v1/by_visibility_family/public/{surfaceFamily}`
+- `material_catalog/material_summary_indexes/v1/by_owner_family_type/{teacherId}/{surfaceFamily}/{testTypeId}`
+- `material_catalog/material_summary_indexes/v1/by_visibility_family_type/public/{surfaceFamily}/{testTypeId}`
 - `material_catalog/material_summary_indexes/v1/by_id/{materialId}`
 - `material_catalog/material_summary_indexes/v1/by_material_kind/{materialKind}/{materialId}`
 - `material_catalog/material_summary_indexes/v1/by_test_type/{testTypeId}/{materialId}`
@@ -54,7 +56,7 @@ Bulk selection and tab-specific selected-material actions are governed by
 My Content reads active summaries from:
 
 ```text
-material_catalog/material_summary_indexes/v1/by_owner/{teacherId}
+material_catalog/material_summary_indexes/v1/by_owner_family/{teacherId}/assessment
 ```
 
 This scope includes private and public rows owned by that teacher, but the My
@@ -80,7 +82,7 @@ list.
 Public Library reads active public summaries from:
 
 ```text
-material_catalog/material_summary_indexes/v1/by_visibility/public
+material_catalog/material_summary_indexes/v1/by_visibility_family/public/assessment
 ```
 
 This scope includes active public rows, including rows owned by the current
@@ -92,7 +94,12 @@ client-side.
 ### Drafts, Reading Passage, And Book Tabs
 
 Drafts remain separate from the published-material list. `useTeacherDrafts`
-owns draft loading and should only run when the Drafts tab is active.
+owns bounded Firestore queries and should only run when the Drafts tab is active.
+It merges up to 25 recent rows from the THCS and Writing stores, advancing each
+store's cursor only past rows consumed by that merged page. Published rows are
+excluded, so a visible page can contain fewer than 25 drafts.
+Each request reads at most 26 rows per store. The merge and cursors retain raw
+Firestore timestamp precision, including nanoseconds; UI dates are display only.
 
 Dedicated Reading Passage and Book views keep their specialized UI and
 archive/editor behavior. Their discoverability must remain connected to
@@ -104,16 +111,68 @@ Teacher Materials discovery authority.
 Archive rows are a separate lifecycle surface. Active My Content and Public
 Library buckets must contain active summaries only.
 
+### Bounded Discovery And Pagination
+
+Every active tab starts with at most 25 summaries. Queries order by `updatedAt`,
+read `limitToLast(26)` for a one-row continuation probe, and use
+`endBefore(updatedAt, materialId)` for subsequent pages. Rendering never slices
+an already downloaded catalog. The cursor order matches RTDB's child-value/key
+order, including integer keys; equal timestamps do not collapse into one cursor.
+Load More appends rows without duplicate IDs. Scope/Test Type changes and
+refreshes reset the page. Obsolete responses cannot overwrite a newer scope.
+
+Assessment, passage, and book families each have their own discovery bucket.
+The current taxonomy gives passage and book exactly one material kind each;
+the reader also validates exact material-kind restrictions. Selecting a Test
+Type uses the family/type compound bucket. Pinned preferences change the
+visible blocks only, and never constrain an unfiltered query.
+
+Search, Skill, Visibility, and contextual Grade/Exam Type filters cover fetched
+results. The continuation control explicitly explains that loading older pages
+extends those results. No background full-catalog search is performed. The
+coarse Public Library IELTS/THCS-THPT dropdown is retired; Test Type blocks own
+category selection. THCS/THPT selections expose Grade and Exam Type context.
+Legacy test producers use the shared Test Type mapping (`THCS-THPT` maps to
+`thcs`), while explicit modern IDs such as `thpt` take precedence over legacy
+labels. Reconciliation refreshes existing summaries before indexed rollout.
+
+Reading Passage Private means the teacher's owned library (including owned
+public passages), preserving the existing ownership scope. Public reads only
+public passage summaries. Archive uses the existing owner/reading-passage index
+ordered by `archivedAt`, with the same tuple cursor and 25-row bound. Active
+passages render count/readiness/source labels from summaries without metadata
+or student projection hydration. Archive hydrates metadata only for its bounded
+page because restore needs the archived version and Test Type facts.
+
+Book Private also means owned Books. Its cards render safe Book display fields
+from summaries, including mode, status, visibility, authors, and cover. Canonical
+Books and public projections are read only by explicit action workflows.
+
+All page failures clear stale rows and cursors and display an error. Summary
+query validation rejects malformed rows, wrong owner/visibility/family/kind/type,
+and readers that exceed their requested bound.
+
+### Rollout Requirements
+
+The four compound buckets have `updatedAt` indexes; the Reading Passage archive
+bucket has `archivedAt`. Draft queries need Firestore composites for `userId`,
+`updatedAt DESC`, and document ID DESC in `thcs_drafts` and `writing_drafts`.
+Before activating these reads in a shared environment, deploy the rules/indexes
+and populate compound summaries with the existing reviewed material-summary
+reconciliation workflow. It also refreshes the new safe display/readiness fields.
+No broad-query fallback exists for missing compound indexes. This implementation
+does not itself authorize deployment or remote reconciliation writes.
+
 ## Permission Contract
 
-- Teacher owner reads `by_owner/{auth.uid}` only.
-- Teacher Public Library reads `by_visibility/public` only.
+- Teacher owner discovery reads own family/type buckets only.
+- Teacher Public Library discovery reads public family/type buckets only.
 - Teacher `by_id` reads are limited to active owned rows or active public rows.
 - `by_owner/{auth.uid}` includes both private and public summaries owned by that
   teacher. Private-only feature subscopes must filter after the owner summary
   read, not by replacing My Content with a private visibility query.
-- Students and unauthenticated users cannot browse Teacher Materials summary
-  indexes.
+- Students cannot read owner discovery buckets. Current rules permit student
+  discovery of active public summaries; unauthenticated reads are denied.
 - Super admin may read/write diagnostic and repair buckets.
 - Public Book summary create, update, delete, and demotion are admin-only across
   all universal summary buckets.
@@ -134,8 +193,12 @@ payloads just to decide card actions.
 
 Realtime listeners must match the active summary scope:
 
-- owned scope: `material_summary_indexes/v1/by_owner/{teacherId}`
-- public scope: `material_summary_indexes/v1/by_visibility/public`
+- owned assessment scope: `material_summary_indexes/v1/by_owner_family/{teacherId}/assessment`
+- public assessment scope: `material_summary_indexes/v1/by_visibility_family/public/assessment`
+- selected Test Type: the matching owner/public `*_family_type` bucket
+
+Listeners use the same `updatedAt` ordering and 26-row bound as the first page.
+Realtime changes refresh the first page and invalidate outstanding pagination.
 
 Initial RTDB listener snapshots are skipped because the initial indexed fetch
 already loaded the same data. Later realtime events reload the same scoped
@@ -225,9 +288,53 @@ with `repair:writing-runtime-bridges`; do not broaden My Content back to
 Firestore draft scans or full `/tests` scans. Removed MaterialSummary `by_id`
 tombstones also block Writing repair resurrection from stale published drafts.
 
-## Current Evidence
+## Bounded Listing Verification (2026-09-30)
 
-Local proof on 2026-07-07:
+Local browser checks at `http://localhost:5173/lobby` used disposable RTDB
+emulator summaries with the current rules. My Content and Public Library
+started with 25 rows and reached 36/35 after Load More. Explicit IELTS selection
+reset paging and reached 31/30 matching rows. Passage Private/Public/Archive
+and Book Private/Public each started with 25 and reached 30 without duplicates.
+Active lists rendered without canonical fixture payloads. Search and contextual
+controls were checked, along with fail-loud invalid-summary clearing.
+
+The initial local checks preceded the remote rollout: new RTDB query paths
+then reported permission errors and Drafts lacked its THCS Firestore composite
+index. Draft paging, including exact nanosecond cursors, is covered by focused
+hook/service tests.
+
+### Approved remote rollout (2026-09-30)
+
+- Project `temp-a1437` received the four family/family-and-Test-Type discovery
+  buckets, summary display-field validation, and Passage archive `archivedAt`
+  indexing. Remote rules readback exactly matched the scoped candidate.
+- All nine live Firestore composite indexes are READY, including
+  `thcs_drafts(userId ASC, updatedAt DESC)`; unrelated indexes and field overrides
+  were preserved.
+- Approved summary reconciliation applied 685 derived-index operations
+  (`fnv1a-cbcab101`), without canonical material writes. Its initial verification
+  exposed an active-parity reporter bug: archived expected rows were counted
+  against active current rows. Both sides now compare active rows; focused
+  reconciliation/CLI tests pass 12/12.
+- Post-release read-only audit reports zero operations, zero read failures,
+  and exact active parity. Reports remain local under
+  `output/material-summary-reconciliation/teacher-lobby-bounded-*20260930.json`.
+- Hosting site `kahut1` was released from an isolated copy of the existing live
+  source plus 18 scoped runtime deltas. Baseline reproduction matched all 425
+  assets byte for byte; integrated tests passed 130/130 plus 36 Book tests.
+  Both `hocthem.net` and `kahut1.web.app` serve `index-cq0Eg8Bc.js`, SHA256
+  `5f4277cddf44c14aaa9914d9e702e29a3f1b8766c6e2976c3aa31a253dea7bf1`.
+- Release-build browser QA at `http://localhost:5173/lobby` checked all five
+  tabs and scopes. Live `hocthem.net/lobby` Teacher quick-login succeeds;
+  My Content shows 16 owned assessments and Public Library loads 25 then 26
+  unique rows with stable first-page order. Live Passage and Book dedicated
+  scopes render their own rows; Drafts renders its empty state without a missing
+  index error. No list warnings/errors appeared. The preview origin's login is
+  blocked by existing API-key referrer restrictions; no restrictions changed.
+
+## Historical Evidence
+
+Local proof on 2026-07-07 predates bounded family/type discovery:
 
 - `useTeacherTests` reads `material_summary_indexes/v1/by_owner/{teacherId}` for
   My Content.

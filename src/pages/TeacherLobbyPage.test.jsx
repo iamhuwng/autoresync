@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherLobbyPage from './TeacherLobbyPage';
@@ -100,12 +100,20 @@ vi.mock('../services/homeworkAssignmentClient', () => ({
   createHomeworkAssignmentViaWorker: vi.fn(async () => 'homework-worker-1'),
 }));
 
+vi.mock('../services/book-assembly/assemblyClient.browser', async () => ({
+  ...await vi.importActual('../services/book-assembly/assemblyClient.browser'),
+  createBookAssemblyClient: () => ({ discoverDrafts: async () => [] }),
+}));
+
 vi.mock('../services/reading-v2/readingV2PassageLibrary.service', async () => {
   const actual = await vi.importActual('../services/reading-v2/readingV2PassageLibrary.service');
 
   return {
     ...actual,
-    listTeacherReadingPassages: (...args) => mocks.listReadingPassages(...args),
+    listTeacherReadingPassagesPage: async (...args) => {
+      const value = await mocks.listReadingPassages(...args);
+      return Array.isArray(value) ? { rows: value, cursor: null, hasMore: false } : value;
+    },
   };
 });
 
@@ -121,7 +129,10 @@ vi.mock('../services/materialCatalog/materialBooks.service', () => ({
     remove: vi.fn(),
     update: vi.fn(),
   })),
-  listTeacherBooks: (...args) => mocks.listTeacherBooks(...args),
+  listTeacherBooksPage: async (...args) => {
+    const value = await mocks.listTeacherBooks(...args);
+    return Array.isArray(value) ? { rows: value, cursor: null, hasMore: false } : value;
+  },
   createBookDraft: (...args) => mocks.createBookDraft(...args),
   updateBookMetadata: (...args) => mocks.updateBookMetadata(...args),
 }));
@@ -302,7 +313,6 @@ vi.mock('../components/modern/SearchFilterBar', () => ({
   default: ({
     searchTerm = '',
     onSearchChange,
-    onTestTypeFilterChange,
     onCreateNew,
     createLabel = 'Create New Test',
     showCreateButton = true,
@@ -318,8 +328,6 @@ vi.mock('../components/modern/SearchFilterBar', () => ({
         value={searchTerm}
         onChange={(event) => onSearchChange?.(event.target.value)}
       />
-      <button type="button" onClick={() => onTestTypeFilterChange?.('ielts')}>Filter IELTS</button>
-      <button type="button" onClick={() => onTestTypeFilterChange?.('all')}>Clear Test Type</button>
       {visibilityScope && (
         <div role="group" aria-label={visibilityLabel}>
           {(visibilityScopeOptions || [
@@ -1404,8 +1412,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await waitFor(() => {
       expect(mocks.dbWrites).toEqual(expect.arrayContaining([
         {
-          path: `${readingV2StoragePaths.fullTestCompositions(compositionId)}/state`,
-          value: 'removed',
+          path: readingV2StoragePaths.fullTestCompositions(compositionId),
+          value: expect.objectContaining({ state: 'removed' }),
         },
         {
           path: `${readingV2StoragePaths.materialMetadata(materialId)}/state`,
@@ -1527,8 +1535,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await waitFor(() => {
       expect(mocks.dbWrites).toEqual(expect.arrayContaining([
         {
-          path: 'reading_v2/full_test_compositions/composition-master-1-snapshot-1/state',
-          value: 'removed',
+          path: 'reading_v2/full_test_compositions/composition-master-1-snapshot-1',
+          value: expect.objectContaining({ state: 'removed' }),
         },
         {
           path: 'reading_v2/material_metadata/master-1/state',
@@ -1668,30 +1676,6 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(within(dialog).getByRole('button', { name: 'Remove master and linked passages' })).toBeDisabled();
   });
 
-  it('hides standalone Reading V2 passage assets from the lobby grid by default', () => {
-    mocks.tests = [
-      {
-        id: 'passage-asset-1',
-        deliveryEngine: 'reading-v2',
-        ownerId: 'teacher-1',
-        title: 'Standalone Passage Asset',
-        materialKind: 'passage-asset',
-      },
-      {
-        id: 'material-v2',
-        deliveryEngine: 'reading-v2',
-        ownerId: 'teacher-1',
-        title: 'Published Reading V2',
-        materialKind: 'full-test',
-      },
-    ];
-
-    renderTeacherLobbyWithToasts();
-
-    expect(screen.queryByTestId('material-list-row-passage-asset-1')).not.toBeInTheDocument();
-    expect(screen.getByTestId('material-list-row-material-v2')).toBeInTheDocument();
-  });
-
   it('keeps normal material browsing list-only and existing actions wired', async () => {
     const user = userEvent.setup();
     mocks.tests = [
@@ -1781,8 +1765,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     render(<TeacherLobbyPage />);
 
     await user.click(screen.getByRole('tab', { name: 'Public Library' }));
-    await user.click(screen.getByRole('button', { name: 'Filter IELTS' }));
-    await user.click(screen.getByRole('button', { name: 'Clear Test Type' }));
+    await user.click(screen.getByRole('button', { name: 'Filter materials by IELTS' }));
+    await user.click(screen.getByRole('button', { name: 'Filter materials by IELTS' }));
 
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
@@ -1792,12 +1776,12 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
       'teacher_materials_test_type_filter_selected',
-      expect.objectContaining({ source: 'teacher_materials_search_filter_bar', testTypeId: 'ielts' }),
+      expect.objectContaining({ source: 'teacher_materials_test_type_block', testTypeId: 'ielts' }),
     );
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
       'teacher_materials_test_type_filter_cleared',
-      expect.objectContaining({ source: 'teacher_materials_search_filter_bar', testTypeId: null }),
+      expect.objectContaining({ source: 'teacher_materials_test_type_block', testTypeId: null }),
     );
   });
 
@@ -2013,7 +1997,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       expect(mocks.listTeacherBooks).toHaveBeenCalledWith(expect.objectContaining({
         teacherId: 'teacher-1',
         scope: 'private',
-      }));
+      }), undefined);
     });
 
     await user.click(screen.getByRole('button', { name: 'Public' }));
@@ -2022,7 +2006,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       expect(mocks.listTeacherBooks).toHaveBeenCalledWith(expect.objectContaining({
         teacherId: 'teacher-1',
         scope: 'public',
-      }));
+      }), undefined);
     });
 
     expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
@@ -2030,6 +2014,53 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'book_list_succeeded',
       expect.objectContaining({ scope: 'public', count: 0 }),
     );
+  });
+
+  it('appends the next Book page using its cursor', async () => {
+    const user = userEvent.setup();
+    const book = (id) => ({
+      id, bookId: id, bookMode: 'materials', ownerId: 'teacher-1', title: id,
+      visibility: 'private', status: 'draft-empty', testTypeIds: ['ielts'],
+      tags: [], updatedAt: '2026-06-01T00:00:00.000Z', isOwner: true,
+    });
+    const cursor = { updatedAt: '2026-06-01T00:00:00.000Z', materialId: 'book-a' };
+    mocks.listTeacherBooks
+      .mockResolvedValueOnce({ rows: [book('book-a')], cursor, hasMore: true })
+      .mockResolvedValueOnce({ rows: [book('book-b')], cursor: null, hasMore: false });
+
+    render(<TeacherLobbyPage />);
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
+    expect(await screen.findByTestId('book-card-book-a')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByTestId('book-card-book-b')).toBeInTheDocument();
+    expect(screen.getByTestId('book-card-book-a')).toBeInTheDocument();
+    expect(mocks.listTeacherBooks).toHaveBeenLastCalledWith(expect.objectContaining({
+      teacherId: 'teacher-1', scope: 'private',
+    }), cursor);
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+  });
+
+  it('ignores a stale Book page after switching visibility scope', async () => {
+    const user = userEvent.setup();
+    let finishPrivate;
+    mocks.listTeacherBooks
+      .mockImplementationOnce(() => new Promise((resolve) => { finishPrivate = resolve; }))
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'book-public', bookId: 'book-public', bookMode: 'materials', ownerId: 'teacher-2',
+          title: 'Public Book', visibility: 'public', status: 'published', testTypeIds: ['ielts'],
+          tags: [], updatedAt: '2026-06-02T00:00:00.000Z', isOwner: false,
+        }],
+        cursor: null, hasMore: false,
+      });
+
+    render(<TeacherLobbyPage />);
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
+    await user.click(screen.getByRole('button', { name: 'Public' }));
+    expect(await screen.findByTestId('book-card-book-public')).toBeInTheDocument();
+    await act(async () => finishPrivate({ rows: [{ id: 'book-private', bookId: 'book-private', title: 'Private Book' }], cursor: null, hasMore: false }));
+    expect(screen.queryByTestId('book-card-book-private')).not.toBeInTheDocument();
+    expect(screen.getByTestId('book-card-book-public')).toBeInTheDocument();
   });
 
   it('opens Book cards in the Teacher Materials modal and omits whole-Book student actions', async () => {
@@ -2620,7 +2651,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(mocks.listReadingPassages).toHaveBeenLastCalledWith(expect.objectContaining({
       teacherId: 'teacher-1',
       scope: 'private',
-    }));
+    }), undefined);
 
     await user.click(screen.getByRole('button', { name: 'Public' }));
 
@@ -2635,7 +2666,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(mocks.listReadingPassages).toHaveBeenLastCalledWith(expect.objectContaining({
       teacherId: 'teacher-1',
       scope: 'public',
-    }));
+    }), undefined);
     expect(mocks.logDiagnostic).toHaveBeenCalledWith(
       'reading_passage_list_succeeded',
       expect.objectContaining({ scope: 'public', count: 1 }),
@@ -3075,7 +3106,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
 
-    expect(await screen.findByText('No Reading Passages yet')).toBeInTheDocument();
+    expect(await screen.findByText('No Reading Passages found')).toBeInTheDocument();
     expect(screen.getByText('Passages will appear after Reading V2 full tests are published or imported.')).toBeInTheDocument();
   });
 

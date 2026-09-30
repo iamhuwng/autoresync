@@ -19,6 +19,9 @@ import {
     query,
     where,
     orderBy,
+    documentId,
+    startAfter,
+    limit,
     Timestamp,
 } from 'firebase/firestore';
 import { get, ref, set, push, update as dbUpdate } from 'firebase/database';
@@ -35,6 +38,38 @@ import { buildMaterialSummaryUpdatePayload } from './materialCatalog/materialSum
 // ═══════════════════════════════════════════════════════════════
 
 const WRITING_DRAFTS_COLLECTION = 'writing_drafts';
+
+/** Bounded teacher-lobby read; the existing full-list API serves other callers. */
+export async function listTeacherWritingDraftPage(
+    userId: string,
+    cursor?: { updatedAt: Timestamp; id: string },
+): Promise<{ success: boolean; data?: (WritingTestDraft & { cursorUpdatedAt: Timestamp })[]; error?: string }> {
+    try {
+        const constraints = [
+            where('userId', '==', userId),
+            orderBy('updatedAt', 'desc'),
+            orderBy(documentId(), 'desc'),
+            ...(cursor ? [startAfter(cursor.updatedAt, cursor.id)] : []),
+            limit(26),
+        ];
+        const snapshot = await getDocs(query(collection(db, WRITING_DRAFTS_COLLECTION), ...constraints));
+        return {
+            success: true,
+            data: snapshot.docs.map((row) => {
+                const data = row.data();
+                return {
+                    ...data,
+                    id: row.id,
+                    createdAt: toDateOrFallback(data.createdAt, new Date(0)),
+                    updatedAt: toDateOrFallback(data.updatedAt, new Date(0)),
+                    cursorUpdatedAt: data.updatedAt as Timestamp,
+                } as WritingTestDraft & { cursorUpdatedAt: Timestamp };
+            }),
+        };
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to fetch writing drafts' };
+    }
+}
 
 function toDateOrFallback(value: unknown, fallback: Date): Date {
     if (value instanceof Timestamp) return value.toDate();

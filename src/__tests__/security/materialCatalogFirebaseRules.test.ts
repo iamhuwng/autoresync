@@ -395,6 +395,56 @@ describe('Material Catalog Firebase rule contract', () => {
     });
   });
 
+  it('indexes compound summary scopes at their queried parent and validates path keys', () => {
+    const indexes = (databaseRules.rules.material_catalog as any).material_summary_indexes.v1;
+    expect(indexes.by_owner_kind).toBeUndefined();
+    expect(indexes.by_visibility_kind).toBeUndefined();
+    const cases = [
+      ['by_owner_family', indexes.by_owner_family.$ownerId.$surfaceFamily, ['surfaceFamily']],
+      ['by_visibility_family', indexes.by_visibility_family.$visibility.$surfaceFamily, ['surfaceFamily']],
+      ['by_owner_family_type', indexes.by_owner_family_type.$ownerId.$surfaceFamily.$testTypeId, ['surfaceFamily', 'testTypeMembership']],
+      ['by_visibility_family_type', indexes.by_visibility_family_type.$visibility.$surfaceFamily.$testTypeId, ['surfaceFamily', 'testTypeMembership']],
+    ] as const;
+
+    cases.forEach(([, parent, fields]) => {
+      expect(parent['.indexOn']).toEqual(['updatedAt']);
+      const row = parent.$materialId;
+      expect(row.$other['.validate']).toBe(false);
+      expect(row['.write']).toContain("newData.child('materialKind').val() !== 'book'");
+      expect(row['.write']).toContain("newData.child('surfaceFamily').val() !== 'book'");
+      expect(row['.validate']).toContain("newData.child('lifecycleState').val() === 'active'");
+      expect(row['.validate']).toContain("newData.child('materialId').val() === $materialId");
+      expect(row['.validate']).toContain("!newData.child('answerKey').exists()");
+      fields.forEach((field) => expect(row['.validate']).toContain(`newData.child('${field}')`));
+    });
+    const safeFields = [
+      'bookMode', 'bookStatus', 'bookVisibility', 'authors', 'subtitle', 'publisher',
+      'series', 'coverUrl', 'brokenRefReasons', 'sourceOrderDisplay',
+      'sourceQuestionRange', 'sourceFullTestTitle', 'gradeLevel', 'examType',
+    ];
+    const allRows = [
+      indexes.by_id.$materialId,
+      indexes.by_owner.$ownerId.$materialId,
+      indexes.by_visibility.$visibility.$materialId,
+      indexes.by_material_kind.$materialKind.$materialId,
+      indexes.by_test_type.$testTypeId.$materialId,
+      ...cases.map(([, parent]) => parent.$materialId),
+    ];
+    allRows.forEach((row) => {
+      safeFields.forEach((field) => expect(row[field]).toBeDefined());
+      expect(row.bookMode['.validate']).toContain("newData.val() === 'pdf'");
+      expect(row.bookVisibility['.validate']).toContain("newData.val() === 'public-library-published'");
+      expect(row.bookVisibility['.validate']).toContain("newData.val() === 'public-library-rejected'");
+      expect(row.authors.$index['.validate']).toBe('newData.isString()');
+      expect(row.brokenRefReasons.$index['.validate']).toBe('newData.isString()');
+      expect(row.gradeLevel['.validate']).toBe('newData.isNumber() && newData.val() >= 0');
+      expect(row.examType['.validate']).toBe('newData.isString()');
+      expect(row.$other['.validate']).toBe(false);
+    });
+    expect(indexes.by_owner_family.$ownerId['.read']).toBe(indexes.by_owner.$ownerId['.read']);
+    expect(indexes.by_visibility_family.$visibility['.read']).toBe(indexes.by_visibility.$visibility['.read']);
+  });
+
   it('defines owner-scoped archive indexes as safe lightweight rows only', () => {
     const materialCatalog = databaseRules.rules.material_catalog as Record<string, unknown>;
     const archiveIndexes = materialCatalog.material_archive_indexes as Record<string, any>;
@@ -403,6 +453,7 @@ describe('Material Catalog Firebase rule contract', () => {
     const asText = JSON.stringify(archiveIndexes);
 
     expect(listRule['.read']).toContain('$ownerId === auth.uid');
+    expect(listRule['.indexOn']).toEqual(['archivedAt']);
     expect(rowRule['.read']).toContain('$ownerId === auth.uid');
     expect(rowRule['.write']).toContain('$ownerId === auth.uid');
     expect(rowRule['.validate']).toContain("newData.child('materialId').val() === $materialId");
@@ -524,6 +575,57 @@ describeEmulator('Material Catalog Firebase rule emulator behavior', () => {
         hiddenProvenance: { source: 'draft-1' },
       }),
     );
+  });
+
+  it('enforces compound summary ownership, public reads, and path membership', async () => {
+    const { admin, otherTeacher, student, teacher, unauthenticated } = makeMaterialCatalogRuleContexts();
+    const root = 'material_catalog/material_summary_indexes/v1';
+    const scopes = [
+      ['by_owner_family/teacher-1/assessment', false],
+      ['by_visibility_family/public/assessment', true],
+      ['by_owner_family_type/teacher-1/assessment/ielts', false],
+      ['by_visibility_family_type/public/assessment/ielts', true],
+    ] as const;
+
+    for (const [scope, isPublic] of scopes) {
+      const path = `${root}/${scope}/material-1`;
+      const row = universalMaterialSummary('material-1', { visibility: isPublic ? 'public' : 'private' });
+      await assertSucceeds(teacher.database().ref(path).set(row));
+      await assertSucceeds(teacher.database().ref(`${root}/${scope}`).orderByChild('updatedAt').limitToLast(1).once('value'));
+      await assertSucceeds(admin.database().ref(path).once('value'));
+      await assertFails(unauthenticated.database().ref(path).once('value'));
+      if (!isPublic) {
+        await assertFails(otherTeacher.database().ref(path).once('value'));
+        await assertFails(student.database().ref(path).once('value'));
+      }
+      await assertFails(otherTeacher.database().ref(path).set(row));
+      await assertFails(teacher.database().ref(`${root}/${scope}/wrong-key`).set(row));
+      await assertFails(teacher.database().ref(`${root}/${scope}/unsafe`).set({
+        ...universalMaterialSummary('unsafe', { visibility: isPublic ? 'public' : 'private' }),
+        answerKey: { q1: 'A' },
+      }));
+      await assertSucceeds(teacher.database().ref(path).remove());
+    }
+
+    await assertFails(teacher.database().ref(`${root}/by_owner_family/teacher-1/book/wrong-family`).set(
+      universalMaterialSummary('wrong-family'),
+    ));
+    await assertFails(teacher.database().ref(`${root}/by_owner_family_type/teacher-1/assessment/toefl/wrong-type`).set(
+      universalMaterialSummary('wrong-type'),
+    ));
+    const safePath = `${root}/by_owner_family/teacher-1/book/book-safe`;
+    const safeBook = universalMaterialSummary('book-safe', {
+      producerId: 'material-book', materialKind: 'book', surfaceFamily: 'book',
+      bookMode: 'pdf', bookStatus: 'ready', bookVisibility: 'private',
+      authors: ['Author'], subtitle: 'Subtitle', publisher: 'Publisher',
+      series: 'Series', coverUrl: 'https://example.com/cover.png',
+      brokenRefReasons: ['Missing passage'], gradeLevel: 12, examType: 'THPT',
+    });
+    await assertSucceeds(teacher.database().ref(safePath).set(safeBook));
+    await assertFails(teacher.database().ref(safePath).set({ ...safeBook, bookMode: 'activities' }));
+    await assertFails(teacher.database().ref(safePath).set({ ...safeBook, bookVisibility: 'unknown' }));
+    await assertFails(teacher.database().ref(safePath).set({ ...safeBook, gradeLevel: -1 }));
+    await assertFails(teacher.database().ref(safePath).set({ ...safeBook, answerKey: { q1: 'A' } }));
   });
 
   it('enforces universal summary owner/public reads and rejects unsafe rows', async () => {
@@ -700,6 +802,10 @@ describeEmulator('Material Catalog Firebase rule emulator behavior', () => {
       'material_catalog/material_summary_indexes/v1/by_visibility/public/book-public',
       'material_catalog/material_summary_indexes/v1/by_material_kind/book/book-public',
       'material_catalog/material_summary_indexes/v1/by_test_type/ielts/book-public',
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/book/book-public',
+      'material_catalog/material_summary_indexes/v1/by_visibility_family/public/book/book-public',
+      'material_catalog/material_summary_indexes/v1/by_owner_family_type/teacher-1/book/ielts/book-public',
+      'material_catalog/material_summary_indexes/v1/by_visibility_family_type/public/book/ielts/book-public',
     ];
     const publicBookSummary = universalMaterialSummary('book-public', {
       producerId: 'material-book',
@@ -715,6 +821,7 @@ describeEmulator('Material Catalog Firebase rule emulator behavior', () => {
 
     for (const path of publicBookPaths) {
       await assertFails(teacher.database().ref(path).set(publicBookSummary));
+      await assertFails(teacher.database().ref(path).set({ ...publicBookSummary, producerId: 'generic-test' }));
       await assertSucceeds(admin.database().ref(path).set(publicBookSummary));
       await assertFails(teacher.database().ref(path).set(privateBookSummary));
       await assertFails(teacher.database().ref(path).remove());

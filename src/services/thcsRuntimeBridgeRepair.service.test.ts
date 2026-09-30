@@ -63,8 +63,8 @@ describe('thcsRuntimeBridgeRepair.service', () => {
       publishedDrafts: 1,
       repairableDrafts: 1,
       runtimeWrites: 1,
-      summaryWrites: 5,
-      operations: 6,
+      summaryWrites: 9,
+      operations: 10,
     });
 
     const payload = buildThcsRuntimeBridgeRepairUpdatePayload(plan.operations);
@@ -81,7 +81,7 @@ describe('thcsRuntimeBridgeRepair.service', () => {
         materialKind: 'thcs-thpt-test',
         visibility: 'public',
       });
-    expect(payload['material_catalog/material_summary_indexes/v1/by_test_type/thcs-thpt/thcs-test-1'])
+    expect(payload['material_catalog/material_summary_indexes/v1/by_test_type/thcs/thcs-test-1'])
       .toMatchObject({ skillId: 'thcs' });
   });
 
@@ -133,7 +133,7 @@ describe('thcsRuntimeBridgeRepair.service', () => {
 
     expect(plan.totals.runtimeWrites).toBe(0);
     expect(plan.totals.existingRuntime).toBe(1);
-    expect(plan.totals.summaryWrites).toBe(5);
+    expect(plan.totals.summaryWrites).toBe(9);
     expect(plan.skips).toContainEqual(expect.objectContaining({
       testId: 'thcs-test-1',
       draftId: 'draft-1',

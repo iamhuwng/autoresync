@@ -98,9 +98,13 @@ canonical producer
      -> material_summary_indexes/v1/by_visibility/{visibility}/{materialId}
      -> material_summary_indexes/v1/by_material_kind/{materialKind}/{materialId}
      -> material_summary_indexes/v1/by_test_type/{testTypeId}/{materialId}
+     -> material_summary_indexes/v1/by_owner_family/{ownerId}/{surfaceFamily}/{materialId}
+     -> material_summary_indexes/v1/by_visibility_family/{visibility}/{surfaceFamily}/{materialId}
+     -> material_summary_indexes/v1/by_owner_family_type/{ownerId}/{surfaceFamily}/{testTypeId}/{materialId}
+     -> material_summary_indexes/v1/by_visibility_family_type/{visibility}/{surfaceFamily}/{testTypeId}/{materialId}
 
 Teacher Materials
-  -> owned or public summary index
+  -> bounded owned/public family summary query, optionally narrowed by Test Type
   -> registry-backed filters and adapters
   -> canonical/runtime read only after an explicit user action
 ```
@@ -124,6 +128,20 @@ Producers use:
 Consumers use:
 
 - `listActiveMaterialSummaries(query, reader)`
+- `listMaterialSummaryPage(query, reader, { limit: 25, cursor })`
+
+Teacher Lobby uses the page interface. Its reader issues an indexed RTDB query
+for at most 26 rows and uses an exclusive `(updatedAt, materialId)` cursor.
+Family buckets restrict published tests, passages, and Books before download;
+family/type buckets apply the Test Type block selection before download.
+The older whole-bucket interface remains for secondary discovery/repair consumers,
+including the course Book picker; it is not Teacher Lobby's listing path.
+
+The shared producer fan-out writes and cleans the four compound buckets atomically
+with the existing summary indexes. Reconciliation recognizes their two/three
+partition levels, so reviewed repair converges without deleting valid buckets.
+Existing databases require a reviewed summary refresh after rules/index deployment;
+missing indexes must not trigger a whole-bucket fallback.
 
 The module owns:
 
@@ -249,23 +267,24 @@ Restore:
 My Content reads active owned summaries at:
 
 ```text
-material_catalog/material_summary_indexes/v1/by_owner/{teacherId}
+material_catalog/material_summary_indexes/v1/by_owner_family/{teacherId}/assessment
 ```
 
-It presents only published-test material kinds from that owner bucket.
+It presents only published-test material kinds, using bounded recent pages.
 
 Public Library reads active public summaries at:
 
 ```text
-material_catalog/material_summary_indexes/v1/by_visibility/public
+material_catalog/material_summary_indexes/v1/by_visibility_family/public/assessment
 ```
 
-It presents only published-test material kinds from that public bucket.
+It presents only published-test material kinds, using bounded recent pages.
 
-Tabs, Test Types, skills, kinds, and search are filters over summary
-collections. Dedicated Reading Passage and Book views must be derived views of
-registered summary kinds rather than independent discovery authorities, but
-they are not part of the My Content/Public Library published-test views.
+Tabs select the summary family at the query layer. Explicit Test Type selection
+uses the matching family/type compound bucket. Skill and search filter loaded
+results; Load More includes older results. Dedicated Reading Passage and Book
+views query their registered summary families, and are not part of the
+My Content/Public Library published-test views.
 
 Teacher preferences control presentation order only. They never determine
 whether a material is discoverable.
@@ -280,7 +299,7 @@ infrastructure or contract error must not be presented as a valid empty list.
 | Teacher owner | Reads and writes own active summaries. Includes the teacher's private and public materials. The bucket must contain active rows only. | Reads all active public summaries, including their own public materials. The bucket must contain active rows only. | Reads `by_id` only for active own summaries or active public summaries. |
 | Teacher non-owner | Cannot read another teacher's private owned bucket. | Reads active public summaries from any owner. | Reads `by_id` only for public active summaries. |
 | Super admin | Reads and writes all owner buckets for diagnostics, repair, and moderation. | Reads and writes all visibility buckets, with public Book create, update, and delete staying admin-only. | Reads and writes `by_id`, `by_material_kind`, and `by_test_type`. |
-| Student | No access to Teacher Materials summary indexes. | No access to Teacher Materials summary indexes. | No access. |
+| Student | No owner-bucket access. | Active public summaries are readable for student discovery under current rules. | Public active `by_id` summaries only. |
 | Unauthenticated | No access. | No access. | No access. |
 
 The phrase "private material" means private to its owner, not globally visible
@@ -335,10 +354,10 @@ draft sidecars.
 
 RTDB rules must:
 
-- allow an owner to read only `by_owner/{auth.uid}` for My Content
-- validate every `by_owner` and `by_visibility` row as `lifecycleState:
+- allow an owner to read only their owner/family/type discovery buckets
+- validate every owner/visibility discovery row as `lifecycleState:
   'active'`; these list buckets must not store archived or removed rows
-- allow teachers to read only `by_visibility/public` for Public Library
+- allow public discovery only under public visibility/family/type buckets
 - allow teacher `by_id` reads only for active rows they own or active public
   rows
 - allow owner lifecycle writes to create their own archived/removed `by_id`
@@ -351,6 +370,7 @@ RTDB rules must:
 - validate summary schema and path-key identity
 - validate `by_test_type/{testTypeId}` rows through
   `testTypeMembership.{testTypeId} === true`
+- validate compound family and Test Type path membership and index `updatedAt`
 - close each universal summary row with child validators and
   `$other.validate=false` so unknown fields such as `reviewPayload`, `content`,
   `aiReviewEvidence`, or future canonical payload fields cannot be smuggled into
@@ -433,9 +453,9 @@ repair, rules, and consumer proof. A publish-only integration is incomplete
 unless a lifecycle operation is explicitly unsupported and fails closed before
 canonical state changes.
 
-## Current Closure Evidence
+## Current Listing Contract and Historical Closure Evidence
 
-- My Content reads `material_summary_indexes/v1/by_owner/{teacherId}` only and
+- My Content reads `material_summary_indexes/v1/by_owner_family/{teacherId}/assessment` and
   presents published-test material kinds only.
 - My Content does not merge `users/{teacherId}/thcs_linked_tests`; linked or
   use-as-is THCS refs are not owned materials.
@@ -443,11 +463,11 @@ canonical state changes.
   `hungnguyenzim@gmail.com` showed 24 My Content materials, 13 owned THCS rows,
   no linked/use-as-is THCS rows, no `Retake`, no `Linked` badge, and no console
   warnings/errors.
-- Public Library reads `material_summary_indexes/v1/by_visibility/public` only
+- Public Library reads `material_summary_indexes/v1/by_visibility_family/public/assessment`
   and presents published-test material kinds only.
-- Active dedicated Reading Passage and Book tab discovery also starts from
-  `material_summary_indexes/v1` and hydrates feature-owned safe projections only
-  where the specialized tab needs extra display fields.
+- Active dedicated Reading Passage and Book tabs query bounded family/type
+  pages in `material_summary_indexes/v1` without canonical hydration. Reading
+  Passage Archive hydrates metadata only for its displayed page.
 - Producers registered as `summary-v1`: Reading V2 full tests, Reading V2
   passages, Books, Writing, THCS-THPT, generic tests, and Listening save/update.
 - `/tests` remains runtime/legacy compatibility storage, not listing authority.

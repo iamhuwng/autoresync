@@ -32,10 +32,18 @@ describe('legacyTestMaterialSummary', () => {
       ownerId: 'teacher-1',
       visibility: 'public',
       questionCount: 1,
-      testTypeIds: [testType.toLowerCase()],
+      testTypeIds: [testType === 'THCS-THPT' ? 'thcs' : testType.toLowerCase()],
       tags: ['tag'],
     });
     expect(() => assertMaterialSummary(summary)).not.toThrow();
+  });
+
+  it('preserves explicit modern Test Types instead of adding the legacy category', () => {
+    expect(createLegacyTestMaterialSummary('test-1', {
+      ownerId: 'teacher-1', title: 'THPT test', testType: 'THCS-THPT',
+      primaryTestTypeId: 'thpt', testTypeIds: ['thpt'], updatedAt: 1_700_000_000_000,
+      metadata: { gradeLevel: 12, examType: 'THPT QG' },
+    })).toMatchObject({ testTypeIds: ['thpt'], primaryTestTypeId: 'thpt', gradeLevel: 12, examType: 'THPT QG' });
   });
 
   it('creates a removed tombstone and rejects identity-less tests', () => {

@@ -20,7 +20,7 @@ const MaterialListView = ({ rows, itemLabel = 'tests' }) => {
 
       <div className="material-list-view__footer">
         <span>
-          Showing {rows.length === 0 ? 0 : 1} to {rows.length} of {rows.length} {itemLabel}
+          {rows.length} {itemLabel} loaded
         </span>
       </div>
     </section>

@@ -173,6 +173,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'teacher_materials_reading_master_and_linked_passages_removed',
       'changeReadingPassageScope',
       'teacher_materials_tab_changed',
+      'teacher_materials_load_more',
+      'teacher_materials_context_filter_changed',
       'teacher_materials_test_type_filter_selected',
       'teacher_materials_test_type_filter_cleared',
       'teacher_materials_test_type_preferences_opened',

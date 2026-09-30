@@ -8,8 +8,6 @@ const SearchFilterBar = ({
   searchTerm,
   onSearchChange,
   contentFilter,
-  testTypeFilter,
-  onTestTypeFilterChange,
   thcsGradeFilter,
   onThcsGradeFilterChange,
   thcsExamTypeFilter,
@@ -23,6 +21,11 @@ const SearchFilterBar = ({
   onVisibilityScopeChange,
   visibilityLabel,
   visibilityScopeOptions,
+  activeTestTypeId,
+  skillFilter = 'all',
+  onSkillFilterChange,
+  visibilityFilter = 'all',
+  onVisibilityFilterChange,
 }) => {
   const showViewModeToggle = Boolean(viewMode && typeof onViewModeChange === 'function');
   const showVisibilityScope = Boolean(visibilityScope && typeof onVisibilityScopeChange === 'function');
@@ -49,28 +52,12 @@ const SearchFilterBar = ({
         />
       </div>
 
-      {contentFilter === 'public' && (
+      {(contentFilter === 'my' || contentFilter === 'public') && (
         <>
-          <NativeSelect
-            value={testTypeFilter}
-            onChange={(value) => {
-              onTestTypeFilterChange(value || 'all');
-              if (value !== 'THCS-THPT') {
-                onThcsGradeFilterChange('all');
-                onThcsExamTypeFilterChange('all');
-              }
-            }}
-            options={[
-              { value: 'all', label: 'All Types' },
-              { value: 'IELTS', label: 'IELTS' },
-              { value: 'THCS-THPT', label: 'THCS-THPT' },
-            ]}
-            minWidth="150px"
-          />
-
-          {testTypeFilter === 'THCS-THPT' && (
+          {/thcs|thpt/i.test(activeTestTypeId || '') ? (
             <>
               <NativeSelect
+                aria-label="Grade"
                 value={thcsGradeFilter}
                 onChange={(value) => onThcsGradeFilterChange(value || 'all')}
                 options={[
@@ -86,6 +73,7 @@ const SearchFilterBar = ({
                 minWidth="130px"
               />
               <NativeSelect
+                aria-label="Exam Type"
                 value={thcsExamTypeFilter}
                 onChange={(value) => onThcsExamTypeFilterChange(value || 'all')}
                 options={[
@@ -99,6 +87,20 @@ const SearchFilterBar = ({
                 minWidth="145px"
               />
             </>
+          ) : onSkillFilterChange && (
+            <NativeSelect aria-label="Skill" value={skillFilter} onChange={onSkillFilterChange}
+              options={[
+                { value: 'all', label: 'All Skills' },
+                { value: 'reading', label: 'Reading' },
+                { value: 'listening', label: 'Listening' },
+                { value: 'writing', label: 'Writing' },
+                { value: 'speaking', label: 'Speaking' },
+              ]} minWidth="130px" />
+          )}
+          {contentFilter === 'my' && onVisibilityFilterChange && (
+            <NativeSelect aria-label="Visibility" value={visibilityFilter} onChange={onVisibilityFilterChange}
+              options={[{ value: 'all', label: 'All Visibility' }, { value: 'private', label: 'Private' },
+                { value: 'public', label: 'Public' }]} minWidth="130px" />
           )}
         </>
       )}

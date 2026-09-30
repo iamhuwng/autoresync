@@ -6,6 +6,14 @@ import {
 } from './materialSummaryPort.service';
 
 describe('materialSummaryCardAdapter', () => {
+  it('uses the existing THCS editor contract for catalog summaries', () => {
+    const card = adaptMaterialSummaryToTeacherCard({
+      materialId: 'thcs-1', producerId: 'thcs-test', testTypeIds: ['thcs'],
+      primaryTestTypeId: 'thcs', title: 'Imported test', tags: [],
+    } as unknown as MaterialSummary);
+    expect(card).toMatchObject({ id: 'thcs-1', testType: 'THCS-THPT', type: 'THCS-THPT' });
+  });
+
   it('adapts every summary family without canonical hydration', () => {
     const summary: MaterialSummary = {
       schemaVersion: MATERIAL_SUMMARY_SCHEMA_VERSION,

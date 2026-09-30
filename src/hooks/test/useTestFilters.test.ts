@@ -49,13 +49,11 @@ const tests = [
 ];
 
 describe('useTestFilters', () => {
-  it('includes every owned material kind in My Content', () => {
+  it('keeps My Content restricted to owned published tests', () => {
     const { result } = renderHook(() => useTestFilters(tests, baseFilters));
 
     expect(result.current.filteredTests.map((test) => test.id)).toEqual([
       'legacy-reading',
-      'reading-passage',
-      'book-1',
     ]);
   });
 
@@ -71,14 +69,11 @@ describe('useTestFilters', () => {
     expect(books.result.current.filteredTests.map((test) => test.id)).toEqual(['book-1']);
   });
 
-  it('includes public Reading Passage and Book rows in Public Library', () => {
+  it('excludes Reading Passage and Book rows from Public Library tests', () => {
     const { result } = renderHook(() =>
       useTestFilters(tests, { ...baseFilters, contentFilter: 'public' }),
     );
 
-    expect(result.current.filteredTests.map((test) => test.id)).toEqual([
-      'public-passage',
-      'public-book',
-    ]);
+    expect(result.current.filteredTests).toEqual([]);
   });
 });

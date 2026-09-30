@@ -31,6 +31,6 @@ describe('MaterialListView', () => {
     expect(screen.getByText('Updated')).toBeInTheDocument();
     expect(screen.getByText('Actions')).toBeInTheDocument();
     expect(screen.getByTestId('material-list-row-row-1')).toBeInTheDocument();
-    expect(screen.getByText('Showing 1 to 1 of 1 tests')).toBeInTheDocument();
+    expect(screen.getByText('1 tests loaded')).toBeInTheDocument();
   });
 });

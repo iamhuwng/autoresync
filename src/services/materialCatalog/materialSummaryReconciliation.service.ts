@@ -93,7 +93,6 @@ const flattenCurrentIndex = (
 
   const rows = new Map<string, unknown>();
   const visitBucket = (
-    bucket: string,
     value: unknown,
     depth: number,
     path: string,
@@ -109,14 +108,15 @@ const flattenCurrentIndex = (
       return;
     }
     Object.entries(value).forEach(([key, child]) => {
-      visitBucket(bucket, child, depth - 1, `${path}/${key}`);
+      visitBucket(child, depth - 1, `${path}/${key}`);
     });
   };
 
   Object.entries(currentIndex).forEach(([bucket, value]) => {
-    const depth = bucket === 'by_id' ? 0 : 1;
+    const depth = bucket === 'by_id' ? 0
+      : bucket === 'by_owner_family' || bucket === 'by_visibility_family' ? 2
+        : bucket === 'by_owner_family_type' || bucket === 'by_visibility_family_type' ? 3 : 1;
     visitBucket(
-      bucket,
       value,
       depth,
       `material_catalog/material_summary_indexes/v1/${bucket}`,
@@ -363,7 +363,8 @@ export const buildMaterialSummaryParityReport = (
   currentById: unknown,
 ) => {
   const current = isRecord(currentById) ? currentById : {};
-  const expectedIds = expected.map((summary) => summary.materialId).sort();
+  const expectedIds = expected.filter((summary) => summary.lifecycleState === 'active')
+    .map((summary) => summary.materialId).sort();
   const currentIds = Object.entries(current)
     .filter(([, value]) => !isValidInactiveMaterialSummary(value))
     .map(([id]) => id)

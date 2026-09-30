@@ -1,6 +1,7 @@
 // @ts-nocheck
 import {
   materialCatalogIds,
+  MATERIAL_BOOK_STATUSES,
   isMaterialBookMode,
   resolveMaterialBookMode,
   type BookListScope,
@@ -20,7 +21,10 @@ import type { MaterialCatalogIndexRow } from './materialCatalogIndexes.service';
 import { createMaterialBookSummary } from './materialSummaryAdapters.service';
 import {
   buildMaterialSummaryUpdatePayload,
+  compareMaterialSummaryRecency,
   listActiveMaterialSummaries,
+  listMaterialSummaryPage,
+  type MaterialSummaryPageCursor,
   type MaterialSummary,
 } from './materialSummaryPort.service';
 import { materialCatalogPaths } from './materialCatalogPaths';
@@ -65,6 +69,7 @@ export interface MaterialBooksRepository {
     readonly teacherId: string;
     readonly scope: BookListScope;
   }) => Promise<readonly MaterialSummary[]>;
+  readonly listBookSummaryPage?: (query: { teacherId: string; scope: BookListScope; testTypeId?: MaterialTestTypeId | null }, cursor?: MaterialSummaryPageCursor) => Promise<{ rows: MaterialSummary[]; cursor: MaterialSummaryPageCursor | null; hasMore: boolean }>;
   readonly listBooksByIndex: (query: {
     readonly teacherId: string;
     readonly scope: 'public-review-pending';
@@ -125,6 +130,7 @@ export interface MaterialBookListRow {
 
 export interface MaterialBooksAdapter {
   readonly read: (path: string) => Promise<unknown>;
+  readonly readPage?: (path: string, limit: number, cursor?: MaterialSummaryPageCursor) => Promise<unknown>;
   readonly write: (path: string, value: unknown) => Promise<void>;
   readonly remove?: (path: string) => Promise<void>;
   readonly update?: (payload: Record<string, unknown | null>) => Promise<void>;
@@ -451,6 +457,13 @@ export const createMaterialBooksRepository = (
     );
 
     return summaries.filter((summary) => summary.materialKind === 'book');
+  },
+  async listBookSummaryPage(query, cursor) {
+    if (!adapter.readPage) throw new Error('Bounded Book summary query is unavailable.');
+    if (query.scope === 'public-review-pending') throw new Error('Review queue uses its dedicated index.');
+    return listMaterialSummaryPage(query.scope === 'private'
+      ? { scope: 'owned', ownerId: query.teacherId, surfaceFamily: 'book', materialKind: 'book', testTypeId: query.testTypeId ?? undefined }
+      : { scope: 'public', surfaceFamily: 'book', materialKind: 'book', testTypeId: query.testTypeId ?? undefined }, { readPage: adapter.readPage }, { cursor });
   },
   async listBooksByIndex(query) {
     const path = 'material_catalog/book_indexes/by_visibility/public-library-pending-review';
@@ -1016,101 +1029,69 @@ export const listTeacherBooks = async (input: {
   if (!input.teacherId) {
     return [];
   }
+  if (input.scope === 'public-review-pending') throw new Error('Review queue uses its dedicated index.');
 
   const summaries = await input.repository.listBookSummaries({
     teacherId: input.teacherId,
     scope: input.scope,
   });
 
-  const rows = await Promise.all(
-    summaries
-      .filter((summary) =>
-        input.scope === 'private'
-          ? summary.ownerId === input.teacherId
-          : summary.visibility === 'public',
-      )
-      .filter((summary) =>
-        !input.testTypeId || summary.testTypeIds.includes(input.testTypeId))
-      .map(async (summary) => {
-        if (input.scope === 'private') {
-          const book = await input.repository.readBook(summary.materialId);
-          if (
-            !book ||
-            book.ownerId !== input.teacherId
-          ) {
-            throw new Error(
-              `Material Book summary is missing its owned canonical record: ${summary.materialId}`,
-            );
-          }
-
-          const testTypes = book.testTypeIds.map((testTypeId) =>
-            testTypeSummary(testTypeId, input.testTypeConfigs),
-          );
-
-          return {
-            id: book.bookId,
-            bookId: book.bookId,
-            bookMode: resolveMaterialBookMode(book.bookMode),
-            ownerId: book.ownerId,
-            title: book.title,
-            subtitle: book.subtitle,
-            authors: book.authors,
-            publisher: book.publisher,
-            series: book.series,
-            coverUrl: book.coverUrl,
-            visibility: book.visibility,
-            status: book.status,
-            publicReview: book.publicReview,
-            testTypeIds: book.testTypeIds,
-            testTypes,
-            tags: book.tags,
-            hasBrokenRefs: book.hasBrokenRefs,
-            brokenRefCount: book.brokenRefCount,
-            brokenRefReasons: book.brokenRefReasons,
-            updatedAt: book.updatedAt,
-            isOwner: true,
-          } satisfies MaterialBookListRow;
-        }
-
-        const projection = await input.repository.readPublicBookProjection?.(summary.materialId);
-        if (!projection) {
-          throw new Error(
-            `Material Book public summary is missing its public projection: ${summary.materialId}`,
-          );
-        }
-
-        const testTypes = projection.testTypeIds.map((testTypeId) =>
-          testTypeSummary(testTypeId, input.testTypeConfigs),
-        );
-
-        return {
-          id: projection.bookId,
-          bookId: projection.bookId,
-          bookMode: resolveMaterialBookMode(projection.bookMode),
-          ownerId: summary.ownerId,
-          title: projection.title,
-          subtitle: projection.subtitle,
-          authors: projection.authors,
-          publisher: projection.publisher,
-          series: projection.series,
-          coverUrl: projection.coverUrl,
-          visibility: projection.visibility,
-          status: projection.status,
-          testTypeIds: projection.testTypeIds,
-          testTypes,
-          tags: projection.tags,
-          hasBrokenRefs: summary.hasBrokenRefs,
-          brokenRefCount: summary.brokenRefCount,
-          updatedAt: projection.updatedAt,
-          isOwner: summary.ownerId === input.teacherId,
-        } satisfies MaterialBookListRow;
-      }),
-  );
-
-  return rows
-    .filter((row): row is MaterialBookListRow => row !== null)
+  return summaries
+    .filter((summary) => summary.materialKind === 'book' && summary.lifecycleState === 'active')
+    .filter((summary) => input.scope === 'private'
+      ? summary.ownerId === input.teacherId
+      : summary.visibility === 'public')
+    .filter((summary) => !input.testTypeId || summary.testTypeIds.includes(input.testTypeId))
+    .map((summary): MaterialBookListRow => {
+      if (!summary.bookStatus || !MATERIAL_BOOK_STATUSES.includes(summary.bookStatus as MaterialBookMetadata['status']) ||
+        summary.bookStatus === 'archived' ||
+        !summary.bookVisibility ||
+        (summary.visibility === 'public') !== (summary.bookVisibility === 'public-library-published')) {
+        throw new Error(`Material Book summary has invalid listing fields: ${summary.materialId}`);
+      }
+      const testTypes = summary.testTypeIds.map((testTypeId) =>
+        testTypeSummary(testTypeId, input.testTypeConfigs));
+      return {
+        id: summary.materialId,
+        bookId: summary.materialId,
+        bookMode: resolveMaterialBookMode(summary.bookMode),
+        ownerId: summary.ownerId,
+        title: summary.title,
+        subtitle: summary.subtitle,
+        authors: summary.authors ?? [],
+        publisher: summary.publisher,
+        series: summary.series,
+        coverUrl: summary.coverUrl,
+        visibility: summary.bookVisibility,
+        status: summary.bookStatus as MaterialBookMetadata['status'],
+        testTypeIds: summary.testTypeIds,
+        testTypes,
+        tags: summary.tags,
+        hasBrokenRefs: summary.hasBrokenRefs,
+        brokenRefCount: summary.brokenRefCount,
+        brokenRefReasons: summary.brokenRefReasons,
+        updatedAt: summary.updatedAt,
+        isOwner: summary.ownerId === input.teacherId,
+      };
+    })
     .filter((row) => matchesSearch(row, input.searchTerm, row.testTypes))
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    .sort((left, right) => compareMaterialSummaryRecency(
+      { updatedAt: left.updatedAt, materialId: left.bookId },
+      { updatedAt: right.updatedAt, materialId: right.bookId },
+    ));
+};
+
+export const listTeacherBooksPage = async (
+  input: Parameters<typeof listTeacherBooks>[0], cursor?: MaterialSummaryPageCursor,
+) => {
+  if (!input.teacherId) return { rows: [], cursor: null, hasMore: false };
+  if (input.scope === 'public-review-pending') throw new Error('Review queue uses its dedicated index.');
+  if (!input.repository.listBookSummaryPage) throw new Error('Bounded Book summary query is unavailable.');
+  const page = await input.repository.listBookSummaryPage({ teacherId: input.teacherId, scope: input.scope, testTypeId: input.testTypeId }, cursor);
+  const rows = await listTeacherBooks({ ...input, repository: {
+    ...input.repository, listBookSummaries: async () => page.rows,
+  } });
+  return { ...page, rows };
 };
 
 export const listPublicBookReviewQueue = async (input: {
