@@ -7,15 +7,11 @@
 import React, { useState } from 'react';
 import THCSSectionBlock from './THCSSectionBlock';
 import { THCSDndSectionsContainer } from './THCSDndSectionsContainer';
-import type { THCSSection, THCSTestMetadata } from '../../types/thcs-test.types';
-import { generateDiagnosticLog } from '../../services/test-creation/thcs-diagnostic-log';
-import type { ParseDebugData } from '../../services/test-creation/thcs-diagnostic-log';
-import { getPreviewLogs, clearPreviewLogs, getPreviewLogCount } from './previewLogCollector';
+import type { THCSSection } from '../../types/thcs-test.types';
 
 export interface THCSQuestionsStepProps {
     sections: THCSSection[];
     draftId: string | null;
-    metadata: THCSTestMetadata;
     onSectionUpdate: (index: number, section: THCSSection) => void;
     onSectionDelete: (index: number) => void;
     onSectionMove: (index: number, direction: -1 | 1) => void;
@@ -27,7 +23,6 @@ export interface THCSQuestionsStepProps {
 const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
     sections,
     draftId,
-    metadata,
     onSectionUpdate,
     onSectionDelete,
     onSectionMove,
@@ -38,13 +33,7 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
     const [activeSectionId, setActiveSectionId] = useState<string | null>(
         sections.length > 0 ? sections[0]!.id : null
     );
-    const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-    const [logCopied, setLogCopied] = useState(false);
-
     const totalQuestions = sections.reduce((sum, s) => sum + s.questions.length, 0);
-    const answeredCount = sections.reduce((sum, s) =>
-        sum + s.questions.filter(q => q.correctAnswer || q.modelAnswers?.length || q.blankAnswers?.length).length
-        , 0);
     const activeIndex = activeSectionId === null
         ? sections.length - 1
         : sections.findIndex(section => section.id === activeSectionId);
@@ -68,22 +57,22 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                         fontWeight: 700,
                         color: '#1e293b',
                     }}>
-                        Step 2 of 4: <strong>Questions</strong>
+                        Step 2 of 4: <strong>Build Test</strong>
                     </h2>
                     <p style={{
                         margin: '0.25rem 0 0',
                         fontSize: '0.8125rem',
                         color: '#64748b',
                     }}>
-                        {sections.length} section{sections.length !== 1 ? 's' : ''} · {totalQuestions} question{totalQuestions !== 1 ? 's' : ''} · {answeredCount} answered
+                        {sections.length} section{sections.length !== 1 ? 's' : ''} · {totalQuestions} question{totalQuestions !== 1 ? 's' : ''}
                     </p>
                 </div>
             </div>
 
             {/* Section sidebar + content layout */}
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div className="thcs-studio-layout" style={{ display: 'flex', gap: '1rem' }}>
                 {/* Section Navigator Sidebar */}
-                <div style={{
+                <div className="thcs-studio-sidebar" style={{
                     width: '220px',
                     flexShrink: 0,
                     background: 'rgba(255,255,255,0.85)',
@@ -164,6 +153,7 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                                                 color: '#94a3b8',
                                             }}>
                                                 {qCount} Q · {section.totalPoints}pts
+                                                {section.importSourceNeedsReview !== false && (section.isRawTextFallback || section.questions.some(q => q.type === 'raw-text-fallback')) && ' · Needs review'}
                                             </div>
                                         </div>
                                     </button>
@@ -190,133 +180,6 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                         </button>
                     </div>
 
-                    {/* ── Diagnostics Accordion ── */}
-                    <div style={{ marginTop: '0.75rem', borderTop: '1px solid rgba(139,92,246,0.1)', paddingTop: '0.5rem' }}>
-                        <button
-                            onClick={() => setDiagnosticsOpen(prev => !prev)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.375rem',
-                                width: '100%',
-                                padding: '0.375rem 0.5rem',
-                                border: 'none',
-                                borderRadius: '0.375rem',
-                                background: diagnosticsOpen ? 'rgba(245,158,11,0.08)' : 'transparent',
-                                cursor: 'pointer',
-                                fontSize: '0.6875rem',
-                                fontWeight: 600,
-                                color: '#94a3b8',
-                                textAlign: 'left',
-                                transition: 'background 0.15s',
-                            }}
-                        >
-                            <span style={{
-                                display: 'inline-block',
-                                transform: diagnosticsOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                                transition: 'transform 0.15s',
-                                fontSize: '0.5rem',
-                            }}>▶</span>
-                            🔍 Diagnostics
-                        </button>
-
-                        {diagnosticsOpen && (
-                            <div style={{ marginTop: '0.375rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                                <button
-                                    onClick={() => {
-                                        const parseDebug = (window as any).__PARSE_DEBUG as ParseDebugData | undefined;
-                                        const log = generateDiagnosticLog({ parseDebug: parseDebug || null, sections, metadata });
-                                        navigator.clipboard.writeText(log).then(() => {
-                                            setLogCopied(true);
-                                            setTimeout(() => setLogCopied(false), 2000);
-                                        });
-                                    }}
-                                    style={{
-                                        padding: '0.375rem 0.5rem',
-                                        border: '1px solid rgba(139,92,246,0.2)',
-                                        borderRadius: '0.375rem',
-                                        background: logCopied ? 'rgba(16,185,129,0.1)' : 'rgba(139,92,246,0.06)',
-                                        color: logCopied ? '#059669' : '#7c3aed',
-                                        fontWeight: 600,
-                                        fontSize: '0.6875rem',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.15s',
-                                        width: '100%',
-                                        textAlign: 'center',
-                                    }}
-                                >
-                                    {logCopied ? '✅ Copied!' : '📋 Copy Parse Log'}
-                                </button>
-
-                                {/* ── Copy Preview Logs button ── */}
-                                <button
-                                    onClick={() => {
-                                        const logs = getPreviewLogs();
-                                        if (!logs) { alert('No preview logs yet. Open Preview or navigate sections first.'); return; }
-                                        navigator.clipboard.writeText(logs).then(() => {
-                                            setLogCopied(true);
-                                            setTimeout(() => setLogCopied(false), 2000);
-                                        });
-                                    }}
-                                    style={{
-                                        padding: '0.375rem 0.5rem',
-                                        border: '1px solid rgba(245,158,11,0.3)',
-                                        borderRadius: '0.375rem',
-                                        background: 'rgba(245,158,11,0.06)',
-                                        color: '#d97706',
-                                        fontWeight: 600,
-                                        fontSize: '0.6875rem',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.15s',
-                                        width: '100%',
-                                        textAlign: 'center',
-                                    }}
-                                >
-                                    📎 Copy Preview Logs ({getPreviewLogCount()})
-                                </button>
-
-                                {/* ── Clear Preview Logs ── */}
-                                <button
-                                    onClick={() => { clearPreviewLogs(); setLogCopied(false); }}
-                                    style={{
-                                        padding: '0.25rem 0.5rem',
-                                        border: '1px solid rgba(0,0,0,0.08)',
-                                        borderRadius: '0.375rem',
-                                        background: 'transparent',
-                                        color: '#94a3b8',
-                                        fontWeight: 500,
-                                        fontSize: '0.625rem',
-                                        cursor: 'pointer',
-                                        width: '100%',
-                                        textAlign: 'center',
-                                    }}
-                                >
-                                    🗑️ Clear Logs
-                                </button>
-
-                                <pre style={{
-                                    margin: 0,
-                                    padding: '0.5rem',
-                                    background: 'rgba(15,23,42,0.04)',
-                                    borderRadius: '0.375rem',
-                                    fontSize: '0.5625rem',
-                                    lineHeight: 1.4,
-                                    color: '#475569',
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-word',
-                                    maxHeight: '300px',
-                                    overflowY: 'auto',
-                                    border: '1px solid rgba(0,0,0,0.05)',
-                                }}>
-                                    {generateDiagnosticLog({
-                                        parseDebug: (window as any).__PARSE_DEBUG as ParseDebugData | undefined || null,
-                                        sections,
-                                        metadata,
-                                    })}
-                                </pre>
-                            </div>
-                        )}
-                    </div>
                 </div>
 
                 {/* Main Content — Sections */}

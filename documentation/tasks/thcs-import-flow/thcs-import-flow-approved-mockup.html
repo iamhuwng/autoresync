@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>THCS-THPT Test Creation — Improved Modal Mockup</title>
+<style>
+  :root{
+    --bg:#f4f6f8;
+    --surface:#ffffff;
+    --surface-2:#f8fafc;
+    --surface-3:#f1f5f9;
+    --text:#1f2937;
+    --muted:#64748b;
+    --faint:#94a3b8;
+    --line:#e2e8f0;
+    --line-strong:#cbd5e1;
+    --accent:#6757d9;
+    --accent-strong:#5646c7;
+    --accent-soft:#f0edff;
+    --green:#0f9f6e;
+    --green-soft:#ecfdf5;
+    --amber:#b7791f;
+    --amber-soft:#fff8e6;
+    --red:#c2414b;
+    --red-soft:#fff1f2;
+    --blue:#2563eb;
+    --blue-soft:#eff6ff;
+    --shadow:0 22px 65px rgba(15,23,42,.18);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background:
+      linear-gradient(rgba(15,23,42,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15,23,42,.045) 1px, transparent 1px),
+      #eef1f5;
+    background-size:24px 24px;
+    color:var(--text);
+    min-height:100vh;
+  }
+  button,input,select,textarea{font:inherit}
+  button{color:inherit}
+  .page{
+    min-height:100vh;
+    display:grid;
+    place-items:center;
+    padding:28px;
+  }
+  .mock-shell{
+    width:min(1180px, 100%);
+    height:min(820px, calc(100vh - 56px));
+    min-height:680px;
+    background:var(--surface);
+    border:1px solid rgba(148,163,184,.38);
+    border-radius:20px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .topbar{
+    height:76px;
+    padding:0 22px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex:0 0 auto;
+  }
+  .brandline{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    min-width:0;
+  }
+  .brandicon{
+    width:38px;height:38px;border-radius:10px;background:var(--accent-soft);
+    display:grid;place-items:center;color:var(--accent);font-weight:800;border:1px solid #ded8ff;
+  }
+  .titleblock h1{font-size:16px;margin:0 0 3px;font-weight:800;letter-spacing:-.01em}
+  .titleblock p{font-size:12px;margin:0;color:var(--muted)}
+  .top-actions{display:flex;gap:8px;align-items:center}
+  .icon-btn{
+    width:36px;height:36px;border:1px solid var(--line);background:#fff;border-radius:9px;cursor:pointer;
+    display:grid;place-items:center;color:var(--muted);
+  }
+  .icon-btn:hover{background:var(--surface-2);border-color:var(--line-strong)}
+  .progress-wrap{
+    padding:14px 22px 12px;border-bottom:1px solid var(--line);background:#fbfcfd;flex:0 0 auto;
+  }
+  .steps{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:14px;position:relative;
+  }
+  .step{
+    position:relative;display:flex;align-items:center;gap:10px;min-width:0;padding:8px 10px;border-radius:10px;
+  }
+  .step::after{
+    content:"";position:absolute;left:calc(100% - 5px);top:50%;width:18px;height:2px;background:var(--line);transform:translateY(-50%);
+  }
+  .step:last-child::after{display:none}
+  .step-dot{
+    width:28px;height:28px;border-radius:999px;background:#e9edf2;color:#7b8794;
+    display:grid;place-items:center;font-weight:800;font-size:12px;flex:0 0 auto;
+  }
+  .step-copy{min-width:0}
+  .step-label{font-size:12px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .step-sub{font-size:11px;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .step.active{background:var(--accent-soft)}
+  .step.active .step-dot{background:var(--accent);color:#fff}
+  .step.active .step-label{color:var(--accent-strong)}
+  .step.done .step-dot{background:var(--green);color:#fff}
+  .step.done .step-label{color:#334155}
+  .step.done::after{background:#90d7be}
+  .content{
+    flex:1 1 auto;
+    min-height:0;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .screen{
+    display:none;min-height:0;flex:1 1 auto;overflow:auto;padding:24px;
+  }
+  .screen.active{display:block}
+  .screen.wide{padding:20px 24px 24px}
+  .screen-head{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px;
+  }
+  .screen-title{font-size:20px;line-height:1.2;margin:0 0 6px;letter-spacing:-.02em}
+  .screen-desc{font-size:13px;line-height:1.5;color:var(--muted);margin:0;max-width:680px}
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:750;
+    border:1px solid var(--line);background:#fff;color:var(--muted);white-space:nowrap;
+  }
+  .badge.green{background:var(--green-soft);border-color:#b8efd8;color:#087b57}
+  .badge.amber{background:var(--amber-soft);border-color:#f4d58d;color:#8a5a12}
+  .badge.blue{background:var(--blue-soft);border-color:#c7dcff;color:#1d4ed8}
+  .badge.purple{background:var(--accent-soft);border-color:#ddd6fe;color:var(--accent-strong)}
+  .card{
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px;
+  }
+  .card.soft{background:var(--surface-2)}
+  .card-title{font-size:13px;font-weight:800;margin:0 0 12px}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .field label{display:block;font-size:12px;font-weight:750;margin:0 0 6px;color:#334155}
+  .field input,.field select,.field textarea{
+    width:100%;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--text);
+    padding:10px 11px;outline:none;
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:#9d91f2;box-shadow:0 0 0 3px rgba(103,87,217,.10)}
+  .field textarea{min-height:110px;resize:vertical;line-height:1.45}
+  .duration-row{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{
+    border:1px solid var(--line-strong);background:#fff;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;
+  }
+  .pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .quick-start{margin-top:14px}
+  .quick-card{
+    border:1px solid var(--line);border-radius:12px;background:#fff;padding:15px;cursor:pointer;text-align:left;min-height:94px;
+    transition:.16s ease;
+  }
+  .quick-card:hover{border-color:#bcb4f4;background:#fcfbff}
+  .quick-card strong{display:block;font-size:13px;margin-top:8px}
+  .quick-card span{font-size:11px;color:var(--muted);display:block;margin-top:4px;line-height:1.35}
+  .quick-icon{
+    width:30px;height:30px;border-radius:8px;background:var(--surface-3);display:grid;place-items:center;font-weight:800;color:var(--muted)
+  }
+  .notice{
+    border-radius:11px;padding:12px 13px;border:1px solid;display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.45;
+  }
+  .notice strong{display:block;margin-bottom:2px}
+  .notice.info{background:var(--blue-soft);border-color:#c7dcff;color:#27456f}
+  .notice.warn{background:var(--amber-soft);border-color:#f1d395;color:#7b5315}
+  .notice.good{background:var(--green-soft);border-color:#bce9d8;color:#176a50}
+  .notice.danger{background:var(--red-soft);border-color:#fecdd3;color:#9f3441}
+  .paste-layout{display:grid;grid-template-columns:1fr 300px;gap:16px}
+  .pastebox textarea{min-height:430px;font-family:"SFMono-Regular",Consolas,monospace;font-size:12px}
+  .tip-list{display:flex;flex-direction:column;gap:10px}
+  .tip{font-size:12px;color:var(--muted);line-height:1.45;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .tip:last-child{border-bottom:0;padding-bottom:0}
+  .processing{
+    display:grid;place-items:center;height:100%;min-height:420px;text-align:center;
+  }
+  .spinner{
+    width:52px;height:52px;border-radius:50%;border:5px solid #ececf8;border-top-color:var(--accent);
+    animation:spin .9s linear infinite;margin:0 auto 18px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .processing h2{font-size:20px;margin:0 0 6px}
+  .processing p{font-size:13px;color:var(--muted);margin:0}
+  .progressbar{width:min(420px,100%);height:8px;background:#edf0f4;border-radius:999px;overflow:hidden;margin:18px auto 10px}
+  .progressbar>div{height:100%;background:var(--accent);width:82%}
+  .import-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px}
+  .metric-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+  .metric{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .metric b{font-size:18px;display:block}
+  .metric span{font-size:11px;color:var(--muted)}
+  .issue-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+  .issue{
+    border:1px solid var(--line);border-radius:11px;padding:13px;background:#fff;
+  }
+  .issue-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .issue-title{font-size:13px;font-weight:800;margin:0 0 4px}
+  .issue p{font-size:12px;color:var(--muted);margin:0;line-height:1.45}
+  .choice-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .choice{
+    border:1px solid var(--line-strong);border-radius:8px;background:#fff;padding:7px 9px;font-size:11px;font-weight:700;cursor:pointer;
+  }
+  .choice.selected{border-color:#978af0;background:var(--accent-soft);color:var(--accent-strong)}
+  details{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+  summary{font-size:12px;font-weight:750;color:#475569;cursor:pointer}
+  .structure-list{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
+  .structure-list li{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#475569}
+  .confidence{
+    height:6px;border-radius:999px;background:#edf0f4;overflow:hidden;margin-top:5px;
+  }
+  .confidence span{display:block;height:100%;background:#86cfae}
+  .side-note h3{font-size:13px;margin:0 0 8px}
+  .side-note p{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 10px}
+  .comparison{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+  .comparison .mini{border:1px solid var(--line);border-radius:9px;padding:10px;background:#fff}
+  .comparison small{display:block;color:var(--faint);font-size:10px;text-transform:uppercase;font-weight:800;letter-spacing:.04em}
+  .comparison b{font-size:12px;display:block;margin-top:4px}
+  .build-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px}
+  .sidebar{
+    border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfcfd;height:max-content;position:sticky;top:0;
+  }
+  .sidebar-label{font-size:10px;color:var(--faint);font-weight:850;text-transform:uppercase;letter-spacing:.07em;margin:2px 4px 8px}
+  .section-item{
+    width:100%;border:0;background:transparent;padding:9px;border-radius:9px;text-align:left;cursor:pointer;margin-bottom:3px;
+  }
+  .section-item.active{background:var(--accent-soft)}
+  .section-item strong{font-size:12px;display:block}
+  .section-item span{font-size:10px;color:var(--muted)}
+  .section-editor{display:flex;flex-direction:column;gap:12px}
+  .section-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center}
+  .question-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+  .question-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}
+  .qnum{font-size:11px;font-weight:850;color:var(--accent-strong);background:var(--accent-soft);border-radius:7px;padding:5px 7px}
+  .question-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px;min-height:62px;resize:vertical}
+  .options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+  .option{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+  .option b{font-size:11px;color:var(--muted)}
+  .option input{border:0;outline:none;flex:1;min-width:0}
+  .answer-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+  .answer-cell{
+    border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;
+  }
+  .answer-cell .n{font-size:10px;color:var(--faint);font-weight:800}
+  .answer-cell select{width:100%;border:0;background:transparent;font-weight:800;color:#334155;margin-top:4px;outline:none}
+  .answer-cell.warn{background:var(--amber-soft);border-color:#f0d188}
+  .answer-cell.inferred{background:#f5f3ff;border-color:#d9d2fb}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:12px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+  .review-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+  .summary-row{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding:9px 0;font-size:12px}
+  .summary-row:last-child{border-bottom:0}
+  .checklist{display:flex;flex-direction:column;gap:8px}
+  .check{display:flex;align-items:center;gap:9px;font-size:12px}
+  .check .mark{width:20px;height:20px;border-radius:50%;background:var(--green-soft);color:var(--green);display:grid;place-items:center;font-weight:900}
+  .footer{
+    min-height:70px;border-top:1px solid var(--line);background:#fff;padding:12px 18px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto;
+  }
+  .footer-left,.footer-right{display:flex;align-items:center;gap:8px}
+  .btn{
+    border:1px solid var(--line-strong);background:#fff;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:800;cursor:pointer;
+  }
+  .btn:hover{background:var(--surface-2)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent-strong)}
+  .btn.success{background:#0f9f6e;border-color:#0f9f6e;color:#fff}
+  .btn.ghost{border-color:transparent;color:var(--muted)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .saved{font-size:11px;color:var(--green);font-weight:800;opacity:0;transition:opacity .25s}
+  .saved.show{opacity:1}
+  .tooltip{
+    position:fixed;z-index:9999;display:none;max-width:260px;background:#111827;color:#fff;
+    font-size:11px;line-height:1.4;padding:7px 9px;border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.22);
+    pointer-events:none;
+  }
+  .modal-layer{
+    display:none;position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:20;place-items:center;padding:24px;
+  }
+  .modal-layer.show{display:grid}
+  .mini-modal{width:min(620px,100%);background:#fff;border-radius:16px;box-shadow:var(--shadow);border:1px solid var(--line)}
+  .mini-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .mini-head h3{font-size:15px;margin:0}
+  .mini-body{padding:18px}
+  .mini-foot{padding:14px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+  .success-screen{
+    display:none;position:absolute;inset:0;background:#fff;z-index:10;place-items:center;text-align:center;padding:30px;
+  }
+  .success-screen.show{display:grid}
+  .success-icon{width:64px;height:64px;border-radius:50%;background:var(--green-soft);color:var(--green);display:grid;place-items:center;font-size:30px;margin:0 auto 16px}
+  .success-screen h2{margin:0 0 7px;font-size:22px}
+  .success-screen p{margin:0;color:var(--muted);font-size:13px}
+  .tiny{font-size:10px;color:var(--faint)}
+  @media (max-width:900px){
+    .mock-shell{height:auto;min-height:calc(100vh - 24px)}
+    .page{padding:12px;display:block}
+    .steps{grid-template-columns:1fr 1fr}
+    .step::after{display:none}
+    .grid-2,.grid-3,.paste-layout,.import-grid,.review-grid,.build-grid{grid-template-columns:1fr}
+    .sidebar{position:static}
+    .answer-grid{grid-template-columns:repeat(4,1fr)}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="mock-shell" id="shell">
+    <div class="topbar">
+      <div class="brandline">
+        <div class="brandicon">T</div>
+        <div class="titleblock">
+          <h1>THCS-THPT Test</h1>
+          <p id="headerSubtitle">Test Setup · Step 1 of 4</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="saved" id="savedState">Saved</span>
+        <button class="icon-btn" data-tip="Closes the creation modal. In the real product, unsaved changes would be checked before closing." aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="steps" id="steps">
+        <div class="step active" data-step="1">
+          <div class="step-dot">1</div><div class="step-copy"><div class="step-label">Test Setup</div><div class="step-sub">Identity & source</div></div>
+        </div>
+        <div class="step" data-step="2">
+          <div class="step-dot">2</div><div class="step-copy"><div class="step-label">Build Test</div><div class="step-sub">Questions & sections</div></div>
+        </div>
+        <div class="step" data-step="3">
+          <div class="step-dot">3</div><div class="step-copy"><div class="step-label">Answer Key</div><div class="step-sub">Verify answers</div></div>
+        </div>
+        <div class="step" data-step="4">
+          <div class="step-dot">4</div><div class="step-copy"><div class="step-label">Review & Publish</div><div class="step-sub">Final validation</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content" style="position:relative">
+      <!-- STEP 1 -->
+      <section class="screen active" id="setup">
+        <div class="screen-head">
+          <div>
+            <h2 class="screen-title">Set up the test</h2>
+            <p class="screen-desc">Define the test identity once, then choose how you want to build it. Imported metadata is treated as a proposal—not an automatic overwrite.</p>
+          </div>
+          <span class="badge purple">Step 1 of 4</span>
+        </div>
+
+        <div class="card">
+          <div class="grid-2">
+            <div class="field" style="grid-column:1/-1">
+              <label>Test title</label>
+              <input id="titleInput" value="Đề kiểm tra giữa kì 1 — Tiếng Anh 9" />
+            </div>
+            <div class="field">
+              <label>Grade level</label>
+              <select><option>Grade 9</option><option>Grade 8</option><option>Grade 10</option></select>
+            </div>
+            <div class="field">
+              <label>Exam type</label>
+              <select><option>Giữa kì</option><option>Cuối kì</option><option>Ôn tập</option><option>Thi vào 10</option></select>
+            </div>
+          </div>
+
+          <div style="height:1px;background:var(--line);margin:16px 0"></div>
+
+          <div class="field">
+            <label>Duration</label>
+            <div class="duration-row">
+              <button class="pill">30m</button>
+              <button class="pill on">45m</button>
+              <button class="pill">60m</button>
+              <button class="pill">90m</button>
+              <button class="pill">Custom</button>
+            </div>
+          </div>
+
+          <details>
+            <summary>Advanced settings</summary>
+            <div class="grid-2" style="margin-top:12px">
+              <div class="field"><label>Timer mode</label><select><option>Strict — auto-submit</option><option>Informational</option><option>No timer</option></select></div>
+              <div class="field"><label>Subject variant</label><input placeholder="e.g. Global Success" /></div>
+              <div class="field"><label>Province</label><input placeholder="e.g. Hà Nội" /></div>
+              <div class="field"><label>School</label><input placeholder="e.g. THCS Nguyễn Du" /></div>
+            </div>
+          </details>
+        </div>
+
+        <div class="quick-start">
+          <div class="card-title">Start from</div>
+          <div class="grid-3">
+            <button class="quick-card" data-tip="Would open the existing THCS template picker and apply its section structure before entering Build Test.">
+              <div class="quick-icon">T</div><strong>Template</strong><span>Reuse a saved test structure.</span>
+            </button>
+            <button class="quick-card" id="chooseImport">
+              <div class="quick-icon">⇩</div><strong>Paste Test</strong><span>Paste extracted content and open it in Studio.</span>
+            </button>
+            <button class="quick-card" id="startBlank">
+              <div class="quick-icon">＋</div><strong>Start Blank</strong><span>Go straight to the full question builder.</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PASTE TEST (subflow under Step 1) -->
+      <section class="screen" id="importSource">
+        <div class="screen-head">
+          <div>
+            <h2 class="screen-title">Paste Test</h2>
+            
+          </div>
+          
+        </div>
+
+        <div class="card" style="max-width:860px;margin:0 auto">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+            <button class="btn" data-tip="Copies the extraction prompt used to prepare source images or documents before pasting the result here.">Copy extraction prompt</button>
+          </div>
+          <div class="field pastebox">
+            <textarea id="sourceText" placeholder="Paste extracted test text here…">I. MULTIPLE CHOICE QUESTIONS
+Choose the correct answer A, B, C or D.
+
+Question 1. We all wanted to ______ in the contest.
+A. take off
+B. take part
+C. take out
+D. take over
+
+Question 2. Choose the word with a different stress pattern.
+A. teacher
+B. complete
+C. student
+D. lesson
+
+...
+
+VI. ANSWER KEY
+1. B
+2. B
+3. C
+4. A</textarea>
+          </div>
+        </div>
+</section>
+
+      <!-- PARSING EFFECT -->
+      <section class="screen" id="processing" aria-hidden="true" style="display:none!important">
+        <div class="processing">
+          <div>
+            <div class="spinner"></div>
+            <h2>Parsing the imported test…</h2>
+            <p>Detecting structure, validating question types and binding source answer keys.</p>
+            <div class="progressbar"><div></div></div>
+            <div class="tiny">Backend stages are intentionally abstracted in this prototype.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RARE EXCEPTION RESOLVER -->
+      <section class="screen" id="importCheck">
+        <div class="screen-head">
+          <div><h2 class="screen-title">Import needs attention</h2></div>
+          <span class="badge amber">1 decision required</span>
+        </div>
+        <div class="card" style="max-width:760px;margin:0 auto">
+          <div class="issue" style="border:0;padding:0">
+            <div class="issue-top"><div>
+              <div class="issue-title">Section VI · Sentence transformation</div>
+              <p>The original structure could not be mapped safely to a supported question format.</p>
+            </div></div>
+            <div class="choice-row" data-choice-group="section6" style="margin-top:16px">
+              <button class="choice selected">Keep as editable text</button>
+              <button class="choice">Leave this section out</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 2 -->
+      <section class="screen wide" id="build">
+        <div class="screen-head">
+          <div>
+            <h2 class="screen-title">Build Test</h2>
+            <p class="screen-desc">This is the authoritative content editor. Adjust section structure, question types, wording, options, visuals, points and ordering here.</p>
+          </div>
+          <div style="display:flex;gap:7px">
+            <span class="badge purple">Step 2 of 4</span>
+            <span class="badge green">Imported · 40 questions</span>
+          </div>
+        </div>
+
+        <div class="notice good" id="importSuccessNotice" style="display:none;margin-bottom:14px">
+          <div>✓</div><div><strong>Imported 7 sections and 40 questions</strong></div>
+        </div>
+        <div class="build-grid">
+          <aside class="sidebar">
+            <div class="sidebar-label">Sections</div>
+            <button class="section-item active"><strong>1 · Pronunciation</strong><span>4 Q · 1.0 pt</span></button>
+            <button class="section-item"><strong>2 · Stress</strong><span>4 Q · 1.0 pt</span></button>
+            <button class="section-item"><strong>3 · Grammar & Vocabulary</strong><span>8 Q · 2.0 pt · Needs review</span></button>
+            <button class="section-item"><strong>4 · Announcement</strong><span>6 Q · 1.5 pt</span></button>
+            <button class="section-item"><strong>5 · Cloze</strong><span>6 Q · 1.5 pt</span></button>
+            <button class="section-item"><strong>6 · Reading</strong><span>8 Q · 2.0 pt</span></button>
+            <button class="section-item"><strong>7 · Rewrite</strong><span>4 Q · 1.0 pt</span></button>
+            <button class="btn" style="width:100%;margin-top:8px" data-tip="Would add a new THCS section and select it for editing.">+ Add section</button>
+          </aside>
+
+          <div class="section-editor">
+            <div class="card">
+              <div class="section-toolbar">
+                <div>
+                  <div class="card-title" style="margin-bottom:3px">Section 1 · Pronunciation</div>
+                  <div class="tiny">Single column · 4 questions · 1.0 point</div>
+                </div>
+                <div style="display:flex;gap:7px">
+                  <button class="btn" data-tip="Would open student preview using the current in-memory draft.">Preview</button>
+                  <button class="btn" data-tip="Would expose section layout, point mode, shuffle and instruction settings.">Section settings</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="question-card">
+              <div class="question-head">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="qnum">Q1</span>
+                  <span class="badge amber">Needs review</span>
+                </div>
+                <select style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:11px">
+                  <option>Pronunciation</option><option>Grammar</option><option>Vocabulary</option>
+                </select>
+              </div>
+              <textarea>Choose the word whose underlined part is pronounced differently.</textarea>
+              <div class="options">
+                <div class="option"><b>A</b><input value="fine" /></div>
+                <div class="option"><b>B</b><input value="sit" /></div>
+                <div class="option"><b>C</b><input value="live" /></div>
+                <div class="option"><b>D</b><input value="hit" /></div>
+              </div>
+            </div>
+
+            <div class="question-card">
+              <div class="question-head">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="qnum">Q2</span>
+                  <span class="badge green">Imported confidently</span>
+                </div>
+                <select style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:11px">
+                  <option>Pronunciation</option><option>Grammar</option><option>Vocabulary</option>
+                </select>
+              </div>
+              <textarea>Choose the word whose underlined part is pronounced differently.</textarea>
+              <div class="options">
+                <div class="option"><b>A</b><input value="teacher" /></div>
+                <div class="option"><b>B</b><input value="complete" /></div>
+                <div class="option"><b>C</b><input value="student" /></div>
+                <div class="option"><b>D</b><input value="lesson" /></div>
+              </div>
+            </div>
+
+            <button class="btn" data-tip="Would append a question using the section's current defaults.">+ Add question</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 3 -->
+      <section class="screen" id="answers">
+        <div class="screen-head">
+          <div>
+            <h2 class="screen-title">Answer Key</h2>
+            <p class="screen-desc">Complete missing answers and verify the few answers that still need attention.</p>
+          </div>
+          <span class="badge purple">Step 3 of 4</span>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px">
+            <div>
+              <div class="card-title" style="margin-bottom:3px">40 questions · 38 source answers</div>
+              <div class="tiny">2 answers are missing. 3 answers were inferred because the source answer key was incomplete.</div>
+            </div>
+            <button class="btn" id="bulkAnswerBtn">Bulk input</button>
+          </div>
+
+          <div class="legend">
+            <span><i class="dot" style="background:#86cfae"></i>Source answer</span>
+            <span><i class="dot" style="background:#9f91eb"></i>AI-inferred — verify</span>
+            <span><i class="dot" style="background:#e4b75f"></i>Missing</span>
+          </div>
+
+          <div class="answer-grid" id="answerGrid"></div>
+        </div>
+
+        
+      </section>
+
+      <!-- STEP 4 -->
+      <section class="screen" id="review">
+        <div class="screen-head">
+          <div>
+            <h2 class="screen-title">Review & Publish</h2>
+            <p class="screen-desc">Check the final test and publish when everything is ready.</p>
+          </div>
+          <span class="badge purple">Step 4 of 4</span>
+        </div>
+
+        <div class="review-grid">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="card">
+              <div class="card-title">Test summary</div>
+              <div class="summary-row"><span>Title</span><strong id="reviewTitle">Đề kiểm tra giữa kì 1 — Tiếng Anh 9</strong></div>
+              <div class="summary-row"><span>Grade / exam</span><strong>Grade 9 · Giữa kì</strong></div>
+              <div class="summary-row"><span>Duration</span><strong>45 minutes</strong></div>
+              <div class="summary-row"><span>Structure</span><strong>7 sections · 40 questions · 10 points</strong></div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Validation</div>
+              <div class="checklist">
+                <div class="check"><span class="mark">✓</span><span>Required test setup is complete</span></div>
+                <div class="check"><span class="mark">✓</span><span>Question structure is valid</span></div>
+                <div class="check"><span class="mark">✓</span><span>All required visual alternatives are present</span></div>
+                <div class="check"><span class="mark">✓</span><span>Answer key is complete</span></div>
+                <div class="check"><span class="mark">✓</span><span>Total points are configured</span></div>
+              </div>
+              <div class="notice good" style="margin-top:14px"><div>✓</div><div><strong>Ready to publish</strong>No blocking validation issues remain.</div></div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="card soft">
+              <div class="card-title">Preview</div>
+              <div style="border:1px solid var(--line);border-radius:10px;background:#fff;padding:18px;text-align:center">
+                <div style="font-size:12px;font-weight:800">Đề kiểm tra giữa kì 1</div>
+                <div class="tiny" style="margin-top:5px">40Q · 10pts · 45min</div>
+              </div>
+              <button class="btn" style="width:100%;margin-top:10px" data-tip="Would open the full student-facing preview overlay.">Open full preview</button>
+            </div>
+            <div class="card">
+              <div class="card-title">Publish settings</div>
+              <label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:6px 0">
+                <span>Share in Public Library</span><input type="checkbox" />
+              </label>
+              <label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:6px 0">
+                <span>Save structure as template</span><input type="checkbox" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="success-screen" id="successScreen">
+        <div>
+          <div class="success-icon">✓</div>
+          <h2>Test published</h2>
+          <p>The teacher-facing success state is shown here; persistence and notification services are intentionally not simulated.</p>
+          <button class="btn primary" style="margin-top:18px" onclick="resetDemo()">Restart prototype</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer" id="footer">
+      <div class="footer-left" id="footerLeft">
+        <button class="btn ghost" id="backBtn">Cancel</button>
+      </div>
+      <div class="footer-right" id="footerRight">
+        <button class="btn primary" id="nextBtn">Next: Build Test →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="modal-layer" id="bulkModal">
+  <div class="mini-modal">
+    <div class="mini-head">
+      <h3>Bulk Answer Input</h3>
+      <button class="icon-btn" onclick="closeBulk()">✕</button>
+    </div>
+    <div class="mini-body">
+      <div class="field">
+        <label>Paste answers</label>
+        <textarea>1.B 2.B 3.C 4.A 5.D 6.C 7.B 8.A</textarea>
+      </div>
+      <div class="notice info" style="margin-top:12px"><div>ⓘ</div><div>This mockup only demonstrates the surface. The real product would parse matching question numbers and preview changes before applying.</div></div>
+    </div>
+    <div class="mini-foot">
+      <button class="btn" onclick="closeBulk()">Cancel</button>
+      <button class="btn primary" onclick="closeBulk();flashSaved()">Apply answers</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const screens = ["setup","importSource","processing","importCheck","build","answers","review"];
+  let current = "setup";
+
+  const stepMap = {
+    setup:1, importSource:1, processing:1, importCheck:1,
+    build:2, answers:3, review:4
+  };
+
+  const subtitles = {
+    setup:"Test Setup · Step 1 of 4",
+    importSource:"Paste Test · Test Setup",
+    processing:"Paste Test · Test Setup",
+    importCheck:"Import needs attention · Test Setup",
+    build:"Build Test · Step 2 of 4",
+    answers:"Answer Key · Step 3 of 4",
+    review:"Review & Publish · Step 4 of 4"
+  };
+
+  const footerConfig = {
+    setup:{back:"Cancel", next:"Next: Build Test →"},
+    importSource:{back:"← Back", next:"Parse Test →"},
+    processing:{back:"", next:""},
+    importCheck:{back:"← Back", next:"Continue to Studio →"},
+    build:{back:"← Back: Setup", next:"Next: Answer Key →"},
+    answers:{back:"← Back: Build Test", next:"Next: Review →"},
+    review:{back:"← Back: Answer Key", next:"Publish Test"}
+  };
+
+  function showScreen(id){
+    screens.forEach(s=>document.getElementById(s).classList.toggle("active", s===id));
+    current=id;
+    document.getElementById("headerSubtitle").textContent=subtitles[id];
+    updateSteps(stepMap[id]);
+    updateFooter();
+    if(id==="review"){
+      document.getElementById("reviewTitle").textContent=document.getElementById("titleInput").value || "Untitled test";
+    }
+  }
+
+  function updateSteps(step){
+    document.querySelectorAll(".step").forEach(el=>{
+      const n=Number(el.dataset.step);
+      el.classList.toggle("active", n===step);
+      el.classList.toggle("done", n<step);
+      const dot=el.querySelector(".step-dot");
+      dot.textContent=n<step ? "✓" : String(n);
+    });
+  }
+
+  function updateFooter(){
+    const cfg=footerConfig[current];
+    const back=document.getElementById("backBtn");
+    const next=document.getElementById("nextBtn");
+    const left=document.getElementById("footerLeft");
+    const right=document.getElementById("footerRight");
+
+    left.style.visibility=cfg.back ? "visible":"hidden";
+    right.style.visibility=cfg.next ? "visible":"hidden";
+    back.textContent=cfg.back || "";
+    next.textContent=cfg.next || "";
+    if(current==="importSource"){
+      next.dataset.tip="Parses the pasted test. Hold Shift while clicking in this prototype to preview the rare ‘Import needs attention’ case.";
+    } else {
+      delete next.dataset.tip;
+    }
+
+    next.classList.toggle("success", current==="review");
+    next.classList.toggle("primary", current!=="review");
+  }
+
+  document.getElementById("chooseImport").onclick=()=>showScreen("importSource");
+  document.getElementById("startBlank").onclick=()=>showScreen("build");
+
+  document.getElementById("backBtn").onclick=()=>{
+    if(current==="setup") return;
+    if(current==="importSource") showScreen("setup");
+    else if(current==="importCheck") showScreen("importSource");
+    else if(current==="build") showScreen("setup");
+    else if(current==="answers") showScreen("build");
+    else if(current==="review") showScreen("answers");
+  };
+
+  document.getElementById("nextBtn").addEventListener("mousedown",(e)=>{
+    if(current==="importSource" && e.shiftKey) window.__forceAttention=true;
+  });
+
+  document.getElementById("nextBtn").onclick=()=>{
+    if(current==="setup") showScreen("build");
+    else if(current==="importSource"){
+      const next=document.getElementById("nextBtn");
+      const source=document.getElementById("sourceText");
+      const original=next.textContent;
+      next.disabled=true;
+      source.disabled=true;
+      next.innerHTML='<span class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;margin:0 7px 0 0;vertical-align:-2px"></span>Parsing…';
+      const forceAttention = window.__forceAttention === true;
+      setTimeout(()=>{
+        next.disabled=false;
+        source.disabled=false;
+        next.textContent=original;
+        window.__forceAttention=false;
+        showScreen(forceAttention ? "importCheck" : "build");
+        if(!forceAttention){
+          const notice=document.getElementById("importSuccessNotice");
+          notice.style.display="flex";
+          clearTimeout(window.__importNoticeTimer);
+          window.__importNoticeTimer=setTimeout(()=>notice.style.display="none",2600);
+        }
+      }, 800);
+    } else if(current==="importCheck") showScreen("build");
+    else if(current==="build") showScreen("answers");
+    else if(current==="answers") showScreen("review");
+    else if(current==="review") document.getElementById("successScreen").classList.add("show");
+  };
+
+  document.querySelectorAll("[data-choice-group]").forEach(group=>{
+    group.querySelectorAll(".choice").forEach(btn=>{
+      btn.onclick=()=>{
+        group.querySelectorAll(".choice").forEach(x=>x.classList.remove("selected"));
+        btn.classList.add("selected");
+        flashSaved();
+      }
+    });
+  });
+
+  document.querySelectorAll(".duration-row .pill").forEach(p=>{
+    p.onclick=()=>{
+      document.querySelectorAll(".duration-row .pill").forEach(x=>x.classList.remove("on"));
+      p.classList.add("on");
+      flashSaved();
+    }
+  });
+
+  document.querySelectorAll(".section-item").forEach(item=>{
+    item.onclick=()=>{
+      document.querySelectorAll(".section-item").forEach(x=>x.classList.remove("active"));
+      item.classList.add("active");
+      flashSaved();
+    }
+  });
+
+  function buildAnswers(){
+    const grid=document.getElementById("answerGrid");
+    const inferred=new Set([14,23,31]);
+    const missing=new Set([39,40]);
+    for(let i=1;i<=40;i++){
+      const cell=document.createElement("div");
+      cell.className="answer-cell"+(missing.has(i)?" warn":inferred.has(i)?" inferred":"");
+      cell.innerHTML=`<div class="n">Q${i}${inferred.has(i)?" · inferred":missing.has(i)?" · missing":""}</div>
+        <select aria-label="Answer Q${i}">
+          <option ${missing.has(i)?"selected":""}>${missing.has(i)?"—":"A"}</option>
+          <option ${!missing.has(i) && i%4===1?"selected":""}>A</option>
+          <option ${!missing.has(i) && i%4===2?"selected":""}>B</option>
+          <option ${!missing.has(i) && i%4===3?"selected":""}>C</option>
+          <option ${!missing.has(i) && i%4===0?"selected":""}>D</option>
+        </select>`;
+      grid.appendChild(cell);
+    }
+    grid.querySelectorAll("select").forEach(s=>s.onchange=flashSaved);
+  }
+  buildAnswers();
+
+  document.getElementById("bulkAnswerBtn").onclick=()=>document.getElementById("bulkModal").classList.add("show");
+  function closeBulk(){document.getElementById("bulkModal").classList.remove("show")}
+
+  function flashSaved(){
+    const el=document.getElementById("savedState");
+    el.classList.add("show");
+    clearTimeout(window.__savedTimer);
+    window.__savedTimer=setTimeout(()=>el.classList.remove("show"),1300);
+  }
+
+  document.querySelectorAll("input,textarea,select").forEach(el=>{
+    el.addEventListener("change",flashSaved);
+  });
+
+  const tooltip=document.getElementById("tooltip");
+  document.addEventListener("mouseover",e=>{
+    const target=e.target.closest("[data-tip]");
+    if(!target) return;
+    tooltip.textContent=target.dataset.tip;
+    tooltip.style.display="block";
+  });
+  document.addEventListener("mousemove",e=>{
+    if(tooltip.style.display!=="block") return;
+    const pad=14;
+    const x=Math.min(e.clientX+pad, window.innerWidth-tooltip.offsetWidth-10);
+    const y=Math.min(e.clientY+pad, window.innerHeight-tooltip.offsetHeight-10);
+    tooltip.style.left=x+"px"; tooltip.style.top=y+"px";
+  });
+  document.addEventListener("mouseout",e=>{
+    if(e.target.closest("[data-tip]")) tooltip.style.display="none";
+  });
+
+  function resetDemo(){
+    document.getElementById("successScreen").classList.remove("show");
+    showScreen("setup");
+  }
+</script>
+</body>
+</html>

@@ -263,6 +263,15 @@ function detectSections(lines: string[]): ParsedSection[] {
             }
         }
 
+        // A type tag immediately below a heading describes that section, not a new empty section.
+        if ((inlineTypeMatch || (typeTagMatch && !isMetadataTag)) && currentSection
+            && currentSection.startLine !== undefined
+            && lines.slice(currentSection.startLine + 1, i).every(previousLine => !previousLine.trim())) {
+            currentSection.detectedType = (inlineTypeMatch?.[1] || typeTagMatch![1]) as THCSQuestionType;
+            currentSection.typeConfidence = 99;
+            if (inlineTypeMatch) currentSection.instructionText = line.replace(PATTERNS.typeTagInline, '').trim();
+            continue;
+        }
         if (sectionMatch || (typeTagMatch && !isMetadataTag) || aiMarkerMatch || inlineTypeMatch) {
             if (currentSection && currentSection.startLine !== undefined) {
                 currentSection.endLine = i - 1;

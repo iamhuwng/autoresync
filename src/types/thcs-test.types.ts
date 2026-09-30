@@ -124,6 +124,7 @@ export interface THCSSection {
     shuffleOptions?: boolean;              // true = also shuffle MCQ options A↔B↔C↔D (only meaningful when shuffle === true, default false)
 
     // FR-12: Raw text fallback fields (set when compromise conversion fails)
+    importSourceNeedsReview?: boolean;    // Preserved import source must be reviewed before publication.
     rawText?: string;                      // Original raw section text preserved as-is
     isRawTextFallback?: boolean;           // true when this section failed compromise
 }

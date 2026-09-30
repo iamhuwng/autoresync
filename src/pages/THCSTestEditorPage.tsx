@@ -10,7 +10,7 @@
  * All state management, hooks, and callbacks remain at this parent level.
  * Steps receive state via props. No data model changes.
  */
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { doc, setDoc, getFirestore } from 'firebase/firestore';
 
@@ -27,8 +27,11 @@ import { Button, toast } from '../components/modern';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { THCSPreviewOverlay } from '../components/thcs-editor/THCSPreviewOverlay';
-import { THCSParseReviewPanel } from '../components/thcs-editor/THCSParseReviewPanel';
+import { THCSImportAttentionPanel } from '../components/thcs-editor/THCSImportAttentionPanel';
+import { classifyThcsImportAttention, resolveThcsImportAttention } from '../services/test-creation/thcs-import-attention';
+import { useClipboard } from '../core/platform/hooks/useClipboard';
 import { convertParsedToThcsDraft, parseThcsText } from '../services/test-creation/thcsDocumentParser.service';
+import '../components/thcs-editor/THCSImportFlow.css';
 import thcsExtractionPrompt from '../services/test-creation/thcs-pdf-extraction-prompt.txt?raw';
 
 // Wizard components
@@ -127,19 +130,13 @@ interface THCSTestEditorSurfaceProps {
     onDirtyChange?: (dirty: boolean) => void;
     onStepChange?: (step: number) => void;
     onWideLayoutChange?: (wide: boolean) => void;
+    onExpandedLayoutChange?: (active: boolean) => void;
     onStepConfigChange?: (steps: WizardStep[]) => void;
 }
 
 const DEFAULT_WIZARD_STEPS: WizardStep[] = [
     { label: 'Test Setup', icon: '📋' },
     { label: 'Build Test', icon: '✏️' },
-    { label: 'Answer Key', icon: '🔑' },
-    { label: 'Review & Publish', icon: '✅' },
-];
-
-const PASTE_WIZARD_STEPS: WizardStep[] = [
-    { label: 'Test Setup', icon: '📋' },
-    { label: 'Paste Text', icon: '📥' },
     { label: 'Answer Key', icon: '🔑' },
     { label: 'Review & Publish', icon: '✅' },
 ];
@@ -210,89 +207,6 @@ const DEFAULT_METADATA: THCSTestMetadata = {
     examType: '',
 };
 
-type ParsedMetadataField = 'title' | 'duration' | 'gradeLevel' | 'examType';
-type ParsedMetadataProposal = Partial<Pick<THCSTestMetadata, ParsedMetadataField>>;
-
-export interface ParsedMetadataConflict {
-    field: ParsedMetadataField;
-    label: string;
-    currentValue: string;
-    parsedValue: string;
-}
-
-const PARSED_METADATA_FIELDS: ParsedMetadataField[] = ['title', 'duration', 'gradeLevel', 'examType'];
-
-const PARSED_METADATA_LABELS: Record<ParsedMetadataField, string> = {
-    title: 'Title',
-    duration: 'Duration',
-    gradeLevel: 'Grade level',
-    examType: 'Exam type',
-};
-
-function buildParsedMetadataProposal(source: Partial<THCSTestMetadata> | null | undefined): ParsedMetadataProposal | null {
-    if (!source) return null;
-
-    const proposal: ParsedMetadataProposal = {};
-
-    if (typeof source.title === 'string' && source.title.trim()) {
-        proposal.title = source.title.trim();
-    }
-    if (typeof source.duration === 'number' && source.duration > 0) {
-        proposal.duration = source.duration;
-    }
-    if (typeof source.gradeLevel === 'number' && source.gradeLevel >= 6 && source.gradeLevel <= 12) {
-        proposal.gradeLevel = source.gradeLevel as THCSTestMetadata['gradeLevel'];
-    }
-    if (typeof source.examType === 'string' && source.examType.trim()) {
-        proposal.examType = source.examType.trim();
-    }
-
-    return Object.keys(proposal).length > 0 ? proposal : null;
-}
-
-function formatMetadataConflictValue(field: ParsedMetadataField, value: THCSTestMetadata[ParsedMetadataField] | undefined): string {
-    if (value === null || value === undefined || value === '') {
-        return 'Not set';
-    }
-
-    if (field === 'duration') {
-        return `${value} minutes`;
-    }
-
-    return String(value);
-}
-
-function getParsedMetadataConflicts(
-    currentMetadata: THCSTestMetadata,
-    parsedProposal: ParsedMetadataProposal | null
-): ParsedMetadataConflict[] {
-    if (!parsedProposal) return [];
-
-    return PARSED_METADATA_FIELDS.flatMap((field) => {
-        const parsedValue = parsedProposal[field];
-
-        if (parsedValue === undefined) {
-            return [];
-        }
-
-        const currentValue = currentMetadata[field];
-        if (currentValue === parsedValue) {
-            return [];
-        }
-
-        return [{
-            field,
-            label: PARSED_METADATA_LABELS[field],
-            currentValue: formatMetadataConflictValue(field, currentValue),
-            parsedValue: formatMetadataConflictValue(field, parsedValue),
-        }];
-    });
-}
-
-// ═══════════════════════════════════════════════════════════════
-// COMPONENT
-// ═══════════════════════════════════════════════════════════════
-
 export function THCSTestEditorSurface({
     initialDraftId,
     presentation = 'page',
@@ -303,6 +217,7 @@ export function THCSTestEditorSurface({
     onDirtyChange,
     onStepChange,
     onWideLayoutChange,
+    onExpandedLayoutChange,
     onStepConfigChange,
 }: THCSTestEditorSurfaceProps) {
     const { user } = useAuth();
@@ -310,6 +225,8 @@ export function THCSTestEditorSurface({
     const isMobile = !isDesktop;
 
     // ─── Wizard Step State ──────────────────────────────────────
+    const mounted = useRef(true);
+    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
     const [currentStep, setCurrentStep] = useState(0);
     const [setupMode, setSetupMode] = useState<'options' | 'paste'>('options');
 
@@ -325,11 +242,10 @@ export function THCSTestEditorSurface({
     const [publishedTestId, setPublishedTestId] = useState<string | null>(null);
     const [pasteTextContent, setPasteTextContent] = useState('');
     const [parsedPasteData, setParsedPasteData] = useState<any>(null);
-    const [reviewedPasteData, setReviewedPasteData] = useState<any>(null);
-    const [parsedMetadataProposal, setParsedMetadataProposal] = useState<ParsedMetadataProposal | null>(null);
+    const [importResolution, setImportResolution] = useState<'keep-source' | 'discard'>('keep-source');
     const [isPasteProcessing, setIsPasteProcessing] = useState(false);
     const [pasteErrorMessage, setPasteErrorMessage] = useState<string | null>(null);
-    const [promptCopied, setPromptCopied] = useState(false);
+
 
     // ─── Draft Loading ──────────────────────────────────────────
     const { draft, loading: draftLoading, error: draftError } = useThcsDraft(initialDraftId);
@@ -340,7 +256,6 @@ export function THCSTestEditorSurface({
             setSections(draft.sections?.length > 0 ? draft.sections : [createDefaultSection(0)]);
             setDraftId(draft.id || initialDraftId || null);
             setPublishedTestId((draft as THCSDraft & { publishedTestId?: string }).publishedTestId || null);
-            setParsedMetadataProposal(null);
             setIsDirty(false);
         }
     }, [draft, initialDraftId]);
@@ -349,14 +264,10 @@ export function THCSTestEditorSurface({
         onDirtyChange?.(isDirty);
     }, [isDirty, onDirtyChange]);
 
-    const displayStep = currentStep === 0 && setupMode === 'paste' ? 1 : currentStep;
-    const activeWizardSteps = currentStep === 0 && setupMode === 'paste'
-        ? PASTE_WIZARD_STEPS
-        : DEFAULT_WIZARD_STEPS;
-    const parsedMetadataConflicts = useMemo(
-        () => getParsedMetadataConflicts(metadata, parsedMetadataProposal),
-        [metadata, parsedMetadataProposal]
-    );
+    const displayStep = currentStep;
+    const activeWizardSteps = DEFAULT_WIZARD_STEPS;
+    const { writeText } = useClipboard();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
 
     useEffect(() => {
         onStepChange?.(displayStep);
@@ -366,6 +277,8 @@ export function THCSTestEditorSurface({
         onWideLayoutChange?.(currentStep === 1);
     }, [currentStep, onWideLayoutChange]);
 
+    useEffect(() => { onExpandedLayoutChange?.((currentStep === 0 && setupMode === 'paste') || currentStep >= 2); }, [currentStep, setupMode, onExpandedLayoutChange]);
+
     useEffect(() => {
         onStepConfigChange?.(activeWizardSteps);
     }, [activeWizardSteps, onStepConfigChange]);
@@ -374,31 +287,32 @@ export function THCSTestEditorSurface({
         setSetupMode('options');
         setPasteTextContent('');
         setParsedPasteData(null);
-        setReviewedPasteData(null);
         setIsPasteProcessing(false);
         setPasteErrorMessage(null);
-        setPromptCopied(false);
+
     }, []);
 
     const handleStartPasteText = useCallback(() => {
+        trackAction('thcsPasteTestOpened');
         setSetupMode('paste');
         setPasteErrorMessage(null);
-    }, []);
+    }, [trackAction]);
 
     const handleBackFromPasteSetup = useCallback(() => {
-        resetPasteFlow();
-    }, [resetPasteFlow]);
+        trackAction('thcsImportBack');
+        setSetupMode('options');
+    }, [trackAction]);
 
     const handleBackToPasteEditor = useCallback(() => {
+        trackAction('thcsImportBack');
         setParsedPasteData(null);
-        setReviewedPasteData(null);
         setPasteErrorMessage(null);
-    }, []);
+    }, [trackAction]);
 
     // Phase 3 Task 7.5: Handle template selection
     const handleTemplateSelect = useCallback((template: any) => {
+        trackAction('selectTemplate', { templateId: template.id });
         resetPasteFlow();
-        setParsedMetadataProposal(null);
         const templateSections: THCSSection[] = template.sections.map((spec: any, idx: number) => {
             const questions = Array.from({ length: spec.questionCount }, (_, qIdx) => ({
                 id: crypto.randomUUID(),
@@ -423,22 +337,16 @@ export function THCSTestEditorSurface({
         });
 
         setSections(templateSections);
-        setMetadata(prev => ({
-            ...prev,
-            gradeLevel: template.gradeLevel,
-            duration: template.totalDuration,
-            title: prev.title || `${template.name} — New Test`,
-        }));
-        setIsDirty(true);
+setIsDirty(true);
         setCurrentStep(1); // Jump to Questions step after applying template
         toast.success(`Applied template "${template.name}" with ${templateSections.length} sections.`);
-    }, [resetPasteFlow]);
+    }, [resetPasteFlow, trackAction]);
 
-    const handleParsedProceed = useCallback((finalParsed: any) => {
+    const handleParsedProceed = useCallback((finalParsed: any, resolution?: 'keep-source' | 'discard') => {
         try {
+            const draft = resolution ? resolveThcsImportAttention(finalParsed, pasteTextContent, resolution) : convertParsedToThcsDraft(finalParsed);
+            if (!draft.sections.some((section) => section.questions.length)) throw new Error('No editable questions remain.');
             resetPasteFlow();
-            const draft = convertParsedToThcsDraft(finalParsed);
-            setParsedMetadataProposal(buildParsedMetadataProposal(draft.metadata));
             const normalizedSections: THCSSection[] = (draft.sections || []).map((s: any, idx: number) => ({
                 ...createDefaultSection(idx),
                 ...s,
@@ -447,62 +355,60 @@ export function THCSTestEditorSurface({
             }));
             setSections(normalizedSections.length > 0 ? normalizedSections : [createDefaultSection(0)]);
             setIsDirty(true);
-            setCurrentStep(1); // Jump to Questions step after import
+            trackAction('thcsImportCompleted');
+            setCurrentStep(1); // Jump to Build Test after import
             const qCount = normalizedSections.reduce((sum, s) => sum + s.questions.length, 0);
             toast.success(`Imported ${normalizedSections.length} sections with ${qCount} questions from document.`);
         } catch (err) {
             console.error('Error converting parsed document:', err);
             toast.error('Could not convert parsed document to editor format.');
         }
-    }, [resetPasteFlow]);
-
-    const handleApplyParsedMetadata = useCallback(() => {
-        if (!parsedMetadataProposal) {
-            return;
-        }
-
-        setMetadata((prev) => ({ ...prev, ...parsedMetadataProposal }));
-        setParsedMetadataProposal(null);
-        setIsDirty(true);
-    }, [parsedMetadataProposal]);
-
-    const handleDismissParsedMetadataConflicts = useCallback(() => {
-        setParsedMetadataProposal(null);
-    }, []);
+    }, [resetPasteFlow, pasteTextContent, trackAction]);
 
     const handlePasteParse = useCallback(async () => {
         if (!pasteTextContent.trim()) return;
 
+        trackAction('thcsImportRequested');
         setIsPasteProcessing(true);
         setPasteErrorMessage(null);
 
         try {
             const result = await parseThcsText(pasteTextContent);
+            if (!mounted.current) return;
 
             if (result.success) {
-                setParsedPasteData(result.data);
-                setReviewedPasteData(result.data);
+                const issues = classifyThcsImportAttention(result.data, pasteTextContent);
+                if (issues.length) {
+                    setParsedPasteData(result.data);
+                    setImportResolution('keep-source');
+                    trackAction('thcsImportAttentionShown', { issueCount: issues.length });
+                } else {
+                    handleParsedProceed(result.data);
+                }
             } else {
-                setPasteErrorMessage(result.error || 'Parse failed with no error message');
+                setPasteErrorMessage('Could not import this test. Check the pasted content and try again.');
+                toast.error('Could not import this test. Check the pasted content and try again.');
+                trackAction('thcsImportFailed');
             }
         } catch (err) {
+            if (!mounted.current) return;
             console.error('[PasteText] Parse exception:', err);
-            setPasteErrorMessage(err instanceof Error ? err.message : 'Unknown error');
+            setPasteErrorMessage('Could not import this test. Your pasted content is still here; try again.');
+            toast.error('Could not import this test. Your pasted content is still here; try again.');
+            trackAction('thcsImportFailed');
         } finally {
-            setIsPasteProcessing(false);
+            if (mounted.current) setIsPasteProcessing(false);
         }
-    }, [pasteTextContent]);
+    }, [pasteTextContent, handleParsedProceed, trackAction]);
 
     const handleCopyExtractionPrompt = useCallback(async () => {
-        try {
-            await navigator.clipboard.writeText(thcsExtractionPrompt);
-            setPromptCopied(true);
-            setTimeout(() => setPromptCopied(false), 2000);
-        } catch {
-            toast.error('Could not copy the prompt. Please copy manually.');
+        trackAction('thcsExtractionPromptCopied');
+        if (await writeText(thcsExtractionPrompt)) {
+            toast.success('Copied extraction prompt.');
+        } else {
+            toast.error('Could not copy the extraction prompt. Try again.');
         }
-    }, []);
-
+    }, [writeText, trackAction]);
     // ─── Auto-Save ──────────────────────────────────────────────
     const autoSaveData = useMemo(() => ({
         metadata,
@@ -516,7 +422,7 @@ export function THCSTestEditorSurface({
         data: autoSaveData,
         isDirty,
     });
-    const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
+
 
     // ─── Validation ─────────────────────────────────────────────
     const { metadataErrors, errors, warnings, isValid } = useThcsValidation({ metadata, sections });
@@ -871,10 +777,12 @@ export function THCSTestEditorSurface({
     const handleNext = () => {
         if (currentStep === 0 && !guardStep1Metadata()) return;
         if (currentStep === 1 && !guardStep2MissingVisualImages()) return;
+        trackAction('thcsWizardStepChanged', { step: currentStep + 1 });
         if (currentStep < 3) setCurrentStep(currentStep + 1);
     };
 
     const handleBack = () => {
+        trackAction('thcsWizardStepChanged', { step: currentStep - 1 });
         if (currentStep > 0) setCurrentStep(currentStep - 1);
     };
 
@@ -882,120 +790,43 @@ export function THCSTestEditorSurface({
         if (isEditMode || step <= currentStep) {
             if (currentStep === 0 && step > 0 && !guardStep1Metadata()) return;
             if (currentStep === 1 && step > 1 && !guardStep2MissingVisualImages()) return;
+            if (isPasteProcessing || parsedPasteData) return;
+            trackAction('thcsWizardStepChanged', { step });
             setCurrentStep(step);
         }
     };
 
     const renderPasteTextStep = () => {
         if (parsedPasteData) {
-            return (
-                <THCSParseReviewPanel
-                    parsedTest={parsedPasteData}
-                    onBack={handleBackToPasteEditor}
-                    onProceed={handleParsedProceed}
-                    onChange={setReviewedPasteData}
-                    showActions={false}
-                />
-            );
+            const discardDraft = resolveThcsImportAttention(parsedPasteData, pasteTextContent, 'discard');
+            return <THCSImportAttentionPanel
+                canDiscard={discardDraft.sections.some((section) => section.questions.length > 0)}
+                resolution={importResolution}
+                onResolutionChange={(resolution) => {
+                    trackAction('thcsImportResolutionSelected', { resolution });
+                    setImportResolution(resolution);
+                }}
+            />;
         }
-
-        const nonEmptyLineCount = pasteTextContent
-            ? pasteTextContent.split('\n').filter((line) => line.trim()).length
-            : 0;
-
         return (
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem',
-                minHeight: 0,
-            }}>
-                <div>
-                    <h2 style={{ color: '#1e293b', margin: '0 0 0.25rem', fontSize: '1.125rem', fontWeight: 700 }}>
-                        Paste Test Content
-                    </h2>
-                    <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>
-                        Import structured THCS content into the shared creation flow, then continue directly into Questions.
-                    </p>
-                </div>
-
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    padding: '0.875rem 1rem',
-                    background: 'linear-gradient(135deg, #f0f4ff 0%, #ede9fe 100%)',
-                    borderRadius: '0.875rem',
-                    border: '1px solid rgba(139,92,246,0.15)',
-                }}>
-                    <span style={{ fontSize: '1.25rem' }}>🤖</span>
-                    <div style={{ flex: 1 }}>
-                        <p style={{ color: '#1e293b', fontSize: '0.875rem', fontWeight: 600, margin: 0 }}>
-                            Copy the extraction prompt, run it with your test images, then paste the AI output here.
-                        </p>
-                        <p style={{ color: '#64748b', fontSize: '0.75rem', margin: '0.25rem 0 0' }}>
-                            This keeps the full test-making process inside one modal flow.
-                        </p>
+            <div className="thcs-import">
+                <h2>Paste Test</h2>
+                <div className="thcs-import__card" aria-busy={isPasteProcessing}>
+                    <div className="thcs-import__prompt">
+                        <Button variant="glass" onClick={handleCopyExtractionPrompt} disabled={isPasteProcessing}
+                            title="Copies the extraction prompt used to prepare source images or documents before pasting the result here.">
+                            Copy extraction prompt
+                        </Button>
                     </div>
-                    <Button variant="primary" onClick={handleCopyExtractionPrompt}>
-                        {promptCopied ? 'Copied' : 'Copy Prompt'}
-                    </Button>
-                </div>
-
-                <textarea
-                    value={pasteTextContent}
-                    onChange={(e) => setPasteTextContent(e.target.value)}
-                    placeholder={`I. MULTIPLE CHOICE QUESTIONS\nMark the letter A, B, C or D...\n\nQuestion 1. We all wanted to ______ in the contest.\nA. take off\nB. take part\nC. take out\nD. take over\n\n...\n\nVI. ANSWER KEY\n1 B\n2 C\n...`}
-                    style={{
-                        width: '100%',
-                        minHeight: '320px',
-                        padding: '1rem',
-                        border: '1.5px solid #cbd5e1',
-                        borderRadius: '0.875rem',
-                        fontSize: '0.875rem',
-                        fontFamily: 'monospace',
-                        color: '#1e293b',
-                        resize: 'vertical',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        lineHeight: 1.6,
-                        background: '#fff',
-                    }}
-                    onFocus={(e) => { e.target.style.borderColor = '#8b5cf6'; }}
-                    onBlur={(e) => { e.target.style.borderColor = '#cbd5e1'; }}
-                />
-
-                {pasteErrorMessage && (
-                    <div style={{
-                        padding: '0.875rem 1rem',
-                        background: '#fee2e2',
-                        color: '#b91c1c',
-                        borderRadius: '0.75rem',
-                        border: '1px solid #f87171',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                    }}>
-                        ⚠️ {pasteErrorMessage}
-                    </div>
-                )}
-
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '1rem',
-                }}>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
-                        {nonEmptyLineCount > 0 ? `${nonEmptyLineCount} lines ready to parse` : 'Paste content to continue'}
-                    </span>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
-                        The parser will detect sections, question types, and answer keys.
-                    </span>
+                    <textarea aria-label="Test source" value={pasteTextContent} disabled={isPasteProcessing}
+                        onChange={(event) => { setPasteTextContent(event.target.value); setIsDirty(true); }}
+                        placeholder="Paste extracted test text here…" />
+                    {isPasteProcessing && <div className="thcs-import__pending" role="status">Parsing…</div>}
+                    {pasteErrorMessage && <p role="alert" className="thcs-import__error">{pasteErrorMessage}</p>}
                 </div>
             </div>
         );
     };
-
     // ─── Render Active Step ─────────────────────────────────────
     const renderStep = () => {
         switch (currentStep) {
@@ -1004,6 +835,7 @@ export function THCSTestEditorSurface({
                     ? renderPasteTextStep()
                     : (
                         <THCSSetupStep
+                            onAction={trackAction}
                             metadata={metadata}
                             isPublic={isPublic}
                             isEditMode={isEditMode}
@@ -1017,8 +849,8 @@ export function THCSTestEditorSurface({
                             }}
                             onStartBlank={() => {
                                 if (!guardStep1Metadata()) return;
+                                trackAction('thcsStartBlank');
                                 resetPasteFlow();
-                                setParsedMetadataProposal(null);
                                 setCurrentStep(1);
                             }}
                         />
@@ -1028,7 +860,6 @@ export function THCSTestEditorSurface({
                     <THCSQuestionsStep
                         sections={sections}
                         draftId={draftId}
-                        metadata={metadata}
                         onSectionUpdate={handleSectionUpdate}
                         onSectionDelete={handleSectionDelete}
                         onSectionMove={handleSectionMove}
@@ -1069,9 +900,6 @@ export function THCSTestEditorSurface({
                         onDuplicate={handleDuplicate}
                         onSetShowPublishWarnings={setShowPublishWarnings}
                         onIsPublicChange={handleIsPublicChange}
-                        parsedMetadataConflicts={parsedMetadataConflicts}
-                        onApplyParsedMetadata={handleApplyParsedMetadata}
-                        onDismissParsedMetadataConflicts={handleDismissParsedMetadataConflicts}
                     />
                 );
             default:
@@ -1085,8 +913,8 @@ export function THCSTestEditorSurface({
     //   Step 1: ← Back: Setup | Save Draft | Next: Answer Key →
     //   Step 2: ← Back: Questions | Next: Review →
     //   Step 3: ← Back: Answer Key (no Next — actions in step)
-    const stepBackLabels = ['', '← Back: Setup', '← Back: Questions', '← Back: Answer Key'];
-    const stepNextLabels = ['Next: Questions →', 'Next: Answer Key →', 'Next: Review →', ''];
+    const stepBackLabels = ['', '← Back: Setup', '← Back: Build Test', '← Back: Answer Key'];
+    const stepNextLabels = ['Next: Build Test →', 'Next: Answer Key →', 'Next: Review →', ''];
 
     const renderFooter = () => (
         <>
@@ -1095,9 +923,10 @@ export function THCSTestEditorSurface({
                     setupMode === 'paste' ? (
                         <Button
                             variant="glass"
+                            disabled={isPasteProcessing}
                             onClick={parsedPasteData ? handleBackToPasteEditor : handleBackFromPasteSetup}
                         >
-                            {parsedPasteData ? '← Back: Paste Text' : '← Back: Setup'}
+                            {parsedPasteData ? '← Back: Paste Test' : '← Back: Setup'}
                         </Button>
                     ) : (
                         <Button variant="glass" onClick={onExit}>Cancel</Button>
@@ -1113,9 +942,9 @@ export function THCSTestEditorSurface({
                         parsedPasteData ? (
                             <Button
                                 variant="primary"
-                                onClick={() => handleParsedProceed(reviewedPasteData || parsedPasteData)}
+                                onClick={() => { trackAction('thcsImportResolved', { resolution: importResolution }); handleParsedProceed(parsedPasteData, importResolution); }}
                             >
-                                Continue to Questions →
+                                Continue to Studio →
                             </Button>
                         ) : (
                             <Button
@@ -1123,7 +952,7 @@ export function THCSTestEditorSurface({
                                 onClick={handlePasteParse}
                                 disabled={!pasteTextContent.trim() || isPasteProcessing}
                             >
-                                {isPasteProcessing ? 'Parsing...' : 'Parse & Review'}
+                                {isPasteProcessing ? 'Parsing…' : 'Parse Test'}
                             </Button>
                         )
                     )}
@@ -1134,7 +963,7 @@ export function THCSTestEditorSurface({
 
                     {/* Preview button on Steps 1 and 2 (Amendment G4) */}
                     {setupMode !== 'paste' && (currentStep === 1 || currentStep === 2) && (
-                        <Button variant="glass" onClick={() => setShowPreview(true)}>👁️ Preview</Button>
+                        <Button variant="glass" onClick={() => { trackAction('thcsPreviewOpened'); setShowPreview(true); }}>👁️ Preview</Button>
                     )}
 
                     {setupMode !== 'paste' && currentStep < 3 && (
@@ -1197,6 +1026,7 @@ export function THCSTestEditorSurface({
         <>
             <THCSWizardLayout
                 currentStep={displayStep}
+                contentKey={currentStep === 0 ? setupMode + Boolean(parsedPasteData) : currentStep}
                 isEditMode={isEditMode}
                 onStepChange={handleStepChange}
                 saveStatusText={saveStatusText}

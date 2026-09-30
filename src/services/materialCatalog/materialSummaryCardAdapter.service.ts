@@ -1,5 +1,6 @@
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import type { MaterialSummary } from './materialSummaryPort.service';
+import { resolveLegacyTestTypeLabelFromMaterialTestTypeIds } from './materialTestTypeMapping.service';
 
 const displaySkill = (skillId: string | undefined): string =>
   skillId
@@ -7,8 +8,7 @@ const displaySkill = (skillId: string | undefined): string =>
     : 'General';
 
 const displayTestType = (summary: MaterialSummary): string =>
-  String(summary.primaryTestTypeId ?? summary.testTypeIds[0] ?? 'Custom')
-    .toUpperCase();
+  resolveLegacyTestTypeLabelFromMaterialTestTypeIds([summary.primaryTestTypeId, ...summary.testTypeIds], 'Custom');
 
 export const adaptMaterialSummaryToTeacherCard = (
   summary: MaterialSummary,

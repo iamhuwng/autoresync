@@ -39,6 +39,9 @@ export function useThcsValidation({
 
         // Section-level
         sections.forEach((section) => {
+            if (section.importSourceNeedsReview) {
+                errors.push(`Review the preserved source in Build Test before publishing section "${section.name}".`);
+            }
             if (section.questions.length === 0) {
                 errors.push(`Section "${section.name}" has no questions.`);
             }
@@ -143,6 +146,7 @@ export function useThcsValidation({
         }
 
         sections.forEach((section) => {
+
             if (section.totalPoints === 0 && section.questions.length > 0) {
                 warnings.push(`⚠️ Section "${section.name}" has 0 points — questions will earn 0 regardless of answers.`);
             }

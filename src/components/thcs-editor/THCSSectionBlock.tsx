@@ -15,6 +15,7 @@ import { ALL_INSTRUCTION_TEMPLATES } from '../../types/thcs-test.types';
 import THCSQuestionBlock from './THCSQuestionBlock';
 import { THCSBulkPasteModal } from './THCSBulkPasteModal';
 import { Button } from '../modern';
+import { toast } from '../modern/ToastNotification';
 import './THCSSectionBlock.css';
 
 const QUESTION_BATCH_SIZE = 20;
@@ -118,6 +119,8 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
 
     const isRawFallback = section.isRawTextFallback === true
         || section.questions.some(q => q.type === 'raw-text-fallback');
+
+    const rawText = section.rawText ?? section.questions.filter(q => q.type === 'raw-text-fallback').map(q => q.questionText).join('\n');
 
     const hasReadingIntents = section.questions.some(q => READING_INTENTS.includes(q.type));
 
@@ -281,7 +284,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                 {/* Task 11.2: Mixed question type warning */}
                 {(() => {
                     const uniqueTypes = new Set(section.questions.map(q => q.type));
-                    if (uniqueTypes.size > 1) {
+                    if (uniqueTypes.size > 1 && !section.isCustomInstruction) {
                         return (
                             <div style={{
                                 padding: '0.5rem 0.75rem',
@@ -295,7 +298,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                 color: '#92400e',
                             }}>
                                 <span>⚠️</span>
-                                <span>This section has mixed question types — the auto-generated instruction may not be accurate. Consider writing a custom instruction.</span>
+                                <span>Needs review — check the instruction for these question types.</span>
                             </div>
                         );
                     }
@@ -465,11 +468,19 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                 display: 'flex', alignItems: 'center', gap: '0.5rem',
                                 fontSize: '0.8125rem', color: '#92400e', fontWeight: 600,
                             }}>
-                                <span>⚠️</span>
-                                <span>Manual review required — this section uses raw text fallback</span>
+                                {section.importSourceNeedsReview !== false ? 'Needs review — check and complete the question structure' : 'Source text'}
                             </div>
                             <button
-                                onClick={() => setEditingRawText(!editingRawText)}
+                                onClick={() => {
+                                    if (editingRawText) {
+                                        onUpdate({ ...section, importSourceNeedsReview: false });
+                                        onTrackAction?.('thcsImportSourceReviewed', { sectionId: section.id });
+                                        toast.success('Source text reviewed.');
+                                    } else {
+                                        onTrackAction?.('thcsImportSourceEdit', { sectionId: section.id });
+                                    }
+                                    setEditingRawText(!editingRawText);
+                                }}
                                 style={{
                                     padding: '0.25rem 0.5rem', border: '1px solid rgba(251,191,36,0.3)',
                                     borderRadius: '0.375rem', background: editingRawText ? 'rgba(251,191,36,0.15)' : 'transparent',
@@ -477,14 +488,28 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                     cursor: 'pointer',
                                 }}
                             >
-                                {editingRawText ? '💾 Done' : '✏️ Edit'}
+                                {editingRawText ? 'Use edited text' : 'Edit text'}
                             </button>
                         </div>
+                        {section.importSourceNeedsReview && (
+                            <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#92400e' }}>
+                                Remove answers and duplicated content before using this text.
+                            </p>
+                        )}
                         {editingRawText ? (
                             <textarea
                                 className="thcs-section-textarea"
-                                value={section.rawText || ''}
-                                onChange={(e) => onUpdate({ ...section, rawText: e.target.value })}
+                                aria-label="Section source text"
+                                value={rawText}
+                                onChange={(e) => {
+                                    const text = e.target.value;
+                                    onUpdate({
+                                        ...section, rawText: text,
+                                        importSourceNeedsReview: true,
+                                        questions: section.questions.map(q => q.type === 'raw-text-fallback'
+                                            ? { ...q, questionText: text } : q),
+                                    });
+                                }}
                                 rows={6}
                                 placeholder="Raw text from the original document..."
                             />
@@ -501,7 +526,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                 maxHeight: '300px',
                                 overflowY: 'auto',
                             }}>
-                                {section.rawText || '(No raw text stored)'}
+                                {rawText || '(No source text stored)'}
                             </div>
                         )}
                     </div>
@@ -531,7 +556,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                         });
                     }}
                 >
-                    <SortableContext items={visibleQuestions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                    <SortableContext items={visibleQuestions.filter(q => q.type !== 'raw-text-fallback').map(q => q.id)} strategy={verticalListSortingStrategy}>
                         <div
                             ref={questionListRef}
                             className="thcs-question-list"
@@ -540,7 +565,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                             onScroll={handleQuestionListScroll}
                         >
                             <div className="thcs-question-list__items">
-                                {visibleQuestions.map((q, qi) => (
+                                {visibleQuestions.map((q, qi) => q.type === 'raw-text-fallback' ? null : (
                                     <SortableQuestionItem key={q.id} id={q.id}>
                                         <THCSQuestionBlock
                                             question={q}
@@ -568,8 +593,8 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                     </div>
                 )}
 
-                {/* Add Question buttons */}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {/* Raw source is edited above; its carrier is not a structured question. */}
+                {!isRawFallback && <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button
                         onClick={handleAddQuestion}
                         style={{
@@ -626,7 +651,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                     >
                         📋 Paste Questions
                     </button>
-                </div>
+                </div>}
             </div>
 
             {/* Delete Confirmation */}

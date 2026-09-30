@@ -1,10 +1,11 @@
 /**
- * THCSWizardLayout — Wraps the 4-step wizard with TeacherHeader + AppShell + stepper.
+ * THCSWizardLayout — Wraps the 4-step wizard with TeacherHeader and the shared stepper.
  * Provides consistent teacher view design language with the standard gradient background,
  * glassmorphism cards, and violet accent palette.
  */
-import React from 'react';
-import { AppShell } from '@mantine/core';
+import React, { useEffect, useRef } from 'react';
+import './THCSImportFlow.css';
+
 import { useAuth } from '../../hooks/useAuth';
 import { TeacherHeader } from '../navigation';
 import THCSWizardStepper, { WIZARD_STEPS, type WizardStep } from './THCSWizardStepper';
@@ -12,6 +13,7 @@ import THCSWizardStepper, { WIZARD_STEPS, type WizardStep } from './THCSWizardSt
 export interface THCSWizardLayoutProps {
     /** Current active step (0-indexed) */
     currentStep: number;
+    contentKey?: string | number;
     /** Whether teacher is editing an existing draft (enables free navigation) */
     isEditMode: boolean;
     /** Callback to change step */
@@ -30,6 +32,7 @@ export interface THCSWizardLayoutProps {
 
 const THCSWizardLayout: React.FC<THCSWizardLayoutProps> = ({
     currentStep,
+    contentKey,
     isEditMode,
     onStepChange,
     saveStatusText,
@@ -48,6 +51,9 @@ const THCSWizardLayout: React.FC<THCSWizardLayoutProps> = ({
                 ? '#ef4444'
                 : '#94a3b8';
 
+    const contentRef = useRef<HTMLDivElement>(null);
+    useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [currentStep, contentKey]);
+
     const isEmbedded = presentation === 'embedded';
 
     const wizardContent = isEmbedded ? (
@@ -57,7 +63,7 @@ const THCSWizardLayout: React.FC<THCSWizardLayoutProps> = ({
             flex: 1,
             minHeight: 0,
         }}>
-            <div style={{
+            <div ref={contentRef} style={{
                 flex: 1,
                 overflowY: 'auto',
                 minHeight: 0,
@@ -68,7 +74,7 @@ const THCSWizardLayout: React.FC<THCSWizardLayoutProps> = ({
             </div>
 
             {footer && (
-                <div style={{
+                <div className="thcs-wizard-footer" style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -104,7 +110,7 @@ const THCSWizardLayout: React.FC<THCSWizardLayoutProps> = ({
             </div>
 
             {footer && (
-                <div style={{
+                <div className="thcs-wizard-footer" style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -136,7 +142,7 @@ const THCSWizardLayout: React.FC<THCSWizardLayoutProps> = ({
             backgroundAttachment: presentation === 'page' ? 'fixed' : undefined,
         }}>
             {presentation === 'embedded' ? wizardContent : (
-                <AppShell padding="md">
+                <>
                     <TeacherHeader
                         pageTitle="THCS-THPT Test Editor"
                         userId={user?.uid}
@@ -147,10 +153,10 @@ const THCSWizardLayout: React.FC<THCSWizardLayoutProps> = ({
                         onLogout={logout}
                     />
 
-                    <AppShell.Main>
+                    <main>
                         {wizardContent}
-                    </AppShell.Main>
-                </AppShell>
+                    </main>
+                </>
             )}
 
             <style>{`

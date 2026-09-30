@@ -1,8 +1,7 @@
 /**
  * THCSAnswerKeyStep — Step 3 of the THCS Test Editor Wizard.
  * 
- * Progress bar with working "Auto-fill remaining" / "Clear all" /
- * "Bulk Input" (modal) action buttons, then the answer key panel.
+ * Answer progress, bulk input, and the answer correction panel.
  */
 import React, { useState, useMemo, useCallback } from 'react';
 import THCSAnswerKeyPanel from './THCSAnswerKeyPanel';
@@ -106,10 +105,11 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
         return result;
     }, [sections]);
 
-    const totalQuestions = sections.reduce((sum, s) => sum + s.questions.length, 0);
+    const totalQuestions = sections.reduce((sum, s) => sum + s.questions.filter(q => q.type !== 'raw-text-fallback').length, 0);
     const answeredCount = sections.reduce((sum, s) =>
         sum + s.questions.filter(q => {
             const t = q.type;
+            if (t === 'raw-text-fallback') return false;
             if (t === 'verb-form' || t === 'word-form') return (q.blankAnswers?.length || 0) > 0;
             if (t === 'sentence-rewrite' || t === 'sentence-rewrite-keyword') return (q.modelAnswers?.length || 0) > 0;
             if (t === 'reading-cloze-wordbank') return Object.keys(q.blankMapping || {}).length > 0;
@@ -117,16 +117,6 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
         }).length
         , 0);
     const percentage = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
-
-    // ── Auto-fill remaining MCQ with random answers ──
-    const handleAutoFill = useCallback(() => {
-        const unanswered = mcqQuestions.filter(q => !q.correctAnswer);
-        if (unanswered.length === 0) return;
-        unanswered.forEach(q => {
-            const randomAnswer = VALID_ANSWERS[Math.floor(Math.random() * 4)]!;
-            onUpdateAnswer(q.sectionIndex, q.questionIndex, randomAnswer);
-        });
-    }, [mcqQuestions, onUpdateAnswer]);
 
     // ── Clear all MCQ answers ──
     const handleClearAll = useCallback(() => {
@@ -150,10 +140,15 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
         setShowBulkModal(false);
     }, [mcqQuestions, onUpdateAnswer]);
 
-    const unansweredMcqCount = mcqQuestions.filter(q => !q.correctAnswer).length;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div>
+                <h2 style={{ margin: 0, fontSize: '1.125rem', color: '#1e293b' }}>Answer Key</h2>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#64748b' }}>
+                    Complete missing answers and verify the answer key before publishing.
+                </p>
+            </div>
             {/* Progress bar with action buttons */}
             <div style={{
                 background: 'rgba(255,255,255,0.85)',
@@ -177,17 +172,11 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
                         fontWeight: 700,
                         color: '#1e293b',
                     }}>
-                        {answeredCount}/{totalQuestions} answers completed
+                        {answeredCount}/{totalQuestions} answers completed · {totalQuestions - answeredCount} missing
                     </span>
 
                     {/* Right: working action buttons */}
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <ActionPill
-                            label={`Auto-fill remaining${unansweredMcqCount > 0 ? ` (${unansweredMcqCount})` : ''}`}
-                            onClick={handleAutoFill}
-                            disabled={unansweredMcqCount === 0}
-                            icon="🎲"
-                        />
                         <ActionPill
                             label="Clear all"
                             onClick={handleClearAll}

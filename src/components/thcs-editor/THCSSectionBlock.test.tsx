@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { THCSSection } from '../../types/thcs-test.types';
 import THCSSectionBlock from './THCSSectionBlock';
 
+vi.mock('../modern/ToastNotification', () => ({ toast: { success: vi.fn() } }));
 vi.mock('./THCSBulkPasteModal', () => ({ THCSBulkPasteModal: () => null }));
 vi.mock('./THCSQuestionBlock', () => ({
     default: ({ globalNumber, canMoveDown, onMoveDown }: {
@@ -174,4 +175,36 @@ describe('THCSSectionBlock question batching', () => {
         view.rerender(<THCSSectionBlock {...props} section={onUpdate.mock.lastCall?.[0] as THCSSection} />);
         expect(screen.getAllByTestId('question')).toHaveLength(46);
     });
+});
+
+
+it('requires deliberate source review and synchronizes the student text carrier', () => {
+    const onUpdate = vi.fn();
+    const onTrackAction = vi.fn();
+    const sourceSection = { ...section, importSourceNeedsReview: true, isRawTextFallback: true,
+        rawText: 'Question\nAnswer key: A',
+        questions: [{ id: 'raw', questionNumber: 1, type: 'raw-text-fallback',
+            questionText: 'Question\nAnswer key: A', options: ['', '', '', ''], correctAnswer: '' }],
+    } as THCSSection;
+    const props = { sectionIndex: 0, totalSections: 1, globalQuestionOffset: 0,
+        draftId: null, onUpdate, onTrackAction, onDelete: vi.fn(), onMoveUp: vi.fn(), onMoveDown: vi.fn() };
+    const view = render(<THCSSectionBlock {...props} section={sourceSection} />);
+    expect(screen.queryByTestId('question')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ Add Question' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit text' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Section source text' }), { target: { value: 'Question' } });
+    const edited = onUpdate.mock.lastCall?.[0] as THCSSection;
+    expect(edited.importSourceNeedsReview).toBe(true);
+    expect(edited.rawText).toBe('Question');
+    expect(edited.questions[0]?.questionText).toBe('Question');
+    view.rerender(<THCSSectionBlock {...props} section={edited} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Use edited text' }));
+    expect(onUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ importSourceNeedsReview: false }));
+    expect(onTrackAction).toHaveBeenCalledWith('thcsImportSourceReviewed', { sectionId: section.id });
+    const reviewed = onUpdate.mock.lastCall?.[0] as THCSSection;
+    view.rerender(<THCSSectionBlock {...props} section={reviewed} />);
+    expect(screen.queryByText(/Needs review/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit text' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Section source text' }), { target: { value: 'New question' } });
+    expect(onUpdate.mock.lastCall?.[0].importSourceNeedsReview).toBe(true);
 });

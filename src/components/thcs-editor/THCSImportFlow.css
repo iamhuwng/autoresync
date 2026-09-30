@@ -1,0 +1,22 @@
+.thcs-import { color: #1f2937; }
+.thcs-import h2 { font-size: 1.25rem; margin: 0 0 20px; }
+.thcs-import__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.thcs-import__heading span { font-size: 12px; color: #92400e; }
+.thcs-import__card { max-width: 860px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.thcs-import__prompt { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.thcs-import textarea { width: 100%; min-height: 360px; padding: 14px; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 6px; resize: vertical; font: 14px/1.6 monospace; color: #1f2937; background: #fff; }
+.thcs-import textarea:focus-visible, .thcs-import button:focus-visible { outline: 2px solid #6757d9; outline-offset: 2px; }
+.thcs-import textarea:disabled { opacity: .7; }
+.thcs-import__pending { margin-top: 12px; color: #6757d9; font-weight: 600; }
+.thcs-import__error { color: #b91c1c; margin-bottom: 0; }
+.thcs-import__attention { max-width: 760px; }
+.thcs-import__attention h3 { font-size: 15px; margin: 0 0 8px; }
+.thcs-import__attention p { font-size: 14px; color: #64748b; margin: 0; }
+.thcs-import__choices { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.thcs-import__choices button { min-height: 44px; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; cursor: pointer; }
+.thcs-import__choices button[aria-pressed="true"] { border-color: #6757d9; background: #f0edff; color: #5646c7; }
+.thcs-import__choices button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 600px) { .thcs-import__card { padding: 12px; } .thcs-import textarea { min-height: 280px; } .thcs-import__heading { flex-wrap: wrap; } }
+.thcs-review-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.25rem; align-items: start; }
+@media (max-width: 700px) { .thcs-review-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) { .thcs-studio-layout { flex-direction: column; } .thcs-studio-sidebar { width: 100% !important; box-sizing: border-box; position: static !important; max-height: 200px !important; } .thcs-wizard-footer { flex-wrap: wrap; gap: 8px; } .thcs-wizard-footer > div:last-child { width: 100%; min-width: 0; } .thcs-wizard-footer > div:last-child > div:first-child { flex-wrap: wrap; justify-content: flex-end; } }

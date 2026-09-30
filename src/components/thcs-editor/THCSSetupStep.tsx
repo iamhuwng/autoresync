@@ -1,18 +1,8 @@
-/**
- * THCSSetupStep — Step 1 of the THCS Test Editor Wizard.
- * 
- * Pixel-perfect mockup match: Clean metadata (Title, Grade+ExamType, Duration pills),
- * collapsible "▸ Advanced Settings", Quick Start row (no descriptions).
- */
 import React, { useState } from 'react';
-import {
-    TextInput, Select,
-    Textarea, TagsInput, Switch,
-    Collapse,
-} from '@mantine/core';
 import { THCSTemplatePicker } from './THCSTemplatePicker';
 import type { THCSTestMetadata } from '../../types/thcs-test.types';
 import { DURATION_PRESETS, GRADE_LEVELS, EXAM_TYPE_OPTIONS } from '../../types/thcs-test.types';
+import './THCSSetupStep.css';
 
 export interface THCSSetupStepProps {
     metadata: THCSTestMetadata;
@@ -25,514 +15,115 @@ export interface THCSSetupStepProps {
     onParsedProceed?: (finalParsed: any) => void;
     onStartBlank?: () => void;
     onStartPasteText?: () => void;
+    onAction?: (action: string, metadata?: Record<string, unknown>) => void;
 }
 
-const gradeData = (GRADE_LEVELS || [6, 7, 8, 9, 10, 11, 12]).map(g => ({ value: g.toString(), label: `Grade ${g}` }));
-const examTypeData = (EXAM_TYPE_OPTIONS || ['giữa kì', 'cuối kì', 'thi vào 10', 'ôn tập']).map(e => ({ value: e, label: e }));
-
-const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
-    metadata,
-    isPublic,
-    isEditMode,
-    onMetadataChange,
-    onIsPublicChange,
-    onTemplateSelect,
-    onStartBlank,
-    onStartPasteText,
-}) => {
+const THCSSetupStep: React.FC<THCSSetupStepProps> = ({ metadata, isPublic, isEditMode,
+    onMetadataChange, onIsPublicChange, onTemplateSelect, onStartBlank, onStartPasteText, onAction }) => {
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+    const [tagInput, setTagInput] = useState('');
+    const addTag = () => {
+        const tag = tagInput.trim();
+        if (tag && !metadata.tags?.includes(tag)) onMetadataChange('tags', [...(metadata.tags || []), tag]);
+        setTagInput('');
+    };
 
-    const selectedDuration = metadata.duration;
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: isEditMode ? 0 : '0.75rem' }}>
-            {/* ─── Main Metadata Card ─── */}
-            <div style={{
-                background: 'rgba(255,255,255,0.55)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                borderRadius: '1rem',
-                border: '1px solid rgba(148,163,184,0.2)',
-                padding: '1.5rem 2rem',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.06)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.95rem',
-            }}>
-                {/* Test Title — bold label, no asterisk (mockup style) */}
-                <div>
-                    <label style={{
-                        display: 'block',
-                        fontSize: '0.9375rem',
-                        fontWeight: 700,
-                        color: '#1e293b',
-                        marginBottom: '0.375rem',
-                    }}>
-                        Test Title
+    return <div className="thcs-setup">
+        <div className="thcs-setup-fields">
+            <label className="thcs-setup-field">Test Title
+                <input type="text" placeholder="Đề kiểm tra giữa kì 1 — Tiếng Anh 9" maxLength={200}
+                    value={metadata.title} onChange={e => onMetadataChange('title', e.target.value)} />
+            </label>
+            <div className="thcs-setup-grid">
+                <label className="thcs-setup-field">Grade Level
+                    <select value={metadata.gradeLevel?.toString() || ''}
+                        onChange={e => onMetadataChange('gradeLevel', Number(e.target.value) as THCSTestMetadata['gradeLevel'])}>
+                        <option value="" disabled>Select grade</option>
+                        {GRADE_LEVELS.map(grade => <option key={grade} value={grade}>Grade {grade}</option>)}
+                    </select>
+                </label>
+                <label className="thcs-setup-field">Exam Type
+                    <select value={metadata.examType || ''} onChange={e => onMetadataChange('examType', e.target.value)}>
+                        <option value="" disabled>Select exam type</option>
+                        {EXAM_TYPE_OPTIONS.map(exam => <option key={exam} value={exam}>{exam}</option>)}
+                    </select>
+                </label>
+            </div>
+            <div className="thcs-setup-divider" />
+            <fieldset className="thcs-setup-duration">
+                <legend>Duration</legend>
+                <div className="thcs-setup-duration-row">
+                    {DURATION_PRESETS.map(duration => <button type="button" key={duration}
+                        aria-pressed={metadata.duration === duration} onClick={() => onMetadataChange('duration', duration)}>
+                        {duration}m
+                    </button>)}
+                    <label className="thcs-setup-custom">Custom
+                        <input type="number" min={5} max={300} step={5} aria-label="Custom duration in minutes"
+                            value={!DURATION_PRESETS.includes(metadata.duration as any) ? metadata.duration : ''}
+                            onChange={e => { const value = Number(e.target.value); if (value > 0) onMetadataChange('duration', value); }} />
+                        <span>min</span>
                     </label>
-                    <input
-                        type="text"
-                        placeholder="Đề kiểm tra giữa kì 1 — Tiếng Anh 9"
-                        maxLength={200}
-                        value={metadata.title}
-                        onChange={(e) => onMetadataChange('title', e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '0.625rem 0.875rem',
-                            border: '1.5px solid #cbd5e1',
-                            borderRadius: '0.5rem',
-                            fontSize: '0.9375rem',
-                            color: '#1e293b',
-                            background: '#fff',
-                            outline: 'none',
-                            transition: 'border-color 0.2s',
-                            boxSizing: 'border-box',
-                        }}
-                        onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                        onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                    />
                 </div>
-
-                {/* Divider */}
-                <div style={{ height: 1, background: '#f1f5f9' }} />
-
-                {/* Grade Level + Exam Type row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            fontSize: '0.9375rem',
-                            fontWeight: 700,
-                            color: '#1e293b',
-                            marginBottom: '0.375rem',
-                        }}>Grade Level</label>
-                        <Select
-                            placeholder="Select grade"
-                            data={gradeData}
-                            value={metadata.gradeLevel?.toString() || null}
-                            onChange={(val) => onMetadataChange('gradeLevel', val ? parseInt(val, 10) as any : 6)}
-                            styles={{
-                                input: {
-                                    border: '1.5px solid #cbd5e1',
-                                    borderRadius: '0.5rem',
-                                    fontSize: '0.9375rem',
-                                    padding: '0.625rem 0.875rem',
-                                    height: 'auto',
-                                },
-                            }}
-                        />
+            </fieldset>
+            <button type="button" className="thcs-setup-disclosure" aria-expanded={advancedOpen} aria-controls="thcs-setup-advanced"
+                onClick={() => { onAction?.('thcsSetupAdvancedToggled', { expanded: !advancedOpen }); setAdvancedOpen(!advancedOpen); }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ transform: advancedOpen ? 'rotate(90deg)' : undefined }}>
+                    <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>Advanced Settings
+            </button>
+            <div id="thcs-setup-advanced" hidden={!advancedOpen}>
+                <div className="thcs-setup-advanced-fields">
+                    <label className="thcs-setup-field">Timer Mode
+                        <select value={metadata.timerMode || 'strict'}
+                            onChange={e => onMetadataChange('timerMode', e.target.value as THCSTestMetadata['timerMode'])}>
+                            <option value="strict">Strict — auto-submit at 0:00</option>
+                            <option value="informational">Informational — timer shown, no auto-submit</option>
+                            <option value="none">None — no timer displayed</option>
+                        </select>
+                    </label>
+                    <div className="thcs-setup-grid">
+                        <label className="thcs-setup-field">Subject Variant<input placeholder="e.g., Global Success" value={metadata.subjectVariant || ''}
+                            onChange={e => onMetadataChange('subjectVariant', e.target.value || undefined)} /></label>
+                        <label className="thcs-setup-field">Province<input placeholder="e.g., Hà Nội" value={metadata.province || ''}
+                            onChange={e => onMetadataChange('province', e.target.value || undefined)} /></label>
                     </div>
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            fontSize: '0.9375rem',
-                            fontWeight: 700,
-                            color: '#1e293b',
-                            marginBottom: '0.375rem',
-                        }}>Exam Type</label>
-                        <Select
-                            placeholder="giữa kì"
-                            data={examTypeData}
-                            searchable
-                            value={metadata.examType || null}
-                            onChange={(val) => onMetadataChange('examType', val || '')}
-                            styles={{
-                                input: {
-                                    border: '1.5px solid #cbd5e1',
-                                    borderRadius: '0.5rem',
-                                    fontSize: '0.9375rem',
-                                    padding: '0.625rem 0.875rem',
-                                    height: 'auto',
-                                },
-                            }}
-                        />
-                    </div>
+                    <label className="thcs-setup-field">School<input placeholder="e.g., THCS Nguyễn Du" value={metadata.school || ''}
+                        onChange={e => onMetadataChange('school', e.target.value || undefined)} /></label>
+                    <label className="thcs-setup-field">Description<textarea placeholder="Optional description" rows={2} value={metadata.description || ''}
+                        onChange={e => onMetadataChange('description', e.target.value || undefined)} /></label>
+                    <label className="thcs-setup-field">Tags<input placeholder="Press Enter to add" value={tagInput}
+                        onChange={e => setTagInput(e.target.value)} onBlur={addTag}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} /></label>
+                    {!!metadata.tags?.length && <div className="thcs-setup-tags">{metadata.tags.map(tag => <button type="button" key={tag}
+                        aria-label={`Remove tag ${tag}`} onClick={() => onMetadataChange('tags', metadata.tags?.filter(value => value !== tag))}>{tag} ×</button>)}</div>}
+                    <label className="thcs-setup-public"><input type="checkbox" checked={isPublic} onChange={e => onIsPublicChange(e.target.checked)} />
+                        <span>Share in Public Library<small>Allow other teachers to use this test</small></span>
+                    </label>
                 </div>
-
-                {/* Duration with individual pill buttons (mockup-style) */}
-                <div>
-                    <label style={{
-                        display: 'block',
-                        fontSize: '0.9375rem',
-                        fontWeight: 700,
-                        color: '#1e293b',
-                        marginBottom: '0.5rem',
-                    }}>Duration</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        {DURATION_PRESETS.map(d => (
-                            <button
-                                type="button"
-                                key={d}
-                                onClick={() => onMetadataChange('duration', d)}
-                                style={{
-                                    minWidth: 44,
-                                    padding: '0.375rem 0.875rem',
-                                    border: selectedDuration === d ? '2px solid #8b5cf6' : '1.5px solid #cbd5e1',
-                                    borderRadius: '2rem',
-                                    background: selectedDuration === d
-                                        ? '#8b5cf6'
-                                        : '#fff',
-                                    color: selectedDuration === d ? '#fff' : '#475569',
-                                    fontSize: '0.8125rem',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s ease',
-                                }}
-                            >
-                                {d}m
-                            </button>
-                        ))}
-                        {/* Custom number input */}
-                        <div style={{ position: 'relative' }}>
-                            <input
-                                type="number"
-                                min={5}
-                                max={300}
-                                step={5}
-                                value={!DURATION_PRESETS.includes(selectedDuration as any) ? selectedDuration : ''}
-                                placeholder=""
-                                onChange={(e) => {
-                                    const v = parseInt(e.target.value, 10);
-                                    if (!isNaN(v) && v > 0) onMetadataChange('duration', v);
-                                }}
-                                style={{
-                                    width: 52,
-                                    padding: '0.375rem 0.5rem',
-                                    border: '1.5px solid #cbd5e1',
-                                    borderRadius: '0.5rem',
-                                    fontSize: '0.8125rem',
-                                    color: '#475569',
-                                    textAlign: 'center',
-                                    outline: 'none',
-                                    background: '#fff',
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Advanced Settings accordion */}
-                <button
-                    type="button"
-                    onClick={() => setAdvancedOpen(!advancedOpen)}
-                    aria-expanded={advancedOpen}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        padding: '0.375rem 0',
-                        border: 'none',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        fontSize: '0.9375rem',
-                        fontWeight: 700,
-                        color: '#334155',
-                    }}
-                >
-                    <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        aria-hidden="true"
-                        style={{
-                            transition: 'transform 0.2s',
-                            transform: advancedOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                            color: '#3b82f6',
-                            flexShrink: 0,
-                        }}
-                    >
-                        <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Advanced Settings
+            </div>
+        </div>
+        {!isEditMode && <section className="thcs-setup-start" aria-label="Start from">
+            <h3>Start from</h3>
+            <div className="thcs-setup-start-grid">
+                <button type="button" className="thcs-setup-start-card" onClick={() => { onAction?.('thcsSetupTemplateOpened'); setShowTemplatePicker(true); }}>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2" stroke="currentColor" strokeWidth="1.6" /><path d="M9 8h6M9 12h6M9 16h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+                    <strong>Template</strong><span>Reuse a saved test structure.</span>
+                </button>
+                <button type="button" className="thcs-setup-start-card" onClick={onStartPasteText}>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    <strong>Paste Test</strong><span>Paste extracted content and open it in Studio.</span>
+                </button>
+                <button type="button" className="thcs-setup-start-card" onClick={onStartBlank}>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+                    <strong>Start Blank</strong><span>Go straight to the full question builder.</span>
                 </button>
 
-                <Collapse in={advancedOpen}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
-                        {/* Timer Mode — icon card treatment like Quick Start */}
-                        <div>
-                            <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: '#334155' }}>
-                                Timer Mode
-                            </label>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                                <TimerModeCard
-                                    svgIcon={timerStrictIcon}
-                                    title="Strict"
-                                    description="Auto-submit at 0:00"
-                                    active={((metadata as any).timerMode || 'strict') === 'strict'}
-                                    onClick={() => onMetadataChange('timerMode' as any, 'strict')}
-                                />
-                                <TimerModeCard
-                                    svgIcon={timerInfoIcon}
-                                    title="Informational"
-                                    description="Timer shown, no auto-submit"
-                                    active={(metadata as any).timerMode === 'informational'}
-                                    onClick={() => onMetadataChange('timerMode' as any, 'informational')}
-                                />
-                                <TimerModeCard
-                                    svgIcon={timerNoneIcon}
-                                    title="None"
-                                    description="No timer displayed"
-                                    active={(metadata as any).timerMode === 'none'}
-                                    onClick={() => onMetadataChange('timerMode' as any, 'none')}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Subject Variant + Province */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <TextInput
-                                label="Subject Variant"
-                                placeholder="e.g., Global Success"
-                                value={metadata.subjectVariant || ''}
-                                onChange={(e) => onMetadataChange('subjectVariant', e.target.value || undefined)}
-                                styles={{ input: { border: '1.5px solid #cbd5e1', borderRadius: '0.5rem' } }}
-                            />
-                            <TextInput
-                                label="Province"
-                                placeholder="e.g., Hà Nội"
-                                value={metadata.province || ''}
-                                onChange={(e) => onMetadataChange('province', e.target.value || undefined)}
-                                styles={{ input: { border: '1.5px solid #cbd5e1', borderRadius: '0.5rem' } }}
-                            />
-                        </div>
-
-                        {/* School */}
-                        <TextInput
-                            label="School"
-                            placeholder="e.g., THCS Nguyễn Du"
-                            value={metadata.school || ''}
-                            onChange={(e) => onMetadataChange('school', e.target.value || undefined)}
-                            styles={{ input: { border: '1.5px solid #cbd5e1', borderRadius: '0.5rem' } }}
-                        />
-
-                        {/* Description */}
-                        <Textarea
-                            label="Description"
-                            placeholder="Optional description"
-                            autosize
-                            minRows={2}
-                            value={metadata.description || ''}
-                            onChange={(e) => onMetadataChange('description', e.target.value || undefined)}
-                            styles={{ input: { border: '1.5px solid #cbd5e1', borderRadius: '0.5rem' } }}
-                        />
-
-                        {/* Tags */}
-                        <TagsInput
-                            label="Tags"
-                            placeholder="Press Enter to add"
-                            value={metadata.tags || []}
-                            onChange={(val) => onMetadataChange('tags', val)}
-                            styles={{ input: { border: '1.5px solid #cbd5e1', borderRadius: '0.5rem' } }}
-                        />
-
-                        {/* Public toggle */}
-                        <Switch
-                            label="Share in Public Library"
-                            description="Allow other teachers to use this test"
-                            checked={isPublic}
-                            onChange={(e) => onIsPublicChange(e.currentTarget.checked)}
-                            color="violet"
-                        />
-                    </div>
-                </Collapse>
             </div>
-
-            {/* ─── Quick Start Row (new tests only) ─── */}
-            {!isEditMode && (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gap: '0.75rem',
-                    marginBottom: '0.75rem',
-                }}>
-                    <QuickStartCard
-                        svgIcon={templateIcon}
-                        title="From Template"
-                        onClick={() => setShowTemplatePicker(true)}
-                        active={false}
-                    />
-
-                    <QuickStartCard
-                        svgIcon={pasteTextIcon}
-                        title="Paste Text"
-                        onClick={onStartPasteText}
-                        active={false}
-                    />
-                    <QuickStartCard
-                        svgIcon={blankIcon}
-                        title="Start Blank"
-                        onClick={onStartBlank}
-                        active={true}
-                    />
-                </div>
-            )}
-
-            {/* Template Picker Modal */}
-            <THCSTemplatePicker
-                opened={showTemplatePicker}
-                onClose={() => setShowTemplatePicker(false)}
-                onSelect={(template) => {
-                    setShowTemplatePicker(false);
-                    onTemplateSelect?.(template);
-                }}
-            />
-        </div>
-    );
+        </section>}
+        <THCSTemplatePicker opened={showTemplatePicker} onClose={() => { onAction?.('thcsSetupTemplateClosed'); setShowTemplatePicker(false); }}
+            onSelect={template => { setShowTemplatePicker(false); onTemplateSelect?.(template); }} />
+    </div>;
 };
-
-/* ── Quick Start Card (mockup-style: centered icon + title, no description) ── */
-const QuickStartCard: React.FC<{
-    svgIcon: string;
-    title: string;
-    onClick?: () => void;
-    active: boolean;
-}> = ({ svgIcon, title, onClick, active }) => (
-    <button
-        type="button"
-        onClick={onClick}
-        style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.625rem',
-            minHeight: 112,
-            padding: '1.25rem 0.875rem',
-            border: active
-                ? '2px solid #8b5cf6'
-                : '1px solid rgba(148,163,184,0.2)',
-            borderRadius: '1rem',
-            background: active
-                ? 'rgba(139,92,246,0.06)'
-                : 'rgba(255,255,255,0.5)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            textAlign: 'center',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
-        }}
-        onMouseOver={(e) => {
-            if (!active) {
-                e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 16px rgba(139,92,246,0.1)';
-            }
-        }}
-        onMouseOut={(e) => {
-            if (!active) {
-                e.currentTarget.style.borderColor = 'rgba(139,92,246,0.1)';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.03)';
-            }
-        }}
-    >
-        <div
-            style={{ width: 40, height: 40 }}
-            dangerouslySetInnerHTML={{ __html: svgIcon }}
-        />
-        <span style={{
-            fontSize: '0.875rem',
-            fontWeight: 700,
-            color: active ? '#8b5cf6' : '#1e293b',
-        }}>{title}</span>
-    </button>
-);
-
-/* ── Timer Mode Card (same visual as Quick Start) ── */
-const TimerModeCard: React.FC<{
-    svgIcon: string;
-    title: string;
-    description: string;
-    active: boolean;
-    onClick: () => void;
-}> = ({ svgIcon, title, description, active, onClick }) => (
-    <button
-        type="button"
-        onClick={onClick}
-        style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.375rem',
-            padding: '1rem 0.5rem',
-            border: active
-                ? '2px solid #8b5cf6'
-                : '1px solid rgba(148,163,184,0.2)',
-            borderRadius: '0.75rem',
-            background: active
-                ? 'rgba(139,92,246,0.06)'
-                : 'rgba(255,255,255,0.5)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            textAlign: 'center',
-            boxShadow: active ? '0 4px 16px rgba(139,92,246,0.1)' : '0 2px 8px rgba(0,0,0,0.03)',
-        }}
-    >
-        <div
-            style={{ width: 28, height: 28 }}
-            dangerouslySetInnerHTML={{ __html: svgIcon }}
-        />
-        <span style={{
-            fontSize: '0.8125rem',
-            fontWeight: 700,
-            color: active ? '#8b5cf6' : '#1e293b',
-        }}>{title}</span>
-        <span style={{
-            fontSize: '0.6875rem',
-            color: '#94a3b8',
-            lineHeight: 1.2,
-        }}>{description}</span>
-    </button>
-);
-
-/* ── Timer Mode SVG Icons ── */
-const timerStrictIcon = `<svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="14" cy="15" r="10" stroke="#8b5cf6" stroke-width="1.5" fill="none"/>
-  <path d="M14 9v6l4 3" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M11 3h6" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
-</svg>`;
-
-const timerInfoIcon = `<svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="14" cy="15" r="10" stroke="#94a3b8" stroke-width="1.5" fill="none"/>
-  <path d="M14 9v6l4 3" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="22" cy="7" r="4" fill="#3b82f6" opacity="0.15"/>
-  <path d="M22 6v2m0 1.5v0" stroke="#3b82f6" stroke-width="1.2" stroke-linecap="round"/>
-</svg>`;
-
-const timerNoneIcon = `<svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="14" cy="15" r="10" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>
-  <path d="M6 4l18 20" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round"/>
-</svg>`;
-
-/* ── SVG icons matching mockup's minimal line-art style ── */
-const templateIcon = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="6" y="4" width="28" height="32" rx="3" stroke="#94a3b8" stroke-width="1.5" fill="none"/>
-  <path d="M12 12h16M12 18h12M12 24h14" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
-  <rect x="20" y="20" width="14" height="14" rx="7" fill="#8b5cf6" opacity="0.15"/>
-  <path d="M25 25l2 2 4-4" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
-
-
-
-const pasteTextIcon = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="8" y="6" width="24" height="30" rx="3" stroke="#94a3b8" stroke-width="1.5" fill="none"/>
-  <path d="M15 4h10v4a1 1 0 01-1 1H16a1 1 0 01-1-1V4z" stroke="#94a3b8" stroke-width="1.5" fill="none"/>
-  <rect x="17" y="2" width="6" height="4" rx="1" stroke="#94a3b8" stroke-width="1.2" fill="none"/>
-  <path d="M14 16h12M14 22h10M14 28h8" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
-</svg>`;
-
-const blankIcon = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="6" y="4" width="28" height="32" rx="3" stroke="#8b5cf6" stroke-width="1.5" fill="none"/>
-  <path d="M12 14l4 3-4 3" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M20 14h8M20 20h6M20 26h8M12 26h4" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
-</svg>`;
 
 export default THCSSetupStep;

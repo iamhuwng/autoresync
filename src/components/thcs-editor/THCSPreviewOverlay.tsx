@@ -17,6 +17,7 @@ import { plog } from './previewLogCollector';
 
 // ─── Question type renderers (imported from student components) ───
 import THCSQuestionRenderer from '../thcs-student/THCSQuestionRenderer';
+import THCSRawTextFallback from '../thcs-student/THCSRawTextFallback';
 import THCSPassagePanel from '../thcs-student/THCSPassagePanel';
 
 interface THCSPreviewOverlayProps {
@@ -444,7 +445,16 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
 
                                     {/* Questions */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        {currentSection.questions.map((question) => {
+                                        {currentSection.isRawTextFallback || currentSection.questions.some(q => q.type === 'raw-text-fallback') ? (
+                                            <THCSRawTextFallback
+                                                section={currentSection}
+                                                answers={Object.fromEntries(currentSection.questions.map(q => [
+                                                    q.questionNumber.toString(), String(answers[q.questionNumber.toString()] || ''),
+                                                ]))}
+                                                onAnswerChange={(number, answer) => handleAnswer(Number(number), answer)}
+                                                isReviewMode={!interactive || isSubmitted}
+                                            />
+                                        ) : currentSection.questions.map((question) => {
                                             const qNum = question.questionNumber.toString();
                                             const studentAnswer = answers[qNum] || null;
                                             const isCorrect = isSubmitted ? questionResults[qNum] : undefined;
