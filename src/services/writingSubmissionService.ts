@@ -966,10 +966,27 @@ function assertSameWritingSource(saved: WritingSubmission, candidate: WritingSub
     }
 }
 
-export async function readCommittedWritingSubmission(candidate: WritingSubmission): Promise<WritingSubmission | null> {
-    if (candidate.context.type !== 'solo-practice' || auth.currentUser?.uid !== candidate.studentId) {
-        throw new Error('Only the submitting student can recover this solo Writing attempt');
+function isStudentHomeworkSubmission(submission: WritingSubmission): boolean {
+    return submission.context.type === 'homework' && !submission.context.externalImport
+        && auth.currentUser?.uid === submission.studentId;
+}
+
+function assertStudentHomeworkContext(submission: WritingSubmission): void {
+    const context = submission.context;
+    if (![context.homeworkId, context.homeworkSubmissionId, context.assigningTeacherId]
+        .every(id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id))
+        || [context.externalImport, context.sessionCode, context.classId, context.courseId,
+            context.moduleId, context.selectedTeacherId].some(Boolean)) {
+        throw new Error('Student-private Writing homework context is invalid');
     }
+}
+
+export async function readCommittedWritingSubmission(candidate: WritingSubmission): Promise<WritingSubmission | null> {
+    if ((candidate.context.type !== 'solo-practice' && !isStudentHomeworkSubmission(candidate))
+        || auth.currentUser?.uid !== candidate.studentId) {
+        throw new Error('Only the submitting student can recover this Writing attempt');
+    }
+    if (candidate.context.type === 'homework') assertStudentHomeworkContext(candidate);
     const snapshot = await getDocFromServer(getSubmissionRef(candidate.id));
     if (!snapshot.exists()) return null;
     const saved = snapshot.data() as WritingSubmission;
@@ -977,9 +994,10 @@ export async function readCommittedWritingSubmission(candidate: WritingSubmissio
     return saved;
 }
 
-async function materializeSoloWritingResult(candidate: WritingSubmission): Promise<'shared' | 'held' | undefined> {
+async function materializeStudentWritingResult(candidate: WritingSubmission): Promise<'shared' | 'held' | undefined> {
     const submission = await readCommittedWritingSubmission(candidate);
     if (!submission) throw new Error('Writing save is unconfirmed. Retry the same attempt.');
+    const isHomework = submission.context.type === 'homework';
     const baseContext = mapSubmissionContextToResultContext(submission);
     const context = deepRemoveUndefined({ ...baseContext,
         selectedTeacherId: submission.context.selectedTeacherId, classId: submission.context.classId,
@@ -988,14 +1006,19 @@ async function materializeSoloWritingResult(candidate: WritingSubmission): Promi
     const resultRecord = buildWritingResultRecord({
         resultId: submission.id, testId: submission.testMeta.testId,
         studentId: submission.studentId, studentName: submission.studentName,
-        testTitle: submission.testMeta.testTitle, testType: 'practice',
+        testTitle: submission.testMeta.testTitle, testType: isHomework ? 'homework' : 'practice',
         testDuration: submission.testMeta.duration, submittedAt: submission.submittedAt,
         timeElapsed: submission.totalElapsedTimeSeconds, tasks: submission.tasks,
         markingStatus: submission.markingStatus,
         overallBand: submission.publishedGrading?.overallBand ?? submission.grading?.overallBand ?? null,
         context,
     });
-    const visibility = {
+    const visibility = isHomework ? {
+        contextType: 'homework', sourceType: 'homework', sourceId: submission.context.homeworkId,
+        sourceNameSnapshot: submission.testMeta.testTitle, visibilityOwnerTeacherId: null,
+        ownerResolutionSource: 'unresolved', ownershipResolved: false, unresolvedReason: 'owner_not_resolved',
+        homeworkId: submission.context.homeworkId, sessionCode: null, courseId: null, classId: null, assignmentId: null,
+    } : {
         contextType: 'solo_practice', sourceType: 'solo_practice', sourceId: submission.testMeta.testId,
         sourceNameSnapshot: submission.testMeta.testTitle, visibilityOwnerTeacherId: null,
         ownerResolutionSource: 'solo_practice', ownershipResolved: true, unresolvedReason: null,
@@ -1009,7 +1032,16 @@ async function materializeSoloWritingResult(candidate: WritingSubmission): Promi
     const matchesSource = (record: Record<string, any> | null) => record?.resultId === submission.id
         && record.studentId === submission.studentId && record.testId === submission.testMeta.testId
         && record.submittedAt === submission.submittedAt && record.testSkill === 'writing'
-        && record.writingData?.submissionId === submission.id;
+        && record.writingData?.submissionId === submission.id
+        && (!isHomework || (record.createdAt === submission.submittedAt && record.testType === 'homework'
+            && record.isGuest === false && record.context?.type === 'homework'
+            && record.context?.source?.type === 'homework'
+            && record.context?.source?.id === submission.context.homeworkId
+            && record.context?.source?.submissionId === submission.id
+            && record.context?.assignment?.homeworkId === submission.context.homeworkId
+            && ![record.sessionCode, record.classId, record.courseId, record.moduleId,
+                record.context?.sessionCode, record.context?.classId, record.context?.courseId,
+                record.context?.source?.classId, record.context?.source?.courseId].some(Boolean)));
     const rootPath = `test_results/${submission.id}`;
     const studentPath = `test_results_by_student/${submission.studentId}/${submission.id}`;
     const [rootSnapshot, indexSnapshot] = await Promise.all([get(ref(database, rootPath)), get(ref(database, studentPath))]);
@@ -1017,12 +1049,13 @@ async function materializeSoloWritingResult(candidate: WritingSubmission): Promi
     if (indexSnapshot.exists() && !matchesSource(indexSnapshot.val())) throw new Error('Writing student index conflicts with saved submission');
     // Insert-only recovery keeps a newer grade; only a missing root is restored from the student's saved row.
     const root = await runTransaction(ref(database, rootPath), current => current === null
-        ? indexSnapshot.exists() ? { ...indexSnapshot.val(), visibility: normalizedResult.visibility } : normalizedResult
+        ? indexSnapshot.exists() ? isHomework ? indexSnapshot.val() : { ...indexSnapshot.val(), visibility: normalizedResult.visibility } : normalizedResult
         : undefined, { applyLocally: false });
     const canonical = root.snapshot.val();
     if (!matchesSource(canonical)) throw new Error('Writing result changed during repair');
     const studentIndex = await runTransaction(ref(database, studentPath), current => current === null ? canonical : undefined, { applyLocally: false });
     if (!matchesSource(studentIndex.snapshot.val())) throw new Error('Writing student index changed during repair');
+    if (isHomework) return;
     const soloIndex = await runTransaction(ref(database, `test_results_solo_practice_by_student/${submission.studentId}/${submission.id}`), current => current === null ? {
         resultId: submission.id, sessionCode: null, testId: submission.testMeta.testId,
         percentage: canonical.percentage ?? 0, submittedAt: submission.submittedAt,
@@ -1036,7 +1069,7 @@ async function materializeSoloWritingResult(candidate: WritingSubmission): Promi
         || owner.sourceType !== 'class' || owner.classId !== submission.context.classId
         || canonical.visibility?.visibilityOwnerTeacherId !== owner.visibilityOwnerTeacherId
         || canonical.visibility?.sourceType !== 'class' || canonical.visibility?.classId !== owner.classId
-        || canonical.visibility?.courseId !== owner.courseId || !canonical.visibility?.ownershipResolved) return 'held';
+        || (canonical.visibility?.courseId ?? null) !== owner.courseId || !canonical.visibility?.ownershipResolved) return 'held';
     const teacherKey = await runTransaction(ref(database, `teacher_result_keys/${owner.visibilityOwnerTeacherId}/${submission.id}`),
         current => current === null ? true : undefined, { applyLocally: false });
     if (teacherKey.snapshot.val() !== true) throw new Error('Writing teacher result key conflicts with saved submission');
@@ -1068,8 +1101,9 @@ export const createSubmission = withRestoreGuard<{ success: boolean; error?: str
     data: WritingSubmission
 ): Promise<{ success: boolean; error?: string }> => {
     try {
-        if (data.context.type === 'solo-practice') {
-            if (auth.currentUser?.uid !== data.studentId) throw new Error('Only the submitting student can save this solo Writing attempt');
+        if (data.context.type === 'solo-practice' || isStudentHomeworkSubmission(data)) {
+            if (auth.currentUser?.uid !== data.studentId) throw new Error('Only the submitting student can save this Writing attempt');
+            if (data.context.type === 'homework') assertStudentHomeworkContext(data);
             const sanitized = deepRemoveUndefined({ ...data, sourceActorUid: data.studentId,
                 annotations: data.annotations ?? [], auditTrail: data.auditTrail ?? [] });
             await runFirestoreTransaction(db, async transaction => {
@@ -1098,8 +1132,8 @@ export const materializeSubmissionResult = withRestoreGuard<{ success: boolean; 
     { success: false, error: 'Blocked by restore guard' }
 )(async (submission: WritingSubmission): Promise<{ success: boolean; error?: string; sharingStatus?: 'shared' | 'held' }> => {
     try {
-        if (submission.context.type === 'solo-practice') {
-            const sharingStatus = await materializeSoloWritingResult(submission);
+        if (submission.context.type === 'solo-practice' || isStudentHomeworkSubmission(submission)) {
+            const sharingStatus = await materializeStudentWritingResult(submission);
             return { success: true, ...(sharingStatus ? { sharingStatus } : {}) };
         }
         const academicContext = extractAcademicContext(submission.context as Record<string, any>);

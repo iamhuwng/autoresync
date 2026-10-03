@@ -6,6 +6,8 @@ The recorded 2026-10-02 release and finite historical investigation are complete
 
 Local configuration inspection on 2026-10-03 found all three activation keys absent from the canonical checkout's sole `.env.local`: `VITE_HOMEWORK_NOTIFICATION_URL`, `VITE_WRITING_NOTIFICATION_URL` and `VITE_COURSE_ENROLLMENT_APPROVAL_URL`. Their respective Homework notification, Writing notification and trusted Course approval callers therefore remain locally configuration-gated. The prior released application's activation and evidence do not establish activation of this local checkout. Resolve these local endpoints and verify the actual configured role flows before claiming canonical runtime parity; do not equate their absence with an unreleased or failed historical deployment.
 
+**Local runtime continuation — 2026-10-03:** the earlier missing-env/login checkpoint is superseded by the [current integration record](notification-canonical-integration-2026-10-03.md#authorized-local-runtime-continuation--2026-10-03). Qualified public endpoints are active locally; real Course approval, THCS Homework reset/submission, solo Writing sharing and corrected Writing Homework completion are verified. Homework Writing student self-notice is verified through the existing committed completion port; manual reminder creation remains unverified; no overall local runtime closure or new deployment is claimed.
+
 Single progress table, updated 2026-10-02. The [plan](notification-system-upgrade-plan.md) owns execution and the [technical reference](notification-firestore-architecture-decision-2026-09-27.md) owns authority/budgets. Source, local browser and remote release evidence remain distinct.
 
 ## Status meanings

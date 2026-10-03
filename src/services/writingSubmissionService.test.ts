@@ -268,6 +268,64 @@ describe('writingSubmissionService', () => {
     });
 
 
+    it('keeps student Homework private and repairs the same attempt without overwriting grades', async () => {
+        const candidate = { id: 'homework-result', studentId: 'student-1', studentName: 'Student One',
+            context: { type: 'homework', homeworkId: 'homework-1', homeworkSubmissionId: 'attempt-1', assigningTeacherId: 'teacher-1' },
+            testMeta: { testId: 'test-1', testTitle: 'Writing', format: 'task1-only', duration: 60 },
+            submittedAt: 100, tasks: [], totalElapsedTimeSeconds: 90, pasteAttemptCount: 0,
+            markingStatus: 'pending-review', annotations: [], auditTrail: [] } as any;
+        (auth as any).currentUser = { uid: candidate.studentId };
+        await expect(createSubmission(candidate)).resolves.toEqual({ success: true });
+        expect(setDoc).toHaveBeenCalledTimes(1);
+        const saved = { ...candidate, markingStatus: 'graded', publishedGrading: { overallBand: 8 } };
+        (runFirestoreTransaction as any).mockImplementation(async (_db: any, callback: any) => callback({
+            get: async () => ({ exists: () => true, data: () => saved }), set: setDoc,
+        }));
+        await expect(createSubmission(candidate)).resolves.toEqual({ success: true });
+        expect(setDoc).toHaveBeenCalledTimes(1);
+        (getDocFromServer as any).mockResolvedValue({ exists: () => true, data: () => saved });
+        const records: Record<string, any> = {};
+        (get as any).mockImplementation(async (path: string) => ({ exists: () => path in records, val: () => records[path] ?? null }));
+        (runTransaction as any).mockImplementation(async (path: string, callback: any) => {
+            const value = callback(records[path] ?? null);
+            if (value !== undefined) records[path] = value;
+            return { snapshot: { val: () => records[path] } };
+        });
+        await expect(materializeSubmissionResult(candidate)).resolves.toEqual({ success: true });
+        const rootPath = 'test_results/homework-result';
+        const indexPath = 'test_results_by_student/student-1/homework-result';
+        expect(Object.keys(records).sort()).toEqual([rootPath, indexPath].sort());
+        expect(records[rootPath]).toMatchObject({ resultId: candidate.id, testType: 'homework', bandScore: 8,
+            context: { source: { id: 'homework-1', submissionId: candidate.id }, assignment: { homeworkId: 'homework-1' } },
+            visibility: { contextType: 'homework', sourceType: 'homework', sourceId: 'homework-1',
+                ownershipResolved: false, visibilityOwnerTeacherId: null, ownerResolutionSource: 'unresolved' } });
+        const newerGrade = { ...records[rootPath], bandScore: 9, markingStatus: 'graded',
+            visibility: { ...records[rootPath].visibility, ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1' } };
+        records[rootPath] = newerGrade;
+        delete records[indexPath];
+        await expect(materializeSubmissionResult(candidate)).resolves.toEqual({ success: true });
+        expect(records[rootPath]).toBe(newerGrade);
+        expect(records[indexPath]).toBe(newerGrade);
+        delete records[rootPath];
+        await expect(materializeSubmissionResult(candidate)).resolves.toEqual({ success: true });
+        expect(records[rootPath]).toBe(newerGrade);
+        expect(mockResolveResultOwnership).not.toHaveBeenCalled();
+        expect(set).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+
+        const mismatched = { ...candidate, context: { ...candidate.context, homeworkSubmissionId: 'another-attempt' } };
+        await expect(createSubmission(mismatched)).resolves.toMatchObject({ success: false });
+        await expect(readCommittedWritingSubmission(mismatched)).rejects.toThrow('differs');
+        (runTransaction as any).mockClear();
+        records[rootPath] = { ...newerGrade, context: { ...newerGrade.context, assignment: { homeworkId: 'another-homework' } } };
+        await expect(materializeSubmissionResult(candidate)).resolves.toMatchObject({ success: false, error: 'Writing result conflicts with saved submission' });
+        expect(runTransaction).not.toHaveBeenCalled();
+        await expect(materializeSubmissionResult({ ...candidate, context: { ...candidate.context, classId: 'class-1' } }))
+            .resolves.toMatchObject({ success: false, error: 'Student-private Writing homework context is invalid' });
+        (auth as any).currentUser = { uid: 'another-student' };
+        await expect(readCommittedWritingSubmission(candidate)).rejects.toThrow('Only the submitting student');
+    });
+
     it('keeps a graded solo source and result on retry, repairs missing indexes and rejects mismatched recovery', async () => {
         const candidate = { id: 'stable-solo', studentId: 'student-1', studentName: 'Student One',
             context: { type: 'solo-practice', selectedTeacherId: undefined, classId: undefined },
@@ -373,6 +431,10 @@ describe('writingSubmissionService', () => {
         expect(records['test_results/teacher-solo']).toBe(graded);
         expect(records['test_results_by_class/class-1/student-1/teacher-solo'].bandScore).toBe(9);
         expect(records['teacher_result_keys/teacher-1/teacher-solo']).toBe(true);
+        // RTDB omits null fields when a class has no course.
+        mockResolveResultOwnership.mockResolvedValue({ visibility: { ...owner, courseId: null } });
+        delete records['test_results/teacher-solo'].visibility.courseId;
+        await expect(materializeSubmissionResult(submission)).resolves.toMatchObject({ success: true, sharingStatus: 'shared' });
         records = {};
         mockResolveResultOwnership.mockResolvedValue({ visibility: { ...owner, visibilityOwnerTeacherId: null,
             ownershipResolved: false, ownerResolutionSource: 'unresolved', unresolvedReason: 'owner_not_resolved' } });

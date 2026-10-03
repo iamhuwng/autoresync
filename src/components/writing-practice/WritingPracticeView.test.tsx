@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import WritingPracticeView from './WritingPracticeView';
-import { buildWritingProgressStorageKey } from '../../services/writingProgress.service';
+import { buildWritingProgressStorageKey, writePendingWritingSubmission } from '../../services/writingProgress.service';
 
 const {
     mockNavigate,
@@ -10,6 +10,7 @@ const {
     mockNotifyCommittedEvent,
     mockMaterializeSubmissionResult,
     mockSubmitHomework,
+    mockGetHomeworkSubmissionById,
     mockCreateTrustedNotification,
     mockPush,
     mockGetStudentClasses,
@@ -27,6 +28,7 @@ const {
     mockNotifyCommittedEvent: vi.fn(() => Promise.resolve({ status: 'written' })),
     mockMaterializeSubmissionResult: vi.fn(),
     mockSubmitHomework: vi.fn(),
+    mockGetHomeworkSubmissionById: vi.fn(),
     mockCreateTrustedNotification: vi.fn(() => Promise.resolve({ success: true })),
     mockPush: vi.fn(() => ({ key: 'result-1' })),
     mockGetStudentClasses: vi.fn(),
@@ -77,6 +79,7 @@ vi.mock('../../services/writingSubmissionService', () => ({
 
 vi.mock('../../services/homeworkSubmissionService', () => ({
     submitHomework: (...args: unknown[]) => mockSubmitHomework(...args),
+    getSubmissionById: (...args: unknown[]) => mockGetHomeworkSubmissionById(...args),
 }));
 
 vi.mock('../../services/notificationProducerClient', () => ({
@@ -149,6 +152,10 @@ describe('WritingPracticeView', () => {
         mockMaterializeSubmissionResult.mockResolvedValue({ success: true, sharingStatus: 'shared' });
         mockNotifyCommittedEvent.mockResolvedValue({ status: 'written' });
         mockSubmitHomework.mockResolvedValue(undefined);
+        mockGetHomeworkSubmissionById.mockImplementation(async (id: string) => {
+            const source = mockCreateSubmission.mock.calls.at(-1)?.[0];
+            return { id, homeworkId: source?.context.homeworkId, studentId: 'student-1', status: 'in_progress' };
+        });
         mockUseExternalPastePrevention.mockReturnValue({
             pasteAttemptCount: 2,
             setPasteAttemptCount: mockSetPasteAttemptCount,
@@ -234,10 +241,12 @@ describe('WritingPracticeView', () => {
     });
 
 
-    it('reuses the frozen solo attempt after an uncertain save and reload without waiting for notices', async () => {
+    it.each(['solo', 'homework', 'homework-committed', 'homework-conflict'])('reuses the frozen %s attempt after an uncertain save and reload', async (mode) => {
+        const isHomework = mode !== 'solo';
         const props = { materialId: 'solo-recovery', testData: { id: 'solo-test',
             metadata: { title: 'Writing', format: 'task1-only', duration: 60 },
-            tasks: [{ taskNumber: 1, taskType: 'task-1', promptText: 'Write', wordMinimum: 150 }] } as any };
+            tasks: [{ taskNumber: 1, taskType: 'task-1', promptText: 'Write', wordMinimum: 150 }] } as any,
+            ...(isHomework ? { homeworkContext: { homeworkId: 'homework-recovery', submissionId: 'attempt-recovery', teacherId: 'teacher-1' } } : {}) };
         mockCreateSubmission.mockResolvedValueOnce({ success: false, error: 'response lost' });
         mockReadCommittedWritingSubmission.mockImplementation(async (submission: any) =>
             mockCreateSubmission.mock.calls.length ? submission : null);
@@ -250,18 +259,46 @@ describe('WritingPracticeView', () => {
         await waitFor(() => expect(mockCreateSubmission).toHaveBeenCalledOnce());
         await screen.findByRole('button', { name: 'Retry submission' });
         const pending = mockCreateSubmission.mock.calls[0][0];
+        if (mode === 'homework-committed' || mode === 'homework-conflict') {
+            mockGetHomeworkSubmissionById.mockResolvedValue({ id: 'attempt-recovery', homeworkId: 'homework-recovery',
+                studentId: 'student-1', status: 'graded', resultId: mode === 'homework-committed' ? pending.id : 'foreign-result' });
+        }
         first.unmount();
         mockNotifyCommittedEvent.mockImplementation(() => new Promise(() => {}));
         render(<WritingPracticeView {...props} />);
         const retry = await screen.findByRole('button', { name: 'Retry submission' });
         fireEvent.click(retry);
-        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/student/dashboard', { replace: true }));
+        if (mode === 'homework-conflict') {
+            await waitFor(() => expect(mockGetHomeworkSubmissionById).toHaveBeenCalled());
+            await waitFor(() => expect(screen.getByRole('button', { name: 'Retry submission' })).toBeEnabled());
+            expect(mockNavigate).not.toHaveBeenCalled();
+        } else await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith(isHomework ? '/student/homework' : '/student/dashboard', { replace: true }));
+        if (mode === 'homework-committed' || mode === 'homework-conflict') expect(mockSubmitHomework).not.toHaveBeenCalled();
         expect(mockCreateSubmission).toHaveBeenCalledOnce();
         expect(mockMaterializeSubmissionResult).toHaveBeenCalledWith(pending);
         expect(mockPush).toHaveBeenCalledOnce();
         expect(mockReadCommittedWritingSubmission).toHaveBeenCalledWith(pending);
     });
 
+
+    it('blocks Homework submission when frozen recovery belongs to another test', async () => {
+        const recoveryWarning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        await writePendingWritingSubmission({ materialId: 'blocked-homework', studentId: 'student-1',
+            scopeContext: { mode: 'homework', homeworkId: 'homework-blocked', submissionId: 'attempt-blocked' } }, {
+            id: 'frozen-result', studentId: 'student-1', context: { type: 'homework', homeworkId: 'homework-blocked',
+                homeworkSubmissionId: 'attempt-blocked' }, testMeta: { testId: 'another-test' }, tasks: [],
+        } as any);
+        render(<WritingPracticeView materialId="blocked-homework"
+            homeworkContext={{ homeworkId: 'homework-blocked', submissionId: 'attempt-blocked', teacherId: 'teacher-1' }}
+            testData={{ id: 'correct-test', metadata: { title: 'Writing', format: 'task1-only', duration: 60 },
+                tasks: [{ taskNumber: 1, taskType: 'task-1', promptText: 'Write', wordMinimum: 150 }] } as any} />);
+        await waitFor(() => expect(recoveryWarning).toHaveBeenCalledWith(
+            '[WritingPracticeView] Failed to load saved progress:', expect.any(Error)));
+        expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
+        expect(mockPush).not.toHaveBeenCalled();
+        expect(mockCreateSubmission).not.toHaveBeenCalled();
+        recoveryWarning.mockRestore();
+    });
 
     it('keeps a saved solo result while withholding a teacher notice when sharing is held', async () => {
         mockMaterializeSubmissionResult.mockResolvedValue({ success: true, sharingStatus: 'held' });
@@ -396,14 +433,7 @@ describe('WritingPracticeView', () => {
             ]),
         }));
         expect(mockMaterializeSubmissionResult).toHaveBeenCalledWith(submission);
-        expect(mockCreateTrustedNotification).toHaveBeenNthCalledWith(1, expect.objectContaining({
-            producerFamily: 'writing',
-            authorityRecordId: 'result-1',
-            recipientId: 'student-1',
-            operationKey: 'writing-submitted:student:result-1',
-            message: 'Your homework essay for "Homework IELTS Writing" has been submitted. A teacher will review it soon.',
-            link: '/student/academic-record',
-        }));
+        expect(mockNotifyCommittedEvent).toHaveBeenCalledWith({ eventKind: 'result-completed', resultId: 'result-1' });
         expect(mockSubmitHomework).toHaveBeenCalledWith(
             'homework-submission-2',
             'result-1',
@@ -413,7 +443,7 @@ describe('WritingPracticeView', () => {
             undefined,
             expect.any(Number),
         );
-        expect(mockCreateTrustedNotification).toHaveBeenCalledTimes(1);
+        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
         expect(mockNavigate).toHaveBeenCalledWith('/student/homework', { replace: true });
     });
 
