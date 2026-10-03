@@ -1,0 +1,41 @@
+
+ ⛅️ wrangler 4.103.0 (update available 4.147.0)
+───────────────────────────────────────────────
+╭ Deploy Worker Versions by splitting traffic between multiple versions
+│
+├ Fetching latest deployment
+│
+├ Your current deployment has 1 version(s):
+│
+│ (100%) 57394e49-8531-468a-a648-1ac1964275f5
+│       Created:  2026-09-13T18:39:57.109724Z
+│           Tag:  -
+│       Message:  -
+│
+├ Fetching versions
+│
+├ Which version(s) do you want to deploy?
+├ 1 Worker Version(s) selected
+│
+├     Worker Version 1:  4b259a1c-4109-4384-9af1-141b3d8d8c91
+│              Created:  2026-10-03T19:32:20.948821Z
+│                  Tag:  -
+│              Message:  prd0062-ordinary-draft-discovery-20261004
+│
+├ What percentage of traffic should Worker Version 1 receive?
+├ 100% of traffic
+├
+├ Add a deployment message (skipped)
+│
+├ Deploying 1 version(s)
+│
+├ Syncing non-versioned settings
+│
+│ Synced non-versioned settings:
+│                      logpush:  false
+│                observability:  enabled:             true
+│                                head_sampling_rate:  1
+│               tail_consumers:  <skipped>
+│     streaming_tail_consumers:  <skipped>
+│
+╰  SUCCESS  Deployed luyentap-book-source-canonical-preview version 4b259a1c-4109-4384-9af1-141b3d8d8c91 at 100% (1.36 sec)

@@ -1,0 +1,47 @@
+{
+  "capturedAt": "2026-10-03T19:30:57.274Z",
+  "branch": "codex/prd0062-continuation-after-cleanup",
+  "commit": "808ffb0cfa66b922ffab029bab9f855c92f63b8c",
+  "dirtyStateSha256": "dc43c91fb920dbdd664f788fde1688b850765b7c4d553663c2b596b8c04342eb",
+  "bundlePath": "C:\\Users\\The Lord\\repos\\luyentap-prd0062\\output\\output\\prd0062-successor-discovery-bundle\\worker.js",
+  "bundleSha256": "5a4934c9fe4b656bef9dd709e7722cd681b4c3b252a7536d8d808ceb0d2e6143",
+  "bundleBytes": 5895077,
+  "bundleGzipBytes": 1079121,
+  "files": [
+    {
+      "path": "output/prd0062-successor-discovery-20261004-activation.json",
+      "sha256": "70fec2309c5081b3c923736bc5c4b9263efa0e315b6c6b8fa11172d1c38e78a7"
+    },
+    {
+      "path": "output/prd0062-successor-discovery-20261004-rollback.json",
+      "sha256": "5af0ae28cb4206e0fadd62fba91805ac76f0b3ca783defce594432f3d36afd07"
+    },
+    {
+      "path": "output/prd0062-successor-discovery-20261004-request.json",
+      "sha256": "14632051afb90b5325c51e4cf4884c438d488eff516d0dd95c1d31c389191e07"
+    }
+  ],
+  "sourceFreeze": "output/prd0062-discovery-worker-source-freeze.json",
+  "previousActiveVersion": "57394e49-8531-468a-a648-1ac1964275f5",
+  "secretNames": [
+    "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+    "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
+    "BOOK_DELIVERY_GOOGLE_SA_KEY",
+    "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+    "BOOK_RESULT_READ_GOOGLE_SA_KEY",
+    "BOOK_RUNTIME_GOOGLE_SA_KEY",
+    "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY",
+    "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID",
+    "BOOK_SOURCE_B2_PRIVATE_BUCKET_ID",
+    "BOOK_SOURCE_B2_READ_APPLICATION_KEY",
+    "BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID",
+    "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY",
+    "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID",
+    "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
+    "FIREBASE_WEB_API_KEY"
+  ],
+  "rulesReadbackSha256": "b621043bca7dcd8d5b0ece610554d870cc1a498ac69e1342575a69dfaad53df7",
+  "authority": "PRD0062-production-normal-recovery-and-completion-plan.md operating charter and current PlanMD §2.9",
+  "scope": "Ordinary owner draft discovery; no R2, publication, U/CC or product completion claim",
+  "rollbackTriggers": "Unexpected 5xx/auth exchange/Rules denial/readback mismatch: activate exact inactive deny-only rollback and preserve data"
+}

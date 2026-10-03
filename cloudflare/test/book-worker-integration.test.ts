@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createUploadWorker } from '../worker.js';
 
 const createTestUploadWorker = createUploadWorker as unknown as (options?: Record<string, unknown>) => {
-  fetch: (request: Request, env: Record<string, unknown>) => Promise<Response>;
+  fetch: (request: Request, env: Record<string, unknown>, context?: { waitUntil: (promise: Promise<unknown>) => void }) => Promise<Response>;
 };
 
 describe('PRD0062 #59 canonical top-level composition', () => {
@@ -24,11 +24,12 @@ describe('PRD0062 #59 canonical top-level composition', () => {
       headers: { Origin: 'http://localhost:5173' },
     });
 
-    const response = await worker.fetch(request, {});
+    const context = { waitUntil: vi.fn() };
+    const response = await worker.fetch(request, {}, context);
 
     expect(response.status).toBe(202);
     expect(response.headers.get('x-book-router')).toBe('1');
-    expect(fetch).toHaveBeenCalledWith(request, {});
+    expect(fetch).toHaveBeenCalledWith(request, {}, context);
     expect(firebaseVerifier.verifyAuthorizationHeader).not.toHaveBeenCalled();
   });
 
@@ -50,7 +51,7 @@ describe('PRD0062 #59 canonical top-level composition', () => {
     const response = await worker.fetch(request, {});
 
     expect(response.status).toBe(401);
-    expect(bookFetch).toHaveBeenCalledWith(request, {});
+    expect(bookFetch).toHaveBeenCalledWith(request, {}, undefined);
     expect(firebaseVerifier.verifyAuthorizationHeader).toHaveBeenCalledOnce();
   });
 
@@ -120,7 +121,7 @@ describe('PRD0062 #59 canonical top-level composition', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ saved: true, uid: 'teacher-1' });
-    expect(bookFetch).toHaveBeenCalledWith(request, { UPLOAD_RATE_LIMITER: { limit } });
+    expect(bookFetch).toHaveBeenCalledWith(request, { UPLOAD_RATE_LIMITER: { limit } }, undefined);
     expect(limit).toHaveBeenCalledOnce();
     expect(saveDraft).toHaveBeenCalledWith(expect.objectContaining({ uid: 'teacher-1' }));
   });
