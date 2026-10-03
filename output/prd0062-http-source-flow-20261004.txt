@@ -1,0 +1,1 @@
+Authenticated begin reached active Worker; response 503 account_state_unavailable before reservation. Login used existing teacher dev account; no provider upload or remote mutation occurred.
