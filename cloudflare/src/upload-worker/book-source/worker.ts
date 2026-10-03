@@ -26,12 +26,17 @@ import {
   type BookSourceUploadControlService,
 } from '../../book-source-worker/control-host.ts';
 import { createBackblazeB2SourceProviderFromEnv } from '../../book-source-worker/backblaze-b2-source-provider.ts';
+import { createBookSourceDirectPdfPageCountAdapter } from '../../book-source-worker/direct-pdf-page-count.ts';
 import type { BookRouteHandlerInput } from '../book-route-handlers.ts';
 import {
-  attachVerifiedFullPdfSource,
   attachVerifiedSourceSet,
   createFirebaseMaterialBookSourceAttachmentRepository,
 } from './material-book-source-attachment-repository.ts';
+import {
+  isActiveBookSourceAuthorityProfile,
+  readTrustedSourceChecksum,
+  readTrustedSourceSafety,
+} from './trusted-source-contract.ts';
 
 const MAX_ACCOUNT_STATE_BYTES = 32 * 1024 * 1024;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
@@ -141,24 +146,74 @@ const parseServiceAccount = (env: BookSourceUploadWorkerEnv): {
   return { email, privateKey: privateKey.replace(/\\n/gu, '\n') };
 };
 
-const safeStatus = (operation: BookSourceUploadOperation) => Object.freeze({
-  reservationId: operation.reservationId,
-  bookId: operation.bookId,
-  sourceVersionId: operation.sourceVersionId,
-  status: operation.status,
-  retryKind: operation.status === 'cleanup_pending'
-    || (operation.status === 'verified_completed' && operation.versionReconciliation !== undefined)
-    ? 'cleanup' as const
-    : operation.status === 'reserved'
-      ? 'bytes' as const
-      : 'none' as const,
-  ...(operation.cleanup?.nextRetryAt || operation.versionReconciliation?.nextRetryAt
-    ? { nextRetryAt: operation.cleanup?.nextRetryAt ?? operation.versionReconciliation!.nextRetryAt }
-    : {}),
-  ...(operation.cleanup?.lastErrorCode || operation.versionReconciliation?.lastErrorCode
-    ? { lastErrorCode: operation.cleanup?.lastErrorCode ?? operation.versionReconciliation!.lastErrorCode }
-    : {}),
-});
+const safeStatus = (operation: BookSourceUploadOperation) => {
+  const checksum = readTrustedSourceChecksum(operation.expectedChecksum);
+  const safety = readTrustedSourceSafety(operation, {
+    sourceVersionId: operation.sourceVersionId,
+    checksum: operation.expectedChecksum,
+  });
+  if (!checksum || !safety || operation.status === 'retired') {
+    throw new SourceUploadControlError('account_state_unavailable');
+  }
+  return Object.freeze({
+    reservationId: operation.reservationId,
+    bookId: operation.bookId,
+    sourceVersionId: operation.sourceVersionId,
+    status: operation.status,
+    retryKind: operation.status === 'cleanup_pending'
+      || (operation.status === 'verified_completed' && operation.versionReconciliation !== undefined)
+      ? 'cleanup' as const
+      : operation.status === 'reserved'
+        ? 'bytes' as const
+        : 'none' as const,
+    ...(operation.cleanup?.nextRetryAt || operation.versionReconciliation?.nextRetryAt
+      ? { nextRetryAt: operation.cleanup?.nextRetryAt ?? operation.versionReconciliation!.nextRetryAt }
+      : {}),
+    ...(operation.cleanup?.lastErrorCode || operation.versionReconciliation?.lastErrorCode
+      ? { lastErrorCode: operation.cleanup?.lastErrorCode ?? operation.versionReconciliation!.lastErrorCode }
+      : {}),
+  });
+};
+
+export const listBookSourceProjections = (
+  state: Pick<BookSourceUploadAccountState, 'assemblyBooks'>,
+  actorId: string,
+  bookId: string,
+) => Object.entries(state.assemblyBooks?.[bookId] ?? {})
+  .flatMap(([sourceVersionId, projection]) => {
+    const raw = record(projection);
+    const checksum = readTrustedSourceChecksum(raw?.checksum);
+    const safety = readTrustedSourceSafety(raw, {
+      sourceVersionId,
+      purpose: 'book-source',
+      checksum: raw?.checksum,
+    });
+    if (!raw
+      || !SAFE_ID.test(sourceVersionId)
+      || raw.ownerId !== actorId
+      || raw.bookId !== bookId
+      || raw.sourceVersionId !== sourceVersionId
+      || !SAFE_ID.test(String(raw.sourceKey))
+      || !checksum
+      || !Number.isSafeInteger(raw.physicalPageCount)
+      || (raw.physicalPageCount as number) <= 0
+      || raw.verifiedUsable !== true
+      || !safety
+      || safety.studentSafeStatus === 'rejected') return [];
+    return [{
+      sourceKey: raw.sourceKey as string,
+      sourceVersionId,
+      bookId,
+      checksum,
+      physicalPageCount: raw.physicalPageCount as number,
+      verifiedUsable: true as const,
+      purpose: safety.purpose,
+      studentSafeStatus: safety.studentSafeStatus,
+      studentSafeDecision: safety.studentSafeDecision,
+    }];
+  })
+  .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)
+    || left.sourceVersionId.localeCompare(right.sourceVersionId));
 
 const defaultRuntimeFactory = async (
   env: BookSourceUploadWorkerEnv,
@@ -216,13 +271,32 @@ const defaultRuntimeFactory = async (
     return bookRecord?.bookId === bookId
       && bookRecord.ownerId === actorId
       && bookRecord.status !== 'archived'
-      && (profileRecord?.role === 'teacher' || profileRecord?.role === 'super_admin')
-      && profileRecord.disabled !== true
-      && profileRecord.forceReauth !== true
-      && !['blocked', 'inactive', 'suspended'].includes(String(profileRecord.status ?? ''));
+      && isActiveBookSourceAuthorityProfile(profileRecord, 'teacher');
   };
+  const authorizeDecision = async ({
+    actorId,
+    bookId,
+  }: { readonly actorId: string; readonly bookId: string }): Promise<boolean> => {
+    if (!SAFE_ID.test(actorId) || !SAFE_ID.test(bookId)) return false;
+    const [book, profile] = await Promise.all([
+      readTrustedValue(`material_catalog/books/${bookId}`),
+      readTrustedValue(`users/${actorId}`),
+    ]);
+    const bookRecord = record(book);
+    const profileRecord = record(profile);
+    const activeAdmin = isActiveBookSourceAuthorityProfile(profileRecord, 'super_admin');
+    const activeOwner = bookRecord?.ownerId === actorId
+      && isActiveBookSourceAuthorityProfile(profileRecord, 'teacher');
+    return bookRecord?.bookId === bookId
+      && bookRecord.status !== 'archived'
+      && (activeOwner || activeAdmin);
+  };
+  const provider = createBackblazeB2SourceProviderFromEnv(env);
   const commonDependencies: Omit<BookSourceUploadControlDependencies, 'releaseAuthorization'> = {
-    bookManagementAuthority: { canManageBookSource: authorizeOwner },
+    bookManagementAuthority: {
+      canManageBookSource: authorizeOwner,
+      canDecideStudentSafeSource: authorizeDecision,
+    },
     deployment: {
       accountId,
       storageLocationId: required(env.BOOK_SOURCE_B2_STORAGE_LOCATION_ID, 'storage_location_id'),
@@ -234,24 +308,9 @@ const defaultRuntimeFactory = async (
     },
     accountStateReader: { read: readAccountState },
     repository,
-    provider: createBackblazeB2SourceProviderFromEnv(env),
+    provider,
+    pageCount: createBookSourceDirectPdfPageCountAdapter(provider),
     clock: { now: () => new Date() },
-    onVerified: (operation, context) => operation.sourceKey.startsWith('component-')
-      ? Promise.resolve()
-      : attachVerifiedFullPdfSource(
-          materialBookSourceAttachment,
-          materialBookSourceAttachmentRepository,
-          {
-            ownerId: context.ownerId,
-            bookId: operation.bookId,
-            operationId: operation.reservationId,
-            sourceKey: operation.sourceKey,
-            sourceVersionId: operation.sourceVersionId,
-          },
-        ).then((attachment) => ({
-          bookRevision: attachment.bookRevision,
-          sourceSetRevision: attachment.sourceSetRevision,
-        })),
   };
   const productionControl = createBookSourceUploadControl({
     ...commonDependencies,
@@ -260,6 +319,52 @@ const defaultRuntimeFactory = async (
   });
   const service: BookSourceUploadControlService = {
     begin: productionControl.begin,
+    decideStudentSafeSource: async (input) => {
+      const before = (await readAccountState()).operations[input.reservationId];
+      if (!before
+        || before.ownerId !== input.actorId
+        || before.bookId !== input.bookId
+        || before.status !== 'verified_completed'
+        || before.purpose !== 'book-source'
+        || before.studentSafeStatus === 'rejected') {
+        throw new SourceUploadControlError('reservation_conflict');
+      }
+      const result = await productionControl.decideStudentSafeSource(input);
+      const state = await readAccountState();
+      const operation = state.operations[input.reservationId];
+      const checksum = readTrustedSourceChecksum(operation?.expectedChecksum);
+      const decision = result.studentSafeDecision;
+      const safety = readTrustedSourceSafety(result, {
+        sourceVersionId: result.sourceVersionId,
+        purpose: before.purpose,
+        checksum: operation?.expectedChecksum,
+      });
+      if (!operation
+        || operation.ownerId !== input.actorId
+        || operation.bookId !== input.bookId
+        || operation.status !== 'verified_completed'
+        || result.status !== 'verified_completed'
+        || operation.purpose !== before.purpose
+        || result.purpose !== before.purpose
+        || result.sourceVersionId !== operation.sourceVersionId
+        || !checksum
+        || !decision
+        || decision.decidedBy !== input.actorId
+        || !safety
+        || safety.studentSafeStatus === 'unreviewed'
+        || safety.studentSafeDecision === undefined) {
+        throw new SourceUploadControlError('account_state_unavailable');
+      }
+      return {
+        status: 'verified_completed' as const,
+        reservationId: result.reservationId,
+        sourceVersionId: result.sourceVersionId,
+        checksum,
+        purpose: before.purpose,
+        studentSafeStatus: result.studentSafeStatus as Exclude<BookSourceUploadOperation['studentSafeStatus'], 'unreviewed'>,
+        studentSafeDecision: safety.studentSafeDecision,
+      };
+    },
     complete: productionControl.complete,
     attachSourceSet: async ({
       actorId,
@@ -270,6 +375,9 @@ const defaultRuntimeFactory = async (
       sourceSet,
     }) => {
       if (!(await authorizeOwner({ actorId, bookId }))) {
+        throw new SourceUploadControlError('authority_denied');
+      }
+      if (sourceSet.sourceStrategy === 'component_pdfs') {
         throw new SourceUploadControlError('authority_denied');
       }
       const result = await attachVerifiedSourceSet(materialBookSourceAttachment, {
@@ -307,23 +415,7 @@ const defaultRuntimeFactory = async (
         throw new SourceUploadControlError('authority_denied');
       }
       const state = await readAccountState();
-      const sources = Object.entries(state.assemblyBooks?.[bookId] ?? {})
-        .filter(([sourceKey, projection]) => SAFE_ID.test(sourceKey)
-          && projection.ownerId === actorId
-          && projection.bookId === bookId
-          && SAFE_ID.test(projection.sourceVersionId)
-          && Number.isSafeInteger(projection.physicalPageCount)
-          && projection.physicalPageCount > 0
-          && typeof projection.verifiedUsable === 'boolean')
-        .map(([sourceKey, projection]) => ({
-          sourceKey,
-          sourceVersionId: projection.sourceVersionId,
-          bookId: projection.bookId,
-          physicalPageCount: projection.physicalPageCount,
-          verifiedUsable: projection.verifiedUsable,
-        }))
-        .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey));
-      return { sources };
+      return { sources: listBookSourceProjections(state, actorId, bookId) };
     },
     requestCleanup: async ({
       actorId,
@@ -362,7 +454,7 @@ const defaultRuntimeFactory = async (
 
 type CanonicalSourceAction = Extract<
   BookSourceControlRoute['action'],
-  'begin' | 'complete' | 'attach' | 'status' | 'sources' | 'cancel'
+  'begin' | 'decideStudentSafeSource' | 'complete' | 'attach' | 'status' | 'sources' | 'cancel'
 >;
 
 const handlerFor = (
@@ -380,6 +472,7 @@ const handlerFor = (
     uid: input.uid,
     route,
     service: runtime.service,
+    ...(input.executionContext === undefined ? {} : { executionContext: input.executionContext }),
   });
 };
 
@@ -388,6 +481,7 @@ export const createBookSourceUploadWorkerHandlers = (
 ) => {
   return Object.freeze({
     begin: handlerFor(options, 'begin'),
+    decideStudentSafeSource: handlerFor(options, 'decideStudentSafeSource'),
     complete: handlerFor(options, 'complete'),
     attach: handlerFor(options, 'attach'),
     status: handlerFor(options, 'status'),

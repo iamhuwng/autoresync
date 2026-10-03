@@ -5,8 +5,20 @@ import type {
   FullPdfSourceCandidate,
   SourceSetCandidate,
 } from '../../../src/types/bookAssembly.types';
+import type {
+  BookSourceChecksum,
+  BookSourcePurpose,
+  BookSourceStudentSafeDecision,
+  BookSourceStudentSafeReasonCode,
+  BookSourceStudentSafeStatus,
+} from '../../../src/types/bookSource.types';
+import {
+  readTrustedSourceChecksum,
+  readTrustedSourceSafety,
+} from '../upload-worker/book-source/trusted-source-contract.ts';
 
 const MAX_CONTROL_BODY_BYTES = 16 * 1024;
+const CONTROL_REQUEST_TIMEOUT_MS = 55_000;
 const SAFE_ID = /^[A-Za-z0-9._~-]{1,160}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -38,8 +50,12 @@ export interface BookSourceUploadControlService {
       readonly sourceKey: string;
       readonly sourceVersionId: string;
       readonly bookId: string;
+      readonly checksum: BookSourceChecksum;
       readonly physicalPageCount: number;
       readonly verifiedUsable: boolean;
+      readonly purpose: BookSourcePurpose;
+      readonly studentSafeStatus: BookSourceStudentSafeStatus;
+      readonly studentSafeDecision?: BookSourceStudentSafeDecision;
     }[];
   }>;
   attachSourceSet?(input: {
@@ -61,6 +77,7 @@ export interface BookSourceUploadControlService {
     readonly idempotencyKey: string;
     readonly sourceKey: string;
     readonly kind: 'initial' | 'replacement';
+    readonly purpose: BookSourcePurpose;
     readonly claim: SourceUploadInspectionClaim;
   }): Promise<{
     readonly status: 'reserved' | 'replayed';
@@ -69,21 +86,37 @@ export interface BookSourceUploadControlService {
     readonly requiredHeaders: Readonly<Record<string, string>>;
     readonly reservationId: string;
     readonly sourceVersionId: string;
-    readonly bookRevision?: number;
-    readonly sourceSetRevision?: number;
+  }>;
+  decideStudentSafeSource?(input: {
+    readonly actorId: string;
+    readonly bookId: string;
+    readonly reservationId: string;
+    readonly operationId: string;
+    readonly studentSafeStatus: Exclude<BookSourceStudentSafeStatus, 'unreviewed'>;
+    readonly reasonCode: BookSourceStudentSafeReasonCode;
+  }): Promise<{
+    readonly status: 'verified_completed';
+    readonly reservationId: string;
+    readonly sourceVersionId: string;
+    readonly checksum: BookSourceChecksum;
+    readonly purpose: BookSourcePurpose;
+    readonly studentSafeStatus: BookSourceStudentSafeStatus;
+    readonly studentSafeDecision: BookSourceStudentSafeDecision;
   }>;
   complete(input: {
     readonly actorId: string;
     readonly bookId: string;
     readonly reservationId: string;
-    readonly providerFileId: string;
-    readonly providerFileVersionId: string;
+    readonly operationId: string;
+  }, context?: {
+    readonly signal?: AbortSignal;
+    readonly deadlineAt?: number;
+    readonly deferCleanup?: (promise: Promise<unknown>) => void;
   }): Promise<{
     readonly status: 'verified_completed';
     readonly reservationId: string;
     readonly sourceVersionId: string;
-    readonly bookRevision?: number;
-    readonly sourceSetRevision?: number;
+    readonly checksum: BookSourceChecksum;
   }>;
   status?(input: {
     readonly actorId: string;
@@ -194,17 +227,18 @@ const parseInspection = (value: unknown) => {
 const parseSourceSet = (value: unknown): SourceSetCandidate => {
   if (!isRecord(value) || !exactKeys(value, ['sourceStrategy', 'sources'])
     || (value.sourceStrategy !== 'full_pdf' && value.sourceStrategy !== 'component_pdfs')
-    || !Array.isArray(value.sources) || value.sources.length < 1 || value.sources.length > 128
-    || (value.sourceStrategy === 'component_pdfs' && value.sources.length < 2)) {
+    || !Array.isArray(value.sources)
+    || (value.sourceStrategy === 'full_pdf' && value.sources.length !== 1)
+    || (value.sourceStrategy === 'component_pdfs' && (value.sources.length < 2 || value.sources.length > 20))) {
     throw new ControlRequestError('invalid_source_set', 400);
   }
   const seenKeys = new Set<string>();
   const seenVersions = new Set<string>();
   const seenOrders = new Set<number>();
-  const parseCommon = (entry: Record<string, unknown>): Omit<FullPdfSourceCandidate, 'ownerNodeKey'> => {
+  const parseCommon = (entry: Record<string, unknown>, index: number): Omit<FullPdfSourceCandidate, 'ownerNodeKey'> => {
     const sourceKey = safeId(entry.sourceKey, 'source_key');
     const sourceVersionId = safeId(entry.sourceVersionId, 'source_version_id');
-    if (!Number.isSafeInteger(entry.sourceOrder) || (entry.sourceOrder as number) < 1
+    if (!Number.isSafeInteger(entry.sourceOrder) || (entry.sourceOrder as number) !== index + 1
       || seenKeys.has(sourceKey) || seenVersions.has(sourceVersionId)
       || seenOrders.has(entry.sourceOrder as number)) {
       throw new ControlRequestError('invalid_source_set', 400);
@@ -220,20 +254,20 @@ const parseSourceSet = (value: unknown): SourceSetCandidate => {
     if (!isRecord(entry) || !exactKeys(entry, ['sourceKey', 'sourceOrder', 'sourceVersionId'])) {
       throw new ControlRequestError('invalid_source_set', 400);
     }
-    const source = parseCommon(entry);
+    const source = parseCommon(entry, 0);
     return {
       sourceStrategy: 'full_pdf',
       sources: [source],
     };
   }
 
-  const sources = value.sources.map((entry): ComponentPdfSourceCandidate => {
+  const sources = value.sources.map((entry, index): ComponentPdfSourceCandidate => {
     if (!isRecord(entry)) throw new ControlRequestError('invalid_source_set', 400);
     if (!exactKeys(entry, ['ownerNodeKey', 'sourceKey', 'sourceOrder', 'sourceVersionId'])) {
       throw new ControlRequestError('invalid_source_set', 400);
     }
     return {
-      ...parseCommon(entry),
+      ...parseCommon(entry, index),
       ownerNodeKey: safeId(entry.ownerNodeKey, 'owner_node_key'),
     };
   });
@@ -242,15 +276,62 @@ const parseSourceSet = (value: unknown): SourceSetCandidate => {
   return { sourceStrategy: 'component_pdfs', sources: [first, ...rest] };
 };
 
-const parseBody = async (request: Request): Promise<Record<string, unknown>> => {
+const readBoundedRequestText = async (request: Request, deadlineAt: number): Promise<string> => {
+  if (!request.body) return '';
+  if (request.signal.aborted) throw new ControlRequestError('request_aborted', 408);
+  const remainingMs = Math.floor(deadlineAt - Date.now());
+  if (remainingMs <= 0) throw new ControlRequestError('request_timed_out', 408);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelledReject!: (reason: ControlRequestError) => void;
+  const cancelled = new Promise<never>((_, reject) => {
+    cancelledReject = reject;
+  });
+  const onAbort = () => cancelledReject(new ControlRequestError('request_aborted', 408));
+  request.signal.addEventListener('abort', onAbort, { once: true });
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new ControlRequestError('request_timed_out', 408)), remainingMs);
+  });
+  try {
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), cancelled, timedOut]);
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_CONTROL_BODY_BYTES) {
+        void reader.cancel().catch(() => undefined);
+        throw new ControlRequestError('body_too_large', 413);
+      }
+      chunks.push(value);
+    }
+  } catch (error) {
+    void reader.cancel(error).catch(() => undefined);
+    throw error;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    request.signal.removeEventListener('abort', onAbort);
+  }
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(body);
+};
+
+const parseBody = async (request: Request, deadlineAt: number): Promise<Record<string, unknown>> => {
   if (request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
     throw new ControlRequestError('unsupported_media_type', 415);
   }
   const declaredLength = Number(request.headers.get('content-length'));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_CONTROL_BODY_BYTES) {
+    const body = request.body;
+    if (body) void body.cancel('body_too_large').catch(() => undefined);
     throw new ControlRequestError('body_too_large', 413);
   }
-  const text = await request.text();
+  const text = await readBoundedRequestText(request, deadlineAt);
   if (new TextEncoder().encode(text).byteLength > MAX_CONTROL_BODY_BYTES) {
     throw new ControlRequestError('body_too_large', 413);
   }
@@ -265,6 +346,7 @@ const parseBody = async (request: Request): Promise<Record<string, unknown>> => 
 
 export type BookSourceControlRoute =
   | { readonly action: 'begin'; readonly bookId: string }
+  | { readonly action: 'decideStudentSafeSource'; readonly bookId: string; readonly reservationId: string }
   | { readonly action: 'attach'; readonly bookId: string }
   | { readonly action: 'sources'; readonly bookId: string }
   | {
@@ -285,6 +367,22 @@ const routeFor = (request: Request): BookSourceControlRoute | undefined => {
     && segments[5] === 'begin'
   ) {
     return { action: 'begin', bookId: safeId(segments[3], 'book_id') };
+  }
+  if (
+    request.method === 'POST'
+    && segments.length === 8
+    && segments[0] === 'v1'
+    && segments[1] === 'book-source'
+    && segments[2] === 'books'
+    && segments[4] === 'upload'
+    && segments[6] === 'student-safe'
+    && segments[7] === 'decide'
+  ) {
+    return {
+      action: 'decideStudentSafeSource',
+      bookId: safeId(segments[3], 'book_id'),
+      reservationId: safeId(segments[5], 'reservation_id'),
+    };
   }
   if (
     request.method === 'POST'
@@ -406,6 +504,7 @@ export interface BookSourceControlDispatchInput {
   readonly uid: string;
   readonly route: BookSourceControlRoute;
   readonly service: BookSourceUploadControlService;
+  readonly executionContext?: ExecutionContext;
 }
 
 export interface BookSourceControlDispatchResult {
@@ -424,8 +523,10 @@ export const dispatchBookSourceControlRequest = async ({
   uid,
   route,
   service,
+  executionContext,
 }: BookSourceControlDispatchInput): Promise<BookSourceControlDispatchResult> => {
   try {
+    const deadlineAt = Date.now() + CONTROL_REQUEST_TIMEOUT_MS;
     if (route.action === 'status') {
       if (!service.status) throw new ControlRequestError('cleanup_unavailable', 503);
       return dispatchResult(await service.status({
@@ -440,7 +541,67 @@ export const dispatchBookSourceControlRequest = async ({
       return dispatchResult(await service.sources({ actorId: uid, bookId: route.bookId }));
     }
 
-    const body = await parseBody(request);
+    const body = await parseBody(request, deadlineAt);
+    if (route.action === 'decideStudentSafeSource') {
+      if (!service.decideStudentSafeSource
+        || !exactKeys(body, ['operationId', 'studentSafeStatus', 'reasonCode'])) {
+        throw new ControlRequestError(
+          'invalid_student_safe_decision_request',
+          service.decideStudentSafeSource ? 400 : 503,
+        );
+      }
+      if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)) {
+        throw new ControlRequestError('invalid_operation_id', 400);
+      }
+      if (request.headers.get('idempotency-key') !== body.operationId) {
+        throw new ControlRequestError('idempotency_mismatch', 409);
+      }
+      if (!['review-required', 'ready', 'rejected'].includes(String(body.studentSafeStatus))
+        || !['teacher-reviewed', 'teacher-only-content', 'invalid-document', 'superseded']
+          .includes(String(body.reasonCode))) {
+        throw new ControlRequestError('invalid_student_safe_decision_request', 400);
+      }
+      const result = await service.decideStudentSafeSource({
+        actorId: uid,
+        bookId: route.bookId,
+        reservationId: route.reservationId,
+        operationId: body.operationId,
+        studentSafeStatus: body.studentSafeStatus as Exclude<BookSourceStudentSafeStatus, 'unreviewed'>,
+        reasonCode: body.reasonCode as BookSourceStudentSafeReasonCode,
+      });
+      const checksum = readTrustedSourceChecksum(result.checksum);
+      const decision = isRecord(result.studentSafeDecision)
+        ? result.studentSafeDecision
+        : undefined;
+      const safety = readTrustedSourceSafety(result, {
+        sourceVersionId: result.sourceVersionId,
+        checksum,
+      });
+      if (result.status !== 'verified_completed'
+        || result.reservationId !== route.reservationId
+        || result.purpose !== 'book-source'
+        || result.studentSafeStatus !== body.studentSafeStatus
+        || !checksum
+        || !decision
+        || !safety
+        || safety.studentSafeDecision === undefined
+        || safety.studentSafeDecision.decidedBy !== uid
+        || safety.studentSafeDecision.reasonCode !== body.reasonCode
+        || decision.sourceVersionId !== result.sourceVersionId
+        || !SHA256.test(safety.studentSafeDecision.sha256Hex)
+        || safety.studentSafeDecision.sha256Hex !== checksum.value) {
+        throw new ControlRequestError('student_safe_decision_conflict', 409);
+      }
+      return dispatchResult({
+        status: result.status,
+        reservationId: result.reservationId,
+        sourceVersionId: result.sourceVersionId,
+        checksum,
+        purpose: result.purpose,
+        studentSafeStatus: result.studentSafeStatus,
+        studentSafeDecision: safety.studentSafeDecision,
+      });
+    }
     if (route.action === 'attach') {
       if (!service.attachSourceSet
         || !exactKeys(body, ['operationId', 'expectedBookRevision', 'expectedSourceSetRevision', 'sourceSet'])) {
@@ -463,7 +624,7 @@ export const dispatchBookSourceControlRequest = async ({
     }
 
     if (route.action === 'begin') {
-      if (!exactKeys(body, ['operationId', 'sourceKey', 'kind', 'inspection'])) {
+      if (!exactKeys(body, ['operationId', 'sourceKey', 'kind', 'purpose', 'inspection'])) {
         throw new ControlRequestError('invalid_begin_request', 400);
       }
       if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)) {
@@ -475,12 +636,16 @@ export const dispatchBookSourceControlRequest = async ({
       if (body.kind !== 'initial' && body.kind !== 'replacement') {
         throw new ControlRequestError('invalid_upload_kind', 400);
       }
+      if (body.purpose !== 'book-source' && body.purpose !== 'student-document') {
+        throw new ControlRequestError('invalid_upload_purpose', 400);
+      }
       const result = await service.begin({
         actorId: uid,
         bookId: route.bookId,
         idempotencyKey: body.operationId,
         sourceKey: safeId(body.sourceKey, 'source_key'),
         kind: body.kind,
+        purpose: body.purpose,
         claim: parseInspection(body.inspection),
       });
       return dispatchResult({
@@ -527,23 +692,37 @@ export const dispatchBookSourceControlRequest = async ({
       }));
     }
 
-    if (!exactKeys(body, ['providerFileId', 'providerFileVersionId'])) {
+    if (!exactKeys(body, ['operationId'])) {
       throw new ControlRequestError('invalid_complete_request', 400);
     }
+    if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)) {
+      throw new ControlRequestError('invalid_operation_id', 400);
+    }
+    if (request.headers.get('idempotency-key') !== body.operationId) {
+      throw new ControlRequestError('idempotency_mismatch', 409);
+    }
+    if (!executionContext) throw new ControlRequestError('cleanup_unavailable', 503);
     const result = await service.complete({
       actorId: uid,
       bookId: route.bookId,
       reservationId: route.reservationId,
-      providerFileId: safeId(body.providerFileId, 'provider_file_id'),
-      providerFileVersionId: safeId(body.providerFileVersionId, 'provider_file_version_id'),
+      operationId: body.operationId,
+    }, {
+      signal: request.signal,
+      deadlineAt,
+      deferCleanup: (promise) => executionContext.waitUntil(promise),
     });
+    const checksum = readTrustedSourceChecksum(result.checksum);
+    if (!checksum
+      || result.status !== 'verified_completed'
+      || result.reservationId !== route.reservationId) {
+      throw new ControlRequestError('completion_conflict', 409);
+    }
     return dispatchResult({
       status: result.status,
       reservationId: result.reservationId,
       sourceVersionId: result.sourceVersionId,
-      ...(result.bookRevision !== undefined && result.sourceSetRevision !== undefined
-        ? { bookRevision: result.bookRevision, sourceSetRevision: result.sourceSetRevision }
-        : {}),
+      checksum,
     });
   } catch (error) {
     const failure = publicFailure(error);

@@ -1,27 +1,28 @@
 # PRD0062 Component-PDF Recovery — Active Execution Ledger
 
-## Current dashboard — revised-plan implementor rotation, 2026-10-04
+## Current dashboard — provider evidence and continuation, 2026-10-04
 
 This dashboard and live PlanMD §2 supersede the historical coordinates/holds below.
 Earlier narrative remains chronological evidence, not current execution authority.
 
 - Repo/branch: Windows shared checkout, `codex/prd0062-continuation-after-cleanup`.
-- Inspected HEAD: `808ffb0cfa66b922ffab029bab9f855c92f63b8c`; current PRD changes remain dirty.
+- Inspected HEAD: `b17744d57361635527c17e44dd8ddd02c671a1bd`; other PRD changes remain dirty.
 - Planner: `01a0fcfc-cf6a-7691-b9ee-c8970a5db9ce`; active implementor: `01a10335-ad99-7be2-b61e-fce9e3457cf2`, GPT-6.1 Sol/Medium. The predecessor `01a101a6-d9f9-74f3-bae8-d62b2aebe5f9` acknowledged retirement, is stopped and archived; its source remains in this checkout.
 - The user directed a fresh implementor after the completed assessment. The successor may start the revised plan; the predecessor's assessment pause/retirement stays historical. Creation/startup does not imply any new Worker upload, activation, or product proof.
 - Planner assessment is complete, including dependent lane instructions. The live plan reconciles R2 quarantine/provider callers, early versus full capacity proof, current canonical limits, tracking matrix, retained-byte outcomes and bounded-build proof. The successor receives one consolidated startup handoff and reads these live documents; no fragmented follow-ups are required.
 - Standing authority includes scoped release and exact-path feature-branch commits. Escalate substantive contradictions; continue independent ready work.
+- Planner-completed provider/Worker lookup is in PlanMD §2.10: exact reload paths, byte-verified raw donor reports, measured results and scope limits. Use it directly; retrieve further history only for a specific unresolved or invalidated boundary.
 - Teacher Session is excluded. Books remain outside Reading Passage/My Content. Selected Runtime mockup remains authoritative for that surface.
 
 | Objective | Current evidence and limit | Remaining action |
 | --- | --- | --- |
-| Real Save → Assembly | Recorded deployed two-validator Rules repair and persisted Brave draft; missing discovery route/Rules identified, narrow discovery Rules release/readback recorded | Activate qualified current Worker and prove ordinary editor flow; no complete-chain claim |
+| Real Save → Assembly | Committed successor journal/readback records discovery activation, authenticated draft GET 200 and ordinary editor reaching PDF setup; scoped checkpoint `b17744d5` | Continue full Save → Assembly → Source → publication; discovery proof does not establish the complete chain |
 | Runtime/H | Responsive matrix and max-attempt read-only answer/terminal reload pass locally; external transports substituted | Remaining ordinary/remote lifecycle proof; preserve settled local evidence |
 | Course/Class | Launch 8/8 is qualified UI proof; default command/credential/lock/receipt gaps confirmed, corrective work active | Default teacher commands, native atomic Rules and full context lifecycle |
 | Public Library | Local Admin approval → Library → Runtime → private ungraded Results passes with substitutions | Native and approved-provider/remote proof |
 | U selective replacement | Plan §2.7 resolves all-context adoption/deletion contradiction; default selective path remains implementation work | Genuine selected/unselected slice, effects/replay, reference-safe retirement |
 | Rules/release | Sole writer reconciling Book-owned clauses and preserving notification/Course authority; broad candidates remain unqualified | Stable generation, affected native checks, coordinated required Book delta, rollback/readback |
-| R2/capacity/Q | R2 is approved target; fixtures and local probe exist, measured capacity sidecars absent; current B2-specific identity and quarantine guards require coordinated adaptation | Current implementor owns ingress/integrity/count/Delivery/cleanup R2 adaptation and early actual-request feasibility; later full workload/backup/recovery/zero-billing proof |
+| R2/capacity/Q | PlanMD §2.10 verifies historical local R2 range-count measurements, deployed four-page R2 completion, B2 provider/browser/quota proof and scheduler bounds. Current capacity fixtures are inputs, not HTTP CPU/memory measurements | Reuse these exact reports/contracts; adapt ingress/integrity/count/Delivery/cleanup to R2, qualify current purpose ceilings early, then finish workload/backup/recovery/zero-billing proof |
 | Quality/version control | Recorded full typecheck and bounded build pass at their source checkpoints; newer identity changes need affected checks | Coherent exact-path checkpoint commits and durable sanitized evidence; no overall completion |
 
 Next actions: finish real authoring recovery; qualify R2/counter feasibility early;
