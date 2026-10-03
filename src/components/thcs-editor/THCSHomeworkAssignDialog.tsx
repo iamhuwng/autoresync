@@ -18,17 +18,19 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { createHomework, getHomeworkById, type CreateHomeworkInput } from '../../services/homeworkManager';
-import { createTrustedBulkNotifications } from '../../services/notificationProducerClient';
-import { ref, get } from 'firebase/database';
-import { database } from '../../services/firebase';
+import { createHomework, type CreateHomeworkInput } from '../../services/homeworkManager';
+import { notifyCommittedEvent } from '../../services/notificationProducerClient';
+
+
 import { getClasses, getClass } from '../../services/classManager';
 import { DateTimeCalendar } from '../common/DateTimeCalendar';
 import { Button, Input, Textarea } from '../modern';
 import type { HomeworkContentRef, HomeworkTarget } from '../../types/homework.types';
 import type { AntiCheatPreset } from '../../types/integrity.types';
 import { getContextDefaults, resolvePreset } from '../../utils/antiCheatPresets';
-import { buildRoute } from '../../constants/routes';
+import { toast } from '../modern/ToastNotification';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 
 // ============================================================================
 // Types
@@ -74,6 +76,7 @@ export function THCSHomeworkAssignDialog({
     createHomeworkAssignment,
 }: THCSHomeworkAssignDialogProps) {
     const { user } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
 
     // Form state
     const [targetType, setTargetType] = useState<'class' | 'students'>('class');
@@ -95,7 +98,6 @@ export function THCSHomeworkAssignDialog({
     const [pinToVersion, setPinToVersion] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [studentSearch, setStudentSearch] = useState('');
-    const [feedback, setFeedback] = useState<{ tone: 'success' | 'error' | 'info'; message: string } | null>(null);
 
     // Class & student search data
     const [loadingClasses, setLoadingClasses] = useState(false);
@@ -172,7 +174,6 @@ export function THCSHomeworkAssignDialog({
         setInstructions('');
         setPinToVersion(true);
         setStudentSearch('');
-        setFeedback(null);
     }, []);
 
     const filteredStudentOptions = useMemo(() => {
@@ -209,17 +210,13 @@ export function THCSHomeworkAssignDialog({
     const handleSubmit = async () => {
         const errors = getValidationErrors();
         if (errors.length > 0) {
-            setFeedback({
-                tone: 'error',
-                message: errors.join(' '),
-            });
+            toast.error(errors.join(' '));
             return;
         }
 
         if (!user?.uid || !dueDate) return;
 
         setSubmitting(true);
-        setFeedback(null);
         try {
             // Build target
             let target: HomeworkTarget;
@@ -282,51 +279,17 @@ export function THCSHomeworkAssignDialog({
                 homeworkId = await createHomework(homeworkInput);
             }
 
-            // Note: thcsConfig is stored separately via homeworkManager extension (Task 2.4)
-            // For now we create the basic homework. Task 2.4 will extend createHomework to handle thcsConfig.
-
-            // Phase 3 Task 3.1: Send THCS homework assigned notifications (fire-and-forget)
-            try {
-                const canonicalHomework = await getHomeworkById(homeworkId);
-                if (!canonicalHomework) {
-                    console.warn('[THCSHomework] Canonical homework readback unavailable; notification suppressed.');
-                } else {
-                    let notifyStudentIds: string[] = [];
-                    if (canonicalHomework.target.type === 'class') {
-                        // Fetch student IDs from the canonical homework target's class.
-                        const snapshot = await get(ref(database, `classes/${canonicalHomework.target.classId}/students`));
-                        if (snapshot.exists()) {
-                            notifyStudentIds = Object.keys(snapshot.val()).filter(Boolean);
-                        }
-                    } else if ('studentIds' in canonicalHomework.target) {
-                        notifyStudentIds = canonicalHomework.target.studentIds.filter(Boolean);
-                    }
-                    if (notifyStudentIds.length > 0) {
-                        const dueDateStr = new Date(dueDate.getTime()).toLocaleDateString();
-                        void createTrustedBulkNotifications(notifyStudentIds, {
-                            producerFamily: 'thcs-practice',
-                            authorityRecordId: homeworkId,
-                            operationKey: `thcs-homework-assigned:${homeworkId}`,
-                            type: 'info',
-                            title: '📝 New THCS Homework Assigned',
-                            message: `Your teacher has assigned "${testTitle}". Due: ${dueDateStr}`,
-                            link: buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId }),
-                        }).catch(err => console.warn('[THCSHomework] Notification send failed (non-blocking):', err));
-                    }
-                }
-            } catch (notifErr) {
-                console.warn('[THCSHomework] Notification setup failed (non-blocking):', notifErr);
-            }
+            trackAction('assignHomework', { homeworkId, materialType: 'thcs-test' });
+            void notifyCommittedEvent({ eventKind: 'thcs-homework-assigned', homeworkId })
+                .catch(err => console.warn('[THCSHomework] Notification failed:', err));
+            toast.success('Homework assigned.');
 
             resetForm();
             onClose();
             onSuccess?.();
         } catch (error) {
             console.error('[THCSHomework] Error creating homework:', error);
-            setFeedback({
-                tone: 'error',
-                message: 'Failed to assign homework. Please try again.',
-            });
+            toast.error('Failed to assign homework. Please try again.');
         } finally {
             setSubmitting(false);
         }
@@ -341,23 +304,6 @@ export function THCSHomeworkAssignDialog({
         }
     };
 
-    const feedbackToneStyles = {
-        success: {
-            background: 'rgba(220,252,231,0.9)',
-            border: '1px solid rgba(34,197,94,0.2)',
-            color: '#15803d',
-        },
-        error: {
-            background: 'rgba(254,226,226,0.9)',
-            border: '1px solid rgba(239,68,68,0.2)',
-            color: '#b91c1c',
-        },
-        info: {
-            background: 'rgba(219,234,254,0.9)',
-            border: '1px solid rgba(59,130,246,0.2)',
-            color: '#1d4ed8',
-        },
-    } as const;
 
     const toggleStudentSelection = (studentId: string) => {
         setSelectedStudentIds((current) =>
@@ -536,17 +482,6 @@ export function THCSHomeworkAssignDialog({
                         </div>
                     </div>
 
-                    {feedback ? (
-                        <div
-                            style={{
-                                borderRadius: '1rem',
-                                padding: '0.9rem 1rem',
-                                ...feedbackToneStyles[feedback.tone],
-                            }}
-                        >
-                            {feedback.message}
-                        </div>
-                    ) : null}
 
                     <div
                         style={{

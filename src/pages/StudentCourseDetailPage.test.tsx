@@ -149,6 +149,18 @@ describe('StudentCourseDetailPage', () => {
         });
     });
 
+    it('denies course detail when only an expired enrollment remains', async () => {
+        (getEnrollmentsByStudent as any).mockResolvedValue([{
+            id: 'revoked-enrollment', studentId: 's1', courseId: 'c1', status: 'expired', revision: 2,
+        }]);
+
+        renderPage();
+
+        expect(await screen.findByText('You are not enrolled in this course')).toBeInTheDocument();
+        expect(screen.queryByText('Advanced Math')).not.toBeInTheDocument();
+        expect(getClass).not.toHaveBeenCalled();
+    });
+
     it('should show module status (Locked/Available)', async () => {
         renderPage();
 

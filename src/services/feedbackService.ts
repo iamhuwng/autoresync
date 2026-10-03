@@ -1,6 +1,8 @@
-import { ref, set, get, update, push } from 'firebase/database';
+import { ref, get, update } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 import { database } from '@/services/firebase';
-import { classifyTeacherResultVisibility } from './resultVisibility.service';
+import { notifyCommittedEvent } from './notificationProducerClient';
+import { verifyHomeworkResultAuthority } from './homeworkResultAuthorityClient';
 
 /**
  * Teacher Feedback Service
@@ -31,6 +33,11 @@ export interface OverallFeedback {
 }
 
 export interface FeedbackHistoryEntry {
+    resultId?: string;
+    studentId?: string;
+    expectedRevision?: number;
+    revision?: number;
+    eventId?: string;
     timestamp: number;
     teacherId: string;
     teacherName?: string;
@@ -48,7 +55,7 @@ type CanonicalQuestionResult = {
 
 type CanonicalResultRecord = {
     questionResults?: CanonicalQuestionResult[];
-    overallFeedback?: string | null;
+    overallFeedback?: string | OverallFeedback | null;
     feedbackUpdatedAt?: number | null;
     feedbackUpdatedBy?: string | null;
     feedbackUpdatedByTeacherId?: string | null;
@@ -57,7 +64,154 @@ type CanonicalResultRecord = {
     teacherId?: string | null;
     visibility?: any;
     courseId?: string | null;
+    [key: string]: any;
 };
+
+const ID = /^[A-Za-z0-9_-]{1,128}$/u;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+export interface FeedbackSaveOptions { eventId?: string; expectedRevision?: number }
+
+/** Result actions require the current RTDB source or the protected homework receipt. */
+export async function getAuthorizedTeacherResult(resultId: string, teacherId = getAuth().currentUser?.uid) {
+    const uid = getAuth().currentUser?.uid;
+    if (!ID.test(resultId) || !uid || uid !== teacherId) throw new Error('Result action unauthenticated');
+    let result: CanonicalResultRecord | null;
+    try { result = await getCanonicalResult(resultId); }
+    catch (error) {
+        if (!/permission[ _-]?denied/iu.test(String(error))) throw error;
+        const verification = await verifyHomeworkResultAuthority(resultId);
+        if (verification.status === 'held' || verification.status === 'failed') throw new Error(verification.code);
+        result = await getCanonicalResult(resultId);
+    }
+    if (!result) throw new Error('Result not found');
+    if (result.resultId !== resultId || !ID.test(result.studentId)) throw new Error('Result authority mismatch');
+    const actor = (await get(ref(database, `users/${uid}`))).val();
+    const visibility = result.visibility;
+    if (actor?.role !== 'teacher') throw new Error('Result action forbidden');
+    if (visibility?.ownershipResolved && visibility.visibilityOwnerTeacherId === uid
+        && ['session', 'class'].includes(visibility.sourceType)) {
+        const sharedSolo = visibility.contextType === 'solo_practice';
+        const source = (await get(ref(database, visibility.sourceType === 'session'
+            ? `game_sessions/${result.sessionCode}` : `classes/${visibility.classId}`))).val();
+        const sourceOwner = visibility.sourceType === 'session'
+            ? (typeof source?.createdByUserId === 'string' ? source.createdByUserId : source?.createdBy) : source?.createdBy;
+        const sourceMatches = visibility.sourceType === 'session'
+            ? visibility.contextType === 'class_session' && visibility.sourceId === result.sessionCode
+                && visibility.sessionCode === result.sessionCode && ID.test(result.testId)
+                && [source?.testId, source?.lastTestId].includes(result.testId)
+                && (visibility.classId ?? null) === (source?.linkedClassId ?? source?.classId ?? null)
+                && (visibility.courseId ?? null) === (source?.courseId ?? null)
+                && Boolean(source?.players?.[result.studentId] || source?.students?.[result.studentId])
+            : source?.status === 'active' && source.students?.[result.studentId]?.status === 'active'
+                && visibility.sourceId === visibility.classId
+                && (visibility.courseId ?? null) === (source?.courseId ?? null)
+                && (visibility.contextType === 'course_material' || (sharedSolo
+                    && result.context?.selectedTeacherId === uid && result.context.classId === visibility.classId));
+        if (!source || sourceOwner !== uid || !sourceMatches) throw new Error('Result action forbidden');
+        return { result, actor, teacherId: uid };
+    }
+    const authorityRef = ref(database, `result_notification_authority/${resultId}`);
+    let authority: any;
+    try { authority = (await get(authorityRef)).val(); }
+    catch (error) {
+        if (!/permission[ _-]?denied/iu.test(String(error))) throw error;
+    }
+    if (!authority) {
+        const verification = await verifyHomeworkResultAuthority(resultId);
+        if (verification.status === 'held' || verification.status === 'failed') throw new Error(verification.code);
+        authority = (await get(authorityRef)).val();
+    }
+    const context = result.context;
+    const source = context?.source;
+    if (!authority || authority.schemaVersion !== 2 || authority.contextType !== 'homework'
+        || authority.resultId !== resultId || authority.studentId !== result.studentId || authority.ownerTeacherId !== uid
+        || authority.testId !== result.testId || authority.submittedAt !== result.submittedAt
+        || authority.writingSubmittedAt !== result.createdAt || result.submittedAt !== result.createdAt
+        || !ID.test(authority.homeworkId) || !ID.test(authority.homeworkSubmissionId)
+        || result.testType !== 'homework' || result.testSkill !== 'writing' || result.isGuest !== false
+        || result.writingData?.submissionId !== resultId || context?.type !== 'homework' || source?.type !== 'homework'
+        || source.id !== authority.homeworkId || source.submissionId !== resultId
+        || context.assignment?.homeworkId !== authority.homeworkId
+        || [result.sessionCode, result.classId, result.courseId, result.moduleId,
+            context.sessionCode, context.classId, context.courseId, source.classId, source.courseId].some(Boolean)) {
+        throw new Error('Result authority mismatch');
+    }
+    if (!visibility?.ownershipResolved) {
+        const preservedVisibility = { ...visibility, ownershipResolved: true, visibilityOwnerTeacherId: uid,
+            contextType: 'homework', sourceType: 'homework', sourceId: authority.homeworkId,
+            homeworkId: authority.homeworkId, ownerResolutionSource: 'homework.createdBy', unresolvedReason: null };
+        await update(ref(database, `test_results/${resultId}`), { visibility: preservedVisibility });
+        result = { ...result, visibility: preservedVisibility };
+    } else if (visibility.visibilityOwnerTeacherId !== uid || visibility.contextType !== 'homework'
+        || visibility.sourceType !== 'homework' || visibility.sourceId !== authority.homeworkId
+        || visibility.homeworkId !== authority.homeworkId) throw new Error('Result authority mismatch');
+    return { result, actor, teacherId: uid };
+}
+
+function feedbackRevision(result: CanonicalResultRecord, expectedRevision?: number): number {
+    const revision = result.feedbackRevision ?? 0;
+    if (!Number.isSafeInteger(revision) || revision < 0
+        || (expectedRevision !== undefined && expectedRevision !== revision)) throw new Error('Feedback revision conflict');
+    return revision;
+}
+
+export async function getFeedbackRevision(resultId: string): Promise<number> {
+    const result = await getCanonicalResult(resultId);
+    if (!result) throw new Error('Result not found');
+    return feedbackRevision(result);
+}
+
+async function saveFeedback(resultId: string, type: 'question' | 'overall', feedback: string,
+    teacherId: string, questionId: string | undefined, options: FeedbackSaveOptions): Promise<void> {
+    const text = feedback.trim();
+    const eventId = options.eventId ?? crypto.randomUUID();
+    if (!UUID.test(eventId) || !text || text.length > 5000 || (questionId !== undefined && !ID.test(questionId))) {
+        throw new Error('Feedback invalid');
+    }
+    const { result, actor } = await getAuthorizedTeacherResult(resultId, teacherId);
+    const existing = result.feedbackHistory?.[eventId];
+    if (existing) {
+        if (existing.eventId !== eventId || existing.resultId !== resultId || existing.studentId !== result.studentId
+            || existing.teacherId !== teacherId || existing.type !== type || existing.questionId !== questionId
+            || existing.feedback !== text || !Number.isSafeInteger(existing.expectedRevision) || existing.expectedRevision < 0
+            || existing.revision !== existing.expectedRevision + 1
+            || (options.expectedRevision !== undefined && existing.expectedRevision !== options.expectedRevision)) throw new Error('Feedback event conflict');
+        notifyFeedbackOccurrence(resultId, eventId);
+        return;
+    }
+    const revision = feedbackRevision(result, options.expectedRevision);
+    const questionIndex = questionId === undefined ? -1 : findQuestionResultIndex(result, questionId);
+    if (questionId !== undefined && questionIndex < 0) throw new Error('Feedback question not found');
+    const occurredAt = Date.now();
+    const name = [actor.displayName, actor.name, actor.fullName].find((value) => typeof value === 'string' && value.trim())?.trim().slice(0, 100);
+    const question = questionId === undefined ? {} : { questionId };
+    const target = { ...question, feedback: text, updatedAt: occurredAt, updatedBy: teacherId,
+        updatedById: teacherId, eventId, ...(name ? { updatedByName: name, teacherName: name } : {}) };
+    const path = `test_results/${resultId}`;
+    const writes: Record<string, unknown> = {
+        [`${path}/feedbackHistory/${eventId}`]: { ...question, eventId, resultId, studentId: result.studentId,
+            timestamp: occurredAt, teacherId, type, feedback: text, expectedRevision: revision, revision: revision + 1,
+            ...(name ? { teacherName: name } : {}) },
+        [`${path}/feedbackRevision`]: revision + 1,
+        [`${path}/feedbackMutation`]: { type, ...question, ...(questionId === undefined ? {} : { questionIndex: String(questionIndex) }), expectedRevision: revision, revision: revision + 1, eventId },
+        [`${path}/feedbackNotificationEventId`]: eventId,
+        [`${path}/feedbackUpdatedAt`]: occurredAt,
+        [`${path}/feedbackUpdatedBy`]: teacherId,
+        [`${path}/feedbackUpdatedByTeacherId`]: teacherId,
+        [`${path}/feedbackUpdatedByTeacherName`]: name || null,
+        [`${path}/hasFeedback`]: true,
+    };
+    if (questionId !== undefined) {
+        writes[`${path}/questionFeedback/${questionId}`] = target;
+        writes[`${path}/questionResults/${questionIndex}/teacherFeedback`] = text;
+    } else writes[`${path}/overallFeedback`] = target;
+    await update(ref(database), writes);
+    notifyFeedbackOccurrence(resultId, eventId);
+}
+
+function notifyFeedbackOccurrence(resultId: string, eventId: string): void {
+    void notifyCommittedEvent({ eventKind: 'feedback-saved', resultId, eventId });
+}
 
 function normalizeFeedbackKey(value: string | number | null | undefined): string {
     return String(value ?? '').trim();
@@ -169,7 +323,8 @@ function resultHasAnyFeedback(result: CanonicalResultRecord | null): boolean {
         return false;
     }
 
-    if (typeof result.overallFeedback === 'string' && result.overallFeedback.trim()) {
+    if ((typeof result.overallFeedback === 'string' && result.overallFeedback.trim())
+        || (typeof result.overallFeedback === 'object' && result.overallFeedback?.feedback?.trim())) {
         return true;
     }
 
@@ -178,124 +333,32 @@ function resultHasAnyFeedback(result: CanonicalResultRecord | null): boolean {
     });
 }
 
-async function syncCanonicalQuestionFeedback(
-    resultId: string,
-    questionId: string,
-    feedback: string,
-    teacherId: string,
-    teacherName?: string,
-    updatedAt?: number
-): Promise<void> {
-    try {
-        const canonicalResult = await getCanonicalResult(resultId);
-        const questionIndex = findQuestionResultIndex(canonicalResult, questionId);
-        const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
-
-        if (questionIndex === -1) {
-            return;
-        }
-
-        const resultRef = ref(database, `test_results/${resultId}`);
-        await update(resultRef, {
-            [`questionResults/${questionIndex}/teacherFeedback`]: feedback,
-            feedbackUpdatedAt: updatedAt ?? Date.now(),
-            feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
-            feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
-            feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
-            hasFeedback: true
-        });
-    } catch (error) {
-        console.warn('Failed to sync canonical question feedback:', error);
+async function deleteFeedback(resultId: string, questionId?: string, expectedRevision?: number): Promise<void> {
+    const { result } = await getAuthorizedTeacherResult(resultId);
+    const revision = feedbackRevision(result, expectedRevision);
+    if (questionId !== undefined && !ID.test(questionId)) throw new Error('Feedback invalid');
+    const index = questionId === undefined ? -1 : findQuestionResultIndex(result, questionId);
+    if (questionId !== undefined && index < 0) throw new Error('Feedback question not found');
+    const remaining = { ...result, overallFeedback: questionId === undefined ? null : result.overallFeedback,
+        questionResults: (result.questionResults || []).map((question, i) => i === index ? { ...question, teacherFeedback: null } : question) };
+    const hasFeedback = resultHasAnyFeedback(remaining);
+    const path = `test_results/${resultId}`;
+    const writes: Record<string, unknown> = {
+        [`${path}/feedbackRevision`]: revision + 1,
+        [`${path}/feedbackMutation`]: { type: questionId === undefined ? 'delete-overall' : 'delete-question',
+            ...(questionId === undefined ? {} : { questionId, questionIndex: String(index) }), expectedRevision: revision, revision: revision + 1 },
+        [`${path}/hasFeedback`]: hasFeedback,
+    };
+    if (questionId === undefined) writes[`${path}/overallFeedback`] = null;
+    else {
+        writes[`${path}/questionFeedback/${questionId}`] = null;
+        writes[`${path}/questionResults/${index}/teacherFeedback`] = null;
     }
-}
-
-async function syncCanonicalOverallFeedback(
-    resultId: string,
-    feedback: string,
-    teacherId: string,
-    teacherName?: string,
-    updatedAt?: number
-): Promise<void> {
-    try {
-        const resultRef = ref(database, `test_results/${resultId}`);
-        const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
-        await update(resultRef, {
-            overallFeedback: feedback,
-            feedbackUpdatedAt: updatedAt ?? Date.now(),
-            feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
-            feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
-            feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
-            hasFeedback: true
-        });
-    } catch (error) {
-        console.warn('Failed to sync canonical overall feedback:', error);
+    if (!hasFeedback) for (const field of ['feedbackUpdatedAt', 'feedbackUpdatedBy', 'feedbackUpdatedByTeacherId', 'feedbackUpdatedByTeacherName']) {
+        writes[`${path}/${field}`] = null;
     }
+    await update(ref(database), writes);
 }
-
-async function clearCanonicalQuestionFeedback(resultId: string, questionId: string): Promise<void> {
-    try {
-        const canonicalResult = await getCanonicalResult(resultId);
-        const questionIndex = findQuestionResultIndex(canonicalResult, questionId);
-
-        if (questionIndex === -1) {
-            return;
-        }
-
-        const nextResult: CanonicalResultRecord = {
-            ...canonicalResult,
-            questionResults: (canonicalResult?.questionResults || []).map((questionResult, index) => (
-                index === questionIndex
-                    ? { ...questionResult, teacherFeedback: null }
-                    : questionResult
-            ))
-        };
-        const hasFeedback = resultHasAnyFeedback(nextResult);
-        const updateData: Record<string, any> = {
-            [`questionResults/${questionIndex}/teacherFeedback`]: null,
-            hasFeedback
-        };
-
-        if (!hasFeedback) {
-            updateData.feedbackUpdatedAt = null;
-            updateData.feedbackUpdatedBy = null;
-            updateData.feedbackUpdatedByTeacherId = null;
-            updateData.feedbackUpdatedByTeacherName = null;
-        }
-
-        const resultRef = ref(database, `test_results/${resultId}`);
-        await update(resultRef, updateData);
-    } catch (error) {
-        console.warn('Failed to clear canonical question feedback:', error);
-    }
-}
-
-async function clearCanonicalOverallFeedback(resultId: string): Promise<void> {
-    try {
-        const canonicalResult = await getCanonicalResult(resultId);
-        const nextResult: CanonicalResultRecord = {
-            ...canonicalResult,
-            overallFeedback: null
-        };
-        const hasFeedback = resultHasAnyFeedback(nextResult);
-        const updateData: Record<string, any> = {
-            overallFeedback: null,
-            hasFeedback
-        };
-
-        if (!hasFeedback) {
-            updateData.feedbackUpdatedAt = null;
-            updateData.feedbackUpdatedBy = null;
-            updateData.feedbackUpdatedByTeacherId = null;
-            updateData.feedbackUpdatedByTeacherName = null;
-        }
-
-        const resultRef = ref(database, `test_results/${resultId}`);
-        await update(resultRef, updateData);
-    } catch (error) {
-        console.warn('Failed to clear canonical overall feedback:', error);
-    }
-}
-
 /**
  * Save feedback for a specific question in a test result
  * 
@@ -311,46 +374,13 @@ export async function saveQuestionFeedback(
     questionId: string,
     feedback: string,
     teacherId: string,
-    teacherName?: string
+    _teacherName?: string, options: FeedbackSaveOptions = {}
 ): Promise<void> {
     if (!resultId || !questionId || !teacherId) {
         throw new Error('Missing required parameters: resultId, questionId, or teacherId');
     }
 
-    const normalizedFeedback = feedback.trim();
-    const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
-    const feedbackData: QuestionFeedback = {
-        questionId,
-        feedback: normalizedFeedback,
-        updatedAt: Date.now(),
-        updatedBy: teacherIdentity.compatibilityLabel,
-        updatedById: teacherIdentity.updatedById,
-        ...(teacherIdentity.updatedByName ? { updatedByName: teacherIdentity.updatedByName } : {}),
-        ...(teacherIdentity.updatedByName ? { teacherName: teacherIdentity.updatedByName } : {})
-    };
-
-    // Save to test_results/{resultId}/questionFeedback/{questionId}
-    const feedbackRef = ref(database, `test_results/${resultId}/questionFeedback/${questionId}`);
-    await set(feedbackRef, feedbackData);
-
-    // Also save to feedback history
-    await saveFeedbackHistory(resultId, {
-        timestamp: feedbackData.updatedAt,
-        teacherId,
-        teacherName,
-        type: 'question',
-        questionId,
-        feedback: normalizedFeedback
-    });
-
-    await syncCanonicalQuestionFeedback(
-        resultId,
-        questionId,
-        normalizedFeedback,
-        teacherId,
-        teacherName,
-        feedbackData.updatedAt
-    );
+    await saveFeedback(resultId, 'question', feedback, teacherId, questionId, options);
 }
 
 /**
@@ -459,53 +489,13 @@ export async function saveOverallFeedback(
     resultId: string,
     feedback: string,
     teacherId: string,
-    teacherName?: string
+    _teacherName?: string, options: FeedbackSaveOptions = {}
 ): Promise<void> {
     if (!resultId || !teacherId) {
         throw new Error('Missing required parameters: resultId or teacherId');
     }
 
-    const normalizedFeedback = feedback.trim();
-    const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
-    const feedbackData: OverallFeedback = {
-        feedback: normalizedFeedback,
-        updatedAt: Date.now(),
-        updatedBy: teacherIdentity.compatibilityLabel,
-        updatedById: teacherIdentity.updatedById,
-        ...(teacherIdentity.updatedByName ? { updatedByName: teacherIdentity.updatedByName } : {}),
-        ...(teacherIdentity.updatedByName ? { teacherName: teacherIdentity.updatedByName } : {})
-    };
-
-    // Save to test_results/{resultId}/overallFeedback
-    const feedbackRef = ref(database, `test_results/${resultId}/overallFeedback`);
-    await set(feedbackRef, feedbackData);
-
-    // Update feedbackUpdatedAt and feedbackUpdatedBy at result level
-    const resultRef = ref(database, `test_results/${resultId}`);
-    await update(resultRef, {
-        feedbackUpdatedAt: feedbackData.updatedAt,
-        feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
-        feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
-        feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
-        hasFeedback: true
-    });
-
-    // Also save to feedback history
-    await saveFeedbackHistory(resultId, {
-        timestamp: feedbackData.updatedAt,
-        teacherId,
-        teacherName,
-        type: 'overall',
-        feedback: normalizedFeedback
-    });
-
-    await syncCanonicalOverallFeedback(
-        resultId,
-        normalizedFeedback,
-        teacherId,
-        teacherName,
-        feedbackData.updatedAt
-    );
+    await saveFeedback(resultId, 'overall', feedback, teacherId, undefined, options);
 }
 
 /**
@@ -525,12 +515,19 @@ export async function getOverallFeedback(
     const snapshot = await get(feedbackRef);
 
     if (snapshot.exists()) {
-        return normalizeStoredOverallFeedback(snapshot.val());
+        const stored = snapshot.val();
+        if (typeof stored !== 'string') return normalizeStoredOverallFeedback(stored);
+        const canonicalResult = await getCanonicalResult(resultId);
+        return buildOverallFeedbackResponse(stored, canonicalResult?.feedbackUpdatedAt ?? Date.now(),
+            getTeacherIdentityFromCanonicalResult(canonicalResult));
     }
 
     const canonicalResult = await getCanonicalResult(resultId);
     if (!canonicalResult?.overallFeedback) {
         return null;
+    }
+    if (typeof canonicalResult.overallFeedback !== 'string') {
+        return normalizeStoredOverallFeedback(canonicalResult.overallFeedback);
     }
 
     return buildOverallFeedbackResponse(
@@ -538,22 +535,6 @@ export async function getOverallFeedback(
         canonicalResult.feedbackUpdatedAt ?? Date.now(),
         getTeacherIdentityFromCanonicalResult(canonicalResult),
     );
-}
-
-/**
- * Save feedback history entry
- * 
- * @param resultId - The test result ID
- * @param entry - The feedback history entry
- * @returns Promise that resolves when history is saved
- */
-async function saveFeedbackHistory(
-    resultId: string,
-    entry: FeedbackHistoryEntry
-): Promise<void> {
-    const historyRef = ref(database, `test_results/${resultId}/feedbackHistory`);
-    const newEntryRef = push(historyRef);
-    await set(newEntryRef, entry);
 }
 
 /**
@@ -592,16 +573,14 @@ export async function getFeedbackHistory(
  */
 export async function deleteQuestionFeedback(
     resultId: string,
-    questionId: string
+    questionId: string,
+    options: { expectedRevision?: number } = {},
 ): Promise<void> {
     if (!resultId || !questionId) {
         throw new Error('Missing required parameters: resultId or questionId');
     }
 
-    const feedbackRef = ref(database, `test_results/${resultId}/questionFeedback/${questionId}`);
-    await set(feedbackRef, null);
-
-    await clearCanonicalQuestionFeedback(resultId, questionId);
+    await deleteFeedback(resultId, questionId, options.expectedRevision);
 }
 
 /**
@@ -611,33 +590,14 @@ export async function deleteQuestionFeedback(
  * @returns Promise that resolves when feedback is deleted
  */
 export async function deleteOverallFeedback(
-    resultId: string
+    resultId: string,
+    options: { expectedRevision?: number } = {},
 ): Promise<void> {
     if (!resultId) {
         throw new Error('Missing required parameter: resultId');
     }
 
-    const feedbackRef = ref(database, `test_results/${resultId}/overallFeedback`);
-    await set(feedbackRef, null);
-
-    // Update result-level flags
-    const resultRef = ref(database, `test_results/${resultId}`);
-
-    // Check if there's still question feedback
-    const questionFeedback = await getAllQuestionFeedback(resultId);
-    const hasQuestionFeedback = Object.keys(questionFeedback).length > 0;
-
-    await update(resultRef, {
-        hasFeedback: hasQuestionFeedback,
-        ...(hasQuestionFeedback ? {} : {
-            feedbackUpdatedAt: null,
-            feedbackUpdatedBy: null,
-            feedbackUpdatedByTeacherId: null,
-            feedbackUpdatedByTeacherName: null,
-        })
-    });
-
-    await clearCanonicalOverallFeedback(resultId);
+    await deleteFeedback(resultId, undefined, options.expectedRevision);
 }
 
 /**
@@ -657,48 +617,9 @@ export async function canTeacherEditFeedback(
     }
 
     try {
-        // Get the test result
-        const resultRef = ref(database, `test_results/${resultId}`);
-        const resultSnapshot = await get(resultRef);
-
-        if (!resultSnapshot.exists()) {
-            return false;
-        }
-
-        const result = resultSnapshot.val();
-        const courseId = result.courseId;
-
-        if (result.visibility) {
-            return classifyTeacherResultVisibility({
-                result,
-                teacherId,
-                hasAssignmentAccess: true,
-            }).shouldAllowTeacherActions;
-        }
-
-        if (result.teacherId && result.teacherId === teacherId) {
-            return true;
-        }
-
-        // If no courseId, allow any teacher (for backward compatibility)
-        if (!courseId) {
-            return true;
-        }
-
-        // Check if teacher owns or teaches this course
-        const courseRef = ref(database, `courses/${courseId}`);
-        const courseSnapshot = await get(courseRef);
-
-        if (!courseSnapshot.exists()) {
-            return false;
-        }
-
-        const course = courseSnapshot.val();
-        return course.createdBy === teacherId;
-    } catch (error) {
-        console.error('Error checking teacher permissions:', error);
-        return false;
-    }
+        await getAuthorizedTeacherResult(resultId, teacherId);
+        return true;
+    } catch { return false; }
 }
 
 /**
@@ -720,12 +641,9 @@ export async function bulkSaveQuestionFeedback(
         throw new Error('Missing required parameters: resultId or teacherId');
     }
 
-    const promises = Object.entries(feedbackMap).map(([questionId, feedback]) => {
+    for (const [questionId, feedback] of Object.entries(feedbackMap)) {
         if (feedback && feedback.trim()) {
-            return saveQuestionFeedback(resultId, questionId, feedback, teacherId, teacherName);
+            await saveQuestionFeedback(resultId, questionId, feedback, teacherId, teacherName);
         }
-        return Promise.resolve();
-    });
-
-    await Promise.all(promises);
+    }
 }

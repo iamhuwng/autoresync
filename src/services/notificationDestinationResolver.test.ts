@@ -8,6 +8,8 @@ const { mockGet, mockRef, mockGetDoc } = vi.hoisted(() => ({
     mockGetDoc: vi.fn(),
 }));
 
+vi.mock('./reportingService', () => ({ reportingService: { reportError: vi.fn() } }));
+
 vi.mock('firebase/database', () => ({
     equalTo: vi.fn(),
     get: mockGet,
@@ -79,6 +81,15 @@ describe('notification destination resolver', () => {
         )).resolves.toEqual({ status: 'blocked', reason: 'invalid-link' });
     });
 
+    it('opens selected-teacher student history only through the teacher port', async () => {
+        const notice = baseNotification({ link: '/teacher/student/student-1/history' });
+        await expect(resolveNotificationDestination(notice, {
+            userId: 'teacher-1', authUserId: 'teacher-1', currentPath: '/lobby', role: 'teacher',
+        })).resolves.toEqual({ status: 'allowed', destination: 'TEACHER_STUDENT_HISTORY', params: { studentId: 'student-1' } });
+        await expect(resolveNotificationDestination(notice, studentContext))
+            .resolves.toEqual({ status: 'blocked', reason: 'unauthorized' });
+    });
+
     it('blocks when the current auth user no longer owns the notification', async () => {
         await expect(resolveNotificationDestination(
             baseNotification({ link: '/student/dashboard' }),
@@ -110,6 +121,8 @@ describe('notification destination resolver', () => {
     });
 
     it('keeps current teacher and student producer routes compatible', async () => {
+        mockGet.mockResolvedValue({ exists: () => true, val: () => ({ createdBy: 'teacher-1' }) });
+        mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ context: { assigningTeacherId: 'teacher-1' } }) });
         await expect(resolveNotificationDestination(
             baseNotification({ link: '/teacher/classes/CLASS1' }),
             { userId: 'teacher-1', authUserId: 'teacher-1', currentPath: '/teacher/classes', role: 'teacher' },
@@ -150,6 +163,23 @@ describe('notification destination resolver', () => {
             destination: 'STUDENT_COURSE_DETAIL',
             params: { courseId: 'course-1' },
         });
+    });
+
+    it('checks active class membership for class notices and class-targeted homework', async () => {
+        mockGet.mockResolvedValueOnce({ exists: () => true, val: () => ({ students: { 'student-1': { status: 'active' } } }) });
+        await expect(resolveNotificationDestination(baseNotification({ link: '/student/classes/class-1' }), studentContext)).resolves.toMatchObject({ status: 'allowed' });
+        mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ target: { type: 'class', classId: 'class-1' } }) });
+        mockGet.mockResolvedValueOnce({ exists: () => true, val: () => ({ status: 'active' }) });
+        await expect(resolveNotificationDestination(baseNotification({ link: '/student/homework/homework-1' }), studentContext)).resolves.toMatchObject({ status: 'allowed' });
+        mockGet.mockResolvedValueOnce({ exists: () => true, val: () => ({ students: { 'student-1': { status: 'pending_approval' } } }) });
+        await expect(resolveNotificationDestination(baseNotification({ link: '/student/classes/class-1' }), studentContext)).resolves.toEqual({ status: 'blocked', reason: 'unauthorized' });
+    });
+
+    it('checks result ownership and assigned grading teacher before opening replayed notices', async () => {
+        mockGet.mockResolvedValue({ exists: () => true, val: () => ({ studentId: 'other-student' }) });
+        await expect(resolveNotificationDestination(baseNotification({ link: '/result/result-1' }), studentContext)).resolves.toEqual({ status: 'blocked', reason: 'unauthorized' });
+        mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ context: { selectedTeacherId: 'other-teacher' } }) });
+        await expect(resolveNotificationDestination(baseNotification({ link: '/teacher/grading/writing/submission-1' }), { userId: 'teacher-1', authUserId: 'teacher-1', currentPath: '/lobby', role: 'teacher' })).resolves.toEqual({ status: 'blocked', reason: 'unauthorized' });
     });
 
     it('fails closed for foreign teacher homework and course destinations', async () => {

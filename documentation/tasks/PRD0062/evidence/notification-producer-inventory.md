@@ -6,19 +6,17 @@ cleanup are not content producers.
 
 | Producer path | Migration owner | Family |
 |---|---:|---|
-| `src/components/course/RequestReviewList.tsx` | #95 | enrollment |
 | `src/services/assignmentManager.ts` | #95 | assignment |
 | `src/services/classManager.ts` | #95 | class |
 | `src/services/courseAnnouncementService.ts` | #95 | course-announcement |
 | `src/services/courseManager.ts` | #95 | course |
-| `src/services/deadlineReminderService.ts` | #95 | deadline |
-| `src/services/enrollmentManager.ts` | #95 | enrollment |
+| `src/services/courseRequestManager.ts` | #95 | course-request |
 | `src/pages/TeacherHomeworkDetailPage.tsx` | #95 | deadline |
-| `src/components/results/TeacherFeedbackManager.tsx` | #96 | feedback |
 | `src/components/thcs-grading/InlineWritingGrader.tsx` | #96 | result |
 | `src/services/homeworkSubmissionService.ts` | #96 | homework |
+| `src/services/homeworkNotificationClient.ts` | #96 | homework |
+| `src/services/feedbackService.ts` | #96 | feedback |
 | `src/services/testResults.service.ts` | #96 | result |
-| `src/components/practice/THCSPracticeView.tsx` | #97 | thcs-practice |
 | `src/components/thcs-editor/THCSHomeworkAssignDialog.tsx` | #97 | thcs-practice |
 | `src/components/thcs-student/THCSTestLayout.tsx` | #97 | thcs-practice |
 | `src/components/writing-practice/WritingPracticeView.tsx` | #97 | writing |
@@ -26,6 +24,7 @@ cleanup are not content producers.
 | `src/services/sessionManager.js` | #97 | session |
 | `src/services/thcsWritingGrading.service.ts` | #97 | thcs-grading |
 | `src/services/writingSubmissionService.ts` | #97 | writing |
+| `src/services/writingNotificationClient.ts` | #97 | writing |
 
 ## Trusted producer seam and adapter ownership
 
@@ -79,3 +78,22 @@ exactly once here.
 - New producer code must use `notificationProducerClient.ts` and therefore
   `notificationCommandClient.ts`. No other application path may write
   notification content directly.
+
+## Canonical notification-only integration — 2026-10-02
+
+Ordinary class membership, assignment decisions, course announcements and requests,
+Homework assignment/submission/reminder/reset, student result completion, and teacher
+feedback/review use the shared committed-event port. The private Homework and solo
+Writing delivery clients own source proofs and transport. Solo Writing submission
+delivery is supported independently of the existing trusted Writing callers.
+Teacher grading and session producers retain their existing trusted behavior.
+
+The ordinary shared producer and course-announcement mapping own direct notification
+content writes; readers continue through notificationService. RequestReviewList,
+TeacherFeedbackManager, and THCSPracticeView delegate notifications to their owning
+services and are no longer direct producers. The unused deadlineReminderService
+producer is retired; enrollmentManager has no remaining notification producer.
+
+This inventory records canonical source ownership and does not claim runtime or
+deployed delivery. Integration qualification is tracked in the current verification
+packet; historical claims above retain their original scope.

@@ -28,6 +28,14 @@ function createVisibility(
 }
 
 describe('resultVisibility.service', () => {
+    it('allows the preserved selected solo owner and denies other teachers without relying on a link', () => {
+        const result = { context: { type: 'self_study', selectedTeacherId: 'teacher-1', classId: 'class-1' },
+            visibility: createVisibility({ contextType: 'solo_practice', sourceType: 'class', sourceId: 'class-1', classId: 'class-1' }) } as any;
+        expect(classifyTeacherResultVisibility({ result, teacherId: 'teacher-1', hasAssignmentAccess: false }))
+            .toMatchObject({ isVisibleToTeacher: true, isTeacherOwned: true, shouldAllowTeacherActions: true });
+        expect(classifyTeacherResultVisibility({ result, teacherId: 'teacher-2', hasAssignmentAccess: true }))
+            .toMatchObject({ isVisibleToTeacher: false, shouldAllowTeacherActions: false });
+    });
     it('returns a visible teacher-owned verdict when owner and assignment access match', () => {
         const verdict = classifyTeacherResultVisibility({
             result: {
@@ -130,7 +138,7 @@ describe('resultVisibility.service', () => {
         });
     });
 
-    it('keeps solo practice visible but view-only and analytics-excluded', () => {
+    it('keeps unshared solo practice private and analytics-excluded', () => {
         const verdict = classifyTeacherResultVisibility({
             result: {
                 visibility: createVisibility({
@@ -146,7 +154,7 @@ describe('resultVisibility.service', () => {
         });
 
         expect(verdict).toMatchObject({
-            isVisibleToTeacher: true,
+            isVisibleToTeacher: false,
             isTeacherOwned: false,
             shouldAllowTeacherActions: false,
             excludeFromAnalytics: true,
@@ -154,7 +162,7 @@ describe('resultVisibility.service', () => {
         });
         expect(verdict.soloPractice).toMatchObject({
             isSoloPractice: true,
-            teacherCanView: true,
+            teacherCanView: false,
             teacherActionsAllowed: false,
             tagLabel: 'Solo Practice',
             excludeFromAnalytics: true,

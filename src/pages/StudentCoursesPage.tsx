@@ -4,13 +4,15 @@ import { useNavigation } from '../hooks/useNavigation';
 import { getEnrollmentsByStudent, unenrollStudent } from '../services/enrollmentManager';
 import { getCourse, getMaterialsByCourse, getStudentCourseProgress } from '../services/courseManager';
 import { getUserById } from '../services/userService';
-import { getRequestsByStudent, cancelCourseRequest } from '../services/courseRequestManager';
+import { createCourseRequest, getRequestsByStudent, cancelCourseRequest } from '../services/courseRequestManager';
 import { toast } from '../components/modern/ToastNotification';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
 import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import type { CourseEnrollment, Course, CourseVisibility, CourseRequest } from '../types/course.types';
 
 interface PopulatedEnrollment extends CourseEnrollment {
@@ -203,6 +205,7 @@ function ProgressBar({ value }: { value: number }) {
 
 const StudentCoursesPage: React.FC = () => {
     const { user, profile } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.courses);
     const { navigateTo } = useNavigation('student');
     const { notStarted } = useResolvedStudentHomeworkList(user?.uid || '');
     const { enrolledClasses } = useResolvedStudentShellData();
@@ -319,8 +322,33 @@ const StudentCoursesPage: React.FC = () => {
         }
     };
 
-    const handleUnenrollRequest = (enrollment: PopulatedEnrollment) => {
-        showCourseToast('info', 'Request Sent', `Your request to unenroll from "${enrollment.course?.name}" has been sent to the teacher/admin.`);
+    const handleUnenrollRequest = async (enrollment: PopulatedEnrollment) => {
+        if (!user?.uid || !enrollment.course?.ownerId) {
+            showCourseToast('error', 'Request Failed', 'This course does not have an available owner to receive your request.');
+            return;
+        }
+        trackAction('requestUnenroll', { courseId: enrollment.courseId });
+        setProcessing(true);
+        try {
+            const result = await createCourseRequest(
+                user.uid,
+                profile?.name || user.displayName || 'Student',
+                enrollment.courseId,
+                enrollment.course.name,
+                enrollment.course.ownerId,
+                'unenroll',
+            );
+            if (!result.success) {
+                showCourseToast('error', 'Request Failed', result.error || 'Could not submit your unenrollment request.');
+                return;
+            }
+            await loadEnrollments();
+            showCourseToast('success', 'Request Sent', `Your unenrollment request for "${enrollment.course.name}" was sent to the course owner.`);
+        } catch {
+            showCourseToast('error', 'Request Failed', 'Could not submit your unenrollment request. Please try again.');
+        } finally {
+            setProcessing(false);
+        }
     };
 
     const getStatusTone = (status: string) => {

@@ -20,10 +20,11 @@ import {
     query,
     where,
     orderBy,
+    runTransaction as runFirestoreTransaction,
 } from 'firebase/firestore';
-import { ref, get, push, set, update } from 'firebase/database';
+import { ref, get, push, set, update, runTransaction } from 'firebase/database';
 // @ts-ignore — JS service file
-import { database, firestore as db } from './firebase';
+import { database, firestore as db, auth } from './firebase';
 import { buildRoute } from '../constants/routes';
 import { deepRemoveUndefined } from './draftCloudService';
 import { withRestoreGuard } from './restoreGuard';
@@ -919,6 +920,147 @@ async function persistWritingResultRecord(
 /**
  * Create a new writing submission in Firestore.
  */
+function assertSameWritingSource(saved: WritingSubmission, candidate: WritingSubmission): void {
+    const sameTasks = saved.tasks?.length === candidate.tasks.length
+        && saved.tasks.every((task, index) => {
+            const expected = candidate.tasks[index];
+            return task.taskNumber === expected.taskNumber
+                && task.taskType === expected.taskType
+                && task.promptText === expected.promptText
+                && (task.promptImageUrl ?? null) === (expected.promptImageUrl ?? null)
+                && task.wordMinimum === expected.wordMinimum
+                && task.essayText === expected.essayText
+                && task.wordCount === expected.wordCount
+                && task.activeTimeSeconds === expected.activeTimeSeconds;
+        });
+    if (saved.id !== candidate.id || saved.studentId !== candidate.studentId
+        || saved.studentName !== candidate.studentName
+        || saved.submittedAt !== candidate.submittedAt
+        || saved.testMeta?.testId !== candidate.testMeta.testId
+        || saved.testMeta?.format !== candidate.testMeta.format
+        || saved.testMeta?.testTitle !== candidate.testMeta.testTitle
+        || saved.testMeta?.duration !== candidate.testMeta.duration
+        || saved.totalElapsedTimeSeconds !== candidate.totalElapsedTimeSeconds
+        || saved.pasteAttemptCount !== candidate.pasteAttemptCount
+        || saved.context?.type !== candidate.context.type
+        || (saved.context?.homeworkSubmissionId ?? null) !== (candidate.context.homeworkSubmissionId ?? null)
+        || (saved.context?.homeworkId ?? null) !== (candidate.context.homeworkId ?? null)
+        || (saved.context?.selectedTeacherId ?? null) !== (candidate.context.selectedTeacherId ?? null)
+        || (saved.context?.classId ?? null) !== (candidate.context.classId ?? null)
+        || (saved.context?.className ?? null) !== (candidate.context.className ?? null)
+        || (saved.context?.courseId ?? null) !== (candidate.context.courseId ?? null)
+        || (saved.context?.courseName ?? null) !== (candidate.context.courseName ?? null)
+        || (saved.context?.moduleId ?? null) !== (candidate.context.moduleId ?? null)
+        || (saved.context?.moduleName ?? null) !== (candidate.context.moduleName ?? null)
+        || (saved.context?.sessionCode ?? null) !== (candidate.context.sessionCode ?? null)
+        || (saved.context?.assigningTeacherId ?? null) !== (candidate.context.assigningTeacherId ?? null)
+        || (saved.context?.studentNote ?? null) !== (candidate.context.studentNote ?? null)
+        || (saved.context?.isLate ?? null) !== (candidate.context.isLate ?? null)
+        || (saved.context?.attemptNumber ?? null) !== (candidate.context.attemptNumber ?? null)
+        || (saved.context?.externalImport?.source ?? null) !== (candidate.context.externalImport?.source ?? null)
+        || (saved.context?.externalImport?.importedByTeacherId ?? null) !== (candidate.context.externalImport?.importedByTeacherId ?? null)
+        || (saved.context?.externalImport?.importedAt ?? null) !== (candidate.context.externalImport?.importedAt ?? null)
+        || (saved.context?.externalImport?.sourceNote ?? null) !== (candidate.context.externalImport?.sourceNote ?? null)
+        || !sameTasks) {
+        throw new Error('Saved writing submission differs from the pending attempt');
+    }
+}
+
+export async function readCommittedWritingSubmission(candidate: WritingSubmission): Promise<WritingSubmission | null> {
+    if (candidate.context.type !== 'solo-practice' || auth.currentUser?.uid !== candidate.studentId) {
+        throw new Error('Only the submitting student can recover this solo Writing attempt');
+    }
+    const snapshot = await getDocFromServer(getSubmissionRef(candidate.id));
+    if (!snapshot.exists()) return null;
+    const saved = snapshot.data() as WritingSubmission;
+    assertSameWritingSource(saved, candidate);
+    return saved;
+}
+
+async function materializeSoloWritingResult(candidate: WritingSubmission): Promise<'shared' | 'held' | undefined> {
+    const submission = await readCommittedWritingSubmission(candidate);
+    if (!submission) throw new Error('Writing save is unconfirmed. Retry the same attempt.');
+    const baseContext = mapSubmissionContextToResultContext(submission);
+    const context = deepRemoveUndefined({ ...baseContext,
+        selectedTeacherId: submission.context.selectedTeacherId, classId: submission.context.classId,
+        source: { ...baseContext.source, classId: submission.context.classId },
+    });
+    const resultRecord = buildWritingResultRecord({
+        resultId: submission.id, testId: submission.testMeta.testId,
+        studentId: submission.studentId, studentName: submission.studentName,
+        testTitle: submission.testMeta.testTitle, testType: 'practice',
+        testDuration: submission.testMeta.duration, submittedAt: submission.submittedAt,
+        timeElapsed: submission.totalElapsedTimeSeconds, tasks: submission.tasks,
+        markingStatus: submission.markingStatus,
+        overallBand: submission.publishedGrading?.overallBand ?? submission.grading?.overallBand ?? null,
+        context,
+    });
+    const visibility = {
+        contextType: 'solo_practice', sourceType: 'solo_practice', sourceId: submission.testMeta.testId,
+        sourceNameSnapshot: submission.testMeta.testTitle, visibilityOwnerTeacherId: null,
+        ownerResolutionSource: 'solo_practice', ownershipResolved: true, unresolvedReason: null,
+        homeworkId: null, sessionCode: null, courseId: null, classId: null, assignmentId: null,
+    };
+    const selectedOwnership = submission.context.selectedTeacherId ? await resolveResultOwnership({
+        result: resultRecord, context, writingSubmissionId: submission.id, verifiedWritingSubmission: submission,
+        classId: submission.context.classId ?? null, sourceNameSnapshot: submission.testMeta.testTitle,
+    }) : null;
+    const normalizedResult = { ...resultRecord, visibility: selectedOwnership?.visibility ?? visibility };
+    const matchesSource = (record: Record<string, any> | null) => record?.resultId === submission.id
+        && record.studentId === submission.studentId && record.testId === submission.testMeta.testId
+        && record.submittedAt === submission.submittedAt && record.testSkill === 'writing'
+        && record.writingData?.submissionId === submission.id;
+    const rootPath = `test_results/${submission.id}`;
+    const studentPath = `test_results_by_student/${submission.studentId}/${submission.id}`;
+    const [rootSnapshot, indexSnapshot] = await Promise.all([get(ref(database, rootPath)), get(ref(database, studentPath))]);
+    if (rootSnapshot.exists() && !matchesSource(rootSnapshot.val())) throw new Error('Writing result conflicts with saved submission');
+    if (indexSnapshot.exists() && !matchesSource(indexSnapshot.val())) throw new Error('Writing student index conflicts with saved submission');
+    // Insert-only recovery keeps a newer grade; only a missing root is restored from the student's saved row.
+    const root = await runTransaction(ref(database, rootPath), current => current === null
+        ? indexSnapshot.exists() ? { ...indexSnapshot.val(), visibility: normalizedResult.visibility } : normalizedResult
+        : undefined, { applyLocally: false });
+    const canonical = root.snapshot.val();
+    if (!matchesSource(canonical)) throw new Error('Writing result changed during repair');
+    const studentIndex = await runTransaction(ref(database, studentPath), current => current === null ? canonical : undefined, { applyLocally: false });
+    if (!matchesSource(studentIndex.snapshot.val())) throw new Error('Writing student index changed during repair');
+    const soloIndex = await runTransaction(ref(database, `test_results_solo_practice_by_student/${submission.studentId}/${submission.id}`), current => current === null ? {
+        resultId: submission.id, sessionCode: null, testId: submission.testMeta.testId,
+        percentage: canonical.percentage ?? 0, submittedAt: submission.submittedAt,
+    } : undefined, { applyLocally: false });
+    const summary = soloIndex.snapshot.val();
+    if (summary?.resultId !== submission.id || summary.testId !== submission.testMeta.testId
+        || summary.submittedAt !== submission.submittedAt) throw new Error('Writing solo index conflicts with saved submission');
+    if (!submission.context.selectedTeacherId) return;
+    const owner = selectedOwnership?.visibility;
+    if (!owner?.ownershipResolved || owner.visibilityOwnerTeacherId !== submission.context.selectedTeacherId
+        || owner.sourceType !== 'class' || owner.classId !== submission.context.classId
+        || canonical.visibility?.visibilityOwnerTeacherId !== owner.visibilityOwnerTeacherId
+        || canonical.visibility?.sourceType !== 'class' || canonical.visibility?.classId !== owner.classId
+        || canonical.visibility?.courseId !== owner.courseId || !canonical.visibility?.ownershipResolved) return 'held';
+    const teacherKey = await runTransaction(ref(database, `teacher_result_keys/${owner.visibilityOwnerTeacherId}/${submission.id}`),
+        current => current === null ? true : undefined, { applyLocally: false });
+    if (teacherKey.snapshot.val() !== true) throw new Error('Writing teacher result key conflicts with saved submission');
+    const courseId = getCanonicalCourseIndexId(canonical);
+    const classId = getCanonicalClassIndexId(canonical);
+    const scopedSummary = { resultId: submission.id, studentId: submission.studentId, studentName: submission.studentName,
+        percentage: canonical.percentage ?? 0, bandScore: canonical.bandScore ?? 0, testTitle: canonical.testTitle,
+        testSkill: 'writing', submittedAt: submission.submittedAt, markingStatus: canonical.markingStatus };
+    const indexes: Record<string, unknown> = {};
+    if (courseId) indexes[`test_results_by_course/${courseId}/${submission.studentId}/${submission.id}`] = {
+        ...scopedSummary, moduleId: canonical.moduleId ?? null,
+    };
+    if (classId) indexes[`test_results_by_class/${classId}/${submission.studentId}/${submission.id}`] = {
+        ...scopedSummary, courseId: courseId ?? null,
+    };
+    for (const [path, expected] of Object.entries(indexes)) {
+        const repaired = await runTransaction(ref(database, path), current => current === null ? expected : undefined, { applyLocally: false });
+        const actual = repaired.snapshot.val();
+        if (actual?.resultId !== submission.id || actual?.studentId !== submission.studentId
+            || actual?.submittedAt !== submission.submittedAt) throw new Error('Writing scoped result index conflicts with saved submission');
+    }
+    return 'shared';
+}
+
 export const createSubmission = withRestoreGuard<{ success: boolean; error?: string }>(
     'WritingSubmissionCreate',
     { success: false, error: 'Blocked by restore guard' }
@@ -926,6 +1068,18 @@ export const createSubmission = withRestoreGuard<{ success: boolean; error?: str
     data: WritingSubmission
 ): Promise<{ success: boolean; error?: string }> => {
     try {
+        if (data.context.type === 'solo-practice') {
+            if (auth.currentUser?.uid !== data.studentId) throw new Error('Only the submitting student can save this solo Writing attempt');
+            const sanitized = deepRemoveUndefined({ ...data, sourceActorUid: data.studentId,
+                annotations: data.annotations ?? [], auditTrail: data.auditTrail ?? [] });
+            await runFirestoreTransaction(db, async transaction => {
+                const sourceRef = getSubmissionRef(data.id);
+                const existing = await transaction.get(sourceRef);
+                if (existing.exists()) assertSameWritingSource(existing.data() as WritingSubmission, data);
+                else transaction.set(sourceRef, sanitized);
+            });
+            return { success: true };
+        }
         const sanitized = deepRemoveUndefined(data);
         await setDoc(doc(db, SUBMISSIONS_COLLECTION, data.id), sanitized);
         console.log('✅ Writing submission created:', data.id);
@@ -939,11 +1093,15 @@ export const createSubmission = withRestoreGuard<{ success: boolean; error?: str
     }
 });
 
-export const materializeSubmissionResult = withRestoreGuard<{ success: boolean; error?: string }>(
+export const materializeSubmissionResult = withRestoreGuard<{ success: boolean; error?: string; sharingStatus?: 'shared' | 'held' }>(
     'WritingResultMaterialize',
     { success: false, error: 'Blocked by restore guard' }
-)(async (submission: WritingSubmission): Promise<{ success: boolean; error?: string }> => {
+)(async (submission: WritingSubmission): Promise<{ success: boolean; error?: string; sharingStatus?: 'shared' | 'held' }> => {
     try {
+        if (submission.context.type === 'solo-practice') {
+            const sharingStatus = await materializeSoloWritingResult(submission);
+            return { success: true, ...(sharingStatus ? { sharingStatus } : {}) };
+        }
         const academicContext = extractAcademicContext(submission.context as Record<string, any>);
         const resultContext = mapSubmissionContextToResultContext(submission);
         const resultRecord = buildWritingResultRecord({

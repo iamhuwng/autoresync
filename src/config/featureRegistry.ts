@@ -21,6 +21,7 @@ export interface FeatureDefinition {
 }
 
 export const FEATURE_IDS = {
+  notifications: 'notifications',
   adminPanel: 'adminPanel',
   antiCheat: 'antiCheat',
   classes: 'classes',
@@ -38,6 +39,13 @@ export const FEATURE_IDS = {
 
 export const FEATURE_REGISTRY: FeatureDefinition[] = [
   {
+    id: FEATURE_IDS.notifications,
+    name: 'Notifications',
+    routes: [],
+    actions: ['toggleBell', 'closeBell', 'markRead', 'markDisplayedRead', 'openFeedLink', 'loadMoreBell', 'openHistory', 'loadMoreHistory', 'closeHistory', 'openSettings'],
+    description: 'Shared bounded notification bell and paginated recipient history',
+  },
+  {
     id: FEATURE_IDS.testTaking,
     name: 'Test Taking',
     routes: [
@@ -53,6 +61,9 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'nextQuestion',
       'previousQuestion',
       'finishTest',
+      'startNewWritingPractice',
+      'submitWritingPractice',
+      'retryWritingSubmission',
       'timeOut',
       'abandonTest',
       'openQuestionSheet',
@@ -552,6 +563,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'createCourse',
       'editCourse',
       'enrollStudent',
+      'requestUnenroll',
       'syncCourse',
       'addMaterial',
       'openCourseBookPlacement',
@@ -559,6 +571,9 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'revokeCourseBook',
       'prepareCourseBook',
       'addAnnouncement',
+      'viewCourseTab',
+      'approveCourseRequest',
+      'denyCourseRequest',
     ],
     description: 'Course management for teachers and students',
   },
@@ -577,6 +592,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'removeStudent',
       'approveStudent',
       'rejectStudent',
+      'notification_delivery_failed',
       'viewHomeworkTab',
       'openHomeworkCreateModal',
       'openHomeworkDetail',
@@ -710,6 +726,10 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     actions: [
       'viewDashboard',
       'manageUsers',
+      'approveStudentRequest',
+      'denyStudentRequest',
+      'approveCourseType',
+      'rejectCourseType',
       'manageClasses',
       'viewBackups',
       'triggerBackup',
@@ -821,6 +841,9 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'exportResultsPdf',
       'openStudentHistory',
       'markResultReviewed',
+      'saveFeedback',
+      'markAsReviewed',
+      'notification_delivery_failed',
       'openWritingGrading',
       // PRD-0039 Task 9.14: Slide panel actions
       'openSlidePanel',

@@ -707,18 +707,6 @@ const buildReadingV2SessionIndexRow = (
   submittedAt: result.submittedAt,
 });
 
-const buildReadingV2TeacherIndexRow = (
-  result: Pick<TestResultRecord, 'resultId' | 'sessionCode' | 'studentId' | 'studentName' | 'percentage' | 'submittedAt' | 'isGuest'>,
-): Record<string, unknown> => ({
-  resultId: result.resultId,
-  sessionCode: result.sessionCode,
-  studentId: result.studentId,
-  studentName: result.studentName,
-  percentage: result.percentage,
-  submittedAt: result.submittedAt,
-  isGuest: Boolean(result.isGuest),
-});
-
 const buildReadingV2CourseIndexRow = (
   result: Pick<TestResultRecord, 'resultId' | 'studentId' | 'studentName' | 'percentage' | 'bandScore' | 'testTitle' | 'testSkill' | 'submittedAt' | 'moduleId'>,
 ): Record<string, unknown> => ({
@@ -852,8 +840,8 @@ export const buildReadingV2ResultPersistencePlan = (input: {
   if (teacherIndexOwnerId) {
     operations.push({
       key: `existing-teacher-index:${teacherIndexOwnerId}:${savedResult.resultId}`,
-      path: `test_results_by_teacher/${teacherIndexOwnerId}/${savedResult.resultId}`,
-      value: persistenceValue(buildReadingV2TeacherIndexRow(savedResult)),
+      path: `teacher_result_keys/${teacherIndexOwnerId}/${savedResult.resultId}`,
+      value: true,
     });
   }
 

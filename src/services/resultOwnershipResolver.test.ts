@@ -44,6 +44,22 @@ describe('resultOwnershipResolver', () => {
         dependencies = createDependencies();
     });
 
+    it('resolves explicit solo selection only from active class owner and student roster', async () => {
+        vi.mocked(dependencies.getClass).mockResolvedValue({ createdBy: 'teacher-selected', status: 'active', courseId: 'course-1',
+            students: { 'student-1': { status: 'active' } } });
+        const input = { result: { studentId: 'student-1' }, context: createContext({ type: 'self_study',
+            selectedTeacherId: 'teacher-selected', classId: 'class-1' }) };
+        expect((await resolveResultOwnership(input, dependencies)).visibility).toMatchObject({ ownershipResolved: true,
+            contextType: 'solo_practice', sourceType: 'class', sourceId: 'class-1', classId: 'class-1',
+            courseId: 'course-1', visibilityOwnerTeacherId: 'teacher-selected' });
+        expect(dependencies.getSubmission).not.toHaveBeenCalled();
+        for (const source of [{ createdBy: 'teacher-other', status: 'active', students: { 'student-1': { status: 'active' } } },
+            { createdBy: 'teacher-selected', status: 'active', students: { 'student-1': { status: 'pending_approval' } } }, null]) {
+            vi.mocked(dependencies.getClass).mockResolvedValue(source);
+            expect((await resolveResultOwnership(input, dependencies)).visibility.ownershipResolved).toBe(false);
+        }
+    });
+
     it('resolves homework ownership from homework.createdBy', async () => {
         (dependencies.getHomeworkById as ReturnType<typeof vi.fn>).mockResolvedValue({
             createdBy: 'teacher-homework',
@@ -291,6 +307,23 @@ describe('resultOwnershipResolver', () => {
         expect(result.sourceLookupAttempted).toBe(true);
         expect(result.strongestKnownSourceClue).toBe('writing_submission:submission-1');
         expect(dependencies.getSubmission).toHaveBeenCalledWith('submission-1');
+    });
+
+    it('reuses a verified live Writing source while reading current session authority', async () => {
+        const input = { result: { studentId: 'student-1' }, writingSubmissionId: 'writing-1',
+            verifiedWritingSubmission: { id: 'writing-1', studentId: 'student-1',
+                context: { type: 'live-session' as const, sessionCode: 'SESSION-1' } } };
+        vi.mocked(dependencies.getSession).mockResolvedValue({ createdByUserId: 'teacher-current', linkedClassId: 'class-current' });
+        expect((await resolveResultOwnership(input, dependencies)).visibility).toMatchObject({
+            ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-current', classId: 'class-current',
+            ownerResolutionSource: 'session.createdByUserId',
+        });
+        expect(dependencies.getSession).toHaveBeenCalledWith('SESSION-1');
+        expect(dependencies.getSubmission).not.toHaveBeenCalled();
+        vi.mocked(dependencies.getSession).mockResolvedValue(null);
+        expect((await resolveResultOwnership(input, dependencies)).visibility.ownershipResolved).toBe(false);
+        await expect(resolveResultOwnership({ ...input, verifiedWritingSubmission: { ...input.verifiedWritingSubmission, id: 'other' } }, dependencies))
+            .rejects.toThrow('Verified Writing source differs from result identity');
     });
 
     it('does not treat homework submission ids as writing submission ids', async () => {

@@ -1,6 +1,9 @@
 import { ref, push, set, get, update, query, orderByChild, equalTo } from 'firebase/database';
 import { database } from './firebase';
 import type { CourseRequest } from '../types/course.types';
+import { getAuth } from 'firebase/auth';
+import { notifyCommittedEvent } from './notificationProducerClient';
+import { notificationWorkerOrigin } from './notificationCommandClient';
 
 const REQUESTS_REF = 'course_requests';
 
@@ -10,6 +13,32 @@ function generateId(path: string) {
 }
 
 const now = () => Date.now();
+
+const readCommittedApproval = async (requestId: string, actorUid: string) => {
+    if (getAuth().currentUser?.uid !== actorUid) return null;
+    const source = (await get(ref(database, `${REQUESTS_REF}/${requestId}`))).val() as CourseRequest | null;
+    return source?.id === requestId && source.status === 'approved' && source.processedBy === actorUid
+        && Number.isSafeInteger(source.processedAt) && Number(source.processedAt) > 0
+        ? source : null;
+};
+
+const dispatchApprovedRequestNotice = async (requestId: string, actorUid: string): Promise<void> => {
+    try {
+        const source = await readCommittedApproval(requestId, actorUid);
+        if (!source) {
+            console.warn('course_approval_notification_detached_unknown', { requestId });
+            return;
+        }
+        const result = await notifyCommittedEvent({ eventKind: 'course-request-decided', requestId,
+            decision: 'approved', occurredAt: Number(source.processedAt) });
+        if (result.status === 'failed' || result.status === 'unknown' || result.status === 'skipped') {
+            console.warn('course_approval_notification_detached_unknown', { requestId,
+                status: result.status, code: result.code });
+        }
+    } catch {
+        console.warn('course_approval_notification_detached_unknown', { requestId });
+    }
+};
 
 /**
  * Create a new enrollment/unenrollment request
@@ -120,23 +149,86 @@ export async function getRequestsByStudent(studentId: string): Promise<CourseReq
  */
 export async function processCourseRequest(
     requestId: string,
-    status: 'approved' | 'denied',
+    status: 'denied',
     processedBy: string,
     rejectionReason?: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const updates: Partial<CourseRequest> = {
+        const requestRef = ref(database, `${REQUESTS_REF}/${requestId}`);
+        const snapshot = await get(requestRef);
+        if (!snapshot.exists()) return { success: false, error: 'Request not found' };
+        const request = snapshot.val() as CourseRequest;
+        if (getAuth().currentUser?.uid !== processedBy) {
+            return { success: false, error: 'Only the authenticated course owner can process this request' };
+        }
+        if (request.status !== 'pending' || request.expiresAt <= now()) {
+            return { success: false, error: 'Request is no longer pending' };
+        }
+        if (request.type !== 'join' && request.type !== 'unenroll') {
+            return { success: false, error: 'Request type is invalid' };
+        }
+        const processedAt = now();
+        const updates: Record<string, unknown> = {
             status,
-            processedAt: now(),
+            processedAt,
             processedBy,
-            rejectionReason: status === 'denied' ? rejectionReason : undefined
+            rejectionReason: status === 'denied' ? rejectionReason || null : null
         };
 
-        await update(ref(database, `${REQUESTS_REF}/${requestId}`), updates);
+        await update(requestRef, updates);
+        void notifyCommittedEvent({ eventKind: 'course-request-decided', requestId,
+            decision: status, occurredAt: processedAt });
         return { success: true };
     } catch (error) {
         console.error('Error processing request:', error);
         return { success: false, error: 'Failed to process request' };
+    }
+}
+
+/** Approve a current request through the existing atomic Course enrollment authority command. */
+export async function approveCourseRequest(
+    requestId: string,
+    processedBy: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (getAuth().currentUser?.uid !== processedBy) {
+            return { success: false, error: 'Only the authenticated course owner can process this request' };
+        }
+        if (!/^[A-Za-z0-9_-]{1,128}$/u.test(requestId)) throw new Error('invalid_course_request_id');
+        const configuredEndpoint = import.meta.env.VITE_COURSE_ENROLLMENT_APPROVAL_URL?.trim();
+        if (!configuredEndpoint) throw new Error('course_enrollment_approval_not_configured');
+        const parsedEndpoint = new URL(configuredEndpoint);
+        if (parsedEndpoint.pathname !== '/course-enrollment-approval' || parsedEndpoint.search || parsedEndpoint.hash
+            || parsedEndpoint.username || parsedEndpoint.password) {
+            throw new Error('course_enrollment_approval_url_invalid');
+        }
+        const endpoint = `${notificationWorkerOrigin(parsedEndpoint.origin)}/course-enrollment-approval`;
+        const token = await getAuth().currentUser?.getIdToken(false);
+        if (!token) throw new Error('course_request_unauthenticated');
+        const response = await fetch(endpoint, {
+            method: 'POST', credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(15_000),
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ operationId: crypto.randomUUID(), requestId }),
+        });
+        const text = await response.text();
+        if (new TextEncoder().encode(text).byteLength > 2048) throw new Error('course_request_response_invalid');
+        const body = JSON.parse(text) as { status?: unknown };
+        if (!response.ok || (body.status !== 'transitioned' && body.status !== 'replayed')) {
+            throw new Error(typeof body.status === 'string' ? body.status : 'course_request_unconfirmed');
+        }
+        void dispatchApprovedRequestNotice(requestId, processedBy);
+        return { success: true };
+    } catch (error) {
+        try {
+            if (await readCommittedApproval(requestId, processedBy)) {
+                void dispatchApprovedRequestNotice(requestId, processedBy);
+                return { success: true };
+            }
+        } catch {
+            // The route outcome stays unconfirmed when canonical recovery is unavailable.
+        }
+        console.error('Error approving course request:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to process request' };
     }
 }
 

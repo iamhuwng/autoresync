@@ -13,7 +13,7 @@ export interface ScopedIndexLocation {
 }
 
 export interface TeacherIndexReindexPlan {
-    updates: Record<string, Record<string, unknown> | null>;
+    updates: Record<string, Record<string, unknown> | true | null>;
     rebuiltCount: number;
     deletedCount: number;
     skippedCount: number;
@@ -62,7 +62,6 @@ export function isTeacherIndexBackfillEligible(
         visibility
         && visibility.ownershipResolved
         && visibility.visibilityOwnerTeacherId
-        && visibility.contextType !== 'solo_practice'
     );
 }
 
@@ -74,7 +73,7 @@ export function isScopedIndexBackfillEligible(
     return Boolean(
         visibility
         && visibility.ownershipResolved
-        && visibility.contextType !== 'solo_practice'
+        && (visibility.contextType !== 'solo_practice' || Boolean(visibility.visibilityOwnerTeacherId))
     );
 }
 
@@ -175,7 +174,7 @@ export function buildTeacherResultReindexPlan(
 
         const canonicalTeacherId = result.visibility!.visibilityOwnerTeacherId!;
         if (!existingTeacherIds.includes(canonicalTeacherId)) {
-            plan.updates[getTeacherIndexPath(canonicalTeacherId, result.resultId)] = buildTeacherIndexRow(result);
+            plan.updates[getTeacherIndexPath(canonicalTeacherId, result.resultId)] = true;
             plan.rebuiltCount += 1;
         } else {
             plan.skippedCount += 1;
@@ -224,29 +223,6 @@ export async function applyTeacherResultReindexPlan(
     }
 
     return plan;
-}
-
-function buildTeacherIndexRow(
-    result: Pick<
-        EnhancedTestResultRecord,
-        | 'resultId'
-        | 'sessionCode'
-        | 'studentId'
-        | 'studentName'
-        | 'percentage'
-        | 'submittedAt'
-        | 'isGuest'
-    >
-): Record<string, unknown> {
-    return {
-        resultId: result.resultId,
-        sessionCode: result.sessionCode,
-        studentId: result.studentId,
-        studentName: result.studentName,
-        percentage: result.percentage,
-        submittedAt: result.submittedAt,
-        isGuest: Boolean(result.isGuest),
-    };
 }
 
 function buildCourseIndexRow(
@@ -304,7 +280,7 @@ function buildClassIndexRow(
 }
 
 function getTeacherIndexPath(teacherId: string, resultId: string): string {
-    return `test_results_by_teacher/${teacherId}/${resultId}`;
+    return `teacher_result_keys/${teacherId}/${resultId}`;
 }
 
 function getScopedIndexPath(

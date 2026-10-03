@@ -14,7 +14,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 
-const firestoreRules = readFileSync('firestore.rules', 'utf8');
+const firestoreRules = readFileSync(process.env.FIRESTORE_RULES_PATH || 'firestore.rules', 'utf8');
 const PROJECT_ID = 'demo-prd-0052-homework-rules';
 const hasFirestoreEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 const describeEmulator = hasFirestoreEmulator ? describe : describe.skip;
@@ -51,6 +51,7 @@ const makeBookHomeworkCompatibilityServiceContext = (
 });
 
 const baseHomeworkAssignment = (overrides: Record<string, unknown> = {}) => ({
+  id: 'assignment-1',
   title: 'Reading Passage Homework',
   materialType: 'reading-passage',
   createdBy: 'teacher-1',
@@ -74,6 +75,7 @@ const baseHomeworkAssignment = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const readingPassageSetAssignment = (overrides: Record<string, unknown> = {}) => ({
+  id: 'assignment-1',
   title: 'Reading Passage Set Homework',
   materialType: 'reading-passage-set',
   createdBy: 'teacher-1',
@@ -347,6 +349,7 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertSucceeds(
       teacher.firestore().doc('homework_assignments/assignment-2').set(
         baseHomeworkAssignment({
+          id: 'assignment-2',
           title: 'Single Reading Passage',
         }),
       ),
@@ -354,6 +357,7 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertSucceeds(
       teacher.firestore().doc('homework_assignments/assignment-3').set(
         readingPassageSetAssignment({
+          id: 'assignment-3',
           title: 'Reading Passage Set',
         }),
       ),
@@ -361,6 +365,7 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertFails(
       teacher.firestore().doc('homework_assignments/assignment-4').set(
         baseHomeworkAssignment({
+          id: 'assignment-4',
           materialType: 'reading-passage',
           readingPassageSet: {
             items: [],
@@ -371,6 +376,7 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertFails(
       teacher.firestore().doc('homework_assignments/assignment-5').set(
         readingPassageSetAssignment({
+          id: 'assignment-5',
           readingPassageSnapshot: {
             passageMaterialId: 'passage-1',
             snapshotVersionId: 'snapshot-1',
@@ -504,7 +510,7 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertFails(teacher.firestore().doc('homework_assignments/book-committed').delete());
 
     await assertSucceeds(
-      teacher.firestore().doc('homework_assignments/assignment-ancestor').set(baseHomeworkAssignment({ title: 'Ancestor seed' })),
+      teacher.firestore().doc('homework_assignments/assignment-ancestor').set(baseHomeworkAssignment({ id: 'assignment-ancestor', title: 'Ancestor seed' })),
     );
     await assertFails(
       teacher.firestore().doc('homework_assignments/assignment-ancestor').update({

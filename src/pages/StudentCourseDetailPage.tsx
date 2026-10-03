@@ -317,7 +317,7 @@ const StudentCourseDetailPage: React.FC = () => {
 
             const directEnrollment = allEnrollments.find(e => e.courseId === courseId
                 && !e.sourceClassId && e.enrollmentType !== 'class-based' && e.status === 'active');
-            const studentEnrollment = directEnrollment ?? allEnrollments.find(e => e.courseId === courseId);
+            const studentEnrollment = directEnrollment ?? allEnrollments.find(e => e.courseId === courseId && e.status === 'active');
             if (!studentEnrollment) throw new Error('You are not enrolled in this course');
             const nextDirectEnrollmentId = directEnrollment?.id ?? null;
             setDirectEnrollmentId(nextDirectEnrollmentId);

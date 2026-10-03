@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { toast } from '../modern/ToastNotification';
 import { IconInfoCircle, IconCheck, IconAlertTriangle, IconX, IconChecklist, IconSettings, IconMessageCircle } from '@tabler/icons-react';
 import type { Notification } from '../../types/notification.types';
 import { parseNotificationMetadata } from '../../services/notificationMetadata';
@@ -6,6 +6,11 @@ import type { NotificationDestinationResolution } from '../../services/notificat
 
 interface NotificationPanelProps {
     notifications: Notification[];
+    title?: string;
+    loading?: boolean;
+    error?: string;
+    onLoadMore?: () => void;
+    onBack?: () => void;
     onMarkAsRead: (id: string) => void | Promise<void>;
     onMarkAllRead: () => void | Promise<void>;
     onOpenNotification?: (notification: Notification) => Promise<NotificationDestinationResolution>;
@@ -90,13 +95,13 @@ const NotificationItem = ({
             }}
             onClick={() => { void handleClick(); }}
             onKeyDown={(event) => {
-                if (!hasDestination || (event.key !== 'Enter' && event.key !== ' ')) return;
+                if ((event.key !== 'Enter' && event.key !== ' ')) return;
                 event.preventDefault();
                 void handleClick();
             }}
-            role={hasDestination ? 'button' : undefined}
-            tabIndex={hasDestination ? 0 : -1}
-            aria-label={hasDestination ? `Open notification: ${notification.title}` : undefined}
+            role="button"
+            tabIndex={0}
+            aria-label={`${hasDestination ? 'Open' : 'Read'} notification: ${notification.title}`}
             className="notification-item"
         >
             <div style={{
@@ -129,6 +134,11 @@ const NotificationItem = ({
 
 export function NotificationPanel({
     notifications,
+    title = 'Notifications',
+    loading = false,
+    error,
+    onLoadMore,
+    onBack,
     onMarkAsRead,
     onMarkAllRead,
     onOpenNotification,
@@ -138,13 +148,12 @@ export function NotificationPanel({
 }: NotificationPanelProps) {
     const unreadCount = notifications.filter(n => !n.read).length;
     const displayList = notifications;
-    const [blockedNotice, setBlockedNotice] = useState<string>();
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', width: 320, maxHeight: 500 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxHeight: 'min(600px, 80dvh)' }}>
             {/* Header */}
-            <div style={{ padding: '0.75rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>Notifications</div>
+            <div style={{ padding: '0.75rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a', overflowWrap: 'anywhere' }}>{title}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {unreadCount > 0 && (
                         <button
@@ -157,7 +166,7 @@ export function NotificationPanel({
                                 cursor: 'pointer', padding: '0.25rem 0.5rem', minHeight: 44, borderRadius: '0.25rem'
                             }}
                         >
-                            <IconChecklist size={14} /> Mark all read
+                            <IconChecklist size={14} /> Mark displayed read
                         </button>
                     )}
                     {onOpenSettings && (
@@ -177,15 +186,12 @@ export function NotificationPanel({
                 </div>
             </div>
 
-            {blockedNotice && (
-                <div role="status" aria-live="polite" style={{ padding: '0.5rem 0.75rem', color: '#92400e', backgroundColor: '#fffbeb', fontSize: '0.75rem' }}>
-                    {blockedNotice}
-                </div>
-            )}
 
+            {error && <div role="alert" style={{ padding: 12 }}>{error}</div>}
+            {loading && <div role="status" style={{ padding: 12 }}>Loading notification history…</div>}
             {/* List */}
-            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                {displayList.length === 0 ? (
+            <div style={{ maxHeight: 400, overflowY: 'auto', minHeight: 0, flex: '1 1 auto' }}>
+                {displayList.length === 0 && !loading && !error ? (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 150, padding: '1.5rem' }}>
                         <div style={{ color: '#94a3b8', backgroundColor: '#f1f5f9', borderRadius: '50%', width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem' }}>
                             <IconCheck size={24} />
@@ -200,7 +206,7 @@ export function NotificationPanel({
                                 notification={notification}
                                 onMarkAsRead={onMarkAsRead}
                                 onOpenNotification={onOpenNotification}
-                                onBlocked={(reason) => setBlockedNotice(blockedMessage(reason))}
+                                onBlocked={(reason) => toast.warning(blockedMessage(reason))}
                                 onClose={onClose}
                             />
                         ))}
@@ -208,23 +214,11 @@ export function NotificationPanel({
                 )}
             </div>
 
-            {/* Footer */}
-            <div style={{ padding: '0.5rem', borderTop: '1px solid #e2e8f0' }}>
-                <button
-                    type="button"
-                    onClick={() => {
-                        console.log('📢 [NotificationPanel] User clicked "See All Activity" — navigating to dashboard feed.');
-                        onClose?.();
-                        onSeeAll?.();
-                    }}
-                    style={{
-                        width: '100%', minHeight: 44, padding: '0.5rem', border: 'none', background: 'transparent',
-                        color: '#64748b', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                        borderRadius: '0.25rem'
-                    }}
-                >
-                    See All Activity →
-                </button>
+            <div style={{ padding: '0.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+                {onLoadMore && <button type="button" disabled={loading} onClick={onLoadMore} style={{ minHeight: 44, cursor: 'pointer' }}>{title === 'Notification history' ? 'Load 20 more' : 'Load 10 more'}</button>}
+                {onSeeAll && <button type="button" disabled={loading} onClick={onSeeAll} style={{ minHeight: 44, cursor: 'pointer' }}>View notification history</button>}
+                {onBack && <button type="button" onClick={onBack} style={{ minHeight: 44, cursor: 'pointer' }}>Back to latest notifications</button>}
+                {onClose && <button type="button" onClick={onClose} style={{ minHeight: 44, cursor: 'pointer' }}>Close notifications</button>}
             </div>
         </div>
     );

@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { get, push, set, update } from 'firebase/database';
-import { deleteDoc, getDoc, getDocFromServer, getDocs, setDoc, updateDoc } from 'firebase/firestore';
+import { get, push, set, update, runTransaction } from 'firebase/database';
+import { auth } from './firebase';
+import { deleteDoc, getDoc, getDocFromServer, getDocs, setDoc, updateDoc, runTransaction as runFirestoreTransaction } from 'firebase/firestore';
 import {
     autoSubmitFromRTDB,
+    createSubmission,
+    readCommittedWritingSubmission,
     getWritingSubmissionForGrading,
     materializeSubmissionResult,
     publishGrading,
@@ -26,6 +29,7 @@ const {
 vi.mock('./firebase', () => ({
     database: {},
     firestore: {},
+    auth: { currentUser: null },
 }));
 
 vi.mock('firebase/database', () => ({
@@ -34,6 +38,7 @@ vi.mock('firebase/database', () => ({
     push: vi.fn(),
     set: vi.fn(),
     update: vi.fn(),
+    runTransaction: vi.fn(),
 }));
 
 vi.mock('firebase/firestore', () => ({
@@ -49,6 +54,7 @@ vi.mock('firebase/firestore', () => ({
     query: vi.fn(),
     where: vi.fn(),
     orderBy: vi.fn(),
+    runTransaction: vi.fn(),
 }));
 
 vi.mock('./restoreGuard', () => ({
@@ -89,6 +95,15 @@ vi.mock('./resultVisibilityReporting.service', () => ({
 describe('writingSubmissionService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockResolveResultOwnership.mockReset();
+        (auth as any).currentUser = null;
+        (runFirestoreTransaction as any).mockImplementation(async (_db: any, callback: any) => callback({
+            get: async () => ({ exists: () => false }), set: setDoc,
+        }));
+        (runTransaction as any).mockImplementation(async (_path: string, updater: (current: unknown) => unknown) => {
+            const value = updater(null);
+            return { snapshot: { val: () => value } };
+        });
 
         mockResolveResultOwnership.mockResolvedValue({
             visibility: {
@@ -200,27 +215,10 @@ describe('writingSubmissionService', () => {
     });
 
     it('materializes solo-practice writing into the dedicated student index without creating a teacher index', async () => {
-        mockResolveResultOwnership.mockResolvedValueOnce({
-            visibility: {
-                contextType: 'solo_practice',
-                sourceType: 'solo_practice',
-                sourceId: 'test-solo',
-                sourceNameSnapshot: 'Solo Writing Test',
-                visibilityOwnerTeacherId: null,
-                ownerResolutionSource: 'solo_practice',
-                ownershipResolved: true,
-                unresolvedReason: null,
-                homeworkId: null,
-                sessionCode: null,
-                courseId: null,
-                classId: null,
-                assignmentId: null,
-            },
-            sourceLookupAttempted: false,
-            strongestKnownSourceClue: 'solo_practice:test-solo',
-        });
+        (auth as any).currentUser = { uid: 'student-solo' };
 
-        await materializeSubmissionResult({
+
+        const submission = {
             id: 'result-solo',
             studentId: 'student-solo',
             studentName: 'Student Solo',
@@ -240,10 +238,13 @@ describe('writingSubmissionService', () => {
             markingStatus: 'pending-review',
             annotations: [],
             auditTrail: [],
-        } as any);
+        } as any;
+        (getDocFromServer as any).mockResolvedValue({ exists: () => true, data: () => submission });
+        (get as any).mockResolvedValue({ exists: () => false, val: () => null });
+        await expect(materializeSubmissionResult(submission)).resolves.toEqual({ success: true });
 
-        const canonicalWrite = getSetCall(0)[1];
-        const indexUpdates = getUpdatePayload(0);
+        const canonicalWrite = (runTransaction as any).mock.calls[0][1](null);
+        const indexUpdates = Object.fromEntries((runTransaction as any).mock.calls.map(([path, updater]: any[]) => [path, updater(null)]));
         expect(canonicalWrite).toEqual(
             expect.objectContaining({
                 resultId: 'result-solo',
@@ -261,7 +262,126 @@ describe('writingSubmissionService', () => {
             })
         );
         expect(Object.keys(indexUpdates).filter((key) => key.startsWith('test_results_by_teacher/'))).toEqual([]);
-        expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledWith('result-solo');
+        expect(mockResolveResultOwnership).not.toHaveBeenCalled();
+        expect(set).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+
+    it('keeps a graded solo source and result on retry, repairs missing indexes and rejects mismatched recovery', async () => {
+        const candidate = { id: 'stable-solo', studentId: 'student-1', studentName: 'Student One',
+            context: { type: 'solo-practice', selectedTeacherId: undefined, classId: undefined },
+            testMeta: { testId: 'test-1', testTitle: 'Writing', format: 'task1-only', duration: 60 },
+            submittedAt: 100, tasks: [], totalElapsedTimeSeconds: 90, pasteAttemptCount: 2,
+            markingStatus: 'pending-review', annotations: [], auditTrail: [] } as any;
+        const saved = { ...candidate, context: { type: 'solo-practice', selectedTeacherId: null, classId: null },
+            markingStatus: 'graded', publishedGrading: { overallBand: 8 } };
+        (auth as any).currentUser = { uid: candidate.studentId };
+        (runFirestoreTransaction as any).mockImplementation(async (_db: any, callback: any) => callback({
+            get: async () => ({ exists: () => true, data: () => saved }), set: setDoc,
+        }));
+        await expect(createSubmission(candidate)).resolves.toEqual({ success: true });
+        await expect(createSubmission({ ...candidate, pasteAttemptCount: 0 })).resolves.toMatchObject({ success: false });
+        expect(setDoc).not.toHaveBeenCalled();
+        (getDocFromServer as any).mockResolvedValue({ exists: () => true, data: () => saved });
+        await expect(readCommittedWritingSubmission(candidate)).resolves.toEqual(saved);
+        await expect(readCommittedWritingSubmission({ ...candidate, submittedAt: 101 })).rejects.toThrow('differs');
+        const graded = { resultId: candidate.id, studentId: candidate.studentId, testId: 'test-1', submittedAt: 100,
+            testSkill: 'writing', bandScore: 8, markingStatus: 'graded', writingData: { submissionId: candidate.id, overallBand: 8 } };
+        const records: Record<string, any> = { 'test_results/stable-solo': graded };
+        (get as any).mockImplementation(async (path: string) => ({ exists: () => path in records, val: () => records[path] ?? null }));
+        (runTransaction as any).mockImplementation(async (path: string, callback: any) => {
+            const value = callback(records[path] ?? null);
+            if (value !== undefined) records[path] = value;
+            return { snapshot: { val: () => records[path] } };
+        });
+        await expect(materializeSubmissionResult(candidate)).resolves.toEqual({ success: true });
+        expect(records['test_results/stable-solo']).toBe(graded);
+        expect(records['test_results_by_student/student-1/stable-solo']).toBe(graded);
+        expect(Object.keys(records).some(path => path.startsWith('teacher_result_keys/') || path.startsWith('test_results_by_teacher/'))).toBe(false);
+        expect(set).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+        (getDocFromServer as any).mockRejectedValueOnce(new Error('server unavailable'));
+        await expect(readCommittedWritingSubmission(candidate)).rejects.toThrow('server unavailable');
+    });
+
+
+    it('inserts a solo source once and restores a missing root or repairs a concurrent newer grade', async () => {
+        const candidate = { id: 'repair-solo', studentId: 'student-1', studentName: 'Student One',
+            context: { type: 'solo-practice' },
+            testMeta: { testId: 'test-1', testTitle: 'Writing', format: 'task1-only', duration: 60 },
+            submittedAt: 100, tasks: [], totalElapsedTimeSeconds: 90, pasteAttemptCount: 2,
+            markingStatus: 'pending-review', annotations: [], auditTrail: [] } as any;
+        (auth as any).currentUser = { uid: candidate.studentId };
+        await expect(createSubmission(candidate)).resolves.toEqual({ success: true });
+        expect(setDoc).toHaveBeenCalledWith('writing_submissions/repair-solo', { ...candidate, sourceActorUid: candidate.studentId });
+        (getDocFromServer as any).mockResolvedValue({ exists: () => true, data: () => candidate });
+        const graded = { resultId: candidate.id, studentId: candidate.studentId, testId: 'test-1', submittedAt: 100,
+            testSkill: 'writing', bandScore: 8, markingStatus: 'graded', writingData: { submissionId: candidate.id, overallBand: 8 } };
+        for (const scenario of ['missing-root', 'concurrent-grade']) {
+            const records: Record<string, any> = scenario === 'missing-root'
+                ? { 'test_results_by_student/student-1/repair-solo': graded } : {};
+            (get as any).mockImplementation(async (path: string) => ({ exists: () => path in records, val: () => records[path] ?? null }));
+            (runTransaction as any).mockImplementation(async (path: string, callback: any) => {
+                if (scenario === 'concurrent-grade' && path === 'test_results/repair-solo') records[path] = graded;
+                const value = callback(records[path] ?? null);
+                if (value !== undefined) records[path] = value;
+                return { snapshot: { val: () => records[path] } };
+            });
+            await expect(materializeSubmissionResult(candidate)).resolves.toEqual({ success: true });
+            expect(records['test_results/repair-solo'].bandScore).toBe(8);
+            expect(records['test_results_by_student/student-1/repair-solo'].bandScore).toBe(8);
+            expect(Object.keys(records)).toHaveLength(3);
+        }
+        (auth as any).currentUser = { uid: 'another-student' };
+        await expect(createSubmission(candidate)).resolves.toMatchObject({ success: false });
+        await expect(readCommittedWritingSubmission(candidate)).rejects.toThrow('submitting student');
+    });
+
+
+    it('shares selected-teacher solo results only through verified class ownership and missing-only indexes', async () => {
+        const submission = { id: 'teacher-solo', studentId: 'student-1', studentName: 'Student One',
+            context: { type: 'solo-practice', selectedTeacherId: 'teacher-1', classId: 'class-1' },
+            testMeta: { testId: 'test-1', testTitle: 'Writing', format: 'task1-only', duration: 60 },
+            submittedAt: 100, tasks: [], totalElapsedTimeSeconds: 90, pasteAttemptCount: 2,
+            markingStatus: 'pending-review', annotations: [], auditTrail: [] } as any;
+        (auth as any).currentUser = { uid: submission.studentId };
+        (getDocFromServer as any).mockResolvedValue({ exists: () => true, data: () => submission });
+        const owner = { contextType: 'solo_practice', sourceType: 'class', sourceId: 'class-1',
+            classId: 'class-1', courseId: 'course-1', sourceNameSnapshot: 'Writing',
+            visibilityOwnerTeacherId: 'teacher-1', ownerResolutionSource: 'class.createdBy',
+            ownershipResolved: true, unresolvedReason: null, homeworkId: null, sessionCode: null, assignmentId: null };
+        mockResolveResultOwnership.mockResolvedValue({ visibility: owner });
+        let records: Record<string, any> = {};
+        (get as any).mockImplementation(async (path: string) => ({ exists: () => path in records, val: () => records[path] ?? null }));
+        (runTransaction as any).mockImplementation(async (path: string, callback: any) => {
+            const next = callback(records[path] ?? null);
+            if (next !== undefined) records[path] = next;
+            return { snapshot: { val: () => records[path] } };
+        });
+        await expect(materializeSubmissionResult(submission)).resolves.toEqual({ success: true, sharingStatus: 'shared' });
+        expect(records['test_results/teacher-solo'].visibility).toEqual(owner);
+        expect(records['test_results/teacher-solo'].context).toMatchObject({ selectedTeacherId: 'teacher-1', classId: 'class-1' });
+        expect(records['teacher_result_keys/teacher-1/teacher-solo']).toBe(true);
+        expect(records['test_results_by_class/class-1/student-1/teacher-solo'].resultId).toBe(submission.id);
+        expect(records['test_results_by_course/course-1/student-1/teacher-solo'].resultId).toBe(submission.id);
+        const graded = { ...records['test_results/teacher-solo'], bandScore: 8, markingStatus: 'graded' };
+        records['test_results/teacher-solo'] = graded;
+        records['test_results_by_class/class-1/student-1/teacher-solo'].bandScore = 9;
+        delete records['teacher_result_keys/teacher-1/teacher-solo'];
+        await expect(materializeSubmissionResult(submission)).resolves.toMatchObject({ success: true, sharingStatus: 'shared' });
+        expect(records['test_results/teacher-solo']).toBe(graded);
+        expect(records['test_results_by_class/class-1/student-1/teacher-solo'].bandScore).toBe(9);
+        expect(records['teacher_result_keys/teacher-1/teacher-solo']).toBe(true);
+        records = {};
+        mockResolveResultOwnership.mockResolvedValue({ visibility: { ...owner, visibilityOwnerTeacherId: null,
+            ownershipResolved: false, ownerResolutionSource: 'unresolved', unresolvedReason: 'owner_not_resolved' } });
+        await expect(materializeSubmissionResult(submission)).resolves.toEqual({ success: true, sharingStatus: 'held' });
+        expect(records['test_results/teacher-solo'].visibility.visibilityOwnerTeacherId).toBeNull();
+        expect(Object.keys(records)).toHaveLength(3);
+        expect(records['teacher_result_keys/teacher-1/teacher-solo']).toBeUndefined();
+        expect(set).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
     });
 
     it('upserts unresolved reports and skips teacher indexes when ownership cannot be proven', async () => {

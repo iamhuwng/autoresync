@@ -116,6 +116,13 @@ vi.mock('../../services/firebase', () => ({
   auth: { currentUser: { uid: 'teacher-test-uid-123' } },
 }));
 
+
+vi.mock('../../services/notificationProducerClient', () => ({
+  notifyCommittedEvent: vi.fn(async () => ({
+    status: 'written', delivered: 1, failed: 0, unknown: 0, unattempted: 0,
+  })),
+}));
+
 vi.mock('firebase/database', () => {
   const ref = vi.fn((_db: unknown, path = '') => ({ path: normalizePath(path) }));
   let pushCounter = 0;
@@ -191,14 +198,33 @@ import {
   deleteClass,
   updateClassStatus,
 } from '../../services/classManager';
-import { database } from '../../services/firebase';
+import { auth, database } from '../../services/firebase';
 import { ref, set, get, update } from 'firebase/database';
+import { notifyCommittedEvent } from '../../services/notificationProducerClient';
 
+const enrollAsStudent = async (...args: Parameters<typeof enrollStudent>) =>
+  asActor(args[1], () => enrollStudent(...args));
+const approveAsTeacher = async (classId: string, studentId: string, teacherId: string) =>
+  asActor(teacherId, () => approveClassStudent(classId, studentId, teacherId));
+const rejectAsTeacher = async (classId: string, studentId: string, teacherId = TEST_TEACHER_UID) =>
+  asActor(teacherId, () => rejectClassStudent(classId, studentId));
+const removeAsTeacher = async (classId: string, studentId: string, teacherId = TEST_TEACHER_UID) =>
+  asActor(teacherId, () => removeStudentFromClass(classId, studentId));
 // Test data
 const TEST_TEACHER_UID = 'teacher-test-uid-123';
 const TEST_TEACHER_UID_2 = 'teacher-test-uid-456';
 const TEST_STUDENT_UID = 'student-test-uid-789';
 const TEST_STUDENT_UID_2 = 'student-test-uid-012';
+
+const asActor = async <T>(uid: string, action: () => Promise<T>): Promise<T> => {
+  const previous = auth.currentUser?.uid;
+  auth.currentUser = { uid } as typeof auth.currentUser;
+  try {
+    return await action();
+  } finally {
+    auth.currentUser = previous ? { uid: previous } as typeof auth.currentUser : null;
+  }
+};
 
 // Cleanup helper
 const cleanupTestData = async () => {
@@ -306,7 +332,7 @@ describe('Class Manager - Remove Student', () => {
     );
     testClassId = result.classId!;
 
-    await enrollStudent(
+    await enrollAsStudent(
       testClassId,
       TEST_STUDENT_UID,
       'Test Student',
@@ -502,7 +528,7 @@ describe('Class Manager - Student Enrollment', () => {
   });
 
   it('should enroll authenticated student in class', async () => {
-    const result = await enrollStudent(
+    const result = await enrollAsStudent(
       testClassId,
       TEST_STUDENT_UID,
       'Test Student',
@@ -521,11 +547,14 @@ describe('Class Manager - Student Enrollment', () => {
 
     const legacyPlayer = await get(ref(database, `game_sessions/${testClassId}/players/${TEST_STUDENT_UID}`));
     expect(legacyPlayer.exists()).toBe(false);
+    expect(notifyCommittedEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventKind: 'class-membership', action: 'join-pending', classId: testClassId, studentId: TEST_STUDENT_UID,
+    }));
   });
 
   it('should prevent duplicate enrollment', async () => {
     // Enroll once
-    await enrollStudent(
+    await enrollAsStudent(
       testClassId,
       TEST_STUDENT_UID,
       'Test Student',
@@ -533,7 +562,7 @@ describe('Class Manager - Student Enrollment', () => {
     );
 
     // Try to enroll again
-    const result = await enrollStudent(
+    const result = await enrollAsStudent(
       testClassId,
       TEST_STUDENT_UID,
       'Test Student',
@@ -545,7 +574,7 @@ describe('Class Manager - Student Enrollment', () => {
   });
 
   it('should fail enrollment for non-existent class', async () => {
-    const result = await enrollStudent(
+    const result = await enrollAsStudent(
       'INVALID-CODE',
       TEST_STUDENT_UID,
       'Test Student',
@@ -560,7 +589,7 @@ describe('Class Manager - Student Enrollment', () => {
     // Archive the class
     await updateClassStatus(testClassId, 'archived');
 
-    const result = await enrollStudent(
+    const result = await enrollAsStudent(
       testClassId,
       TEST_STUDENT_UID,
       'Test Student',
@@ -583,11 +612,11 @@ describe('Class Manager - Student Enrollment', () => {
     const limitedClassId = result.classId!;
 
     // Enroll 2 students successfully
-    await enrollStudent(limitedClassId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com');
-    await enrollStudent(limitedClassId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com');
+    await enrollAsStudent(limitedClassId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com');
+    await enrollAsStudent(limitedClassId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com');
 
     // Try to enroll 3rd student
-    const thirdResult = await enrollStudent(
+    const thirdResult = await enrollAsStudent(
       limitedClassId,
       'student-3',
       'Student 3',
@@ -598,11 +627,11 @@ describe('Class Manager - Student Enrollment', () => {
     expect(thirdResult.error).toContain('full');
   });
 
-  it('should update class stats after enrollment', async () => {
+  it('keeps the membership roster authoritative when a student self-joins', async () => {
     const beforeData = await getClass(testClassId);
     const beforeCount = beforeData?.stats.totalStudents || 0;
 
-    await enrollStudent(
+    await enrollAsStudent(
       testClassId,
       TEST_STUDENT_UID,
       'Test Student',
@@ -610,8 +639,10 @@ describe('Class Manager - Student Enrollment', () => {
     );
 
     const afterData = await getClass(testClassId);
-    expect(afterData?.stats.totalStudents).toBe(beforeCount + 1);
-    expect(afterData?.stats.activeStudents).toBe(beforeCount + 1);
+    expect(afterData?.students[TEST_STUDENT_UID]).toMatchObject({ status: 'pending_approval' });
+    // These auxiliary counters are owner-written; a student self-join cannot update them.
+    expect(afterData?.stats.totalStudents).toBe(beforeCount);
+    expect(afterData?.stats.activeStudents).toBe(beforeCount);
   });
 });
 
@@ -636,8 +667,8 @@ describe('Class Manager - Student Access Control', () => {
     class2Id = result2.classId!;
 
     // Approve enrollment in class 1 only
-    await enrollStudent(class1Id, TEST_STUDENT_UID, 'Test Student', 'student@test.com');
-    await approveClassStudent(class1Id, TEST_STUDENT_UID, TEST_TEACHER_UID);
+    await enrollAsStudent(class1Id, TEST_STUDENT_UID, 'Test Student', 'student@test.com');
+    await approveAsTeacher(class1Id, TEST_STUDENT_UID, TEST_TEACHER_UID);
   });
 
   afterEach(async () => {
@@ -750,7 +781,7 @@ describe('Class Manager - Guest Students', () => {
 
   it('should distinguish between authenticated and guest students', async () => {
     // Add authenticated student
-    await enrollStudent(
+    await enrollAsStudent(
       testClassId,
       TEST_STUDENT_UID,
       'Auth Student',
@@ -773,7 +804,7 @@ describe('Class Manager - Guest Students', () => {
   });
 
   it('should write student class projection for authenticated enrollments', async () => {
-    await enrollStudent(
+    await enrollAsStudent(
       testClassId,
       TEST_STUDENT_UID,
       'Auth Student',
@@ -806,9 +837,9 @@ describe('Class Manager - Student Membership Projection', () => {
   });
 
   it('should promote projection status when a student is approved', async () => {
-    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
 
-    const result = await approveClassStudent(testClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
+    const result = await approveAsTeacher(testClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
 
     expect(result.success).toBe(true);
     const projectionSnapshot = await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`));
@@ -818,7 +849,7 @@ describe('Class Manager - Student Membership Projection', () => {
   });
 
   it('should keep pending self-joins out of student-visible class lists', async () => {
-    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
 
     const studentClasses = await getStudentClasses(TEST_STUDENT_UID);
 
@@ -835,11 +866,11 @@ describe('Class Manager - Student Membership Projection', () => {
       isAutoEnroll: true,
     });
 
-    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
 
     expect((await get(ref(database, 'course_enrollments'))).exists()).toBe(false);
 
-    const approved = await approveClassStudent(testClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
+    const approved = await approveAsTeacher(testClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
     expect(approved.success).toBe(true);
 
     const enrollments = (await get(ref(database, 'course_enrollments'))).val() as Record<string, Record<string, unknown>>;
@@ -856,7 +887,7 @@ describe('Class Manager - Student Membership Projection', () => {
   });
 
   it('should clean up stale class-based enrollments when a pending student is rejected', async () => {
-    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
     await set(ref(database, 'course_enrollments/enrollment-pending'), {
       id: 'enrollment-pending',
       studentId: TEST_STUDENT_UID,
@@ -865,7 +896,7 @@ describe('Class Manager - Student Membership Projection', () => {
       status: 'active',
     });
 
-    const rejected = await rejectClassStudent(testClassId, TEST_STUDENT_UID);
+    const rejected = await rejectAsTeacher(testClassId, TEST_STUDENT_UID);
     expect(rejected.success).toBe(true);
 
     expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`))).exists()).toBe(false);
@@ -873,9 +904,9 @@ describe('Class Manager - Student Membership Projection', () => {
   });
 
   it('should remove student projection when a student is removed from class', async () => {
-    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
 
-    const result = await removeStudentFromClass(testClassId, TEST_STUDENT_UID);
+    const result = await removeAsTeacher(testClassId, TEST_STUDENT_UID);
 
     expect(result.success).toBe(true);
     const projectionSnapshot = await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`));
@@ -883,8 +914,8 @@ describe('Class Manager - Student Membership Projection', () => {
   });
 
   it('should remove student projections when a class is deleted', async () => {
-    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
-    await enrollStudent(testClassId, TEST_STUDENT_UID_2, 'Projected Student 2', 'student2@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID_2, 'Projected Student 2', 'student2@test.com');
 
     const deleted = await deleteClass(testClassId);
 
@@ -894,7 +925,7 @@ describe('Class Manager - Student Membership Projection', () => {
   });
 
   it('should not touch legacy game-session rows when a class is deleted', async () => {
-    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
 
     const updateMock = vi.mocked(update);
     const originalUpdate = updateMock.getMockImplementation();
@@ -927,7 +958,7 @@ describe('Class Manager - Student Membership Projection', () => {
   });
 
   it('should still delete the class when student membership projection cleanup is denied', async () => {
-    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollAsStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
 
     const updateMock = vi.mocked(update);
     const originalUpdate = updateMock.getMockImplementation();

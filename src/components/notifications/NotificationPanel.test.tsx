@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, expect, it, vi } from 'vitest';
 import NotificationPanel from './NotificationPanel';
+import { toast } from '../modern/ToastNotification';
+vi.mock('../modern/ToastNotification', () => ({ toast: { warning: vi.fn() } }));
 import type { Notification } from '../../types/notification.types';
 
 const notification: Notification = {
@@ -61,11 +63,11 @@ describe('NotificationPanel', () => {
 
         fireEvent.keyDown(screen.getByRole('button', { name: 'Open notification: Open book' }), { key: 'Enter' });
 
-        expect(await screen.findByRole('status')).toHaveTextContent('no longer available');
+        await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('This notification is no longer available.'));
         expect(onClose).not.toHaveBeenCalled();
     });
 
-    it('uses the parent-owned See All route action', () => {
+    it('uses the parent-owned notification history action', () => {
         const onSeeAll = vi.fn();
 
         render(
@@ -77,7 +79,7 @@ describe('NotificationPanel', () => {
             />,
         );
 
-        fireEvent.click(screen.getByRole('button', { name: /See All Activity/ }));
+        fireEvent.click(screen.getByRole('button', { name: /View notification history/ }));
         expect(onSeeAll).toHaveBeenCalledTimes(1);
     });
 });

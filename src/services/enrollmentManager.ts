@@ -17,7 +17,6 @@ import {
     linkMaterialToModule
 } from './materialLinkManager';
 import { getClass } from './classManager';
-import { createTrustedNotification } from './notificationProducerClient';
 
 const LINK_REF = 'class_course_links';
 const ENROLLMENTS_REF = 'course_enrollments';
@@ -462,39 +461,6 @@ export async function checkCourseExpirations(): Promise<{ processed: number; err
     } catch (error) {
         console.error('Error checking expirations:', error);
         return { processed: 0, errors: 1 };
-    }
-}
-
-/**
- * Send expiration warning (e.g. 7 days before)
- */
-export async function sendExpirationWarning(classId: string, courseId: string): Promise<void> {
-    try {
-        const linkQuery = query(ref(database, LINK_REF), orderByChild('classId'), equalTo(classId));
-        const snapshot = await get(linkQuery);
-
-        if (snapshot.exists()) {
-            const links = Object.values(snapshot.val()) as ClassCourseLink[];
-            const link = links.find(l => l.courseId === courseId);
-
-            if (link) {
-                const classData = await getClass(classId);
-                if (classData) {
-                    await createTrustedNotification({
-                        producerFamily: 'enrollment',
-                        authorityRecordId: link.id,
-                        recipientId: classData.createdBy,
-                        operationKey: `course-expiration:${link.id}`,
-                        type: 'warning',
-                        title: 'Course Expiration Warning',
-                        message: `Course for class ${classData.name} will expire soon.`,
-                        link: `/teacher/classes/${classId}`
-                    });
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Error sending expiration warning:', error);
     }
 }
 

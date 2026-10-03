@@ -43,7 +43,21 @@ export interface CourseBookAuthority102ReleaseClaims {
   readonly operationId: string;
 }
 
+export interface CourseBookAuthority102RequestClaims {
+  readonly operation: 'enrollment-request-transition';
+  readonly actorUid: string;
+  readonly courseId: string;
+  readonly studentId: string;
+  readonly legacyEnrollmentId: string;
+  readonly requestId: string;
+  readonly requestType: 'join' | 'unenroll';
+  readonly expectedLegacyRevision: number;
+  readonly expectedAuthorityRevision: number;
+  readonly operationId: string;
+}
+
 export type CourseBookAuthority102Claims =
+  | CourseBookAuthority102RequestClaims
   | CourseBookAuthority102EnrollmentClaims
   | CourseBookAuthority102ReleaseClaims;
 
@@ -69,6 +83,7 @@ const FIREBASE_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
 const ID = /^[A-Za-z0-9][A-Za-z0-9:_-]{2,159}$/u;
+const PATH_ID = /^[A-Za-z0-9._:@-]{1,160}$/u;
 const OPERATION = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
@@ -160,6 +175,14 @@ const stableCourseClaims = (claims: CourseBookAuthority102Claims): string => {
         expectedReleaseRevision: claims.expectedReleaseRevision,
         operationId: claims.operationId,
       });
+    case 'enrollment-request-transition':
+      return JSON.stringify({
+        operation: claims.operation, actorUid: claims.actorUid, courseId: claims.courseId,
+        studentId: claims.studentId, legacyEnrollmentId: claims.legacyEnrollmentId,
+        requestId: claims.requestId, requestType: claims.requestType,
+        expectedLegacyRevision: claims.expectedLegacyRevision,
+        expectedAuthorityRevision: claims.expectedAuthorityRevision, operationId: claims.operationId,
+      });
     default:
       throw new Error('invalid_course_book_authority_102_claims');
   }
@@ -205,6 +228,25 @@ const assertCourseClaims = (claims: CourseBookAuthority102Claims): void => {
     }
     return;
   }
+  if (claims.operation === 'enrollment-request-transition') {
+    const keys = Object.keys(claims as unknown as Record<string, unknown>).sort();
+    if (keys.join('\u0000') !== [
+      'actorUid', 'courseId', 'expectedAuthorityRevision', 'expectedLegacyRevision',
+      'legacyEnrollmentId', 'operation', 'operationId', 'requestId', 'requestType', 'studentId',
+    ].sort().join('\u0000')) throw new Error('invalid_course_book_authority_102_claims');
+    if (!ID.test(claims.actorUid)
+      || ![claims.courseId, claims.studentId, claims.legacyEnrollmentId]
+        .every((value) => typeof value === 'string' && PATH_ID.test(value))
+      || !/^[A-Za-z0-9_-]{1,128}$/u.test(claims.requestId)
+      || (claims.requestType !== 'join' && claims.requestType !== 'unenroll')
+      || !OPERATION.test(claims.operationId)
+      || !Number.isSafeInteger(claims.expectedLegacyRevision)
+      || !Number.isSafeInteger(claims.expectedAuthorityRevision)
+      || claims.expectedLegacyRevision < 0 || claims.expectedAuthorityRevision < 0) {
+      throw new Error('invalid_course_book_authority_102_claims');
+    }
+    return;
+  }
   throw new Error('invalid_course_book_authority_102_claims');
 };
 
@@ -232,6 +274,14 @@ const jwtClaimsFor = (claims: CourseBookAuthority102Claims): Record<string, unkn
         studentId: claims.studentId,
         expectedReleaseRevision: claims.expectedReleaseRevision,
         operationId: claims.operationId,
+      };
+    case 'enrollment-request-transition':
+      return {
+        courseBookAuthority102: true, operation: claims.operation,
+        actorUid: claims.actorUid, courseId: claims.courseId, studentId: claims.studentId,
+        legacyEnrollmentId: claims.legacyEnrollmentId, requestId: claims.requestId,
+        requestType: claims.requestType, expectedLegacyRevision: claims.expectedLegacyRevision,
+        expectedAuthorityRevision: claims.expectedAuthorityRevision, operationId: claims.operationId,
       };
     default:
       throw new Error('invalid_course_book_authority_102_claims');

@@ -90,7 +90,7 @@ export function useWritingAutoSave(
             return {
                 task1Text: data.task1?.text || '',
                 task2Text: data.task2?.text || '',
-                activeTask: data.activeTask || 1,
+                activeTask: data.activeTask || (data.task2 && !data.task1 ? 2 : 1),
                 tabSwitches: data.tabSwitches || 0,
                 pasteAttemptCount: data.pasteAttemptCount || 0,
             };

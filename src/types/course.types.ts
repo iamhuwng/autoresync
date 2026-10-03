@@ -27,6 +27,8 @@ export interface CourseTypeRequest {
     approvedBy?: string;
     approvedAt?: number;
     rejectionReason?: string;
+    handledBy?: string;
+    handledAt?: number;
 }
 
 // Main Course Interface

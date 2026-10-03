@@ -14,7 +14,7 @@ const inventoryPath = join(
 );
 const sourceExtensions = /\.(?:js|jsx|ts|tsx)$/u;
 const testFile = /\.(?:test|spec)\.[^.]+$/u;
-const producerCall = /\b(?:createNotification|createBulkNotifications|createTrustedNotification|createTrustedBulkNotifications|send[A-Z]\w*Notification|send(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
+const producerCall = /\b(?:createNotification|createBulkNotifications|createTrustedNotification|createTrustedBulkNotifications|notifyCommittedEvent|dispatchCommittedNotification|send[A-Z]\w*Notification|send(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
 const legacyNotificationProducerCall = /\b(?:createNotification|createBulkNotifications|send(?!Trusted)[A-Z]\w*Notification|send(?!Trusted)(?:Session|Test)[A-Z]\w*Notifications|notifyWriting[A-Z]\w*)\b/u;
 
 const filesUnder = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
@@ -55,6 +55,8 @@ describe('Ticket 38B1 notification producer inventory', () => {
     it('keeps raw notification-content writes inside owned compatibility paths', () => {
         const allowed = new Set([
             'src/services/accountDeletionService.ts',
+            'src/services/courseAnnouncementActionClient.ts',
+            'src/services/notificationProducerClient.ts',
             'src/services/notificationService.ts',
         ]);
         const rawNotificationPaths = filesUnder(sourceRoot)
@@ -71,13 +73,11 @@ describe('Ticket 38B1 notification producer inventory', () => {
 
     it('requires #95 producers to use the trusted seam with explicit authority', () => {
         const owned = [
-            ['src/components/course/RequestReviewList.tsx', 'enrollment'],
             ['src/services/assignmentManager.ts', 'assignment'],
             ['src/services/classManager.ts', 'class'],
             ['src/services/courseAnnouncementService.ts', 'course-announcement'],
+            ['src/services/courseRequestManager.ts', 'course-request'],
             ['src/services/courseManager.ts', 'course'],
-            ['src/services/deadlineReminderService.ts', 'deadline'],
-            ['src/services/enrollmentManager.ts', 'enrollment'],
             ['src/pages/TeacherHomeworkDetailPage.tsx', 'deadline'],
         ];
         for (const [relativeFile, producerFamily] of owned) {
@@ -85,7 +85,10 @@ describe('Ticket 38B1 notification producer inventory', () => {
             expect(source, relativeFile).not.toContain('notificationService');
             expect(source, relativeFile).toContain('notificationProducerClient');
             if (relativeFile.endsWith('TeacherHomeworkDetailPage.tsx')) {
-                expect(source, relativeFile).toContain('sendTrustedHomeworkReminderNotification');
+                expect(source, relativeFile).toContain("eventKind: 'homework-reminder'");
+                expect(source, relativeFile).toContain('notifyCommittedEvent');
+            } else if (['assignmentManager.ts', 'classManager.ts', 'courseAnnouncementService.ts', 'courseRequestManager.ts'].some(name => relativeFile.endsWith(name))) {
+                expect(source, relativeFile).toContain('notifyCommittedEvent');
             } else {
                 expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
                 expect(source, relativeFile).toContain('producerFamily');
@@ -97,7 +100,7 @@ describe('Ticket 38B1 notification producer inventory', () => {
 
     it('requires #96 producers to use the trusted seam with explicit authority', () => {
         const owned = [
-            ['src/components/results/TeacherFeedbackManager.tsx', 'feedback'],
+            ['src/services/feedbackService.ts', 'feedback'],
             ['src/components/thcs-grading/InlineWritingGrader.tsx', 'result'],
             ['src/services/homeworkSubmissionService.ts', 'homework'],
             ['src/services/testResults.service.ts', 'result'],
@@ -107,6 +110,10 @@ describe('Ticket 38B1 notification producer inventory', () => {
             expect(source, relativeFile).not.toContain('notificationService');
             expect(source, relativeFile).not.toMatch(legacyNotificationProducerCall);
             expect(source, relativeFile).toContain('notificationProducerClient');
+            if (['feedbackService.ts', 'homeworkSubmissionService.ts', 'testResults.service.ts', 'THCSHomeworkAssignDialog.tsx'].some(name => relativeFile.endsWith(name))) {
+                expect(source, relativeFile).toContain('notifyCommittedEvent');
+                continue;
+            }
             expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
             expect(source, relativeFile).toContain('authorityRecordId');
             expect(source, relativeFile).toContain('operationKey');
@@ -120,7 +127,6 @@ describe('Ticket 38B1 notification producer inventory', () => {
             ['src/hooks/monitor/useMonitorControls.ts', 'monitor'],
             ['src/services/sessionManager.js', 'session'],
             ['src/components/writing-practice/WritingPracticeView.tsx', 'writing'],
-            ['src/components/practice/THCSPracticeView.tsx', 'thcs-practice'],
             ['src/components/thcs-student/THCSTestLayout.tsx', 'thcs-practice'],
             ['src/components/thcs-editor/THCSHomeworkAssignDialog.tsx', 'thcs-practice'],
         ];
@@ -128,6 +134,10 @@ describe('Ticket 38B1 notification producer inventory', () => {
             const source = readFileSync(join(root, relativeFile), 'utf8');
             expect(source, relativeFile).not.toContain('notificationService');
             expect(source, relativeFile).toContain('notificationProducerClient');
+            if (['feedbackService.ts', 'homeworkSubmissionService.ts', 'testResults.service.ts', 'THCSHomeworkAssignDialog.tsx'].some(name => relativeFile.endsWith(name))) {
+                expect(source, relativeFile).toContain('notifyCommittedEvent');
+                continue;
+            }
             expect(source, relativeFile).toContain(`producerFamily: '${producerFamily}'`);
             expect(source, relativeFile).toContain('authorityRecordId');
             expect(source, relativeFile).toContain('operationKey');

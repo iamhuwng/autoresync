@@ -23,8 +23,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Text, Alert } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useAuth } from '../../hooks/useAuth';
 
 import THCSQuestionRenderer from '../thcs-student/THCSQuestionRenderer';
@@ -36,7 +35,6 @@ import THCSSubmitConfirmation from '../thcs-student/THCSSubmitConfirmation';
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service';
 import { saveTestResult } from '../../services/testResults.service';
-import { createTrustedNotification } from '../../services/notificationProducerClient';
 import { getThcsTestFromFirebase } from '../../services/thcsTestStorage';
 import { shuffleTest } from '../../utils/thcsShuffle';
 import { Button } from '../modern';
@@ -50,6 +48,11 @@ import { toast } from '../modern/ToastNotification'; // PRD-0036
 import type { AntiCheatConfig } from '../../types/integrity.types'; // PRD-0036
 import { useBeforeUnloadWarning } from '../../hooks/test/useBeforeUnloadWarning'; // PRD-0036 Task 10.1
 import { toHomeworkIntegrity } from '../../utils/integrityUtils';
+import { push, ref } from 'firebase/database';
+import { storage } from '../../core/platform/storage';
+import type { SoloSessionProgress } from '../../types/practice.types';
+import { buildSoloProgressStorageKey, readSoloProgress, removeSoloProgress } from '../../services/soloProgress.service';
+import { database } from '../../services/firebase';
 import {
     summarizeError,
     summarizeIntegritySnapshot,
@@ -57,7 +60,6 @@ import {
 } from '../../services/antiCheatReporting';
 import { buildThcsPracticePersistenceContext } from './thcsPracticeResultContext';
 import { studentResumeService } from '../../services/studentResume.service';
-import { buildRoute } from '../../constants/routes';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import type { PracticeContext } from './IELTSPracticeView';
@@ -65,6 +67,56 @@ import type { PracticeContext } from './IELTSPracticeView';
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const READING_INTENTS = ['reading-cloze-mcq', 'reading-comprehension', 'reading-announcement', 'reading-cloze-wordbank'];
+const PUSH_ID = /^[A-Za-z0-9_-]{20}$/u;
+
+async function prepareHomeworkResultIdentity(input: {
+    materialId: string;
+    studentId: string;
+    homeworkId: string;
+    submissionId: string;
+    answers: Record<string, string | string[]>;
+    currentQuestion: number;
+    timeElapsed: number;
+}): Promise<{ resultId: string; submissionOperationId: string }> {
+    const scopeContext = {
+        mode: 'homework' as const,
+        homeworkId: input.homeworkId,
+        submissionId: input.submissionId,
+    };
+    const progressKey = buildSoloProgressStorageKey({
+        materialId: input.materialId,
+        studentId: input.studentId,
+        scopeContext,
+    });
+    const existing = (await readSoloProgress({
+        materialId: input.materialId,
+        studentId: input.studentId,
+        scopeContext,
+    })).progress;
+    const resultId = existing?.acceptedResultId ?? push(ref(database, 'test_results')).key;
+    if (!resultId || !PUSH_ID.test(resultId)) {
+        throw new Error('Homework result identity is invalid.');
+    }
+    const submissionOperationId = existing?.submissionOperationId || `${input.submissionId}__submit`;
+    const now = Date.now();
+    const progress: SoloSessionProgress = {
+        ...(existing ?? {} as SoloSessionProgress),
+        materialId: input.materialId,
+        studentId: input.studentId,
+        scopeContext,
+        attemptId: existing?.attemptId || input.submissionId,
+        submissionOperationId,
+        acceptedResultId: resultId,
+        submitPhase: 'submitting',
+        answers: input.answers as unknown as Record<number, any>,
+        currentQuestion: input.currentQuestion,
+        timeElapsed: input.timeElapsed,
+        startedAt: existing?.startedAt ?? Math.max(0, now - input.timeElapsed * 1000),
+        lastSavedAt: now,
+    };
+    await storage.set(progressKey, progress);
+    return { resultId, submissionOperationId };
+}
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
@@ -246,6 +298,7 @@ const THCSPracticeInner: React.FC<{
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const submissionStartedRef = useRef(false);
     const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
     const [scoreDisplay, setScoreDisplay] = useState<{
         scaledScore: number;
@@ -269,7 +322,7 @@ const THCSPracticeInner: React.FC<{
     const [timeElapsed, setTimeElapsed] = useState(clampedInitialElapsed);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const handleSubmitRef = useRef<() => void>(() => { });
+    const handleSubmitRef = useRef<(timerExpired?: boolean) => void>(() => { });
 
     const rawCurrentSection = shuffledTestData.sections[currentSectionIndex];
 
@@ -334,13 +387,7 @@ const THCSPracticeInner: React.FC<{
         }
 
         timerRef.current = setInterval(() => {
-            setTimeRemaining(prev => {
-                if (prev <= 1) {
-                    handleSubmitRef.current();
-                    return 0;
-                }
-                return prev - 1;
-            });
+            setTimeRemaining(prev => Math.max(0, prev - 1));
             setTimeElapsed(prev => prev + 1);
         }, 1000);
 
@@ -348,6 +395,10 @@ const THCSPracticeInner: React.FC<{
             if (timerRef.current) clearInterval(timerRef.current);
         };
     }, [isSubmitted]);
+
+    useEffect(() => {
+        if (timeRemaining <= 0 && !isSubmitted) handleSubmitRef.current(true);
+    }, [timeRemaining, isSubmitted]);
 
     // ── Answer Management (same as THCSTestLayout) ─────────────────────────────
     const handleAnswer = useCallback((questionNumber: number, answer: string | string[] | null) => {
@@ -516,9 +567,10 @@ const THCSPracticeInner: React.FC<{
     });
 
     // ── Submission ──────────────────────────────────────────────────────────────
-    const handleSubmit = useCallback(async (flushReason = 'homework_submit') => {
-        if (!user?.uid || isSubmitting) return;
+    const handleSubmit = useCallback(async (flushReason = 'homework_submit', timerExpired = timeRemaining <= 0) => {
+        if (!user?.uid || submissionStartedRef.current) return;
 
+        submissionStartedRef.current = true;
         setIsSubmitting(true);
         setShowSubmitConfirm(false);
 
@@ -566,9 +618,23 @@ const THCSPracticeInner: React.FC<{
                 duration: testData.metadata.duration,
             });
 
-            // Save result
+            const homeworkIdentity = isHomework
+                ? await prepareHomeworkResultIdentity({
+                    materialId,
+                    studentId: user.uid,
+                    homeworkId: practiceContext.homeworkId || '',
+                    submissionId: practiceContext.submissionId || '',
+                    answers,
+                    currentQuestion: currentQuestionIndex,
+                    timeElapsed,
+                })
+                : undefined;
+
+            // Save the canonical result once, using the attempt-scoped identity on homework retries.
             const resultId = await saveTestResult(
-                `practice_${materialId}_${Date.now()}`,
+                homeworkIdentity
+                    ? `homework_practice_${practiceContext.submissionId}`
+                    : `practice_${materialId}_${Date.now()}`,
                 testData.id,
                 user.uid,
                 user.displayName || 'Student',
@@ -585,11 +651,14 @@ const THCSPracticeInner: React.FC<{
                 undefined,
                 academicContext,
                 resultContext,
-                thcsData
+                thcsData,
+                undefined,
+                homeworkIdentity ? {
+                    stableResultId: homeworkIdentity.resultId,
+                    submissionOperationId: homeworkIdentity.submissionOperationId,
+                    studentPrivateHomework: true,
+                } : undefined,
             );
-
-            void studentResumeService.clearResume();
-            setIsSubmitted(true);
 
             // If homework, update homework_submissions
             if (isHomework && practiceContext.submissionId) {
@@ -600,17 +669,43 @@ const THCSPracticeInner: React.FC<{
                     const integrityReport = getIntegrityReport();
                     const shouldNullify = antiCheatConfig?.nullifyRemainingAttempts && integrityReport.riskLevel === 'high';
                     const homeworkIntegrity = antiCheatConfig ? toHomeworkIntegrity(integrityReport) : undefined;
-                    await submitHomework(
-                        practiceContext.submissionId,
-                        resultId,
-                        gradingResult.totalPoints,
-                        gradingResult.maxPoints,
-                        percentage,
-                        gradingResult.scaledScore,
-                        timeElapsed,
-                        homeworkIntegrity,
-                        shouldNullify || false,
-                    );
+                    const currentSubmission = await getSubmissionById(practiceContext.submissionId);
+                    if (!currentSubmission
+                        || currentSubmission.studentId !== user.uid
+                        || currentSubmission.homeworkId !== practiceContext.homeworkId) {
+                        throw new Error('Homework attempt no longer matches this student and assignment.');
+                    }
+                    if (currentSubmission.status === 'submitted' || currentSubmission.status === 'graded') {
+                        if (currentSubmission.resultId !== resultId) {
+                            throw new Error('Homework attempt is already linked to another result.');
+                        }
+                    } else {
+                        if (currentSubmission.status !== 'in_progress') {
+                            throw new Error('Homework attempt is not in progress.');
+                        }
+                        try {
+                            await submitHomework(
+                                practiceContext.submissionId,
+                                resultId,
+                                gradingResult.totalPoints,
+                                gradingResult.maxPoints,
+                                percentage,
+                                gradingResult.scaledScore,
+                                timeElapsed,
+                                homeworkIntegrity,
+                                shouldNullify || false,
+                            );
+                        } catch (submitError) {
+                            // The transaction may have committed before a later projection/readback failed.
+                            const committed = await getSubmissionById(practiceContext.submissionId);
+                            if (committed?.studentId !== user.uid
+                                || committed.homeworkId !== practiceContext.homeworkId
+                                || !['submitted', 'graded'].includes(committed.status)
+                                || committed.resultId !== resultId) {
+                                throw submitError;
+                            }
+                        }
+                    }
                     if (homeworkIntegrity) {
                         trackAntiCheatAction(
                             'persistHomeworkIntegrity',
@@ -654,8 +749,19 @@ const THCSPracticeInner: React.FC<{
                         );
                     }
                     console.warn('[THCSPractice] Homework submission update failed:', err);
+                    throw err;
                 }
+                const progressScope = {
+                    mode: 'homework' as const,
+                    homeworkId: practiceContext.homeworkId,
+                    submissionId: practiceContext.submissionId,
+                };
+                void removeSoloProgress({ materialId, studentId: user.uid, scopeContext: progressScope }).catch(() => undefined);
             }
+
+            void studentResumeService.clearResume();
+            setIsSubmitted(true);
+            if (timerExpired) toast.warning("Time's up! Your answers have been submitted.");
 
             // Fire-and-forget: academic record
             if (gradingResult.gradingStatus === 'fully-graded') {
@@ -670,16 +776,6 @@ const THCSPracticeInner: React.FC<{
                     }).catch(err => console.warn('Academic record update failed:', err));
                 }).catch(err => console.warn('Failed to load academicRecordService:', err));
 
-                void createTrustedNotification({
-                    producerFamily: 'thcs-practice',
-                    authorityRecordId: resultId,
-                    recipientId: user.uid,
-                    operationKey: `thcs-fully-graded:${resultId}`,
-                    type: 'success',
-                    title: '✅ Test Fully Graded',
-                    message: `All answers in "${testData.metadata.title}" have been graded. Your score: ${gradingResult.scaledScore}/10.`,
-                    link: buildRoute('RESULT_DETAIL', { resultId }),
-                }).catch(err => console.warn('[THCSPractice] Fully graded notification failed:', err));
             }
 
             // Fire-and-forget: writing grading
@@ -709,8 +805,9 @@ const THCSPracticeInner: React.FC<{
             }, 4000);
 
         } catch (error) {
+            submissionStartedRef.current = false;
             console.error('Submission failed:', error);
-            alert('Failed to submit. Please try again.');
+            toast.error('Failed to submit. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -720,18 +817,18 @@ const THCSPracticeInner: React.FC<{
         flushEvents,
         getIntegrityReport,
         isHomework,
-        isSubmitting,
         materialId,
         navigate,
         practiceContext,
         testData,
         timeElapsed,
+        timeRemaining,
         user,
     ]);
 
     // Keep ref in sync for timer auto-submit
-    handleSubmitRef.current = () => {
-        void handleSubmit('auto_submit');
+    handleSubmitRef.current = (timerExpired) => {
+        void handleSubmit('auto_submit', timerExpired);
     };
 
     // ── Warn on page leave ─────────────────────────────────────────────────────
@@ -834,9 +931,9 @@ const THCSPracticeInner: React.FC<{
                             </svg>
                         </button>
                     )}
-                    <Text fw={700} size={isMobile ? 'sm' : 'md'} style={{ color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} lineClamp={1}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: isMobile ? '0.875rem' : '1rem', lineHeight: isMobile ? 1.45 : 1.55, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {testData.metadata.title}
-                    </Text>
+                    </p>
                     {isHomework && (
                         <span style={{
                             fontSize: '0.6rem', fontWeight: 700, padding: '0.1rem 0.4rem',
@@ -845,12 +942,12 @@ const THCSPracticeInner: React.FC<{
                             HOMEWORK
                         </span>
                     )}
-                    <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: 1.4, color: '#868e96', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {isMobile
                             ? `${answeredCount}/${totalQuestions}`
                             : `Grade ${testData.metadata.gradeLevel} | ${testData.questionCount} questions | ${answeredCount}/${totalQuestions} answered`
                         }
-                    </Text>
+                    </p>
                 </div>
 
                 {/* Center zone — student name */}
@@ -872,9 +969,9 @@ const THCSPracticeInner: React.FC<{
                             {(user?.displayName || 'S').charAt(0).toUpperCase()}
                         </div>
                     )}
-                    <Text size="xs" fw={600} c="#6d28d9" lineClamp={1} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: 1.4, fontWeight: 600, color: '#6d28d9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {user?.displayName || 'Student'}
-                    </Text>
+                    </p>
                 </div>
 
                 {/* Right zone — timer + submit */}
@@ -932,37 +1029,30 @@ const THCSPracticeInner: React.FC<{
                     <div style={{ fontSize: '3rem', fontWeight: 800, color: '#1e293b' }}>
                         {scoreDisplay.scaledScore.toFixed(1)}/10.0
                     </div>
-                    <Text size="sm" c="dimmed">
+                    <p style={{ margin: 0, fontSize: '0.875rem', lineHeight: 1.45, color: '#868e96' }}>
                         Raw: {scoreDisplay.rawScore}/{scoreDisplay.maxRaw} points | {scoreDisplay.percentage.toFixed(1)}%
-                    </Text>
+                    </p>
                     {scoreDisplay.pendingWritingCount && scoreDisplay.pendingWritingCount > 0 && (
-                        <Text size="xs" c="orange" mt={4} fw={600}>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.75rem', lineHeight: 1.4, color: '#fd7e14', fontWeight: 600 }}>
                             ✍️ {scoreDisplay.pendingWritingCount} writing question{scoreDisplay.pendingWritingCount > 1 ? 's' : ''} pending review
-                        </Text>
+                        </p>
                     )}
-                    <Text size="xs" c="dimmed" mt={8}>
+                    <p style={{ margin: '8px 0 0', fontSize: '0.75rem', lineHeight: 1.4, color: '#868e96' }}>
                         Redirecting in a few seconds...
-                    </Text>
+                    </p>
                 </div>
-            )}
-
-            {/* Time's up alert */}
-            {isSubmitted && timeRemaining <= 0 && (
-                <Alert color="orange" variant="light" mx="md" mt="md">
-                    ⏰ Time's up! Your answers have been submitted.
-                </Alert>
             )}
 
             {/* Main content */}
             <div style={{ flex: 1 }}>
-                <Container size={currentSection?.layout === 'two-column' ? 'xl' : 'md'} py="md">
+                <div style={{ maxWidth: currentSection?.layout === 'two-column' ? '82.5rem' : '60rem', marginInline: 'auto', padding: '1rem' }}>
                     {currentSection && (
                         <>
                             {/* Section name + points */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                <Text fw={700} size="md" style={{ color: '#1e293b' }}>
+                                <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem', lineHeight: 1.55, color: '#1e293b' }}>
                                     {currentSection.name}
-                                </Text>
+                                </p>
                                 <span style={{
                                     fontSize: '0.65rem',
                                     fontWeight: 600,
@@ -985,9 +1075,9 @@ const THCSPracticeInner: React.FC<{
                                     borderLeft: '3px solid rgba(139,92,246,0.35)',
                                     marginBottom: '1rem',
                                 }}>
-                                    <Text size="sm" fw={500} style={{ lineHeight: 1.6, color: '#1e293b' }}>
+                                    <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.6, color: '#1e293b' }}>
                                         {currentSection.instructionText}
-                                    </Text>
+                                    </p>
                                 </div>
                             )}
 
@@ -1099,7 +1189,7 @@ const THCSPracticeInner: React.FC<{
                             )}
                         </>
                     )}
-                </Container>
+                </div>
             </div>
 
             {/* Question pills — compact footer */}

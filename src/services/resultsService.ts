@@ -279,8 +279,6 @@ export async function getTeacherResults(teacherId?: string): Promise<SessionResu
         return [];
       }
 
-      const sessionsSnapshot = await get(ref(database, 'game_sessions'));
-      const sessions = sessionsSnapshot.exists() ? sessionsSnapshot.val() : {};
       const groupedResults = new Map<string, TestResultRecord[]>();
 
       canonicalResults.forEach((result) => {
@@ -289,9 +287,16 @@ export async function getTeacherResults(teacherId?: string): Promise<SessionResu
         groupedResults.set(result.sessionCode, sessionResults);
       });
 
-      const teacherResults = Array.from(groupedResults.entries()).map(([sessionCode, sessionResults]) =>
-        buildSessionResultsFromCanonical(sessionCode, sessionResults, sessions?.[sessionCode])
-      );
+      const teacherResults = await Promise.all(Array.from(groupedResults.entries()).map(async ([sessionCode, sessionResults]) => {
+        let sessionData;
+        try {
+          const snapshot = await get(ref(database, `game_sessions/${sessionCode}`));
+          sessionData = snapshot.exists() ? snapshot.val() : undefined;
+        } catch (error) {
+          console.warn(`Session metadata unavailable for ${sessionCode}`, error);
+        }
+        return buildSessionResultsFromCanonical(sessionCode, sessionResults, sessionData);
+      }));
 
       teacherResults.sort((a, b) => b.createdAt - a.createdAt);
       return teacherResults;

@@ -77,6 +77,22 @@ async function loadReportingRuntime() {
 
 type ReportingRuntime = Awaited<ReturnType<typeof loadReportingRuntime>>;
 
+export interface NotificationFailureReport {
+  readonly eventId: string;
+  readonly feature: string;
+  readonly action: string;
+  readonly route: 'rtdb' | 'firestore-do';
+  readonly status: 'failed' | 'unknown';
+  readonly code: string;
+  readonly occurredAt: number;
+  readonly attemptedAt: number;
+  readonly recipientCount: number;
+  readonly delivered: number;
+  readonly failed: number;
+  readonly unknown: number;
+  readonly unattempted: number;
+}
+
 const sanitizeFirebaseValue = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map((entry) => (
@@ -457,6 +473,99 @@ export class ReportingService {
       }
     } catch (e) {
       console.warn('[ReportingService] reportError internal error:', e);
+    }
+  }
+
+  reportNotificationFailure(input: NotificationFailureReport): void {
+    try {
+      if (this.currentMode === 'off' || !this.categories.errors) return;
+      const userId = this.currentUser?.uid || 'pre-auth';
+      if (userId === 'guest') return;
+
+      const feature = String(input.feature).slice(0, 80);
+      const action = String(input.action).slice(0, 80);
+      const code = String(input.code || 'notification_delivery_failed')
+        .replace(/[^A-Za-z0-9_.:-]/gu, '_').slice(0, 80);
+      const message = `notification_failure:${feature}:${action}:${code}`;
+      const pathname = typeof window === 'undefined' ? '/unknown' : window.location.pathname;
+      const signature = `${message}::${pathname}`;
+      const existing = this.rateLimitMap.get(signature);
+      if (existing) {
+        existing.count += 1;
+        if (existing.count >= 5) {
+          this.syncErrorRecord(existing.firstId, existing.firstRtdbPath, {
+            duplicateCount: existing.count,
+          });
+          return;
+        }
+      }
+
+      const count = (value: number): number => Number.isSafeInteger(value) && value >= 0
+        ? Math.min(value, 1_000_000)
+        : 0;
+      const contextData = {
+        eventId: String(input.eventId).slice(0, 220),
+        action,
+        route: input.route,
+        status: input.status,
+        code,
+        occurredAt: Number.isSafeInteger(input.occurredAt) ? input.occurredAt : 0,
+        attemptedAt: Number.isSafeInteger(input.attemptedAt) ? input.attemptedAt : Date.now(),
+        recipientCount: count(input.recipientCount),
+        delivered: count(input.delivered),
+        failed: count(input.failed),
+        unknown: count(input.unknown),
+        unattempted: count(input.unattempted),
+      };
+      if (new TextEncoder().encode(JSON.stringify(contextData)).byteLength > 1024) return;
+
+      const errorId = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Date.now().toString(36) + Math.random().toString(36).substring(2);
+      const todayDate = new Date().toISOString().split('T')[0];
+      const pathPrefix = `/reports/errors/${todayDate}`;
+      let errorRecordPath: string | undefined;
+      if (this.runtime && this.database) {
+        const pushKey = this.runtime.push(this.runtime.ref(this.database, pathPrefix)).key;
+        if (pushKey) errorRecordPath = `${pathPrefix}/${pushKey}`;
+      }
+
+      if (!existing) {
+        this.rateLimitMap.set(signature, {
+          count: 1,
+          firstId: errorId,
+          firstRtdbPath: errorRecordPath || '',
+          resetTimer: setTimeout(() => this.rateLimitMap.delete(signature), 60000),
+        });
+      }
+
+      const errorRecord: ErrorRecord = {
+        id: errorId,
+        timestamp: Date.now(),
+        feature,
+        severity: 'warning',
+        message: message.slice(0, 500),
+        stack: '',
+        page: pathname,
+        userId,
+        userName: this.currentUser?.displayName || 'Pre-authentication',
+        userRole: this.currentUserRole,
+        browser: typeof navigator === 'undefined' ? 'unknown' : navigator.userAgent.substring(0, 200),
+        screenSize: typeof window === 'undefined' ? 'unknown' : `${window.innerWidth}x${window.innerHeight}`,
+        isBoundary: false,
+        contextData,
+        breadcrumbs: [],
+        diagnosticUrl: null,
+        componentStack: null,
+        duplicateCount: 1,
+      };
+      this.enqueue({
+        type: 'error',
+        data: errorRecord as unknown as Record<string, unknown>,
+        databasePath: errorRecordPath,
+      });
+    } catch (e) {
+      console.warn('[ReportingService] Notification failure report skipped:', e);
     }
   }
 

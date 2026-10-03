@@ -7,6 +7,7 @@ import type {
     LegacyNotificationMetadata,
     Notification,
 } from '../types/notification.types';
+import { reportingService } from './reportingService';
 import { parseNotificationMetadata } from './notificationMetadata';
 
 export type NotificationResolverRole = 'student' | 'teacher' | 'admin';
@@ -77,6 +78,7 @@ const INTERNAL_NOTIFICATION_ROUTES: readonly RouteName[] = [
     'TEACHER_COURSES',
     'TEACHER_COURSE_DETAIL',
     'TEACHER_STUDENTS',
+    'TEACHER_STUDENT_HISTORY',
     'TEACHER_GRADING',
     'TEACHER_GRADING_DETAIL',
     'TEACHER_MATERIAL_BOOK',
@@ -111,6 +113,7 @@ const TEACHER_NOTIFICATION_ROUTES = new Set<RouteName>([
     'TEACHER_COURSES',
     'TEACHER_COURSE_DETAIL',
     'TEACHER_STUDENTS',
+    'TEACHER_STUDENT_HISTORY',
     'TEACHER_GRADING',
     'TEACHER_GRADING_DETAIL',
     'TEACHER_MATERIAL_BOOK',
@@ -130,6 +133,11 @@ const SESSION_ROUTES = new Set<RouteName>([
 const RESULT_ROUTES = new Set<RouteName>(['STUDENT_TEST_RESULTS']);
 const STATE_GATED_LEGACY_ROUTES = new Set<RouteName>([
     'STUDENT_COURSE_DETAIL',
+    'STUDENT_HOMEWORK_DETAIL',
+    'STUDENT_CLASS_DETAIL',
+    'TEACHER_CLASS_DETAIL',
+    'RESULT_DETAIL',
+    'TEACHER_GRADING_DETAIL',
     'STUDENT_PRACTICE',
     'TEACHER_COURSE_DETAIL',
     'TEACHER_HOMEWORK_DETAIL',
@@ -211,7 +219,30 @@ const defaultStateReader = async (
 ): Promise<NotificationDestinationState> => {
     let path: string | null = null;
 
-    if (request.destination === 'TEACHER_HOMEWORK_DETAIL') {
+    if (request.destination === 'TEACHER_GRADING_DETAIL') {
+        const snapshot = await getDoc(doc(firestore, 'writing_submissions', request.params.submissionId ?? ''));
+        if (!snapshot.exists()) return { exists: false, authorized: false };
+        const context = snapshot.data().context;
+        return { exists: true, authorized: role === 'admin' || context?.assigningTeacherId === request.userId || context?.selectedTeacherId === request.userId };
+    } else if (request.destination === 'STUDENT_HOMEWORK_DETAIL') {
+        const snapshot = await getDoc(doc(firestore, 'homework_assignments', request.params.homeworkId ?? ''));
+        if (!snapshot.exists()) return { exists: false, authorized: false };
+        const target = snapshot.data().target;
+        if (target?.studentIds?.includes(request.userId) === true) return { exists: true, authorized: true };
+        if (target?.type !== 'class' || !SAFE_ID.test(target.classId ?? '')) return { exists: true, authorized: false };
+        const membership = await get(ref(database, `classes/${target.classId}/students/${request.userId}`));
+        return { exists: true, authorized: membership.exists() && (!membership.val().status || membership.val().status === 'active') };
+    } else if (request.destination === 'RESULT_DETAIL') {
+        const snapshot = await get(ref(database, `test_results/${request.params.resultId ?? ''}`));
+        if (!snapshot.exists()) return { exists: false, authorized: false };
+        const value = snapshot.val();
+        return { exists: true, authorized: role === 'admin' || (role === 'student' ? value.studentId === request.userId : value.teacherId === request.userId || value.createdBy === request.userId) };
+    } else if (request.destination === 'STUDENT_CLASS_DETAIL' || request.destination === 'TEACHER_CLASS_DETAIL') {
+        const snapshot = await get(ref(database, `classes/${request.params.classId ?? ''}`));
+        if (!snapshot.exists() || snapshot.val().status === 'deleted') return { exists: false, authorized: false };
+        const value = snapshot.val();
+        return { exists: true, authorized: role === 'admin' || (role === 'student' ? Boolean(value.students?.[request.userId]) && (!value.students[request.userId].status || value.students[request.userId].status === 'active') : value.createdBy === request.userId) };
+    } else if (request.destination === 'TEACHER_HOMEWORK_DETAIL') {
         try {
             const snapshot = await getDoc(doc(
                 firestore,
@@ -322,10 +353,13 @@ const applyStateGate = async (
             currentPath: context.currentPath,
         });
 
+        const currentUserId = context.authUserId === undefined ? auth.currentUser?.uid : context.authUserId;
+        if (currentUserId !== context.userId) return { status: 'blocked', reason: 'unauthorized' };
         if (!state.exists) return { status: 'blocked', reason: 'stale-destination' };
         if (!state.authorized || state.active === false) return { status: 'blocked', reason: 'unauthorized' };
         return { status: 'allowed', ...target };
-    } catch {
+    } catch (error) {
+        reportingService.reportError(error instanceof Error ? error : new Error(String(error)), { source: 'notification_destination', destination: target.destination });
         return { status: 'blocked', reason: 'destination-state-unavailable' };
     }
 };

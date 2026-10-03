@@ -19,7 +19,7 @@ import { LinkCourseModal } from '../components/course/LinkCourseModal';
 import { ExtendCourseModal } from '../components/course/ExtendCourseModal';
 import { CourseCreateModal } from '../components/course/CourseCreateModal';
 import { HomeworkCard, HomeworkCreateModal } from '../components/homework';
-import { notifications } from '@mantine/notifications';
+import { toast } from '../components/modern/ToastNotification';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { getLinkedCourses, unlinkCourseFromClass, syncCourseWithOriginal } from '../services/enrollmentManager';
 import { getCourse } from '../services/courseManager';
@@ -107,27 +107,27 @@ const TeacherClassDetailPage: React.FC = () => {
       const result = await removeStudentFromClass(classId, studentId);
       if (!result.success) {
         trackAction('removeStudent', { classId, studentId, outcome: 'failure' });
-        notifications.show({
+        toast.show({
           title: 'Remove Failed',
           message: result.error || 'Could not remove student from class',
-          color: 'red',
+          tone: 'error',
         });
         return;
       }
 
       trackAction('removeStudent', { classId, studentId, outcome: 'success' });
-      notifications.show({
+      toast.show({
         title: 'Student Removed',
         message: `${studentName || 'Student'} was removed from the class.`,
-        color: 'green',
+        tone: 'success',
       });
     } catch (error) {
       console.error('Error removing student:', error);
       trackAction('removeStudent', { classId, studentId, outcome: 'error' });
-      notifications.show({
+      toast.show({
         title: 'Error',
         message: 'An unexpected error occurred while removing the student.',
-        color: 'red',
+        tone: 'error',
       });
     } finally {
       setRemovingStudentId(null);
@@ -141,24 +141,24 @@ const TeacherClassDetailPage: React.FC = () => {
       const result = await approveClassStudent(classId, studentId, user.uid);
       if (result.success) {
         trackAction('approveStudent', { classId, studentId, outcome: 'success' });
-        notifications.show({
+        toast.show({
           title: 'Student Approved',
           message: `${studentName} is now an active member of this class.`,
-          color: 'green',
+          tone: 'success',
         });
         loadClassData();
       } else {
         trackAction('approveStudent', { classId, studentId, outcome: 'failure' });
-        notifications.show({
+        toast.show({
           title: 'Approval Failed',
           message: result.error || 'Could not approve student',
-          color: 'red',
+          tone: 'error',
         });
       }
     } catch (error) {
       console.error('Error approving student:', error);
       trackAction('approveStudent', { classId, studentId, outcome: 'error' });
-      notifications.show({ title: 'Error', message: 'An unexpected error occurred.', color: 'red' });
+      toast.show({ title: 'Error', message: 'An unexpected error occurred.', tone: 'error' });
     } finally {
       setApprovingStudentId(null);
     }
@@ -179,24 +179,24 @@ const TeacherClassDetailPage: React.FC = () => {
       const result = await rejectClassStudent(classId, studentId);
       if (result.success) {
         trackAction('rejectStudent', { classId, studentId, outcome: 'success' });
-        notifications.show({
+        toast.show({
           title: 'Student Rejected',
           message: `${studentName} has been removed from the class.`,
-          color: 'orange',
+          tone: 'warning',
         });
         loadClassData();
       } else {
         trackAction('rejectStudent', { classId, studentId, outcome: 'failure' });
-        notifications.show({
+        toast.show({
           title: 'Rejection Failed',
           message: result.error || 'Could not reject student',
-          color: 'red',
+          tone: 'error',
         });
       }
     } catch (error) {
       console.error('Error rejecting student:', error);
       trackAction('rejectStudent', { classId, studentId, outcome: 'error' });
-      notifications.show({ title: 'Error', message: 'An unexpected error occurred.', color: 'red' });
+      toast.show({ title: 'Error', message: 'An unexpected error occurred.', tone: 'error' });
     } finally {
       setRejectingStudentId(null);
     }
@@ -272,14 +272,14 @@ const TeacherClassDetailPage: React.FC = () => {
       try {
         const result = await unlinkCourseFromClass(classId, courseId);
         if (result.success) {
-          notifications.show({ title: 'Success', message: 'Course unlinked successfully', color: 'green' });
+          toast.show({ title: 'Success', message: 'Course unlinked successfully', tone: 'success' });
           loadLinkedCourses();
         } else {
-          notifications.show({ title: 'Error', message: result.error || 'Failed to unlink course', color: 'red' });
+          toast.show({ title: 'Error', message: result.error || 'Failed to unlink course', tone: 'error' });
         }
       } catch (error) {
         console.error('Error unlinking course:', error);
-        notifications.show({ title: 'Error', message: 'An unexpected error occurred', color: 'red' });
+        toast.show({ title: 'Error', message: 'An unexpected error occurred', tone: 'error' });
       }
     }
   };
@@ -320,19 +320,19 @@ const TeacherClassDetailPage: React.FC = () => {
         const parts = [];
         if (materialsAdded > 0) parts.push(`${materialsAdded} material${materialsAdded > 1 ? 's' : ''}`);
         if (modulesAdded > 0) parts.push(`${modulesAdded} module${modulesAdded > 1 ? 's' : ''}`);
-        notifications.show({
+        toast.show({
           title: 'Sync Complete',
           message: `Added ${parts.join(' and ')} from the original course. Students can now access the new content.`,
-          color: 'green',
+          tone: 'success',
         });
       } else {
-        notifications.show({ title: 'Up to Date', message: 'Course metadata synced. No new materials or modules to add.', color: 'blue' });
+        toast.show({ title: 'Up to Date', message: 'Course metadata synced. No new materials or modules to add.', tone: 'info' });
       }
 
       loadLinkedCourses(); // Refresh
     } catch (error) {
       console.error('Error syncing course:', error);
-      notifications.show({ title: 'Error', message: 'Failed to sync course', color: 'red' });
+      toast.show({ title: 'Error', message: 'Failed to sync course', tone: 'error' });
     }
   };
 

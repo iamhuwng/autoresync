@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherHomeworkDetailPage from './TeacherHomeworkDetailPage';
+import { toast } from '../components/modern/ToastNotification';
 
 const {
   useHomeworkDetailMock,
@@ -12,6 +13,7 @@ const {
   updateStudentOverrideMock,
   updateHomeworkMock,
   sendHomeworkReminderNotificationMock,
+  recordManualHomeworkReminderMock,
   getTeacherBookHomeworkProgressMock,
   isBookHomeworkCompatibilityProjectionMock,
   refreshReadingV2MasterAssignmentFromLatestMock,
@@ -25,6 +27,7 @@ const {
   updateStudentOverrideMock: vi.fn(),
   updateHomeworkMock: vi.fn(),
   sendHomeworkReminderNotificationMock: vi.fn(),
+  recordManualHomeworkReminderMock: vi.fn(),
   getTeacherBookHomeworkProgressMock: vi.fn(),
   isBookHomeworkCompatibilityProjectionMock: vi.fn(),
   refreshReadingV2MasterAssignmentFromLatestMock: vi.fn(),
@@ -64,6 +67,7 @@ vi.mock('../components/modern/ToastNotification', () => ({
     success: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -139,6 +143,7 @@ vi.mock('../services/book-homework/bookHomeworkCompatibilityProjection.service',
 }));
 
 vi.mock('../services/homeworkManager', () => ({
+  recordManualHomeworkReminder: recordManualHomeworkReminderMock,
   updateHomework: updateHomeworkMock,
   updateStudentOverride: updateStudentOverrideMock,
 }));
@@ -158,8 +163,8 @@ vi.mock('firebase/database', () => ({
   set: vi.fn(),
 }));
 
-vi.mock('../services/notificationService', () => ({
-  sendHomeworkReminderNotification: sendHomeworkReminderNotificationMock,
+vi.mock('../services/notificationProducerClient', () => ({
+  notifyCommittedEvent: sendHomeworkReminderNotificationMock,
 }));
 
 vi.mock('../services/reportingService', () => ({
@@ -297,6 +302,8 @@ describe('TeacherHomeworkDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv('VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION', 'disabled');
+    vi.stubEnv('VITE_HOMEWORK_RESULT_AUTHORITY_URL', '');
+    vi.stubEnv('VITE_HOMEWORK_NOTIFICATION_URL', '');
 
     useHomeworkDetailMock.mockReturnValue({
       homework: homeworkAssignment,
@@ -333,9 +340,32 @@ describe('TeacherHomeworkDetailPage', () => {
       payload: {},
       passageCount: 2,
     });
-    sendHomeworkReminderNotificationMock.mockResolvedValue(undefined);
+    sendHomeworkReminderNotificationMock.mockResolvedValue({ status: 'written', delivered: 1, failed: 0, unknown: 0, unattempted: 0 });
+    recordManualHomeworkReminderMock.mockResolvedValue(undefined);
     getTeacherBookHomeworkProgressMock.mockResolvedValue(null);
     isBookHomeworkCompatibilityProjectionMock.mockReturnValue(false);
+  });
+
+  it.each(['disabled', 'unknown', 'written'])('reports %s reminder delivery without inventing a retry queue', async (outcome) => {
+    if (outcome === 'disabled') vi.stubEnv('VITE_HOMEWORK_RESULT_AUTHORITY_URL', 'https://authority.test');
+    else vi.stubEnv('VITE_HOMEWORK_NOTIFICATION_URL', 'https://bridge.test');
+    useHomeworkDetailMock.mockReturnValue({ homework: { ...homeworkAssignment, target: {
+      type: 'students', studentIds: ['student-1', 'student-2'], studentNames: ['Student One', 'Student Two'],
+    } }, submissions: [], loading: false, error: null, refetch: vi.fn() });
+    if (outcome === 'unknown') sendHomeworkReminderNotificationMock.mockResolvedValue({ status: 'unknown', delivered: 0, failed: 0, unknown: 1, unattempted: 0 });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Remind All/ }));
+    if (outcome === 'disabled') {
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Reminder delivery is unavailable. No reminder requests were recorded.'));
+      expect(recordManualHomeworkReminderMock).not.toHaveBeenCalled();
+      expect(sendHomeworkReminderNotificationMock).not.toHaveBeenCalled();
+    } else if (outcome === 'unknown') {
+      await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('0 reminder(s) sent. 1 delivery unconfirmed. 1 not attempted.'));
+      expect(recordManualHomeworkReminderMock).toHaveBeenCalledTimes(1);
+    } else {
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('2 reminder(s) sent.'));
+      expect(recordManualHomeworkReminderMock).toHaveBeenCalledTimes(2);
+    }
   });
 
   it('normalizes legacy session-style integrity reports into homework summary details', async () => {

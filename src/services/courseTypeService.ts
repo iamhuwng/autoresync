@@ -1,59 +1,23 @@
-/**
- * Course Type Service
- * 
- * Service for managing course types and type requests.
- * This is a STUB implementation for Phase 3D completion.
- * Full implementation will be added in Phase 3E.
- */
-
-export interface CourseType {
-    id: string;
-    name: string;
-    description?: string;
-    createdAt: number;
-}
-
-export interface PendingTypeRequest {
-    id: string;
-    typeName: string;
-    description?: string;
-    requestedBy: string;
-    requestedAt: number;
-    status: 'pending';
-}
-
-/**
- * Get all approved course types
- * STUB: Returns empty array until full implementation
- */
+/** Admin course-type view adapts the canonical course service. */
+import * as courses from './courseManager';
+import type { CourseType, PendingTypeRequest } from '../types/admin.types';
+export type { CourseType, PendingTypeRequest } from '../types/admin.types';
 export async function getCourseTypes(): Promise<CourseType[]> {
-    console.warn('[courseTypeService] STUB: getCourseTypes()');
-    return [];
+    return (await courses.getCourseTypes()).map(type => ({
+        id: type.id, name: type.name, createdBy: type.createdBy || '', createdAt: type.createdAt, status: 'active',
+    }));
 }
-
-/**
- * Get all pending type requests
- * STUB: Returns empty array until full implementation
- */
 export async function getPendingTypeRequests(): Promise<PendingTypeRequest[]> {
-    console.warn('[courseTypeService] STUB: getPendingTypeRequests()');
-    return [];
+    return (await courses.getPendingTypeRequests()).map(request => ({
+        id: request.id, name: request.typeName, requestedBy: request.teacherId,
+        requestedAt: request.requestedAt, status: request.status,
+    }));
 }
-
-/**
- * Approve a course type request
- * STUB: Logs action until full implementation
- */
 export async function approveCourseType(requestId: string): Promise<void> {
-    console.warn('[courseTypeService] STUB: approveCourseType()', requestId);
-    return Promise.resolve();
+    const result = await courses.approveCourseType(requestId);
+    if (!result.success) throw new Error(result.error || 'Course type approval failed');
 }
-
-/**
- * Reject a course type request
- * STUB: Logs action until full implementation
- */
 export async function rejectCourseType(requestId: string): Promise<void> {
-    console.warn('[courseTypeService] STUB: rejectCourseType()', requestId);
-    return Promise.resolve();
+    const result = await courses.rejectCourseType(requestId);
+    if (!result.success) throw new Error(result.error || 'Course type rejection failed');
 }

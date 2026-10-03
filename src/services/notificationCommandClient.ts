@@ -59,7 +59,7 @@ export class NotificationCommandClientError extends Error {
     }
 }
 
-const origin = (value: string): string => {
+export const notificationWorkerOrigin = (value: string): string => {
     let parsed: URL;
     try {
         parsed = new URL(value.trim());
@@ -88,7 +88,7 @@ export const createNotificationCommandClient = (options: {
     readonly getIdToken: (forceRefresh?: boolean) => Promise<string>;
     readonly fetchImpl?: typeof fetch;
 }) => {
-    const endpoint = `${origin(options.workerOrigin)}/book-notifications/commands`;
+    const endpoint = `${notificationWorkerOrigin(options.workerOrigin)}/book-notifications/commands`;
     return {
         async create(command: NotificationCreateCommand): Promise<NotificationCommandResult> {
             assertCommand(command);

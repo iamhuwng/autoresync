@@ -861,10 +861,12 @@ describe('readingV2ResultAdapter.service', () => {
       'test_results/result-course-indexes',
       'test_results_by_session/reading-v2/result-course-indexes',
       'test_results_by_student/student-1/result-course-indexes',
-      'test_results_by_teacher/teacher-1/result-course-indexes',
+      'teacher_result_keys/teacher-1/result-course-indexes',
       'test_results_by_course/course-1/student-1/result-course-indexes',
       'test_results_by_class/class-1/student-1/result-course-indexes',
     ]));
+    expect(plan.operations.find((operation) => operation.path === 'teacher_result_keys/teacher-1/result-course-indexes')?.value)
+      .toBe(true);
     expect(plan.operations.every((operation) => !containsUndefined(operation.value))).toBe(true);
     expect(plan.operations.find((operation) => operation.path === 'reading_v2/review_indexes/result-course-indexes')?.value)
       .toMatchObject({ ownerId: 'teacher-1' });

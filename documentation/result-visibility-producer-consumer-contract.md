@@ -1,5 +1,11 @@
 # Result Visibility Producer Consumer Contract
 
+## Teacher index contract amendment — 2026-10-01
+
+The one supported teacher discovery index is `teacher_result_keys/{teacherId}/{resultId}: true`, replacing rich `test_results_by_teacher`. Producers create/remove keys only for a proven canonical teacher relationship; grading copies no scores/feedback. Consumers enumerate keys and fetch authorized canonical rows through shared services. Keys grant no access. Writing recovery/admin reindex use the replacement; no dual read/write, fallback or mirror. Earlier teacher-path references below identify the retired implementation and do not authorize supported callers to use it.
+
+Qualify replacement Rules/ancestors and coherent App/Worker callers before parent reads open. Preserve academic results; populate only source-proven keys and classify ambiguous legacy rows without invented ownership. Prove old cached/in-flight index writers address only the retired path, whose ordinary teacher reads stay denied. Supported code does not read/mirror it. Stale clients reload; preserve accepted partial saves and exact-source recovery without blind duplication. This index transition alone adds no global result-save shutdown or per-write generation gate. Selected-teacher Writing and qualified Firestore-homework follow the plan's narrow exceptions; generic solo/unresolved rows remain excluded.
+
 Companion docs:
 - `documentation/architecture/result-visibility-ownership-governance.md`
 - `documentation/architecture/changelog/homework-result-visibility-repair.md`
@@ -38,6 +44,11 @@ Companion docs:
 - `classId`
 - `assignmentId`
 
+## Student-private Homework qualification — 2026-10-02
+
+The supported THCS homework writer retains the real assignment, submission and material identifiers while writing an unresolved student-private canonical result and required own index. It must not assert a resolved teacher relationship from Firestore context or write teacher/class/course/session disclosure projections. The authentic Firestore submission commits only after this save succeeds. Exact result/operation identity survives partial or uncertain replies; repair missing projections only and preserve newer canonical fields. Current full-payload emulator and real same-attempt proof live in the notification family table's Homework evidence.
+
+Teacher-visible Firestore homework submissions and canonical-result visibility remain separate boundaries. Reset notices certify deletion of the named Firestore attempt, even when private canonical cleanup is denied; product cleanup returns real counts and the shared UI warns on partial removal. No all-results or retake promise follows from a reset notice. Teacher capture/detail/grading and teacher sessions are outside this notification upgrade's activation criteria.
 ## Lookup Contract
 
 | Context | Required lookup | Allowed fallback | Forbidden shortcut |
@@ -98,3 +109,7 @@ Minimum fields:
 - local page-level visibility filtering once the shared services exist
 - solo-practice teacher index writes
 - generic homework `context.source.submissionId` treated as `writing_submission`
+
+## Canonical integration status — 2026-10-03
+
+The notification amendments above are integrated documentation from the completed owner release. Canonical integration and its local commit remain pending; local activation/verification limits are recorded in the [canonical integration checkpoint](tasks/notification-system-upgrade-plan.md#canonical-integration-checkpoint--2026-10-03). No current remote-state or new release claim is made here.

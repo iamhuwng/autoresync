@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ref, get } from 'firebase/database';
-import { database } from '../services/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { enrollStudent } from '../services/classManager';
 import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNotifications } from '../services/notificationService';
 import { sessionService } from '../services/sessionService';
 import { getStudentResults } from '../services/testResults.service';
 import { useNavigation } from '../hooks/useNavigation';
-import { extractParams } from '../constants/routes';
+import { resolveNotificationDestination } from '../services/notificationDestinationResolver';
+import { toast } from '../components/modern/ToastNotification';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import { StudentLayout } from '../components/layout/StudentLayout';
@@ -87,6 +86,7 @@ function getFeedKind(notification) {
 }
 
 function getFeedActionLabel(notification) {
+    if (notification.metadata?.eventKind === 'ordinary-session' && notification.metadata?.transition === 'test-ended') return 'View Results';
     if (notification.metadata?.sessionCode) return 'Join Session';
     if (notification.link) return 'Open';
     return null;
@@ -186,107 +186,9 @@ function formatFeedBody(notification) {
     return plainMessage || notification.metadata?.testName || notification.metadata?.materialTitle || 'A new update is available in your workspace.';
 }
 
-function resolveNotificationResultId(notification) {
-    if (notification.metadata?.resultId) {
-        return notification.metadata.resultId;
-    }
-
-    if (notification.metadata?.submissionId) {
-        return notification.metadata.submissionId;
-    }
-
-    try {
-        if (!notification.link) {
-            return null;
-        }
-
-        const url = parseNotificationLink(notification.link);
-        if (!url) {
-            return null;
-        }
-        const queryResultId = url.searchParams.get('result');
-
-        if (queryResultId) {
-            return queryResultId;
-        }
-
-        if (getFeedKind(notification) !== 'tests') {
-            return null;
-        }
-
-        const routeMatch = url.pathname.match(/^\/result\/([^/]+)$/);
-        return routeMatch?.[1] ? decodeURIComponent(routeMatch[1]) : null;
-    } catch (_) {
-        return null;
-    }
-}
-
-const INTERNAL_NOTIFICATION_ROUTE_NAMES = [
-    'LOGIN',
-    'PROFILE',
-    'STUDENT_DASHBOARD',
-    'STUDENT_COURSES',
-    'STUDENT_COURSE_DETAIL',
-    'STUDENT_CLASS_DETAIL',
-    'STUDENT_WAITING',
-    'STUDENT_TEST',
-    'STUDENT_TEST_RESULTS',
-    'STUDENT_QUIZ',
-    'STUDENT_FEEDBACK',
-    'STUDENT_RESULTS',
-    'STUDENT_HOMEWORK',
-    'STUDENT_HOMEWORK_DETAIL',
-    'STUDENT_LIBRARY',
-    'STUDENT_ACADEMIC_RECORD',
-    'STUDENT_PRACTICE',
-    'RESULT_DETAIL',
-];
-
-function parseNotificationLink(notificationLink) {
-    if (!notificationLink) {
-        return null;
-    }
-
-    try {
-        return new URL(notificationLink, 'https://student.local');
-    } catch (_) {
-        return null;
-    }
-}
-
-function resolveNotificationLinkTarget(notificationLink) {
-    const url = parseNotificationLink(notificationLink);
-    if (!url) {
-        return null;
-    }
-
-    const hasExplicitProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(notificationLink);
-    const currentOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : null;
-
-    if (hasExplicitProtocol && currentOrigin && url.origin !== currentOrigin) {
-        return { kind: 'external', href: url.toString() };
-    }
-
-    for (const routeName of INTERNAL_NOTIFICATION_ROUTE_NAMES) {
-        const params = extractParams(routeName, url.pathname);
-
-        if (params) {
-            return { kind: 'internal', destination: routeName, params };
-        }
-    }
-
-    return hasExplicitProtocol ? { kind: 'external', href: url.toString() } : null;
-}
-
-function openExternalNotificationLink(href) {
-    if (typeof window !== 'undefined' && typeof window.open === 'function') {
-        window.open(href, '_blank', 'noopener,noreferrer');
-    }
-}
-
 const StudentDashboardPage = () => {
     const { user, profile } = useAuth();
-    const { navigateTo } = useNavigation('student');
+    const { currentPath, navigateTo } = useNavigation('student');
     const { trackAction } = useFeatureTracking(FEATURE_IDS.studentDashboard);
     const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, completed, refreshClasses, refreshHomeworkData } = useResolvedStudentShellData();
     const isMobile = useMediaQuery('(max-width: 768px)');
@@ -302,7 +204,6 @@ const StudentDashboardPage = () => {
     const [notifCursor, setNotifCursor] = useState(undefined);
     const [hasMoreNotifs, setHasMoreNotifs] = useState(false);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const [joinSuccessMessage, setJoinSuccessMessage] = useState('');
     const [showJoinModal, setShowJoinModal] = useState(false);
     const [selectedResultId, setSelectedResultId] = useState(null);
     const [proficiencyLevel, setProficiencyLevel] = useState(null);
@@ -319,9 +220,10 @@ const StudentDashboardPage = () => {
 
                 setAllNotifications(notificationResult.notifications || []);
                 setHasMoreNotifs(notificationResult.hasMore);
-                setNotifCursor(notificationResult.lastKey);
+                setNotifCursor(notificationResult.cursor);
             } catch (error) {
                 console.error('Error loading student dashboard:', error);
+                toast.error('Could not load notifications. Please try again.');
             } finally {
                 setIsLoading(false);
             }
@@ -436,16 +338,17 @@ const StudentDashboardPage = () => {
     };
 
     const handleLoadMore = async () => {
-        if (!user?.uid || !hasMoreNotifs) return;
+        if (!user?.uid || !hasMoreNotifs || isLoadingMore) return;
         trackAction('loadMoreFeed', { currentCount: allNotifications.length, filter: feedFilter });
         setIsLoadingMore(true);
         try {
             const result = await getPaginatedUserNotifications(user.uid, 20, notifCursor);
-            setAllNotifications(previous => [...previous, ...result.notifications]);
+            setAllNotifications(previous => [...previous, ...result.notifications.filter(item => !previous.some(old => old.id === item.id))]);
             setHasMoreNotifs(result.hasMore);
-            setNotifCursor(result.lastKey);
+            setNotifCursor(result.cursor);
         } catch (error) {
             console.error('Error loading more notifications:', error);
+            toast.error('Could not load more notifications. Please try again.');
         } finally {
             setIsLoadingMore(false);
         }
@@ -461,101 +364,54 @@ const StudentDashboardPage = () => {
         trackAction('submitJoinClass', { outcome: 'attempt', source: 'modal' });
         setIsEnrolling(true);
         setEnrollError('');
-        setJoinSuccessMessage('');
 
         try {
             const normalizedCode = classCode.trim().toUpperCase();
             const result = await enrollStudent(normalizedCode, user.uid, user.displayName || 'Student', user.email);
             if (!result.success) {
                 trackAction('submitJoinClass', { outcome: 'failure', code: normalizedCode });
-                setEnrollError(result.error || 'Failed to join class');
+                toast.error(result.error || 'Failed to join class');
                 return;
             }
 
             trackAction('submitJoinClass', { outcome: 'success', code: normalizedCode, approvalState: 'pending' });
-            setJoinSuccessMessage(`Join request sent for ${normalizedCode}. Waiting for teacher approval.`);
+            toast.success(`Join request sent for ${normalizedCode}. Waiting for teacher approval.`);
             setClassCode('');
+            closeJoinModal('auto_success');
             await refreshClasses();
-            setTimeout(() => {
-                setJoinSuccessMessage('');
-                closeJoinModal('auto_success');
-            }, 3000);
         } catch (error) {
             console.error('Error joining class:', error);
             trackAction('submitJoinClass', { outcome: 'error' });
-            setEnrollError('An error occurred. Please try again.');
+            toast.error('Could not join the class. Please try again.');
         } finally {
             setIsEnrolling(false);
         }
     };
 
-    const [sessionUnavailableMsg, setSessionUnavailableMsg] = useState(null);
-
-    const handleNotificationClick = async (notification) => {
-        try {
-            if (user?.uid) {
-                markNotificationAsRead(user.uid, notification.id);
-            }
-        } catch (_) {
-            // non-blocking
+    const handleNotificationClick = async notification => {
+        if (!user?.uid) return;
+        if (!notification.read) {
+            const result = await markNotificationAsRead(user.uid, notification.id);
+            if (!result.success) toast.error('Could not mark notification as read. Please try again.');
+            else setAllNotifications(previous => previous.map(item => item.id === notification.id ? { ...item, read: true } : item));
         }
-
-        const { sessionCode } = notification.metadata || {};
-        if (sessionCode) {
-            trackAction('openSessionNotification', { sessionCode });
-
-            // ── Pre-navigation session validation ──
-            // Check if session still exists and is active before navigating
-            try {
-                const sessionSnapshot = await get(ref(database, `game_sessions/${sessionCode}`));
-                if (!sessionSnapshot.exists()) {
-                    trackAction('sessionNotificationBlocked', { sessionCode, reason: 'deleted' });
-                    setSessionUnavailableMsg('This session has been deleted and is no longer available.');
-                    setTimeout(() => setSessionUnavailableMsg(null), 5000);
-                    return;
-                }
-                const sessionData = sessionSnapshot.val();
-                const activeStatuses = ['waiting', 'in-progress'];
-                if (sessionData.status && !activeStatuses.includes(sessionData.status)) {
-                    trackAction('sessionNotificationBlocked', { sessionCode, reason: 'ended', status: sessionData.status });
-                    setSessionUnavailableMsg('This session has ended and is no longer accepting students.');
-                    setTimeout(() => setSessionUnavailableMsg(null), 5000);
-                    return;
-                }
-            } catch (checkError) {
-                console.warn('⚠️ Session pre-check failed, allowing navigation as fallback:', checkError);
-                // On network error, allow navigation — the WaitingRoom page has its own guards
-            }
-
+        if (!notification.link && !notification.metadata?.kind) return;
+        const resolution = await resolveNotificationDestination(notification, { userId: user.uid, currentPath, role: 'student' });
+        trackAction('openFeedLink', { notificationId: notification.id, outcome: resolution.status, ...(resolution.status === 'blocked' ? { reason: resolution.reason } : { destination: resolution.destination }) });
+        if (resolution.status === 'blocked') {
+            toast.warning('This notification is no longer available for this account.');
+            return;
+        }
+        if (resolution.destination === 'RESULT_DETAIL') {
+            trackAction('openFeedResult', { resultId: resolution.params.resultId });
+            setSelectedResultId(resolution.params.resultId);
+            return;
+        }
+        if (resolution.destination === 'STUDENT_TEST' || resolution.destination === 'STUDENT_WAITING') {
+            const sessionCode = resolution.params.sessionCode ?? resolution.params.gameSessionId;
             sessionService.setPlayerData(user.uid, user.displayName || user.email || 'Student', sessionCode);
-            navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, { reason: 'dashboard_session_notification' });
-            return;
         }
-
-        const resultId = resolveNotificationResultId(notification);
-        if (resultId) {
-            trackAction('openFeedResult', { resultId });
-            setSelectedResultId(resultId);
-            return;
-        }
-
-        if (notification.link) {
-            trackAction('openFeedLink', { link: notification.link, category: getFeedKind(notification) });
-
-            const linkTarget = resolveNotificationLinkTarget(notification.link);
-
-            if (linkTarget?.kind === 'internal') {
-                navigateTo(linkTarget.destination, linkTarget.params, { reason: 'dashboard_notification_link' });
-                return;
-            }
-
-            if (linkTarget?.kind === 'external') {
-                openExternalNotificationLink(linkTarget.href);
-                return;
-            }
-
-            console.warn('Unsupported dashboard notification link:', notification.link);
-        }
+        navigateTo(resolution.destination, resolution.params, { reason: 'dashboard_notification_link', userInitiated: true });
     };
 
     const handleSearchBlur = () => {
@@ -822,32 +678,6 @@ const StudentDashboardPage = () => {
                 />
             </StudentLayout>
 
-            {/* Session unavailable toast — shown when notification points to ended/deleted session */}
-            {sessionUnavailableMsg && (
-                <div
-                    role="alert"
-                    style={{
-                        position: 'fixed',
-                        bottom: 24,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        background: '#2b3437',
-                        color: '#faf6ff',
-                        padding: '12px 24px',
-                        borderRadius: 12,
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        zIndex: 2000,
-                        boxShadow: '0 8px 32px rgba(43, 52, 55, 0.25)',
-                        maxWidth: '90vw',
-                        textAlign: 'center',
-                        animation: 'fadeInUp 0.3s ease',
-                    }}
-                >
-                    {sessionUnavailableMsg}
-                </div>
-            )}
-
             {showJoinModal ? (
                 <>
                     <div style={S.backdrop} onClick={() => closeJoinModal('backdrop')} />
@@ -881,7 +711,6 @@ const StudentDashboardPage = () => {
                                 disabled={isEnrolling}
                                 style={{ width: '100%', padding: '12px 16px', borderRadius: 12, border: `1px solid ${studentTokens.outlineSoft}`, fontSize: '1rem', outline: 'none', textTransform: 'uppercase', boxSizing: 'border-box', color: studentTokens.textPrimary, background: studentTokens.bgPage }}
                             />
-                            {joinSuccessMessage ? <p style={{ color: '#4c5458', fontSize: '0.875rem', marginTop: 8, fontWeight: 500 }}>{joinSuccessMessage}</p> : null}
                             {enrollError ? <p style={{ color: '#9e3f4e', fontSize: '0.875rem', marginTop: 8, fontWeight: 500 }}>{enrollError}</p> : null}
                             <div style={{ display: 'flex', gap: 8, marginTop: 16, flexDirection: isMobile ? 'column' : 'row' }}>
                                 <button

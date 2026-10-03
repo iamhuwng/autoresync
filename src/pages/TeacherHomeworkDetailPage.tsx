@@ -27,8 +27,8 @@ import {
 } from '../services/homeworkSubmissionService';
 import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import { isBookHomeworkAssignment } from '../services/book-homework/bookHomeworkManifest.service';
-import { updateHomework, updateStudentOverride } from '../services/homeworkManager';
-import { sendTrustedHomeworkReminderNotification } from '../services/notificationProducerClient';
+import { recordManualHomeworkReminder, updateHomework, updateStudentOverride } from '../services/homeworkManager';
+import { notifyCommittedEvent } from '../services/notificationProducerClient';
 import { reportingService } from '../services/reportingService';
 import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 import { database } from '../services/firebase';
@@ -690,15 +690,13 @@ function TeacherHomeworkDetailPage() {
         setResetMessage(null);
 
         try {
-            const result = await resetStudentHomework(
-                homeworkId,
-                resetTarget.studentId,
-                homework.title || homework.materialTitle
-            );
+            const result = await resetStudentHomework(homeworkId, resetTarget.studentId);
 
-            setResetMessage(
-                `Reset complete: ${result.submissionsDeleted} submission(s) and ${result.resultsDeleted} result(s) removed.`
-            );
+            if (result.resultCleanupComplete) {
+                toast.success(`Reset ${result.submissionsDeleted} submission(s) and removed ${result.resultsDeleted} linked result(s).`);
+            } else {
+                toast.warning(`Reset ${result.submissionsDeleted} submission(s), but only ${result.resultsDeleted} linked result(s) could be removed. Contact support to remove the remaining result record(s).`);
+            }
             await refetch();
             setTimeout(() => {
                 setResetTarget(null);
@@ -849,7 +847,11 @@ function TeacherHomeworkDetailPage() {
 
     // PRD-0034 Task 11.5: Send reminder handler
     const handleSendReminder = useCallback(async (row: HomeworkSubmissionTableRow) => {
-        if (!homework || !homeworkId) return;
+        if (!homework || !homeworkId || !user?.uid) return;
+        if (!import.meta.env.VITE_HOMEWORK_NOTIFICATION_URL?.trim()) {
+            toast.error('Reminder delivery is unavailable. No reminder request was recorded.');
+            return;
+        }
 
         // Double-check disable conditions (already enforced by UI, but safety)
         const hasSubmitted = row.status === 'submitted' || row.status === 'graded';
@@ -859,19 +861,13 @@ function TeacherHomeworkDetailPage() {
 
         try {
             const reminderAt = Date.now();
-            await updateStudentOverride(homeworkId, row.studentId, {
-                reminderCount: (row.reminderCount ?? 0) + 1,
-                lastRemindedAt: reminderAt,
-            });
-            // PRD-0034 Task 16.0: Send actual notification to student
-            await sendTrustedHomeworkReminderNotification(
-                row.studentId,
-                homeworkId,
-                homework.title || homework.materialTitle,
-                profile?.displayName ?? undefined,
-                String(reminderAt),
-            );
-            toast.success(`Reminder sent to ${row.studentName}`);
+            const eventId = crypto.randomUUID();
+            await recordManualHomeworkReminder(homeworkId, row.studentId, user!.uid, eventId, reminderAt);
+            const delivery = await notifyCommittedEvent({ eventKind: 'homework-reminder', eventId });
+            trackAction('sendHomeworkReminder', { homeworkId, studentId: row.studentId });
+            if (delivery.status === 'written') toast.success(`Reminder sent to ${row.studentName}`);
+            else if (delivery.status === 'unknown') toast.warning(`Reminder request recorded for ${row.studentName}. Delivery is unconfirmed.`);
+            else toast.error(`Reminder request recorded for ${row.studentName}, but the reminder was not sent.`);
             await refetch();
         } catch (err) {
             console.error('[SendReminder] Failed:', err);
@@ -882,7 +878,11 @@ function TeacherHomeworkDetailPage() {
     // PRD-0034 Task 16.3: Remind All bulk action
     const [remindAllLoading, setRemindAllLoading] = useState(false);
     const handleRemindAll = useCallback(async () => {
-        if (!homework || !homeworkId) return;
+        if (!homework || !homeworkId || !user?.uid) return;
+        if (!import.meta.env.VITE_HOMEWORK_NOTIFICATION_URL?.trim()) {
+            toast.error('Reminder delivery is unavailable. No reminder requests were recorded.');
+            return;
+        }
 
         // Filter eligible students: not submitted, < 3 reminders, not in 24h cooldown, not exempted
         const eligible = rows.filter((row) => {
@@ -902,35 +902,37 @@ function TeacherHomeworkDetailPage() {
         setRemindAllLoading(true);
         let sentCount = 0;
         let failCount = 0;
+        let unknownCount = 0;
+        let attemptedCount = 0;
 
         try {
-            const promises = eligible.map(async (row) => {
+            for (const row of eligible.slice(0, 20)) {
+                attemptedCount++;
                 try {
                     const reminderAt = Date.now();
-                    await updateStudentOverride(homeworkId, row.studentId, {
-                        reminderCount: (row.reminderCount ?? 0) + 1,
-                        lastRemindedAt: reminderAt,
-                    });
-                    // Non-blocking notification
-                    sendTrustedHomeworkReminderNotification(
-                        row.studentId,
-                        homeworkId,
-                        homework.title || homework.materialTitle,
-                        profile?.displayName ?? undefined,
-                        String(reminderAt),
-                    ).catch((err) => console.warn('[RemindAll] Notification failed for', row.studentId, err));
-                    sentCount++;
+                    const eventId = crypto.randomUUID();
+                    await recordManualHomeworkReminder(homeworkId, row.studentId, user!.uid, eventId, reminderAt);
+                    const delivery = await notifyCommittedEvent({ eventKind: 'homework-reminder', eventId });
+                    if (delivery.status === 'written') sentCount++;
+                    else {
+                        if (delivery.status === 'unknown') unknownCount++;
+                        else failCount++;
+                        break;
+                    }
                 } catch (err) {
                     console.error('[RemindAll] Failed for', row.studentId, err);
                     failCount++;
+                    break;
                 }
-            });
-            await Promise.all(promises);
+            }
 
-            const parts = [`Reminders sent to ${sentCount} student${sentCount !== 1 ? 's' : ''}.`];
+            const parts = [`${sentCount} reminder(s) sent.`];
             if (skippedCount > 0) parts.push(`${skippedCount} skipped (already submitted, limit reached, or cooldown).`);
             if (failCount > 0) parts.push(`${failCount} failed.`);
-            toast.success(parts.join(' '));
+            if (unknownCount > 0) parts.push(`${unknownCount} delivery unconfirmed.`);
+            if (eligible.length > attemptedCount) parts.push(`${eligible.length - attemptedCount} not attempted.`);
+            if (unknownCount || failCount || eligible.length > attemptedCount) toast.warning(parts.join(' '));
+            else toast.success(parts.join(' '));
             await refetch();
         } catch (err) {
             console.error('[RemindAll] Unexpected error:', err);

@@ -166,6 +166,18 @@ describe('ReportingService', () => {
     expect(ReportingService.getInstance()).toBe(reportingService);
   });
 
+  it('retains bounded course audience counts without diagnostic payloads', () => {
+    const service = ReportingService.getInstance();
+    const enqueue = vi.spyOn(service as any, 'enqueue');
+    service.reportNotificationFailure({ eventId: 'ordinary_course_announcement_a', feature: 'courses',
+      action: 'addAnnouncement', route: 'rtdb', status: 'failed', code: 'notification_event_budget',
+      occurredAt: 1, attemptedAt: 2, recipientCount: 501, delivered: 500, failed: 0, unknown: 0, unattempted: 1 });
+    const record = enqueue.mock.calls[0]![0].data;
+    expect(record.contextData).toMatchObject({ recipientCount: 501, delivered: 500, unattempted: 1 });
+    expect(record.diagnosticUrl).toBeNull();
+    expect(new TextEncoder().encode(JSON.stringify(record)).byteLength).toBeLessThanOrEqual(2048);
+  });
+
   it('does not throw from public tracking methods before initialization', () => {
     const service = ReportingService.getInstance();
 

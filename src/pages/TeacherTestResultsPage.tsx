@@ -4,8 +4,9 @@ import { useParams } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 // @ts-ignore
 import { database } from '../services/firebase';
-import { Center, Loader, Modal, Stack, Title, Text, Tabs, Badge, Group } from '@mantine/core';
+import { VanillaLoader } from '../components/modern/VanillaLoader';
 import { Card, CardBody, Button } from '../components/modern';
+import { toast } from '../components/modern/ToastNotification';
 import {
   TestResultRecord,
   getSessionResults,
@@ -28,6 +29,7 @@ import { reportingService } from '../services/reportingService';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { classifyTeacherResultVisibility } from '../services/resultVisibility.service';
 
 interface StudentResult {
@@ -221,7 +223,7 @@ export const TeacherTestResultsPage: React.FC = () => {
   const viewerTeacherId = user?.uid || '';
   const viewerTeacherName = profile?.displayName || user?.displayName || profile?.email || user?.email || viewerTeacherId || 'Teacher';
   const { navigateTo } = useNavigation(viewerRole);
-  const { trackAction } = useFeatureTracking('results');
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.results);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -235,6 +237,7 @@ export const TeacherTestResultsPage: React.FC = () => {
   const [remarkModalOpen, setRemarkModalOpen] = useState(false);
   const [selectedStudentForRemark, setSelectedStudentForRemark] = useState<StudentResult | null>(null);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [feedbackTab, setFeedbackTab] = useState('overall');
   const [selectedStudentForFeedback, setSelectedStudentForFeedback] = useState<StudentResult | null>(null);
   const [integrityMap, setIntegrityMap] = useState<Record<string, IntegrityReport>>({});
   const [selectedIntegrity, setSelectedIntegrity] = useState<{ report: IntegrityReport; studentName: string } | null>(null);
@@ -377,7 +380,7 @@ export const TeacherTestResultsPage: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!testData || analyticsResults.length === 0) {
-      alert('No results to export');
+      toast.error('No results to export');
       return;
     }
 
@@ -448,7 +451,7 @@ export const TeacherTestResultsPage: React.FC = () => {
 
   const openRemarkModal = (student: StudentResult) => {
     if (!student.resultId || !student.questionResults) {
-      alert('Re-marking is only available for saved results.');
+      toast.error('Re-marking is only available for saved results.');
       return;
     }
     setSelectedStudentForRemark(student);
@@ -459,47 +462,51 @@ export const TeacherTestResultsPage: React.FC = () => {
     if (!selectedStudentForRemark?.resultId) return;
     try {
       await updateResultScore(selectedStudentForRemark.resultId, questionNumber, newScore, reason, viewerTeacherId);
+      toast.success('Re-mark saved.');
       setRemarkModalOpen(false);
       await loadAllResults();
     } catch (saveError) {
       console.error('Failed to save remark:', saveError);
-      alert('Failed to save re-mark. Please try again.');
+      toast.error('Failed to save re-mark. Please try again.');
     }
   };
 
   const openFeedbackModal = (student: StudentResult) => {
     if (!student.resultId) {
-      alert('Feedback is only available for saved results.');
+      toast.error('Feedback is only available for saved results.');
       return;
     }
+    setFeedbackTab('overall');
     setSelectedStudentForFeedback(student);
     setFeedbackModalOpen(true);
   };
 
   const handleSaveOverallFeedback = async (feedback: string): Promise<void> => {
-    if (!selectedStudentForFeedback?.resultId) return;
+    if (!selectedStudentForFeedback?.resultId) throw new Error('Result is not saved permanently.');
+    trackAction('saveFeedback', { sessionCode, resultId: selectedStudentForFeedback.resultId });
     await saveOverallFeedback(selectedStudentForFeedback.resultId, feedback, viewerTeacherId, viewerTeacherName);
     await loadAllResults();
   };
 
   const handleSaveQuestionFeedback = async (questionNumber: number, feedback: string): Promise<void> => {
-    if (!selectedStudentForFeedback?.resultId) return;
+    if (!selectedStudentForFeedback?.resultId) throw new Error('Result is not saved permanently.');
+    trackAction('saveFeedback', { sessionCode, resultId: selectedStudentForFeedback.resultId });
     await saveQuestionFeedback(selectedStudentForFeedback.resultId, String(questionNumber), feedback, viewerTeacherId, viewerTeacherName);
     await loadAllResults();
   };
 
   const handleMarkAsReviewed = async (student: StudentResult) => {
     if (!student.resultId) {
-      alert('Cannot mark as reviewed: result not saved permanently.');
+      toast.error('Cannot mark as reviewed: result not saved permanently.');
       return;
     }
     if (student.markingStatus !== 'pending-review') {
-      alert('This result is not pending review.');
+      toast.error('This result is not pending review.');
       return;
     }
 
     const confirmed = window.confirm(
-      `Mark ${student.studentName}'s ${testData?.skill || 'test'} submission as reviewed?\n\nThis will notify the student that their test has been reviewed.`,
+      `Mark ${student.studentName}'s ${testData?.skill || 'test'} submission as reviewed?`,
     );
     if (!confirmed) return;
 
@@ -511,11 +518,11 @@ export const TeacherTestResultsPage: React.FC = () => {
         studentId: student.studentId,
       });
       await markAsReviewed(student.resultId, viewerTeacherId);
-      alert(`${student.studentName}'s test marked as reviewed.`);
+      toast.success(`${student.studentName}'s test marked as reviewed.`);
       await loadAllResults();
     } catch (reviewError) {
       console.error('Failed to mark as reviewed:', reviewError);
-      alert('Failed to mark as reviewed. Please try again.');
+      toast.error('Failed to mark as reviewed. Please try again.');
     }
   };
 
@@ -540,22 +547,22 @@ export const TeacherTestResultsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Center style={{ height: '100vh' }}>
-        <Loader size="xl" />
-      </Center>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span role="status" aria-label="Loading results"><VanillaLoader size="xl" /></span>
+      </div>
     );
   }
 
   if (error || !session || !testData) {
     return (
-      <Center style={{ height: '100vh', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1e293b' }}>
           {error || 'Failed to load results'}
         </div>
         <Button variant="primary" onClick={() => navigateTo('SESSIONS', {}, { reason: 'teacher_results_error_back' })}>
           Return to Sessions
         </Button>
-      </Center>
+      </div>
     );
   }
 
@@ -628,8 +635,8 @@ export const TeacherTestResultsPage: React.FC = () => {
                       <td style={{ padding: '0.75rem', fontWeight: 600 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           {student.studentName}
-                          {student.markingStatus === 'pending-review' && <Badge size="sm">Pending Review</Badge>}
-                          {student.markingStatus === 'reviewed' && <Badge size="sm">Reviewed</Badge>}
+                          {student.markingStatus === 'pending-review' && <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', background: '#e2e8f0', borderRadius: '4px' }}>Pending Review</span>}
+                          {student.markingStatus === 'reviewed' && <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', background: '#e2e8f0', borderRadius: '4px' }}>Reviewed</span>}
                           {(() => {
                             const integrityData = integrityMap[student.studentId];
                             if (!integrityData) return null;
@@ -715,64 +722,35 @@ export const TeacherTestResultsPage: React.FC = () => {
           />
         )}
 
-        {selectedStudentForFeedback && (
-          <Modal
-            opened={feedbackModalOpen}
+        {selectedStudentForFeedback && feedbackModalOpen && (
+          <dialog
+            ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}
+            onCancel={() => setFeedbackModalOpen(false)}
             onClose={() => setFeedbackModalOpen(false)}
-            title={(
-              <Group>
-                <Title order={3}>Provide Feedback</Title>
-                <Badge color="blue" size="lg">{selectedStudentForFeedback.studentName}</Badge>
-              </Group>
-            )}
-            size="xl"
+            aria-labelledby="result-feedback-title"
+            style={{ width: 'min(900px, calc(100vw - 2rem))', maxHeight: '85vh', overflowY: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '1.5rem' }}
           >
-            <Stack gap="lg">
-              <Tabs defaultValue="overall">
-                <Tabs.List>
-                  <Tabs.Tab value="overall">Overall Feedback</Tabs.Tab>
-                  <Tabs.Tab value="questions">Per-Question Feedback</Tabs.Tab>
-                </Tabs.List>
-                <Tabs.Panel value="overall" pt="md">
-                  <FeedbackEditor
-                    initialFeedback=""
-                    onSave={handleSaveOverallFeedback}
-                    isOverall={true}
-                    placeholder="Provide overall feedback on the student's performance..."
-                    minRows={4}
-                    maxRows={10}
-                  />
-                </Tabs.Panel>
-                <Tabs.Panel value="questions" pt="md">
-                  <Stack>
-                    {selectedStudentForFeedback.questionResults?.map((question) => (
-                      <div key={question.questionNumber} style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
-                        <Group justify="apart" mb="sm">
-                          <Text fw={600}>
-                            Question {question.questionNumber}
-                            <Badge ml="sm" color={question.isCorrect ? 'green' : 'red'} variant="light" size="sm">
-                              {question.isCorrect ? 'Correct' : 'Incorrect'}
-                            </Badge>
-                          </Text>
-                          <Text size="sm" c="dimmed">
-                            Student: {String(question.studentAnswer)} | Correct: {String(question.correctAnswer)}
-                          </Text>
-                        </Group>
-                        <FeedbackEditor
-                          questionId={String(question.questionNumber)}
-                          initialFeedback={question.teacherFeedback || ''}
-                          onSave={(feedback) => handleSaveQuestionFeedback(question.questionNumber, feedback)}
-                          placeholder={question.isCorrect ? 'Optionally explain why this answer is correct...' : 'Explain the mistake or provide hints...'}
-                          minRows={2}
-                          maxRows={6}
-                        />
-                      </div>
-                    ))}
-                  </Stack>
-                </Tabs.Panel>
-              </Tabs>
-            </Stack>
-          </Modal>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+              <h2 id="result-feedback-title">Provide Feedback — {selectedStudentForFeedback.studentName}</h2>
+              <Button variant="secondary" onClick={() => setFeedbackModalOpen(false)} aria-label="Close feedback">Close</Button>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+              <Button variant={feedbackTab === 'overall' ? 'primary' : 'secondary'} aria-pressed={feedbackTab === 'overall'} onClick={() => { trackAction('switchResultTab', { tab: 'overall', sessionCode }); setFeedbackTab('overall'); }}>Overall Feedback</Button>
+              <Button variant={feedbackTab === 'questions' ? 'primary' : 'secondary'} aria-pressed={feedbackTab === 'questions'} onClick={() => { trackAction('switchResultTab', { tab: 'questions', sessionCode }); setFeedbackTab('questions'); }}>Per-Question Feedback</Button>
+            </div>
+            <div hidden={feedbackTab !== 'overall'}>
+              <FeedbackEditor initialFeedback="" onSave={handleSaveOverallFeedback} isOverall placeholder="Provide overall feedback on the student's performance..." minRows={4} maxRows={10} />
+            </div>
+            <div hidden={feedbackTab !== 'questions'} style={{ display: feedbackTab === 'questions' ? 'grid' : 'none', gap: '1rem' }}>
+              {selectedStudentForFeedback.questionResults?.map((question) => (
+                <div key={question.questionNumber} style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
+                  <p><strong>Question {question.questionNumber}</strong> — {question.isCorrect ? 'Correct' : 'Incorrect'}</p>
+                  <p style={{ color: '#64748b', fontSize: '0.875rem' }}>Student: {String(question.studentAnswer)} | Correct: {String(question.correctAnswer)}</p>
+                  <FeedbackEditor questionId={String(question.questionNumber)} initialFeedback={question.teacherFeedback || ''} onSave={(feedback) => handleSaveQuestionFeedback(question.questionNumber, feedback)} placeholder={question.isCorrect ? 'Optionally explain why this answer is correct...' : 'Explain the mistake or provide hints...'} minRows={2} maxRows={6} />
+                </div>
+              ))}
+            </div>
+          </dialog>
         )}
       </div>
 

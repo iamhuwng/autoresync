@@ -5,18 +5,13 @@
  * Guest results are stored separately and can be claimed when a user registers.
  */
 
-import { ref, push, get, set, remove, update } from 'firebase/database';
+import { ref, push, get, set, remove, update, runTransaction } from 'firebase/database';
 import { database } from './firebase';
 import type { EnhancedTestResultRecord } from '../types/results.types';
 import type { ResultContext } from '../types/solo.types';
 import type { ResultVisibilityContextType } from '../types/results.types';
 import { resolveResultOwnership } from './resultOwnershipResolver';
 import { buildUnresolvedResultVisibilityReportEntry } from './resultVisibilityReporting.service';
-import {
-    getCanonicalClassIndexId,
-    getCanonicalCourseIndexId,
-    isScopedIndexBackfillEligible,
-} from './resultVisibilityReindex.service';
 
 type ResultStorageRecord = EnhancedTestResultRecord & Record<string, any>;
 
@@ -66,15 +61,10 @@ function inferVisibilityContextType(
     return undefined;
 }
 
-function getTeacherIndexOwnerId(result: EnhancedTestResultRecord): string | null {
-    if (!result.visibility?.ownershipResolved) {
-        return null;
-    }
-    if (result.visibility.contextType === 'solo_practice') {
-        return null;
-    }
-    return result.visibility.visibilityOwnerTeacherId ?? null;
-}
+const stableGuestSource = (value: any): string => value && typeof value === 'object'
+    ? Array.isArray(value) ? `[${value.map(stableGuestSource).join(',')}]`
+        : `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableGuestSource(value[key])}`).join(',')}}`
+    : JSON.stringify(value);
 
 async function buildCanonicalClaimFanout(
     result: ResultStorageRecord,
@@ -90,24 +80,13 @@ async function buildCanonicalClaimFanout(
         studentId: userId,
         claimedAt: claimMeta.claimedAt,
         claimedFrom: claimMeta.claimedFrom,
-    }) as EnhancedTestResultRecord;
+    }) as ResultStorageRecord;
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stableGuestSource(result)));
+    canonicalResult.guestImportSourceHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 
     const submittedAt = typeof canonicalResult.submittedAt === 'number' ? canonicalResult.submittedAt : claimMeta.claimedAt;
     const percentage = typeof canonicalResult.percentage === 'number' ? canonicalResult.percentage : undefined;
     const sessionCode = typeof canonicalResult.sessionCode === 'string' ? canonicalResult.sessionCode : undefined;
-    const courseId = typeof canonicalResult.courseId === 'string' && canonicalResult.courseId.trim() !== ''
-        ? canonicalResult.courseId
-        : undefined;
-    const classId = typeof canonicalResult.classId === 'string' && canonicalResult.classId.trim() !== ''
-        ? canonicalResult.classId
-        : undefined;
-    const moduleId = typeof canonicalResult.moduleId === 'string' && canonicalResult.moduleId.trim() !== ''
-        ? canonicalResult.moduleId
-        : null;
-    const studentName = typeof canonicalResult.studentName === 'string' ? canonicalResult.studentName : undefined;
-    const bandScore = typeof canonicalResult.bandScore === 'number' ? canonicalResult.bandScore : undefined;
-    const testTitle = typeof canonicalResult.testTitle === 'string' ? canonicalResult.testTitle : undefined;
-    const testSkill = typeof canonicalResult.testSkill === 'string' ? canonicalResult.testSkill : undefined;
     const testId = typeof canonicalResult.testId === 'string' ? canonicalResult.testId : undefined;
     const visibilityResult = await resolveResultOwnership({
         result: canonicalResult,
@@ -129,7 +108,10 @@ async function buildCanonicalClaimFanout(
             ?? null,
     });
 
-    canonicalResult.visibility = visibilityResult.visibility;
+    // A guest name does not prove the registered user's source participation.
+    canonicalResult.visibility = { ...visibilityResult.visibility,
+        ownershipResolved: visibilityResult.visibility.contextType === 'solo_practice' && !visibilityResult.visibility.visibilityOwnerTeacherId,
+        visibilityOwnerTeacherId: null, ownerResolutionSource: 'unresolved', unresolvedReason: 'owner_not_resolved' };
 
     const updates: Record<string, any> = {
         [`test_results/${canonicalResultId}`]: canonicalResult,
@@ -141,29 +123,6 @@ async function buildCanonicalClaimFanout(
             submittedAt,
         }),
     };
-
-    if (sessionCode) {
-        updates[`test_results_by_session/${sessionCode}/${canonicalResultId}`] = omitUndefined({
-            resultId: canonicalResultId,
-            studentId: userId,
-            studentName,
-            percentage,
-            submittedAt,
-        });
-    }
-
-    const teacherIndexOwnerId = getTeacherIndexOwnerId(canonicalResult);
-    if (teacherIndexOwnerId) {
-        updates[`test_results_by_teacher/${teacherIndexOwnerId}/${canonicalResultId}`] = omitUndefined({
-            resultId: canonicalResultId,
-            sessionCode,
-            studentId: userId,
-            studentName,
-            percentage,
-            submittedAt,
-            isGuest: canonicalResult.isGuest,
-        });
-    }
 
     if (
         canonicalResult.visibility.ownershipResolved
@@ -189,38 +148,6 @@ async function buildCanonicalClaimFanout(
                 sourceLookupAttempted: visibilityResult.sourceLookupAttempted,
                 strongestKnownSourceClue: visibilityResult.strongestKnownSourceClue,
             });
-    }
-
-    const canWriteScopedIndexes = isScopedIndexBackfillEligible(canonicalResult);
-    const canonicalCourseId = getCanonicalCourseIndexId(canonicalResult);
-    const canonicalClassId = getCanonicalClassIndexId(canonicalResult);
-
-    if (canWriteScopedIndexes && canonicalCourseId) {
-        updates[`test_results_by_course/${canonicalCourseId}/${userId}/${canonicalResultId}`] = omitUndefined({
-            resultId: canonicalResultId,
-            studentId: userId,
-            studentName,
-            percentage,
-            bandScore,
-            testTitle,
-            testSkill,
-            submittedAt,
-            moduleId,
-        });
-    }
-
-    if (canWriteScopedIndexes && canonicalClassId) {
-        updates[`test_results_by_class/${canonicalClassId}/${userId}/${canonicalResultId}`] = omitUndefined({
-            resultId: canonicalResultId,
-            studentId: userId,
-            studentName,
-            percentage,
-            bandScore,
-            testTitle,
-            testSkill,
-            submittedAt,
-            courseId: courseId || null,
-        });
     }
 
     return { resultId: canonicalResultId, updates };
@@ -381,7 +308,6 @@ export async function claimGuestResults(
         }
 
         const claimTimestamp = Date.now();
-        const updates: Record<string, any> = {};
         for (const result of results) {
             const { updates: resultUpdates } = await buildCanonicalClaimFanout(
                 result as ResultStorageRecord,
@@ -391,14 +317,29 @@ export async function claimGuestResults(
                     claimedFrom: guestName,
                 },
             );
-            Object.assign(updates, resultUpdates);
+            const rootPath = `test_results/${result.resultId}`;
+            const expected = resultUpdates[rootPath];
+            const matchesImport = (row: any) => row?.resultId === result.resultId && row.studentId === userId
+                && row.claimedFrom === guestName && row.guestImportSourceHash === expected.guestImportSourceHash;
+            const canonical = await runTransaction(ref(database, rootPath), current => current === null ? expected : undefined, { applyLocally: false });
+            if (!matchesImport(canonical.snapshot.val())) throw new Error('Guest import conflicts with an existing result');
+            const studentPath = `test_results_by_student/${userId}/${result.resultId}`;
+            const privateIndex = { ...resultUpdates[studentPath], studentId: userId,
+                guestImportSourceHash: expected.guestImportSourceHash };
+            const indexed = await runTransaction(ref(database, studentPath), current => current === null ? privateIndex : undefined, { applyLocally: false });
+            const index = indexed.snapshot.val();
+            if (index?.resultId !== result.resultId || index.studentId !== userId
+                || index.guestImportSourceHash !== expected.guestImportSourceHash) throw new Error('Guest import conflicts with an existing student index');
+            if (!matchesImport((await get(ref(database, rootPath))).val())) throw new Error('Guest result changed during import');
+            const persistedIndex = (await get(ref(database, studentPath))).val();
+            if (persistedIndex?.resultId !== result.resultId || persistedIndex.studentId !== userId
+                || persistedIndex.guestImportSourceHash !== expected.guestImportSourceHash) throw new Error('Guest index changed during import');
+            const source = await runTransaction(ref(database, `guest_results/${guestName}/${result.resultId}`), current => {
+                if (current === null) return null;
+                return stableGuestSource({ ...current, resultId: result.resultId }) === stableGuestSource(result) ? null : undefined;
+            }, { applyLocally: false });
+            if (source.snapshot.exists()) throw new Error('Guest source changed during import; imported private result retained');
         }
-
-        await update(ref(database), updates);
-
-        // Delete guest results after successful transfer
-        const guestResultsRef = ref(database, `guest_results/${guestName}`);
-        await remove(guestResultsRef);
 
         console.log(`Claimed ${results.length} results from ${guestName} to user ${userId}`);
         return results.length;

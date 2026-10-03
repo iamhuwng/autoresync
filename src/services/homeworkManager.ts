@@ -10,6 +10,7 @@ import {
     where,
     deleteField,
     writeBatch,
+    increment,
 } from 'firebase/firestore';
 // @ts-ignore - JS service file
 import { firestore as db } from './firebase';
@@ -489,6 +490,31 @@ export async function updateStudentOverride(
 
     const homeworkRef = doc(db, HOMEWORK_COLLECTION, homeworkId);
     await updateDoc(homeworkRef, updates);
+}
+
+/** Persist the teacher action and its immutable occurrence atomically. */
+export async function recordManualHomeworkReminder(
+    homeworkId: string,
+    studentId: string,
+    actorUid: string,
+    eventId: string,
+    occurredAt: number,
+): Promise<void> {
+    const batch = writeBatch(db);
+    const assignmentRef = doc(db, HOMEWORK_COLLECTION, homeworkId);
+    const intentRef = doc(db, 'homework_manual_reminder_intents', eventId);
+    batch.update(assignmentRef, {
+        [`studentOverrides.${studentId}.reminderCount`]: increment(1),
+        [`studentOverrides.${studentId}.lastRemindedAt`]: occurredAt,
+    });
+    batch.set(intentRef, {
+        eventId,
+        homeworkId,
+        studentId,
+        actorUid,
+        occurredAt,
+    });
+    await batch.commit();
 }
 
 /**

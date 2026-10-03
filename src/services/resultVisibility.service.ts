@@ -57,9 +57,12 @@ export function classifyTeacherResultVisibility(
 ): ResolvedResultVisibilityVerdict {
     const visibility = input.result.visibility ?? null;
     const deletedSource = buildDeletedSourceDisplayMetadata(visibility);
-    const soloPractice = classifySoloPracticeVisibility(visibility, input.hasAssignmentAccess);
+    const sharedSoloOwner = visibility?.contextType === 'solo_practice' && visibility.ownershipResolved
+        && visibility.sourceType === 'class' && visibility.visibilityOwnerTeacherId === input.teacherId
+        && input.result.context?.selectedTeacherId === input.teacherId && input.result.context.classId === visibility.classId;
+    const soloPractice = classifySoloPracticeVisibility(visibility, Boolean(sharedSoloOwner));
 
-    if (!input.hasAssignmentAccess) {
+    if (!input.hasAssignmentAccess && !sharedSoloOwner) {
         return buildDeniedVerdict('assignment_gate_denied', visibility, deletedSource, soloPractice);
     }
 
@@ -70,14 +73,14 @@ export function classifyTeacherResultVisibility(
     if (soloPractice.isSoloPractice) {
         return {
             isVisibleToTeacher: soloPractice.teacherCanView,
-            isTeacherOwned: false,
+            isTeacherOwned: Boolean(sharedSoloOwner),
             shouldDisplayInTeacherHistory: soloPractice.teacherCanView,
             shouldDisplayInTeacherDetail: soloPractice.teacherCanView,
-            shouldAllowTeacherActions: false,
+            shouldAllowTeacherActions: Boolean(sharedSoloOwner),
             excludeFromAnalytics: soloPractice.excludeFromAnalytics,
             isUnresolved: false,
             exclusionReason: soloPractice.teacherCanView ? 'visible' : 'teacher_not_owner',
-            visibilityOwnerTeacherId: null,
+            visibilityOwnerTeacherId: sharedSoloOwner ? input.teacherId : null,
             deletedSource,
             soloPractice,
         };
@@ -114,10 +117,10 @@ export function classifySoloPracticeVisibility(
 
     return {
         isSoloPractice,
-        teacherCanView: Boolean(isSoloPractice && hasAssignmentAccess),
-        teacherActionsAllowed: false,
+        teacherCanView: Boolean(isSoloPractice && visibility?.ownershipResolved && visibility.visibilityOwnerTeacherId && hasAssignmentAccess),
+        teacherActionsAllowed: Boolean(isSoloPractice && visibility?.ownershipResolved && visibility.visibilityOwnerTeacherId && hasAssignmentAccess),
         tagLabel: isSoloPractice ? 'Solo Practice' : null,
-        excludeFromAnalytics: isSoloPractice,
+        excludeFromAnalytics: Boolean(isSoloPractice && !visibility?.visibilityOwnerTeacherId),
     };
 }
 

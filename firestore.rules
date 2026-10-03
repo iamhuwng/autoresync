@@ -507,6 +507,7 @@ service cloud.firestore {
           && !isBookHomework(request.resource.data)
           && !isBookHomeworkCompatibility(request.resource.data)
           && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.id == assignmentId
           && isValidReadingPassageHomeworkPayload(request.resource.data)
         ) || (
           isExactBookHomeworkCompatibilityService(assignmentId, request.resource.data.createdBy)
@@ -526,6 +527,7 @@ service cloud.firestore {
           (
             resource.data.createdBy == request.auth.uid
             && request.resource.data.createdBy == resource.data.createdBy
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'createdAt', 'materialId', 'materialType', 'materialSkill', 'contentRef', 'target', 'assignmentKind'])
             && isValidReadingPassageHomeworkPayload(request.resource.data)
           )
           || isStudentStatsOnlyHomeworkUpdate()
@@ -596,21 +598,83 @@ service cloud.firestore {
     match /homework_submissions/{submissionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
+        && request.resource.data.id == submissionId
+        && request.resource.data.teacherId == get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy
         && (request.resource.data.studentId == request.auth.uid
+            && request.resource.data.status == 'in_progress'
+            && !request.resource.data.keys().hasAny(['resultId', 'submittedAt', 'notificationIntent', 'notificationDelivery', 'administrativeImport'])
             || (request.resource.data.teacherId == request.auth.uid
                 && request.resource.data.administrativeImport.source == 'external-admin-import'
                 && request.resource.data.administrativeImport.importedByTeacherId == request.auth.uid
                 && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid));
-      // Students can update own submissions; teachers can update for grading
-      // Third condition: allows teacher to backfill teacherId on old submissions
-      // (created before teacherId was introduced) by writing their own UID.
       allow update: if request.auth != null
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'studentId', 'teacherId', 'homeworkId', 'startedAt', 'administrativeImport'])
+        && (!resource.data.keys().hasAny(['submittedAt'])
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['resultId', 'submittedAt']))
+        && !request.resource.data.keys().hasAny(['notificationIntent', 'notificationDelivery'])
         && (resource.data.studentId == request.auth.uid
-            || resource.data.teacherId == request.auth.uid
-            || request.resource.data.teacherId == request.auth.uid);
+            || resource.data.teacherId == request.auth.uid);
       // Only the homework creator (teacher) can delete submissions (for reset)
       allow delete: if request.auth != null
         && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /homework_notification_proofs/{eventId} {
+      allow get: if request.auth != null && (!exists(/databases/$(database)/documents/homework_notification_proofs/$(eventId)) || resource.data.actorUid == request.auth.uid);
+      allow list, update, delete: if false;
+      allow create: if request.auth != null
+        && request.resource.data.eventId == eventId
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.occurredAt is int
+        && request.resource.data.occurredAt <= request.time.toMillis()
+        && ((request.resource.data.kind == 'thcs-homework-assigned'
+          && request.resource.data.keys().hasOnly(['eventId', 'kind', 'actorUid', 'homeworkId', 'occurredAt'])
+          && request.resource.data.homeworkId == eventId
+          && get(/databases/$(database)/documents/homework_assignments/$(eventId)).data.createdBy == request.auth.uid
+          && get(/databases/$(database)/documents/homework_assignments/$(eventId)).data.materialType == 'thcs-test'
+          && request.resource.data.occurredAt == get(/databases/$(database)/documents/homework_assignments/$(eventId)).data.createdAt)
+        || (request.resource.data.kind == 'homework-submitted'
+          && request.resource.data.keys().hasOnly(['eventId', 'kind', 'actorUid', 'homeworkId', 'studentId', 'resultId', 'occurredAt'])
+          && get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.studentId == request.auth.uid
+          && get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.status in ['submitted', 'graded']
+          && !get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.keys().hasAny(['administrativeImport'])
+          && request.resource.data.studentId == request.auth.uid
+          && request.resource.data.homeworkId == get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.homeworkId
+          && request.resource.data.resultId == get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.resultId
+          && request.resource.data.occurredAt == get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.submittedAt));
+    }
+
+    match /homework_manual_reminder_intents/{eventId} {
+      allow get: if request.auth != null && resource.data.actorUid == request.auth.uid;
+      allow list, update, delete: if false;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['eventId', 'homeworkId', 'studentId', 'actorUid', 'occurredAt'])
+        && request.resource.data.eventId == eventId && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.occurredAt is int
+        && request.resource.data.occurredAt <= request.time.toMillis()
+        && request.resource.data.occurredAt >= request.time.toMillis() - 300000
+        && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.studentOverrides[request.resource.data.studentId].lastRemindedAt == request.resource.data.occurredAt
+        && getAfter(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.studentOverrides[request.resource.data.studentId].reminderCount == get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.get('studentOverrides', {}).get(request.resource.data.studentId, {}).get('reminderCount', 0) + 1
+        && getAfter(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.studentOverrides[request.resource.data.studentId].reminderCount <= 3;
+    }
+
+    match /homework_reset_notification_intents/{eventId} {
+      allow get: if request.auth != null && resource.data.actorUid == request.auth.uid;
+      allow list, update, delete: if false;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['schemaVersion', 'eventId', 'homeworkId', 'studentId', 'sourceSubmissionId', 'actorUid', 'occurredAt', 'resultId'])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.eventId == eventId && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.occurredAt is int
+        && request.resource.data.occurredAt <= request.time.toMillis()
+        && request.resource.data.occurredAt >= request.time.toMillis() - 300000
+        && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid
+        && get(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId)).data.teacherId == request.auth.uid
+        && get(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId)).data.homeworkId == request.resource.data.homeworkId
+        && get(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId)).data.studentId == request.resource.data.studentId
+        && request.resource.data.get('resultId', null) == get(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId)).data.get('resultId', null)
+        && !existsAfter(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId));
     }
 
     // Homework templates — teacher-owned
@@ -753,6 +817,30 @@ service cloud.firestore {
         || get(/databases/$(database)/documents/writing_submissions/$(submissionId)).data.context.selectedTeacherId == request.auth.uid;
     }
 
+    function isSoloWritingSubmissionNotificationIntent(eventId, data) {
+      let sourcePath = /databases/$(database)/documents/writing_submissions/$(data.authorityRecordId);
+      let source = get(sourcePath).data;
+      return data.keys().hasOnly([
+          'schemaVersion', 'eventId', 'kind', 'authorityRecordId', 'occurrenceId', 'actorUid', 'occurredAt'
+        ])
+        && data.schemaVersion == 1
+        && data.eventId == eventId
+        && data.kind in ['writing-submitted-student', 'writing-submitted-teacher']
+        && data.authorityRecordId is string
+        && data.occurrenceId == eventId
+        && data.actorUid == request.auth.uid
+        && data.occurredAt is int
+        && source.id == data.authorityRecordId
+        && source.studentId == request.auth.uid
+        && source.context.type == 'solo-practice'
+        && source.submittedAt == data.occurredAt
+        && (data.kind == 'writing-submitted-student'
+          ? eventId == 'writing-' + data.authorityRecordId + '-submitted-student'
+          : eventId == 'writing-' + data.authorityRecordId + '-submitted-teacher'
+            && source.context.selectedTeacherId is string
+            && source.context.classId is string);
+    }
+
     match /writing_submissions/{submissionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
@@ -762,8 +850,21 @@ service cloud.firestore {
             || resource.data.context.selectedTeacherId == request.auth.uid
             || request.resource.data.context.assigningTeacherId == request.auth.uid
             || request.resource.data.context.selectedTeacherId == request.auth.uid
-            || request.resource.data.grading.teacherId == request.auth.uid);
+            || request.resource.data.grading.teacherId == request.auth.uid)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.submittedAt == resource.data.submittedAt
+        && request.resource.data.context.type == resource.data.context.type
+        && request.resource.data.context.get('selectedTeacherId', null) == resource.data.context.get('selectedTeacherId', null)
+        && request.resource.data.context.get('classId', null) == resource.data.context.get('classId', null);
       allow delete: if false;  // Submissions are permanent records
+    }
+
+    match /writing_notification_intents/{eventId} {
+      allow get: if request.auth != null && resource.data.actorUid == request.auth.uid;
+      allow list, update, delete: if false;
+      allow create: if request.auth != null
+        && isSoloWritingSubmissionNotificationIntent(eventId, request.resource.data);
     }
 
     // Writing test drafts — teacher-owned CRUD

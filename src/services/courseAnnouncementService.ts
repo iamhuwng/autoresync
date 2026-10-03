@@ -6,8 +6,8 @@
 
 import { ref, push, set, get, query, orderByChild, equalTo } from 'firebase/database';
 import { database } from './firebase';
-import { createTrustedBulkNotifications } from './notificationProducerClient';
-import { getEnrollmentsByCourse } from './enrollmentManager';
+import { notifyCommittedEvent } from './notificationProducerClient';
+import type { NotificationDeliveryResult } from './notificationProducerClient';
 
 const ANNOUNCEMENTS_REF = 'course_announcements';
 
@@ -17,7 +17,7 @@ export interface CourseAnnouncement {
     courseName: string;
     teacherId: string;
     teacherName: string;
-    targetClassIds: string[]; // Which classes to send to (empty = all enrolled students)
+    targetClassIds?: Record<string, true>; // Absent = all enrolled students
     title: string;
     content: string; // Rich text HTML content
     attachments?: {
@@ -27,87 +27,40 @@ export interface CourseAnnouncement {
         size: number;
     }[];
     createdAt: number;
-    sentToStudentIds: string[]; // Track who received the notification
+    notificationPreview: string;
 }
 
 /**
- * Create and send a course announcement
+ * Save a course announcement, then attempt its first notification pass.
  * @param announcement - Announcement data
- * @returns Created announcement ID and notification IDs
+ * @returns Saved announcement ID and delivery outcome
  */
 export async function createCourseAnnouncement(
-    announcement: Omit<CourseAnnouncement, 'id' | 'createdAt' | 'sentToStudentIds'>
-): Promise<{ success: boolean; announcementId?: string; notificationIds?: string[]; error?: string }> {
+    announcement: Omit<CourseAnnouncement, 'id' | 'createdAt' | 'notificationPreview' | 'targetClassIds'> & { targetClassIds: string[] }
+): Promise<{ success: boolean; announcementId?: string; deliveryPromise?: Promise<NotificationDeliveryResult>; error?: string }> {
     try {
-        // Validate required fields
         if (!announcement.courseId || !announcement.teacherId || !announcement.title || !announcement.content) {
             return { success: false, error: 'Missing required fields' };
         }
-
-        // Get all enrollments for the course
-        const enrollments = await getEnrollmentsByCourse(announcement.courseId);
-
-        // Filter students based on target classes (if specified)
-        let targetStudentIds: string[] = [];
-
-        if (announcement.targetClassIds.length > 0) {
-            // Only students in specified classes
-            targetStudentIds = enrollments
-                .filter(e =>
-                    e.status === 'active' &&
-                    e.sourceClassId &&
-                    announcement.targetClassIds.includes(e.sourceClassId)
-                )
-                .map(e => e.studentId);
-        } else {
-            // All enrolled students
-            targetStudentIds = enrollments
-                .filter(e => e.status === 'active')
-                .map(e => e.studentId);
+        const course = await get(ref(database, `courses/${announcement.courseId}`));
+        if (!course.exists() || course.child('ownerId').val() !== announcement.teacherId) {
+            return { success: false, error: 'Course is not owned by this teacher' };
         }
-
-        if (targetStudentIds.length === 0) {
-            return { success: false, error: 'No students found to send announcement to' };
-        }
-
-        // Create announcement record
         const announcementRef = push(ref(database, ANNOUNCEMENTS_REF));
         const announcementId = announcementRef.key!;
-
+        const { targetClassIds, ...fields } = announcement;
         const announcementData: CourseAnnouncement = {
-            ...announcement,
+            ...fields,
+            ...(targetClassIds.length ? {
+                targetClassIds: Object.fromEntries(targetClassIds.map(id => [id, true])),
+            } : {}),
             id: announcementId,
             createdAt: Date.now(),
-            sentToStudentIds: targetStudentIds,
+            notificationPreview: stripHtml(announcement.content).slice(0, 200),
         };
-
         await set(announcementRef, announcementData);
-
-        // Create notifications for all target students
-        const notificationResult = await createTrustedBulkNotifications(
-            targetStudentIds,
-            {
-                producerFamily: 'course-announcement',
-                authorityRecordId: announcementId,
-                operationKey: `course-announcement:${announcementId}`,
-                type: 'info',
-                title: `📢 ${announcement.courseName}: ${announcement.title}`,
-                message: stripHtml(announcement.content).substring(0, 200) + '...', // Preview
-                link: `/courses/${announcement.courseId}/announcements/${announcementId}`,
-            }
-        );
-
-        if (!notificationResult.success) {
-            console.warn('Announcement created but notifications failed:', notificationResult.error);
-        }
-
-        console.log(`✅ [Announcement] Created for course ${announcement.courseId}, sent to ${targetStudentIds.length} students`);
-
-        return {
-            success: true,
-            announcementId,
-            notificationIds: notificationResult.notificationIds,
-        };
+        const deliveryPromise = Promise.resolve().then(() => notifyCommittedEvent({ eventKind: 'course-announcement-posted', announcementId }));
+        return { success: true, announcementId, deliveryPromise };
     } catch (error) {
         console.error('Error creating course announcement:', error);
         return {
@@ -167,42 +120,6 @@ export async function getAnnouncementById(announcementId: string): Promise<Cours
     } catch (error) {
         console.error('Error getting announcement:', error);
         return null;
-    }
-}
-
-/**
- * Get announcements for a student (across all their courses)
- * @param studentId - The student ID
- * @returns Array of announcements
- */
-export async function getStudentAnnouncements(studentId: string): Promise<CourseAnnouncement[]> {
-    try {
-        const announcementsRef = ref(database, ANNOUNCEMENTS_REF);
-        const snapshot = await get(announcementsRef);
-
-        if (!snapshot.exists()) {
-            return [];
-        }
-
-        const announcementsData = snapshot.val();
-        const announcements: CourseAnnouncement[] = [];
-
-        for (const data of Object.values(announcementsData)) {
-            const announcement = data as CourseAnnouncement;
-
-            // Check if this student was a recipient
-            if (announcement.sentToStudentIds.includes(studentId)) {
-                announcements.push(announcement);
-            }
-        }
-
-        // Sort by creation date (newest first)
-        announcements.sort((a, b) => b.createdAt - a.createdAt);
-
-        return announcements;
-    } catch (error) {
-        console.error('Error getting student announcements:', error);
-        return [];
     }
 }
 

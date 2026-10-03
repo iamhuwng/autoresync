@@ -167,7 +167,7 @@ export function adaptStoredNotification(raw: unknown, fallbackId?: string): Noti
     const source = isRecord(raw) ? raw : {};
     const parsedMetadata = parseNotificationMetadata(source.metadata);
     const notification: Notification = {
-        id: typeof source.id === 'string' && source.id.length > 0 ? source.id : fallbackId ?? '',
+        id: fallbackId ?? (typeof source.id === 'string' && source.id.length > 0 ? source.id : ''),
         type: isNotificationType(source.type) ? source.type : 'info',
         title: typeof source.title === 'string' ? source.title : '',
         message: typeof source.message === 'string' ? source.message : '',

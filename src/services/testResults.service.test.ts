@@ -5,10 +5,12 @@ import {
     getTeacherResults,
     getTeacherStudentResults,
     getStudentResults,
+    getSessionResults,
     rebuildTeacherResultIndexes,
     updateResultScore,
     getReMarkHistory,
     markAsReviewed,
+    deleteTestResult,
     getStudentTestAttempts,
     getHistoricalScores,
     getClassTestScores,
@@ -16,10 +18,14 @@ import {
 } from './testResults.service';
 // @ts-ignore
 import { database } from './firebase';
-import { ref, set, get, push, update } from 'firebase/database';
+import { ref, set, get, push, update, runTransaction } from 'firebase/database';
 
 const {
     mockCreateTrustedNotification,
+    mockDispatchTestCompleteNotification,
+    mockNotifyCommittedEvent,
+    mockGetAuth,
+    mockGetAuthorizedTeacherResult,
     mockResolveResultOwnership,
     mockClassifyTeacherResultVisibility,
     mockClearUnresolvedResultVisibilityReport,
@@ -27,6 +33,10 @@ const {
     mockTriggerFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
     mockCreateTrustedNotification: vi.fn(),
+    mockDispatchTestCompleteNotification: vi.fn(),
+    mockNotifyCommittedEvent: vi.fn(),
+    mockGetAuth: vi.fn(),
+    mockGetAuthorizedTeacherResult: vi.fn(),
     mockResolveResultOwnership: vi.fn(),
     mockClassifyTeacherResultVisibility: vi.fn(),
     mockClearUnresolvedResultVisibilityReport: vi.fn(),
@@ -44,8 +54,11 @@ vi.mock('firebase/database', () => ({
     set: vi.fn(),
     get: vi.fn(),
     push: vi.fn(),
-    update: vi.fn()
+    update: vi.fn(),
+    runTransaction: vi.fn()
 }));
+
+vi.mock('firebase/auth', () => ({ getAuth: mockGetAuth }));
 
 // Mock autoMarking service
 vi.mock('./autoMarking.service', () => ({
@@ -72,7 +85,11 @@ vi.mock('./resultVisibilityReporting.service', () => ({
 
 vi.mock('./notificationProducerClient', () => ({
     createTrustedNotification: mockCreateTrustedNotification,
+    dispatchCommittedNotification: mockDispatchTestCompleteNotification,
+    notifyCommittedEvent: mockNotifyCommittedEvent,
 }));
+
+vi.mock('./feedbackService', () => ({ getAuthorizedTeacherResult: mockGetAuthorizedTeacherResult }));
 
 vi.mock('./resultFeedbackGeneration.service', () => ({
     triggerFormativeFeedbackForSavedResult: (...args: any[]) =>
@@ -109,32 +126,34 @@ function createLegacyResultRecord(
 }
 
 function getSaveResultUpdatePayload(resultId = 'result-123'): Record<string, unknown> {
-    const updateCalls = (update as any).mock.calls;
-    const rootUpdateCall = updateCalls.find(
-        (call: any[]) => {
-            const payload = call[1];
-            if (!payload || typeof payload !== 'object') {
-                return false;
-            }
+    const call = vi.mocked(update).mock.calls.find(([, payload]) =>
+        Object.keys(payload).some(key => key.endsWith('/' + resultId) && key.startsWith('test_results_by_')));
+    if (!call) throw new Error('Expected saveTestResult secondary index fanout');
+    return call[1];
+}
 
-            return Object.keys(payload).some(
-                (key) => key === `test_results/${resultId}` || key.startsWith('test_results/')
-            );
-        }
-    ) ?? updateCalls[updateCalls.length - 1];
-
-    if (!rootUpdateCall) {
-        throw new Error('Expected saveTestResult to write a root update payload');
-    }
-
-    return rootUpdateCall[1];
+function getSavedResultRecord(resultId = 'result-123'): Record<string, any> {
+    const call = vi.mocked(set).mock.calls.find(([, payload]) => payload?.resultId === resultId);
+    if (!call) throw new Error('Expected saveTestResult initial canonical write');
+    return call[1];
 }
 
 describe('testResults.service', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(get).mockReset();
+        vi.mocked(runTransaction).mockReset().mockImplementation(async (_path, repair) => ({
+            snapshot: { val: () => repair(null) },
+        } as any));
+        mockResolveResultOwnership.mockReset();
         (ref as any).mockImplementation((_database: unknown, path?: string) => path ?? '__root__');
+        mockGetAuth.mockReturnValue(undefined);
+        mockNotifyCommittedEvent.mockResolvedValue({ status: 'written', delivered: 1 });
         mockCreateTrustedNotification.mockResolvedValue({ success: true, notificationId: 'notification-1' });
+        mockDispatchTestCompleteNotification.mockResolvedValue({ success: true, status: 'delivered' });
+        mockGetAuthorizedTeacherResult.mockResolvedValue({
+            status: 'committed', eventId: '00000000-0000-4000-8000-000000000121', notificationStatus: 'delivered',
+        });
         mockClearUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockUpsertUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
         mockResolveResultOwnership.mockImplementation(async ({ result }: any) => ({
@@ -165,8 +184,91 @@ describe('testResults.service', () => {
         }));
     });
 
+    it('retrieves teacher session results from boolean teacher keys and authorized canonical records', async () => {
+        mockGetAuth.mockReturnValue({ currentUser: { uid: 'teacher-1' } });
+        const result = createLegacyResultRecord({ resultId: 'session-result', sessionCode: 'SESSION1',
+            visibility: { ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1', contextType: 'class_session' } });
+        (get as any).mockImplementation(async (path: string) => ({
+            exists: () => true,
+            val: () => path === 'users/teacher-1/role' ? 'teacher'
+                : path === 'teacher_result_keys/teacher-1' ? { 'session-result': true }
+                : result,
+        }));
+        expect(await getSessionResults('SESSION1')).toEqual([result]);
+        expect(get).toHaveBeenCalledWith('teacher_result_keys/teacher-1');
+        expect(get).toHaveBeenCalledWith('test_results/session-result');
+        expect(get).not.toHaveBeenCalledWith('test_results_by_session/SESSION1');
+    });
+
+    it('deletes results and their optional indexes atomically and propagates rejection', async () => {
+        const result = createLegacyResultRecord({
+            resultId: 'result-delete', sessionCode: 'reading-v2',
+            visibility: {
+                contextType: 'homework', sourceType: 'homework', sourceId: 'homework-1',
+                sourceNameSnapshot: 'Homework', visibilityOwnerTeacherId: 'teacher-1',
+                ownerResolutionSource: 'homework.createdBy', ownershipResolved: true,
+                unresolvedReason: null, homeworkId: 'homework-1', sessionCode: null,
+                courseId: 'course-1', classId: 'class-1', assignmentId: null,
+            },
+        });
+        vi.mocked(get).mockResolvedValue({ exists: () => true, val: () => result } as any);
+        vi.mocked(update).mockResolvedValue(undefined);
+
+        await deleteTestResult(result.resultId);
+
+        expect(update).toHaveBeenCalledExactlyOnceWith('__root__', {
+            'test_results/result-delete': null,
+            'test_results_by_session/reading-v2/result-delete': null,
+            'test_results_by_student/student-1/result-delete': null,
+            'teacher_result_keys/teacher-1/result-delete': null,
+            'test_results_by_course/course-1/student-1/result-delete': null,
+            'test_results_by_class/class-1/student-1/result-delete': null,
+        });
+        expect(set).not.toHaveBeenCalled();
+        expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledWith('result-delete');
+
+        vi.mocked(update).mockClear();
+        mockClearUnresolvedResultVisibilityReport.mockClear();
+        const solo = { ...result, visibility: { ...result.visibility!,
+            contextType: 'solo_practice', sourceType: 'solo_practice',
+            visibilityOwnerTeacherId: null, courseId: null, classId: null,
+        } };
+        vi.mocked(get).mockResolvedValue({ exists: () => true, val: () => solo } as any);
+        await deleteTestResult(result.resultId);
+        expect(update).toHaveBeenCalledExactlyOnceWith('__root__', {
+            'test_results/result-delete': null,
+            'test_results_by_session/reading-v2/result-delete': null,
+            'test_results_by_student/student-1/result-delete': null,
+            'test_results_solo_practice_by_student/student-1/result-delete': null,
+        });
+
+        mockClearUnresolvedResultVisibilityReport.mockClear();
+        const denied = new Error('permission_denied');
+        vi.mocked(update).mockRejectedValueOnce(denied);
+        await expect(deleteTestResult(result.resultId)).rejects.toBe(denied);
+        expect(mockClearUnresolvedResultVisibilityReport).not.toHaveBeenCalled();
+        expect(set).not.toHaveBeenCalled();
+    });
+
     describe('saveTestResult', () => {
-        it('should save result and create teacher index', async () => {
+        it.each(['pending', 'failed'])('returns the committed result when completion delivery is %s', async mode => {
+            vi.mocked(push).mockReturnValue({ key: 'result-123' } as any);
+            mockNotifyCommittedEvent.mockReturnValue(mode === 'pending' ? new Promise(() => {})
+                : Promise.resolve({ status: 'failed', failed: 1, code: 'PERMISSION_DENIED' }));
+            const marking = { totalScore: 1, maxScore: 2, percentage: 50, completedAt: 123,
+                questionResults: [], summary: { correct: 1, incorrect: 1, partialCredit: 0, totalQuestions: 2 } };
+            await expect(saveTestResult('LIVE1', 'test-1', 'student-1', 'Student', marking as any,
+                { title: 'Test', type: 'reading', skill: 'reading', duration: 10 }, 30)).resolves.toBe('result-123');
+            expect(set).toHaveBeenCalledOnce();
+            expect(update).toHaveBeenCalledOnce();
+            expect(mockNotifyCommittedEvent).toHaveBeenCalledExactlyOnceWith({ eventKind: 'result-completed', resultId: 'result-123' });
+        });
+        it('commits canonical once before projection fanout without attempting forbidden student update', async () => {
+            vi.mocked(update).mockImplementationOnce(async (_path, payload) => {
+                if (Object.keys(payload).some(key => key.startsWith('test_results/'))) {
+                    throw new Error('PERMISSION_DENIED: student canonical UPDATE');
+                }
+            });
             const mockPush = { key: 'result-123' };
             (push as any).mockReturnValue(mockPush);
 
@@ -206,8 +308,8 @@ describe('testResults.service', () => {
                 })
             );
 
-            const updates = getSaveResultUpdatePayload('result-solo-1');
-            expect(updates['test_results/result-123']).toEqual(
+            const updates = getSaveResultUpdatePayload('result-123');
+            expect(getSavedResultRecord('result-123')).toEqual(
                 expect.objectContaining({
                     resultId: 'result-123',
                     studentId,
@@ -228,24 +330,14 @@ describe('testResults.service', () => {
                     testId,
                 })
             );
-            expect(updates[`test_results_by_teacher/${teacherId}/${resultId}`]).toEqual(
-                expect.objectContaining({
-                    resultId,
-                    studentId,
-                    sessionCode,
-                })
-            );
+            expect(updates[`teacher_result_keys/${teacherId}/${resultId}`]).toEqual(true);
+            expect(Object.keys(updates).some(key => key.startsWith('test_results/'))).toBe(false);
+            expect(set).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(set).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(update).mock.invocationCallOrder[0]);
             expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledWith('result-123');
-            expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-                producerFamily: 'result',
-                authorityRecordId: 'result-123',
-                recipientId: studentId,
-                operationKey: 'test-complete:result-123',
-                type: 'success',
-                title: '\u2705 Test Complete',
-                message: 'You completed "Test". Score: 10/20',
-                link: '/result/result-123',
-            });
+            expect(mockNotifyCommittedEvent).toHaveBeenCalledWith({ eventKind: 'result-completed', resultId: 'result-123' });
+            expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+            expect(vi.mocked(update).mock.invocationCallOrder[0]).toBeLessThan(mockNotifyCommittedEvent.mock.invocationCallOrder[0]);
         });
 
         it('writes a stable solo result id with operation identity for idempotent reload recovery', async () => {
@@ -288,6 +380,7 @@ describe('testResults.service', () => {
             );
 
             expect(resultId).toBe('listening_solo__self_study__student-1__TEST-1__attempt-001__submit');
+            expect(mockNotifyCommittedEvent).toHaveBeenCalledWith({ eventKind: 'result-completed', resultId });
             expect(push).not.toHaveBeenCalled();
             expect(set).toHaveBeenCalledWith(
                 'test_results/listening_solo__self_study__student-1__TEST-1__attempt-001__submit',
@@ -298,7 +391,7 @@ describe('testResults.service', () => {
             );
         });
 
-        it('returns an existing stable solo result without duplicate writes or side effects', async () => {
+        it('returns an existing stable solo result after projection repair without canonical writes or side effects', async () => {
             (get as any).mockResolvedValueOnce({
                 exists: () => true,
                 val: () => createLegacyResultRecord({
@@ -345,8 +438,53 @@ describe('testResults.service', () => {
             expect(resultId).toBe('listening_solo__self_study__student-1__TEST-1__attempt-001__submit');
             expect(set).not.toHaveBeenCalled();
             expect(update).not.toHaveBeenCalled();
+            expect(runTransaction).toHaveBeenCalledTimes(2);
             expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
             expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+        });
+
+        it('same-operation retry repairs missing projections from accepted canonical save and preserves newer grading', async () => {
+            const resultId = 'stable-result';
+            const records: Record<string, any> = {};
+            const args = [
+                'SESSION-1', 'TEST-1', 'student-1', 'Student Name',
+                { totalScore: 10, maxScore: 20, percentage: 50, completedAt: 1000, questionResults: [],
+                    summary: { correct: 5, incorrect: 5, partialCredit: 0, totalQuestions: 10 } },
+                { title: 'Test', type: 'reading', skill: 'reading', duration: 30 },
+                500, undefined, false, undefined, undefined, undefined, undefined, undefined,
+                { stableResultId: resultId, submissionOperationId: 'operation-1' },
+            ] as Parameters<typeof saveTestResult>;
+            vi.mocked(get).mockImplementation(async path => ({
+                exists: () => records[String(path)] !== undefined, val: () => records[String(path)],
+            } as any));
+            vi.mocked(set).mockImplementationOnce(async (path, value) => { records[String(path)] = value; });
+            vi.mocked(update).mockRejectedValueOnce(new Error('Connection lost after canonical save'));
+            await expect(saveTestResult(...args)).rejects.toThrow('Connection lost after canonical save');
+            const canonical = { ...records['test_results/stable-result'], percentage: 95, totalScore: 19,
+                teacherFeedback: { text: 'New grading', read: true } };
+            records['test_results/stable-result'] = canonical;
+            const newerSessionProjection = { resultId, studentId: 'student-1', submittedAt: 1000, percentage: 99 };
+            records['test_results_by_session/SESSION-1/stable-result'] = newerSessionProjection;
+            vi.mocked(runTransaction).mockImplementation(async (path, repair) => {
+                const current = records[String(path)] ?? null;
+                const value = repair(current);
+                if (value !== undefined) records[String(path)] = value;
+                return { snapshot: { val: () => records[String(path)] } } as any;
+            });
+            expect(await saveTestResult(...args)).toBe(resultId);
+            expect(records['test_results/stable-result']).toBe(canonical);
+            expect(records['test_results_by_session/SESSION-1/stable-result']).toBe(newerSessionProjection);
+            expect(records['test_results_by_student/student-1/stable-result']).toMatchObject({ percentage: 95 });
+            expect(records['teacher_result_keys/teacher-1/stable-result']).toBe(true);
+            expect(set).toHaveBeenCalledTimes(1);
+            expect(update).toHaveBeenCalledTimes(1);
+            expect(push).not.toHaveBeenCalled();
+            expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+            expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+            records['test_results/stable-result'] = { ...canonical, studentId: 'other-student' };
+            const repairCount = vi.mocked(runTransaction).mock.calls.length;
+            await expect(saveTestResult(...args)).rejects.toThrow('saved submission identity');
+            expect(runTransaction).toHaveBeenCalledTimes(repairCount);
         });
 
         it('rejects a stable result id that belongs to a different submit operation', async () => {
@@ -546,7 +684,7 @@ describe('testResults.service', () => {
             expect(resultId).toBe('result-ielts-1');
 
             const updates = getSaveResultUpdatePayload('result-ielts-1');
-            expect(updates['test_results/result-ielts-1']).toEqual(
+            expect(getSavedResultRecord('result-ielts-1')).toEqual(
                 expect.objectContaining({
                     feedbackGenerationMeta: expect.objectContaining({
                         kind: 'ielts-reading',
@@ -603,7 +741,7 @@ describe('testResults.service', () => {
 
             expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
             const updates = getSaveResultUpdatePayload('result-writing-1');
-            expect(updates['test_results/result-writing-1']).toEqual(
+            expect(getSavedResultRecord('result-writing-1')).toEqual(
                 expect.objectContaining({
                     feedbackGenerationMeta: expect.objectContaining({
                         kind: null,
@@ -662,7 +800,7 @@ describe('testResults.service', () => {
             );
 
             const updates = getSaveResultUpdatePayload('result-solo-1');
-            expect(updates['test_results_by_teacher/teacher-1/result-solo-1']).toBeUndefined();
+            expect(updates['teacher_result_keys/teacher-1/result-solo-1']).toBeUndefined();
             expect(updates['test_results_solo_practice_by_student/student-1/result-solo-1']).toEqual(
                 expect.objectContaining({
                     resultId: 'result-solo-1',
@@ -716,23 +854,77 @@ describe('testResults.service', () => {
             );
 
             const updates = getSaveResultUpdatePayload('result-123');
-            expect(updates['test_results/result-123']).toBeDefined();
+            expect(getSavedResultRecord('result-123')).toBeDefined();
             expect(updates['test_results_by_session/SESSION-1/result-123']).toEqual(
                 expect.objectContaining({ resultId: 'result-123', studentId: 'student-1' })
             );
             expect(updates['test_results_by_student/student-1/result-123']).toEqual(
                 expect.objectContaining({ resultId: 'result-123', sessionCode: 'SESSION-1' })
             );
-            expect(updates['test_results_by_teacher/teacher-1/result-123']).toBeUndefined();
+            expect(updates['teacher_result_keys/teacher-1/result-123']).toBeUndefined();
+        });
+
+        it('persists student-private homework with true homework context and only its student result index', async () => {
+            (push as any).mockReturnValue({ key: '-P2vOtvgXx1Vn6A5Ueku' });
+            const homeworkContext = {
+                type: 'homework',
+                source: { type: 'homework', id: 'homework-1', name: 'Assigned THCS', submissionId: 'attempt-1' },
+                assignment: { homeworkId: 'homework-1', attemptNumber: 1 },
+                configApplied: { timerMinutes: 45, feedbackTiming: 'after_completion', source: 'teacher_override' },
+            } as any;
+
+            await saveTestResult(
+                'homework_practice_attempt-1', 'thcs-material-1', 'student-1', 'Student Name',
+                { totalScore: 1, maxScore: 1, percentage: 100, completedAt: 1000, questionResults: [],
+                    summary: { correct: 1, incorrect: 0, partialCredit: 0, totalQuestions: 1 } } as any,
+                { title: 'Assigned THCS', type: 'THCS-THPT', skill: 'Mixed', duration: 45 },
+                120, undefined, false, undefined, undefined, homeworkContext, undefined, undefined,
+                { studentPrivateHomework: true },
+            );
+
+            const saved = getSavedResultRecord('-P2vOtvgXx1Vn6A5Ueku');
+            const updates = getSaveResultUpdatePayload('-P2vOtvgXx1Vn6A5Ueku');
+            expect(saved.context).toEqual(homeworkContext);
+            expect(saved.visibility).toMatchObject({
+                contextType: 'homework',
+                ownershipResolved: false,
+                visibilityOwnerTeacherId: null,
+                ownerResolutionSource: 'unresolved',
+                unresolvedReason: 'owner_not_resolved',
+            });
+            expect(saved).not.toHaveProperty('teacherId');
+            expect(saved.classId).toBeNull();
+            expect(saved.courseId).toBeNull();
+            expect(saved.moduleId).toBeNull();
+            expect(Object.keys(updates)).toEqual(['test_results_by_student/student-1/-P2vOtvgXx1Vn6A5Ueku']);
+            expect(updates['test_results_by_student/student-1/-P2vOtvgXx1Vn6A5Ueku']).toMatchObject({
+                resultId: '-P2vOtvgXx1Vn6A5Ueku',
+            });
+            expect((set as any).mock.invocationCallOrder[0]).toBeLessThan((update as any).mock.invocationCallOrder[0]);
         });
     });
 
     describe('getTeacherResults', () => {
+        it('hydrates only true keys and never reads the retired rich index', async () => {
+            const canonical = createLegacyResultRecord({ resultId: 'valid', visibility: {
+                ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1', contextType: 'class_session',
+            } as any });
+            vi.mocked(get).mockResolvedValueOnce({ exists: () => true, val: () => ({
+                valid: true, rich: { resultId: 'rich', visibilityOwnerTeacherId: 'teacher-1' },
+                falseKey: false, nullKey: null,
+            }) } as any).mockResolvedValueOnce({ exists: () => true, val: () => canonical } as any);
+            expect(await getTeacherResults('teacher-1')).toEqual([canonical]);
+            expect(vi.mocked(get).mock.calls.map(([path]) => path)).toEqual([
+                'teacher_result_keys/teacher-1', 'test_results/valid',
+            ]);
+            expect(update).not.toHaveBeenCalled();
+        });
+
         it('should return filtered results', async () => {
             // Mock index data
             const mockIndex = {
-                'res-1': { resultId: 'res-1' },
-                'res-2': { resultId: 'res-2' }
+                'res-1': true,
+                'res-2': true
             };
 
             (get as any).mockImplementation((refObj: any) => {
@@ -747,7 +939,8 @@ describe('testResults.service', () => {
             // Mock individual result fetching
             // We need to make get implementation smarter or just mock response for specific calls
             // but simplistic approach:
-            const mockResult1 = { resultId: 'res-1', sessionCode: 'CLASS-A', percentage: 80, isGuest: false };
+            const mockResult1 = { resultId: 'res-1', sessionCode: 'CLASS-A', percentage: 80, isGuest: false,
+                visibility: { ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1', contextType: 'class_session' } };
             const mockResult2 = { resultId: 'res-2', sessionCode: 'CLASS-B', percentage: 40, isGuest: true };
 
             (get as any)
@@ -765,8 +958,8 @@ describe('testResults.service', () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
             const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
             const mockIndex = {
-                'res-1': { resultId: 'res-1' },
-                'denied-row': { resultId: 'denied-row' },
+                'res-1': true,
+                'denied-row': true,
             };
             const visibleResult = createLegacyResultRecord({
                 resultId: 'res-1',
@@ -807,7 +1000,7 @@ describe('testResults.service', () => {
 
         it('should exclude rows whose normalized visibility does not belong to the teacher', async () => {
             const mockIndex = {
-                'res-1': { resultId: 'res-1' },
+                'res-1': true,
             };
             const hiddenResult = {
                 resultId: 'res-1',
@@ -843,7 +1036,7 @@ describe('testResults.service', () => {
 
         it('should exclude unresolved rows even if they appear in the teacher index', async () => {
             const mockIndex = {
-                'res-1': { resultId: 'res-1' },
+                'res-1': true,
             };
             const unresolvedResult = {
                 resultId: 'res-1',
@@ -878,7 +1071,7 @@ describe('testResults.service', () => {
 
         it('should exclude solo-practice rows from teacher-owned index reads', async () => {
             const mockIndex = {
-                'res-1': { resultId: 'res-1' },
+                'res-1': true,
             };
             const soloPracticeResult = {
                 resultId: 'res-1',
@@ -911,307 +1104,13 @@ describe('testResults.service', () => {
             expect(results).toEqual([]);
         });
 
-        it('should enrich a legacy row before excluding it from teacher results', async () => {
-            const mockIndex = {
-                'legacy-row': { resultId: 'legacy-row' },
-            };
-            mockResolveResultOwnership.mockResolvedValueOnce({
-                visibility: {
-                    contextType: 'class_session',
-                    sourceType: 'session',
-                    sourceId: 'CLASS-A',
-                    sourceNameSnapshot: 'Legacy Session',
-                    visibilityOwnerTeacherId: 'teacher-2',
-                    ownerResolutionSource: 'session.createdByUserId',
-                    ownershipResolved: true,
-                    unresolvedReason: null,
-                    homeworkId: null,
-                    sessionCode: 'CLASS-A',
-                    courseId: null,
-                    classId: null,
-                    assignmentId: null,
-                },
-                sourceLookupAttempted: true,
-                strongestKnownSourceClue: 'session:CLASS-A',
-            });
-
-            (get as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockIndex })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        resultId: 'legacy-row',
-                        sessionCode: 'CLASS-A',
-                        testId: 'TEST-1',
-                        studentId: 'student-1',
-                        studentName: 'Student Name',
-                        totalScore: 8,
-                        maxScore: 10,
-                        percentage: 80,
-                        bandScore: 7,
-                        questionResults: [],
-                        correct: 8,
-                        incorrect: 2,
-                        partialCredit: 0,
-                        totalQuestions: 10,
-                        submittedAt: 1000,
-                        timeElapsed: 100,
-                        testDuration: 30,
-                        createdAt: 1000,
-                        testTitle: 'Legacy Session',
-                        testType: 'test',
-                        testSkill: 'reading',
-                    }),
-                });
-
-            const results = await getTeacherResults('teacher-1');
-
-            expect(results).toEqual([]);
-            expect(mockResolveResultOwnership).toHaveBeenCalled();
-            const enrichmentUpdateCall = (update as any).mock.calls.find((call: any[]) =>
-                call[1]?.visibility?.visibilityOwnerTeacherId === 'teacher-2'
-            );
-            expect(enrichmentUpdateCall).toBeDefined();
-        });
-
-        it('should normalize teacher-owned session visibility during the read path', async () => {
-            const mockIndex = {
-                'session-row': { resultId: 'session-row' },
-            };
-            const resolvedVisibility = {
-                contextType: 'class_session',
-                sourceType: 'session',
-                sourceId: 'SESSION-SESSION',
-                sourceNameSnapshot: 'Live Session',
-                visibilityOwnerTeacherId: 'teacher-1',
-                ownerResolutionSource: 'session.createdByUserId',
-                ownershipResolved: true,
-                unresolvedReason: null,
-                homeworkId: null,
-                sessionCode: 'SESSION-SESSION',
-                courseId: null,
-                classId: null,
-                assignmentId: null,
-            };
-            mockResolveResultOwnership.mockResolvedValueOnce({
-                visibility: resolvedVisibility,
-                sourceLookupAttempted: true,
-                strongestKnownSourceClue: 'session:SESSION-SESSION',
-            });
-
-            (get as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockIndex })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => createLegacyResultRecord({
-                        resultId: 'session-row',
-                        sessionCode: 'SESSION-SESSION',
-                        testTitle: 'Live Session',
-                    }),
-                });
-
-            const results = await getTeacherResults('teacher-1');
-
-            expect(results).toHaveLength(1);
-            expect(results[0].resultId).toBe('session-row');
-            expect(mockResolveResultOwnership).toHaveBeenCalledWith(expect.objectContaining({
-                contextType: 'class_session',
-                sessionCode: 'SESSION-SESSION',
-                homeworkId: null,
-                classId: null,
-                courseId: null,
-                sourceNameSnapshot: 'Live Session',
-            }));
-            expect((update as any).mock.calls.some((call: any[]) =>
-                call[1]?.visibility?.visibilityOwnerTeacherId === 'teacher-1'
-                && call[1]?.visibility?.sourceId === 'SESSION-SESSION'
-            )).toBe(true);
-        });
-
-        it('should normalize teacher-owned homework visibility during the read path', async () => {
-            const mockIndex = {
-                'homework-row': { resultId: 'homework-row' },
-            };
-            const resolvedVisibility = {
-                contextType: 'homework',
-                sourceType: 'homework',
-                sourceId: 'hw-1',
-                sourceNameSnapshot: 'Homework Pack',
-                visibilityOwnerTeacherId: 'teacher-1',
-                ownerResolutionSource: 'homework.createdBy',
-                ownershipResolved: true,
-                unresolvedReason: null,
-                homeworkId: 'hw-1',
-                sessionCode: 'HOMEWORK-SESSION',
-                courseId: null,
-                classId: null,
-                assignmentId: 'assignment-1',
-            };
-            mockResolveResultOwnership.mockResolvedValueOnce({
-                visibility: resolvedVisibility,
-                sourceLookupAttempted: true,
-                strongestKnownSourceClue: 'homework:hw-1',
-            });
-
-            (get as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockIndex })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => createLegacyResultRecord({
-                        resultId: 'homework-row',
-                        sessionCode: 'HOMEWORK-SESSION',
-                        testTitle: 'Homework Submission',
-                        context: {
-                            type: 'homework',
-                            source: {
-                                type: 'homework',
-                                id: 'material-1',
-                                name: 'Homework Pack',
-                            },
-                            assignment: {
-                                homeworkId: 'hw-1',
-                                assignmentId: 'assignment-1',
-                            },
-                            configApplied: {},
-                        } as any,
-                    }),
-                });
-
-            const results = await getTeacherResults('teacher-1');
-
-            expect(results).toHaveLength(1);
-            expect(results[0].visibility).toEqual(resolvedVisibility);
-            expect(mockResolveResultOwnership).toHaveBeenCalledWith(expect.objectContaining({
-                contextType: 'homework',
-                homeworkId: 'hw-1',
-                sessionCode: 'HOMEWORK-SESSION',
-                sourceNameSnapshot: 'Homework Pack',
-            }));
-        });
-
-        it('should normalize class-linked course material visibility during the read path', async () => {
-            const mockIndex = {
-                'class-material-row': { resultId: 'class-material-row' },
-            };
-            const resolvedVisibility = {
-                contextType: 'course_material',
-                sourceType: 'class',
-                sourceId: 'class-1',
-                sourceNameSnapshot: 'Class Library Material',
-                visibilityOwnerTeacherId: 'teacher-1',
-                ownerResolutionSource: 'class.createdBy',
-                ownershipResolved: true,
-                unresolvedReason: null,
-                homeworkId: null,
-                sessionCode: 'CLASS-MATERIAL-SESSION',
-                courseId: 'course-1',
-                classId: 'class-1',
-                assignmentId: null,
-            };
-            mockResolveResultOwnership.mockResolvedValueOnce({
-                visibility: resolvedVisibility,
-                sourceLookupAttempted: true,
-                strongestKnownSourceClue: 'class:class-1',
-            });
-
-            (get as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockIndex })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => createLegacyResultRecord({
-                        resultId: 'class-material-row',
-                        sessionCode: 'CLASS-MATERIAL-SESSION',
-                        testTitle: 'Class Library Material',
-                        classId: 'class-1',
-                        courseId: 'course-1',
-                        context: {
-                            type: 'course_material',
-                            source: {
-                                type: 'library',
-                                id: 'material-1',
-                                name: 'Class Library Material',
-                                classId: 'class-1',
-                                courseId: 'course-1',
-                            },
-                            classId: 'class-1',
-                            courseId: 'course-1',
-                            configApplied: {},
-                        } as any,
-                    }),
-                });
-
-            const results = await getTeacherResults('teacher-1');
-
-            expect(results).toHaveLength(1);
-            expect(results[0].visibility).toEqual(resolvedVisibility);
-            expect(mockResolveResultOwnership).toHaveBeenCalledWith(expect.objectContaining({
-                contextType: 'course_material',
-                classId: 'class-1',
-                courseId: 'course-1',
-                sessionCode: 'CLASS-MATERIAL-SESSION',
-                sourceNameSnapshot: 'Class Library Material',
-            }));
-        });
-
-        it('should normalize standalone course material visibility during the read path', async () => {
-            const mockIndex = {
-                'course-material-row': { resultId: 'course-material-row' },
-            };
-            const resolvedVisibility = {
-                contextType: 'course_material',
-                sourceType: 'course',
-                sourceId: 'course-9',
-                sourceNameSnapshot: 'Standalone Library Material',
-                visibilityOwnerTeacherId: 'teacher-1',
-                ownerResolutionSource: 'course.ownerId',
-                ownershipResolved: true,
-                unresolvedReason: null,
-                homeworkId: null,
-                sessionCode: 'COURSE-MATERIAL-SESSION',
-                courseId: 'course-9',
-                classId: null,
-                assignmentId: null,
-            };
-            mockResolveResultOwnership.mockResolvedValueOnce({
-                visibility: resolvedVisibility,
-                sourceLookupAttempted: true,
-                strongestKnownSourceClue: 'course:course-9',
-            });
-
-            (get as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockIndex })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => createLegacyResultRecord({
-                        resultId: 'course-material-row',
-                        sessionCode: 'COURSE-MATERIAL-SESSION',
-                        testTitle: 'Standalone Library Material',
-                        courseId: 'course-9',
-                        context: {
-                            type: 'course_material',
-                            source: {
-                                type: 'library',
-                                id: 'material-9',
-                                name: 'Standalone Library Material',
-                                courseId: 'course-9',
-                            },
-                            courseId: 'course-9',
-                            configApplied: {},
-                        } as any,
-                    }),
-                });
-
-            const results = await getTeacherResults('teacher-1');
-
-            expect(results).toHaveLength(1);
-            expect(results[0].visibility).toEqual(resolvedVisibility);
-            expect(mockResolveResultOwnership).toHaveBeenCalledWith(expect.objectContaining({
-                contextType: 'course_material',
-                classId: null,
-                courseId: 'course-9',
-                sessionCode: 'COURSE-MATERIAL-SESSION',
-                sourceNameSnapshot: 'Standalone Library Material',
-            }));
+        it.each(['class_session', 'homework', 'course_material'])('does not rewrite retained %s rows during teacher reads', async (type) => {
+            const retained = createLegacyResultRecord({ resultId: 'retained', context: { type } as any });
+            vi.mocked(get).mockResolvedValueOnce({ exists: () => true, val: () => ({ retained: { resultId: 'retained' } }) } as any)
+                .mockResolvedValueOnce({ exists: () => true, val: () => retained } as any);
+            expect(await getTeacherResults('teacher-1')).toEqual([]);
+            expect(mockResolveResultOwnership).not.toHaveBeenCalled();
+            expect(update).not.toHaveBeenCalled();
         });
     });
 
@@ -1233,20 +1132,20 @@ describe('testResults.service', () => {
             (ref as any).mockImplementation((_: unknown, path?: string) => path ?? '__root__');
             (get as any).mockImplementation((path: string) => {
                 switch (path) {
-                    case 'test_results_by_teacher/teacher-1':
+                    case 'teacher_result_keys/teacher-1':
                         return Promise.resolve({
                             exists: () => true,
                             val: () => ({
-                                'teacher-row': { resultId: 'teacher-row' },
-                                'other-student-row': { resultId: 'other-student-row' },
+                                'teacher-row': true,
+                                'other-student-row': true,
                             }),
                         });
                     case 'test_results_solo_practice_by_student/student-1':
                         return Promise.resolve({
                             exists: () => true,
                             val: () => ({
-                                'solo-visible': { resultId: 'solo-visible' },
-                                'solo-foreign-student': { resultId: 'solo-foreign-student' },
+                                'solo-visible': true,
+                                'solo-foreign-student': true,
                             }),
                         });
                     case 'test_results/teacher-row':
@@ -1459,11 +1358,11 @@ describe('testResults.service', () => {
             (ref as any).mockImplementation((_: unknown, path?: string) => path ?? '__root__');
             (get as any).mockImplementation((path: string) => {
                 switch (path) {
-                    case 'test_results_by_teacher/teacher-1':
+                    case 'teacher_result_keys/teacher-1':
                         return Promise.resolve({
                             exists: () => true,
                             val: () => ({
-                                'teacher-row': { resultId: 'teacher-row' },
+                                'teacher-row': true,
                             }),
                         });
                     case 'test_results_solo_practice_by_student/student-1':
@@ -1716,15 +1615,17 @@ describe('testResults.service', () => {
             await updateResultScore('res-1', 1, 1, 'Regrading', 'teacher-1');
 
             // Check main record update
-            expect(set).toHaveBeenCalled();
-            const updatedResult = (set as any).mock.calls[0][1];
-            expect(updatedResult.questionResults[0].score).toBe(1);
-            expect(updatedResult.questionResults[0].isCorrect).toBe(true);
+            expect(set).not.toHaveBeenCalledWith('test_results/res-1', expect.anything());
+            const updatedResult = (update as any).mock.calls[0][1];
+            expect(updatedResult['questionResults/0/score']).toBe(1);
+            expect(updatedResult['questionResults/0/isCorrect']).toBe(true);
+            expect(updatedResult.questionResults).toBeUndefined();
             expect(updatedResult.reMarkHistory).toHaveLength(1);
             expect(updatedResult.reMarkHistory[0].remarkedBy).toBe('teacher-1');
 
             // Check index updates
-            expect(update).toHaveBeenCalledTimes(3); // Session, Student, Teacher indexes
+            expect(update).toHaveBeenCalledTimes(3); // Canonical, session and student payloads
+            expect(set).toHaveBeenCalledWith('teacher_result_keys/teach1/res-1', true);
         });
     });
 
@@ -1780,7 +1681,7 @@ describe('testResults.service', () => {
                 false
             );
 
-            expect(ref).not.toHaveBeenCalledWith(database, 'test_results_by_teacher/teacher-1/result-999');
+            expect(ref).not.toHaveBeenCalledWith(database, 'teacher_result_keys/teacher-1/result-999');
             expect(mockUpsertUnresolvedResultVisibilityReport).toHaveBeenCalledWith(
                 expect.objectContaining({
                     resultId: 'result-999',
@@ -1790,540 +1691,58 @@ describe('testResults.service', () => {
             );
         });
 
-        it('should re-resolve unresolved homework visibility during index rebuild', async () => {
-            const resolvedVisibility = {
-                contextType: 'homework',
-                sourceType: 'homework',
-                sourceId: 'hw-1',
-                sourceNameSnapshot: 'Listening Homework',
-                visibilityOwnerTeacherId: 'teacher-1',
-                ownerResolutionSource: 'homework.createdBy',
-                ownershipResolved: true,
-                unresolvedReason: null,
-                homeworkId: 'hw-1',
-                sessionCode: 'HOMEWORK-SESSION',
-                courseId: null,
-                classId: null,
-                assignmentId: null,
-            };
-            mockResolveResultOwnership.mockResolvedValueOnce({
-                visibility: resolvedVisibility,
-                sourceLookupAttempted: true,
-                strongestKnownSourceClue: 'homework:hw-1',
-            });
-
-            (get as any)
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        'result-homework-bad': createLegacyResultRecord({
-                            resultId: 'result-homework-bad',
-                            sessionCode: 'HOMEWORK-SESSION',
-                            testTitle: 'Listening Homework',
-                            context: {
-                                type: 'homework',
-                                source: {
-                                    type: 'homework',
-                                    id: 'hw-1',
-                                    name: 'Listening Homework',
-                                    submissionId: 'hw-1_student-1_123',
-                                },
-                                assignment: {
-                                    homeworkId: 'hw-1',
-                                },
-                                configApplied: {},
-                            } as any,
-                            visibility: {
-                                contextType: 'homework',
-                                sourceType: 'writing_submission',
-                                sourceId: 'hw-1_student-1_123',
-                                sourceNameSnapshot: 'Listening Homework',
-                                visibilityOwnerTeacherId: null,
-                                ownerResolutionSource: 'unresolved',
-                                ownershipResolved: false,
-                                unresolvedReason: 'writing_submission_not_found',
-                                homeworkId: 'hw-1',
-                                sessionCode: 'HOMEWORK-SESSION',
-                                courseId: null,
-                                classId: null,
-                                assignmentId: null,
-                                sourceDeleted: true,
-                            },
-                            isGuest: false,
-                        }),
-                    }),
-                })
-                .mockResolvedValueOnce({ exists: () => false, val: () => null })
-                .mockResolvedValueOnce({ exists: () => false, val: () => null })
-                .mockResolvedValueOnce({ exists: () => false, val: () => null })
-                .mockResolvedValueOnce({ exists: () => false, val: () => null });
-
-            const summary = await rebuildTeacherResultIndexes();
-
-            expect(summary).toMatchObject({
-                rebuiltCount: 1,
-                unresolvedCount: 0,
-            });
-            expect(mockResolveResultOwnership).toHaveBeenCalledWith(expect.objectContaining({
-                contextType: 'homework',
-                homeworkId: 'hw-1',
-                sourceNameSnapshot: 'Listening Homework',
-            }));
-            expect((update as any).mock.calls.some((call: any[]) =>
-                call[1]?.visibility?.visibilityOwnerTeacherId === 'teacher-1'
-                && call[1]?.visibility?.sourceType === 'homework'
-            )).toBe(true);
-            expect((update as any).mock.calls.some((call: any[]) =>
-                call[1]?.['test_results_by_teacher/teacher-1/result-homework-bad']
-            )).toBe(true);
+        it('empty audited repair performs no reads or writes', async () => {
+            expect(await rebuildTeacherResultIndexes({ verifiedResultIds: [] })).toMatchObject({ rebuiltCount: 0 });
+            expect(get).not.toHaveBeenCalled();
+            expect(update).not.toHaveBeenCalled();
+            expect(mockResolveResultOwnership).not.toHaveBeenCalled();
         });
-
-        it('should rebuild teacher indexes from normalized visibility and delete stale rows', async () => {
-            (get as any)
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        'result-1': {
-                            resultId: 'result-1',
-                            sessionCode: 'SESSION-1',
-                            testId: 'TEST-1',
-                            studentId: 'student-1',
-                            studentName: 'Student Name',
-                            totalScore: 8,
-                            maxScore: 10,
-                            percentage: 80,
-                            bandScore: 7,
-                            questionResults: [],
-                            correct: 8,
-                            incorrect: 2,
-                            partialCredit: 0,
-                            totalQuestions: 10,
-                            submittedAt: 1000,
-                            timeElapsed: 100,
-                            testDuration: 30,
-                            createdAt: 1000,
-                            testTitle: 'Teacher Owned',
-                            testType: 'test',
-                            testSkill: 'reading',
-                            visibility: {
-                                contextType: 'class_session',
-                                sourceType: 'session',
-                                sourceId: 'SESSION-1',
-                                sourceNameSnapshot: 'Teacher Owned',
-                                visibilityOwnerTeacherId: 'teacher-2',
-                                ownerResolutionSource: 'session.createdByUserId',
-                                ownershipResolved: true,
-                                unresolvedReason: null,
-                                homeworkId: null,
-                                sessionCode: 'SESSION-1',
-                                courseId: null,
-                                classId: null,
-                                assignmentId: null,
-                            },
-                            isGuest: false,
-                        },
-                        'result-2': {
-                            resultId: 'result-2',
-                            sessionCode: 'SESSION-2',
-                            testId: 'TEST-2',
-                            studentId: 'student-2',
-                            studentName: 'Solo Student',
-                            totalScore: 7,
-                            maxScore: 10,
-                            percentage: 70,
-                            bandScore: 6.5,
-                            questionResults: [],
-                            correct: 7,
-                            incorrect: 3,
-                            partialCredit: 0,
-                            totalQuestions: 10,
-                            submittedAt: 2000,
-                            timeElapsed: 100,
-                            testDuration: 30,
-                            createdAt: 2000,
-                            testTitle: 'Solo Practice',
-                            testType: 'test',
-                            testSkill: 'reading',
-                            visibility: {
-                                contextType: 'solo_practice',
-                                sourceType: 'solo_practice',
-                                sourceId: 'solo-2',
-                                sourceNameSnapshot: 'Solo Practice',
-                                visibilityOwnerTeacherId: null,
-                                ownerResolutionSource: 'solo_practice',
-                                ownershipResolved: true,
-                                unresolvedReason: null,
-                                homeworkId: null,
-                                sessionCode: 'SESSION-2',
-                                courseId: null,
-                                classId: null,
-                                assignmentId: null,
-                            },
-                            isGuest: false,
-                        },
-                    }),
-                })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        'legacy-teacher': {
-                            'result-1': { resultId: 'result-1' },
-                            'result-2': { resultId: 'result-2' },
-                        },
-                    }),
-                })
-                .mockResolvedValueOnce({
-                    exists: () => false,
-                    val: () => null,
-                })
-                .mockResolvedValueOnce({
-                    exists: () => false,
-                    val: () => null,
-                });
-
-            const summary = await rebuildTeacherResultIndexes();
-
-            expect(summary).toMatchObject({
-                rebuiltCount: 1,
-                deletedCount: 2,
-                unresolvedCount: 0,
-                rebuiltCourseCount: 0,
-                rebuiltClassCount: 0,
-            });
-            const rootUpdateCall = (update as any).mock.calls.find((call: any[]) =>
-                call[0] === '__root__' || call[0] === undefined || call[0] === null || call[0] === ''
-            ) ?? (update as any).mock.calls[(update as any).mock.calls.length - 1];
-            expect(rootUpdateCall[1]).toEqual(
-                expect.objectContaining({
-                    'test_results_by_teacher/legacy-teacher/result-1': null,
-                    'test_results_by_teacher/legacy-teacher/result-2': null,
-                    'test_results_by_teacher/teacher-2/result-1': expect.objectContaining({
-                        resultId: 'result-1',
-                        studentId: 'student-1',
-                    }),
-                })
-            );
-            expect(rootUpdateCall[1]['test_results_by_teacher/teacher-2/result-2']).toBeUndefined();
+        it('admin verified current ownership rebuilds teacher, class and course indexes without changing grading', async () => {
+            const stored = createLegacyResultRecord({ resultId: 'verified-row', markingStatus: 'reviewed', bandScore: 8 });
+            const visibility = { ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-current', contextType: 'course_material',
+                sourceType: 'class', sourceId: 'class-current', classId: 'class-current', courseId: 'course-current' };
+            mockResolveResultOwnership.mockResolvedValueOnce({ visibility, sourceLookupAttempted: true });
+            vi.mocked(get).mockResolvedValueOnce({ exists: () => true, val: () => stored } as any);
+            const plan = await rebuildTeacherResultIndexes({ verifiedResultIds: ['verified-row', 'verified-row'] });
+            expect(plan).toMatchObject({ rebuiltCount: 3, rebuiltClassCount: 1, rebuiltCourseCount: 1, unresolvedCount: 0 });
+            expect(plan.updates['teacher_result_keys/teacher-current/verified-row']).toBe(true);
+            expect(vi.mocked(get).mock.calls.map(([path]) => path)).toEqual(['test_results/verified-row']);
+            expect(update).toHaveBeenCalledWith('test_results/verified-row', { visibility });
+            expect(stored.bandScore).toBe(8);
         });
-
-        it('should repair stale class and course indexes from canonical visibility only', async () => {
-            (get as any)
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        'result-7': {
-                            resultId: 'result-7',
-                            sessionCode: 'SESSION-7',
-                            testId: 'TEST-7',
-                            studentId: 'student-7',
-                            studentName: 'Student Seven',
-                            totalScore: 9,
-                            maxScore: 10,
-                            percentage: 90,
-                            bandScore: 7.5,
-                            questionResults: [],
-                            correct: 9,
-                            incorrect: 1,
-                            partialCredit: 0,
-                            totalQuestions: 10,
-                            submittedAt: 7000,
-                            timeElapsed: 100,
-                            testDuration: 30,
-                            createdAt: 7000,
-                            testTitle: 'Course Material',
-                            testType: 'test',
-                            testSkill: 'reading',
-                            moduleId: 'module-7',
-                            courseId: 'course-root',
-                            classId: 'class-root',
-                            visibility: {
-                                contextType: 'course_material',
-                                sourceType: 'course_material',
-                                sourceId: 'material-7',
-                                sourceNameSnapshot: 'Course Material',
-                                visibilityOwnerTeacherId: 'teacher-7',
-                                ownerResolutionSource: 'class.createdBy',
-                                ownershipResolved: true,
-                                unresolvedReason: null,
-                                homeworkId: null,
-                                sessionCode: 'SESSION-7',
-                                courseId: 'course-7',
-                                classId: 'class-7',
-                                assignmentId: null,
-                            },
-                            isGuest: false,
-                        },
-                        'result-8': {
-                            resultId: 'result-8',
-                            sessionCode: 'SESSION-8',
-                            testId: 'TEST-8',
-                            studentId: 'student-8',
-                            studentName: 'Student Eight',
-                            totalScore: 5,
-                            maxScore: 10,
-                            percentage: 50,
-                            bandScore: 5.5,
-                            questionResults: [],
-                            correct: 5,
-                            incorrect: 5,
-                            partialCredit: 0,
-                            totalQuestions: 10,
-                            submittedAt: 8000,
-                            timeElapsed: 100,
-                            testDuration: 30,
-                            createdAt: 8000,
-                            testTitle: 'Unresolved Result',
-                            testType: 'test',
-                            testSkill: 'reading',
-                            courseId: 'course-8',
-                            classId: 'class-8',
-                            visibility: {
-                                contextType: 'class_session',
-                                sourceType: 'session',
-                                sourceId: 'SESSION-8',
-                                sourceNameSnapshot: 'Unresolved Result',
-                                visibilityOwnerTeacherId: null,
-                                ownerResolutionSource: 'unresolved',
-                                ownershipResolved: false,
-                                unresolvedReason: 'owner_not_resolved',
-                                homeworkId: null,
-                                sessionCode: 'SESSION-8',
-                                courseId: 'course-8',
-                                classId: 'class-8',
-                                assignmentId: null,
-                            },
-                            isGuest: false,
-                        },
-                    }),
-                })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        'teacher-7': {
-                            'result-7': { resultId: 'result-7' },
-                        },
-                    }),
-                })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        'course-root': {
-                            'student-7': {
-                                'result-7': { resultId: 'result-7' },
-                            },
-                        },
-                        'course-7': {
-                            'legacy-student': {
-                                'result-7': { resultId: 'result-7' },
-                            },
-                        },
-                        'course-8': {
-                            'student-8': {
-                                'result-8': { resultId: 'result-8' },
-                            },
-                        },
-                    }),
-                })
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        'class-root': {
-                            'student-7': {
-                                'result-7': { resultId: 'result-7' },
-                            },
-                        },
-                        'class-8': {
-                            'student-8': {
-                                'result-8': { resultId: 'result-8' },
-                            },
-                        },
-                    }),
-                });
-            mockResolveResultOwnership.mockResolvedValueOnce({
-                visibility: {
-                    contextType: 'class_session',
-                    sourceType: 'session',
-                    sourceId: 'SESSION-8',
-                    sourceNameSnapshot: 'Unresolved Result',
-                    visibilityOwnerTeacherId: null,
-                    ownerResolutionSource: 'unresolved',
-                    ownershipResolved: false,
-                    unresolvedReason: 'owner_not_resolved',
-                    homeworkId: null,
-                    sessionCode: 'SESSION-8',
-                    courseId: 'course-8',
-                    classId: 'class-8',
-                    assignmentId: null,
-                },
-                sourceLookupAttempted: true,
-                strongestKnownSourceClue: 'session:SESSION-8',
-            });
-
-            const summary = await rebuildTeacherResultIndexes();
-
-            expect(summary).toMatchObject({
-                rebuiltCount: 2,
-                deletedCount: 5,
-                unresolvedCount: 1,
-                rebuiltCourseCount: 1,
-                deletedCourseCount: 3,
-                rebuiltClassCount: 1,
-                deletedClassCount: 2,
-            });
-            const rootUpdateCall = (update as any).mock.calls.find((call: any[]) =>
-                call[0] === '__root__' || call[0] === undefined || call[0] === null || call[0] === ''
-            ) ?? (update as any).mock.calls[(update as any).mock.calls.length - 1];
-            expect(rootUpdateCall[1]).toEqual(
-                expect.objectContaining({
-                    'test_results_by_course/course-root/student-7/result-7': null,
-                    'test_results_by_course/course-7/legacy-student/result-7': null,
-                    'test_results_by_class/class-root/student-7/result-7': null,
-                    'test_results_by_course/course-8/student-8/result-8': null,
-                    'test_results_by_class/class-8/student-8/result-8': null,
-                    'test_results_by_course/course-7/student-7/result-7': expect.objectContaining({
-                        resultId: 'result-7',
-                        moduleId: 'module-7',
-                    }),
-                    'test_results_by_class/class-7/student-7/result-7': expect.objectContaining({
-                        resultId: 'result-7',
-                        courseId: 'course-7',
-                    }),
-                })
-            );
+        it('clears only the audited row former normalized owner when fresh source resolution fails', async () => {
+            const stored = createLegacyResultRecord({ resultId: 'repair-row', visibility: {
+                ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-old', contextType: 'class_session',
+            } as any });
+            const visibility = { ownershipResolved: false, visibilityOwnerTeacherId: null, contextType: 'class_session',
+                sourceType: 'session', sourceId: 'SESSION-1', ownerResolutionSource: 'unresolved' };
+            mockResolveResultOwnership.mockResolvedValueOnce({ visibility, sourceLookupAttempted: true });
+            vi.mocked(get).mockResolvedValueOnce({ exists: () => true, val: () => stored } as any);
+            const plan = await rebuildTeacherResultIndexes({ verifiedResultIds: ['repair-row'] });
+            expect(plan).toMatchObject({ rebuiltCount: 0, unresolvedCount: 1, deletedCount: 1 });
+            expect(plan.updates).toEqual({ 'teacher_result_keys/teacher-old/repair-row': null });
+            expect(vi.mocked(get).mock.calls.map(([path]) => path)).toEqual(['test_results/repair-row']);
         });
-
-        it('should re-resolve unresolved homework visibility during index rebuild', async () => {
-            (get as any)
-                .mockResolvedValueOnce({
-                    exists: () => true,
-                    val: () => ({
-                        'result-homework-bad': {
-                            resultId: 'result-homework-bad',
-                            sessionCode: 'SESSION-HW',
-                            testId: 'TEST-HW',
-                            studentId: 'student-1',
-                            studentName: 'Student One',
-                            totalScore: 8,
-                            maxScore: 10,
-                            percentage: 80,
-                            bandScore: 7,
-                            questionResults: [],
-                            correct: 8,
-                            incorrect: 2,
-                            partialCredit: 0,
-                            totalQuestions: 10,
-                            submittedAt: 9000,
-                            timeElapsed: 100,
-                            testDuration: 30,
-                            createdAt: 9000,
-                            testTitle: 'Listening Homework',
-                            testType: 'test',
-                            testSkill: 'listening',
-                            context: {
-                                type: 'homework',
-                                source: {
-                                    type: 'homework',
-                                    id: 'hw-1',
-                                    name: 'Listening Homework',
-                                    submissionId: 'hw-1_student-1_9000',
-                                },
-                                assignment: {
-                                    homeworkId: 'hw-1',
-                                    attemptNumber: 1,
-                                },
-                            },
-                            visibility: {
-                                contextType: 'homework',
-                                sourceType: 'writing_submission',
-                                sourceId: 'hw-1_student-1_9000',
-                                sourceNameSnapshot: 'Listening Homework',
-                                visibilityOwnerTeacherId: null,
-                                ownerResolutionSource: 'unresolved',
-                                ownershipResolved: false,
-                                unresolvedReason: 'writing_submission_not_found',
-                                homeworkId: 'hw-1',
-                                sessionCode: 'SESSION-HW',
-                                courseId: null,
-                                classId: null,
-                                assignmentId: null,
-                                sourceDeleted: true,
-                            },
-                            isGuest: false,
-                        },
-                    }),
-                })
-                .mockResolvedValueOnce({
-                    exists: () => false,
-                    val: () => null,
-                })
-                .mockResolvedValueOnce({
-                    exists: () => false,
-                    val: () => null,
-                })
-                .mockResolvedValueOnce({
-                    exists: () => false,
-                    val: () => null,
-                })
-                .mockResolvedValueOnce({
-                    exists: () => false,
-                    val: () => null,
-                });
-            mockResolveResultOwnership.mockResolvedValueOnce({
-                visibility: {
-                    contextType: 'homework',
-                    sourceType: 'homework',
-                    sourceId: 'hw-1',
-                    sourceNameSnapshot: 'Listening Homework',
-                    visibilityOwnerTeacherId: 'teacher-1',
-                    ownerResolutionSource: 'homework.createdBy',
-                    ownershipResolved: true,
-                    unresolvedReason: null,
-                    homeworkId: 'hw-1',
-                    sessionCode: 'SESSION-HW',
-                    courseId: null,
-                    classId: null,
-                    assignmentId: null,
-                },
-                sourceLookupAttempted: true,
-                strongestKnownSourceClue: 'homework:hw-1',
+        it('requires the audited manifest on every retry and never clears the index before recreation', async () => {
+            const stored = createLegacyResultRecord({ resultId: 'retry-row', markingStatus: 'graded', bandScore: 8,
+                visibility: { ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1', contextType: 'class_session' } as any });
+            const visibility = { ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1', contextType: 'class_session',
+                sourceType: 'session', sourceId: 'SESSION-1', sessionCode: 'SESSION-1' };
+            mockResolveResultOwnership.mockResolvedValue({ visibility, sourceLookupAttempted: true });
+            vi.mocked(get).mockResolvedValueOnce({ exists: () => true, val: () => stored } as any);
+            vi.mocked(update).mockImplementation(async (_path, updates) => {
+                if (updates['teacher_result_keys/teacher-1/retry-row'] === true) throw new Error('Rebuild interrupted');
             });
-
-            const summary = await rebuildTeacherResultIndexes();
-
-            expect(summary).toMatchObject({
-                rebuiltCount: 1,
-                deletedCount: 0,
-                unresolvedCount: 0,
-            });
-            expect(mockResolveResultOwnership).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    result: expect.objectContaining({
-                        resultId: 'result-homework-bad',
-                    }),
-                })
-            );
-            expect(update).toHaveBeenCalledWith(
-                'test_results/result-homework-bad',
-                expect.objectContaining({
-                    visibility: expect.objectContaining({
-                        sourceType: 'homework',
-                        sourceId: 'hw-1',
-                        visibilityOwnerTeacherId: 'teacher-1',
-                        ownershipResolved: true,
-                    }),
-                })
-            );
-            const rootUpdateCall = (update as any).mock.calls.find((call: any[]) =>
-                call[0] === '__root__' || call[0] === undefined || call[0] === null || call[0] === ''
-            ) ?? (update as any).mock.calls[(update as any).mock.calls.length - 1];
-            expect(rootUpdateCall[1]).toEqual(
-                expect.objectContaining({
-                    'test_results_by_teacher/teacher-1/result-homework-bad': expect.objectContaining({
-                        resultId: 'result-homework-bad',
-                        studentId: 'student-1',
-                    }),
-                })
-            );
+            await expect(rebuildTeacherResultIndexes({ verifiedResultIds: ['retry-row'] })).rejects.toThrow('Rebuild interrupted');
+            expect(vi.mocked(get).mock.calls.map(([path]) => path)).toEqual(['test_results/retry-row']);
+            expect(vi.mocked(update).mock.calls.some(([, updates]) => Object.values(updates).includes(null))).toBe(false);
+            const readCount = vi.mocked(get).mock.calls.length;
+            const writeCount = vi.mocked(update).mock.calls.length;
+            await expect(rebuildTeacherResultIndexes()).rejects.toThrow('Audited result-ID manifest');
+            await expect(rebuildTeacherResultIndexes({ verifiedResultIds: ['../unaudited'] })).rejects.toThrow('invalid RTDB key');
+            expect(get).toHaveBeenCalledTimes(readCount);
+            expect(update).toHaveBeenCalledTimes(writeCount);
+            expect(stored.bandScore).toBe(8);
         });
     });
 
@@ -2400,7 +1819,7 @@ describe('testResults.service', () => {
 
             expect(resultId).toBe('result-123');
 
-            const savedRecord = getSaveResultUpdatePayload()['test_results/result-123'] as Record<string, unknown>;
+            const savedRecord = getSavedResultRecord('result-123') as Record<string, unknown>;
 
             expect(savedRecord.courseId).toBe('course-1');
             expect(savedRecord.courseName).toBe('IELTS Preparation');
@@ -2530,7 +1949,7 @@ describe('testResults.service', () => {
 
             expect(resultId).toBe('result-123');
 
-            const savedRecord = getSaveResultUpdatePayload()['test_results/result-123'] as Record<string, unknown>;
+            const savedRecord = getSavedResultRecord('result-123') as Record<string, unknown>;
 
             expect(savedRecord.courseId).toBeNull();
             expect(savedRecord.courseName).toBeNull();
@@ -2558,7 +1977,7 @@ describe('testResults.service', () => {
             );
 
             const updates = getSaveResultUpdatePayload();
-            const savedRecord = updates['test_results/result-123'] as Record<string, unknown>;
+            const savedRecord = getSavedResultRecord('result-123') as Record<string, unknown>;
 
             expect(savedRecord.courseId).toBe('course-1');
             expect(savedRecord.courseName).toBeNull();
@@ -2610,148 +2029,65 @@ describe('testResults.service', () => {
     // ============================================
 
     describe('Review Flow - markAsReviewed', () => {
-        const mockResult: TestResultRecord = {
-            resultId: 'result-test-1',
-            sessionCode: 'SESSION-1',
-            testId: 'test-1',
-            studentId: 'student-1',
-            studentName: 'John Doe',
-            totalScore: 15,
-            maxScore: 20,
-            percentage: 75,
-            bandScore: 7.0,
-            correct: 15,
-            incorrect: 5,
-            partialCredit: 0,
-            totalQuestions: 20,
-            submittedAt: Date.now(),
-            timeElapsed: 1200,
-            testDuration: 30,
-            createdAt: Date.now(),
-            testTitle: 'Writing Test 1',
-            testType: 'test',
-            testSkill: 'writing',
-            teacherId: 'teacher-1',
-            isGuest: false,
-            markingStatus: 'pending-review',
-            writingSubmission: { text: 'Student essay content here...', wordCount: 50 },
-            questionResults: [],
-            courseId: null,
-            courseName: null,
-            classId: null,
-            className: null,
-            moduleId: null,
-            moduleName: null
-        };
-
+        const eventId = '00000000-0000-4000-8000-000000000121';
+        let result: any;
         beforeEach(() => {
-            vi.clearAllMocks();
+            result = { resultId: 'result-test-1', studentId: 'student-1', markingStatus: 'pending-review',
+                testTitle: 'Writing test', testSkill: 'writing' };
+            mockGetAuthorizedTeacherResult.mockResolvedValue({ result });
+            vi.mocked(update).mockResolvedValue(undefined);
         });
 
-        it('should update status from pending-review to reviewed', async () => {
-            const { markAsReviewed } = await import('./testResults.service');
-
-            (get as any).mockResolvedValue({
-                exists: () => true,
-                val: () => mockResult
+        it('commits review fields and event pointer before independent notice dispatch', async () => {
+            await markAsReviewed('result-test-1', 'teacher-1', { eventId });
+            expect(mockGetAuthorizedTeacherResult).toHaveBeenCalledWith('result-test-1', 'teacher-1');
+            expect(update).toHaveBeenCalledExactlyOnceWith('__root__', {
+                'test_results/result-test-1/markingStatus': 'reviewed',
+                'test_results/result-test-1/reviewedAt': expect.any(Number),
+                'test_results/result-test-1/reviewedBy': 'teacher-1',
+                'test_results/result-test-1/updatedAt': expect.any(Number),
+                'test_results/result-test-1/reviewNotificationEventId': eventId,
             });
-
-            await markAsReviewed('result-test-1', 'teacher-1');
-
-            // Verify update was called
-            expect(update).toHaveBeenCalled();
-            const updateCall = (update as any).mock.calls.find((call: any[]) =>
-                call[1] && call[1].markingStatus === 'reviewed'
-            );
-            expect(updateCall).toBeDefined();
-            const updates = updateCall[1];
-
-            expect(updates.markingStatus).toBe('reviewed');
-            expect(updates.reviewedBy).toBe('teacher-1');
-            expect(updates.reviewedAt).toBeDefined();
-            expect(updates.updatedAt).toBeDefined();
-            expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
-                producerFamily: 'result',
-                authorityRecordId: 'result-test-1',
-                recipientId: 'student-1',
-                operationKey: 'result-reviewed:result-test-1',
-                type: 'success',
-                title: 'Writing Test Reviewed',
-                message: 'teacher-1 has reviewed your writing test "Writing Test 1". View your score.',
-                link: '/result/result-test-1',
-            });
-        });
-
-        it('should throw error if result not found', async () => {
-            const { markAsReviewed } = await import('./testResults.service');
-
-            (get as any).mockResolvedValue({
-                exists: () => false,
-                val: () => null
-            });
-
-            await expect(markAsReviewed('non-existent', 'teacher-1'))
-                .rejects.toThrow('Result not found');
-        });
-
-        it('should throw error if status is not pending-review', async () => {
-            const { markAsReviewed } = await import('./testResults.service');
-
-            const reviewedResult = { ...mockResult, markingStatus: 'reviewed' };
-            (get as any).mockResolvedValue({
-                exists: () => true,
-                val: () => reviewedResult
-            });
-
-            await expect(markAsReviewed('result-test-1', 'teacher-1'))
-                .rejects.toThrow("Cannot mark as reviewed: current status is 'reviewed'");
-        });
-
-        it('should throw error if status is auto-marked', async () => {
-            const { markAsReviewed } = await import('./testResults.service');
-
-            const autoMarkedResult = { ...mockResult, markingStatus: 'auto-marked' };
-            (get as any).mockResolvedValue({
-                exists: () => true,
-                val: () => autoMarkedResult
-            });
-
-            await expect(markAsReviewed('result-test-1', 'teacher-1'))
-                .rejects.toThrow("Cannot mark as reviewed: current status is 'auto-marked'");
-        });
-
-        it('should handle notification failure gracefully', async () => {
-            const { markAsReviewed } = await import('./testResults.service');
-
-            (get as any).mockResolvedValue({
-                exists: () => true,
-                val: () => mockResult
-            });
-
-            mockCreateTrustedNotification.mockRejectedValueOnce(new Error('Notification failed'));
-
-            // Should not throw even if notification fails
-            await expect(markAsReviewed('result-test-1', 'teacher-1')).resolves.not.toThrow();
-
-            // But status update should still happen
-            expect(update).toHaveBeenCalled();
-        });
-
-        it('skips the reviewed notification when the canonical result authority is missing', async () => {
-            const { markAsReviewed } = await import('./testResults.service');
-
-            (get as any).mockResolvedValue({
-                exists: () => true,
-                val: () => ({ ...mockResult, resultId: '' }),
-            });
-
-            await markAsReviewed('result-test-1', 'teacher-1');
-
-            expect(update).toHaveBeenCalled();
+            expect(mockNotifyCommittedEvent).toHaveBeenCalledExactlyOnceWith({ eventKind: 'result-reviewed', resultId: 'result-test-1', eventId });
             expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+            expect(mockDispatchTestCompleteNotification).not.toHaveBeenCalled();
+            expect(vi.mocked(update).mock.invocationCallOrder[0]).toBeLessThan(mockNotifyCommittedEvent.mock.invocationCallOrder[0]);
+        });
+
+        it('keeps the product save successful after an offline wake', async () => {
+            mockNotifyCommittedEvent.mockReturnValue(new Promise(() => {}));
+            await expect(markAsReviewed('result-test-1', 'teacher-1', { eventId })).resolves.toBeUndefined();
+            expect(update).toHaveBeenCalledOnce();
+        });
+
+        it('replays matching reviewed event without rewriting', async () => {
+            Object.assign(result, { markingStatus: 'reviewed', reviewedAt: 123, reviewedBy: 'teacher-1', reviewNotificationEventId: eventId });
+            await markAsReviewed('result-test-1', 'teacher-1');
+            expect(update).not.toHaveBeenCalled();
+            expect(mockNotifyCommittedEvent).toHaveBeenCalledWith({ eventKind: 'result-reviewed', resultId: 'result-test-1', eventId });
+            result.reviewedBy = 'other';
+            await expect(markAsReviewed('result-test-1', 'teacher-1')).rejects.toThrow('Cannot mark as reviewed');
+        });
+
+        it('rejects invalid event, occupied event, nonpending and unproven result before product writes', async () => {
+            await expect(markAsReviewed('result-test-1', 'teacher-1', { eventId: '../x' })).rejects.toThrow('invalid');
+            result.reviewNotificationEventId = eventId;
+            await expect(markAsReviewed('result-test-1', 'teacher-1', { eventId })).rejects.toThrow('conflict');
+            delete result.reviewNotificationEventId;
+            result.markingStatus = 'auto-marked';
+            await expect(markAsReviewed('result-test-1', 'teacher-1', { eventId })).rejects.toThrow('Cannot mark as reviewed');
+            mockGetAuthorizedTeacherResult.mockRejectedValue(new Error('Result authority mismatch'));
+            await expect(markAsReviewed('result-test-1', 'teacher-1', { eventId })).rejects.toThrow('authority mismatch');
+            expect(update).not.toHaveBeenCalled();
+            expect(mockNotifyCommittedEvent).not.toHaveBeenCalled();
+        });
+
+        it('propagates a rejected atomic commit without waking delivery', async () => {
+            vi.mocked(update).mockRejectedValueOnce(new Error('permission denied'));
+            await expect(markAsReviewed('result-test-1', 'teacher-1', { eventId })).rejects.toThrow('permission denied');
+            expect(mockNotifyCommittedEvent).not.toHaveBeenCalled();
         });
     });
-
     describe('Review Flow - markingStatus Assignment', () => {
         const mockPush = { key: 'result-456' };
         const sessionCode = 'SESSION-1';
@@ -2791,7 +2127,7 @@ describe('testResults.service', () => {
                 submissionContent
             );
 
-            const savedRecord = getSaveResultUpdatePayload('result-456')['test_results/result-456'] as Record<string, any>;
+            const savedRecord = getSavedResultRecord('result-456') as Record<string, any>;
 
             expect(savedRecord.markingStatus).toBe('pending-review');
             expect(savedRecord.writingSubmission.text).toBe('Student essay here...');
@@ -2810,7 +2146,7 @@ describe('testResults.service', () => {
                 submissionContent
             );
 
-            const savedRecord = getSaveResultUpdatePayload('result-456')['test_results/result-456'] as Record<string, any>;
+            const savedRecord = getSavedResultRecord('result-456') as Record<string, any>;
 
             expect(savedRecord.markingStatus).toBe('pending-review');
             expect(savedRecord.speakingSubmission.audioUrl).toBe('https://storage.example.com/audio.mp3');
@@ -2824,7 +2160,7 @@ describe('testResults.service', () => {
                 markingResult, readingMetadata, 500, teacherId, false
             );
 
-            const savedRecord = getSaveResultUpdatePayload('result-456')['test_results/result-456'] as Record<string, any>;
+            const savedRecord = getSavedResultRecord('result-456') as Record<string, any>;
 
             expect(savedRecord.markingStatus).toBe('auto-marked');
             expect(savedRecord.writingSubmission).toBeUndefined();
@@ -2843,7 +2179,7 @@ describe('testResults.service', () => {
                 submissionContent
             );
 
-            const savedRecord = getSaveResultUpdatePayload('result-456')['test_results/result-456'] as Record<string, any>;
+            const savedRecord = getSavedResultRecord('result-456') as Record<string, any>;
 
             expect(savedRecord.markingStatus).toBe('pending-review');
             expect(savedRecord.writingSubmission.text).toBe('Essay...');
@@ -3056,7 +2392,7 @@ describe('testResults.service', () => {
                 ieltsData
             );
 
-            const savedRecord = getSaveResultUpdatePayload('result-789')['test_results/result-789'] as Record<string, any>;
+            const savedRecord = getSavedResultRecord('result-789') as Record<string, any>;
 
             expect(savedRecord.ieltsData).toBeDefined();
             expect(savedRecord.ieltsData.passageResults).toHaveLength(3);
@@ -3088,7 +2424,7 @@ describe('testResults.service', () => {
                 markingResult, metadata, 500, 'teacher-1', false
             );
 
-            const savedRecord = getSaveResultUpdatePayload('result-790')['test_results/result-790'] as Record<string, any>;
+            const savedRecord = getSavedResultRecord('result-790') as Record<string, any>;
 
             expect(savedRecord.ieltsData).toBeUndefined();
         });

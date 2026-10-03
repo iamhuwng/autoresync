@@ -23,6 +23,8 @@ const {
     cleanupExpiredProgressMock: vi.fn(),
 }));
 
+vi.mock('../services/notificationDestinationResolver', () => ({ resolveNotificationDestination: vi.fn(async notification => (notification.link.startsWith('https:') ? { status: 'blocked', reason: 'invalid-link' } : { status: 'allowed', destination: 'STUDENT_LIBRARY', params: {} })) }));
+
 vi.mock('../hooks/useAuth', () => ({
     useAuth: () => ({
         user: {
@@ -172,12 +174,12 @@ describe('StudentDashboardPage navigation portability', () => {
             expect(navigateToMock).toHaveBeenCalledWith(
                 'STUDENT_LIBRARY',
                 {},
-                { reason: 'dashboard_notification_link' },
+                { reason: 'dashboard_notification_link', userInitiated: true },
             );
         });
     });
 
-    it('opens external notification links outside the SPA router', async () => {
+    it('blocks arbitrary external notification links', async () => {
         const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
         getNotificationsMock.mockResolvedValue({
@@ -199,11 +201,7 @@ describe('StudentDashboardPage navigation portability', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'External Resource' }));
 
         await waitFor(() => {
-            expect(windowOpenSpy).toHaveBeenCalledWith(
-                'https://example.com/guide',
-                '_blank',
-                'noopener,noreferrer',
-            );
+            expect(windowOpenSpy).not.toHaveBeenCalled();
         });
         expect(navigateToMock).not.toHaveBeenCalled();
 
@@ -247,7 +245,7 @@ describe('StudentDashboardPage navigation portability', () => {
             expect(navigateToMock).toHaveBeenCalledWith(
                 'STUDENT_LIBRARY',
                 {},
-                { reason: 'dashboard_notification_link' },
+                { reason: 'dashboard_notification_link', userInitiated: true },
             );
         });
     });

@@ -4,14 +4,14 @@
  * Scripts to migrate and backfill data for the enhanced results system
  */
 
-import { ref, get, update, set } from 'firebase/database';
+import { ref, get, update } from 'firebase/database';
 // @ts-ignore
 import { database } from '../services/firebase';
 import { TestResultRecord } from '../services/testResults.service';
 
 /**
  * Backfill teacherId and isGuest for existing test results
- * Reads session data to find creator (teacherId) and updates result records and indexes
+ * Reads session data to find creator (teacherId) and updates result metadata only
  */
 export async function backfillTeacherId(): Promise<string> {
     console.log('🔄 Starting migration: Backfill teacherId...');
@@ -68,17 +68,7 @@ export async function backfillTeacherId(): Promise<string> {
                     // 1. Update main record
                     await update(ref(database, `test_results/${resultId}`), updates);
 
-                    // 2. Add to teacher index
-                    const teacherIndexRef = ref(database, `test_results_by_teacher/${teacherId}/${resultId}`);
-                    await set(teacherIndexRef, {
-                        resultId,
-                        sessionCode,
-                        studentId: result.studentId,
-                        studentName: result.studentName,
-                        percentage: result.percentage,
-                        submittedAt: result.submittedAt,
-                        isGuest: updates.isGuest
-                    });
+                    // Raw teacherId metadata never establishes result discovery ownership.
 
                     updatedCount++;
                     // logs.push(`✅ Updated result ${resultId} (Session: ${sessionCode}, Teacher: ${teacherId})`);

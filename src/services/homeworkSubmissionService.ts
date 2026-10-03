@@ -16,6 +16,7 @@ import {
     getDoc,
     getDocs,
     updateDoc,
+    runTransaction,
     deleteDoc,
     query,
     where,
@@ -39,11 +40,11 @@ import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
 import type { BookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.types';
 import { validateBookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.service';
 import { resolveBookHomeworkWorkerOrigin } from './homeworkAssignmentClient';
-import { buildRoute } from '../constants/routes';
-import { createTrustedNotification } from './notificationProducerClient';
+import { notifyCommittedEvent } from './notificationProducerClient';
+
 
 const SUBMISSION_COLLECTION = 'homework_submissions';
-const HOMEWORK_SUBMISSION_NOTIFICATION_WORKER_ORIGIN = 'https://luyentap-notification-command.iamhuwng.workers.dev';
+
 
 export interface BookHomeworkProgressRequestOptions {
     readonly workerOrigin?: string;
@@ -252,7 +253,7 @@ export async function getTeacherBookHomeworkProgress(
 export class HomeworkSubmissionError extends Error {
     constructor(
         message: string,
-        public code: 'MAX_ATTEMPTS_REACHED' | 'HOMEWORK_NOT_FOUND' | 'HOMEWORK_CLOSED' | 'NOT_AVAILABLE_YET' | 'SUBMISSION_NOT_FOUND' | 'ALREADY_SUBMITTED' | 'IN_PROGRESS_REQUIRES_CONFIRMATION' | 'UNKNOWN'
+        public code: 'MAX_ATTEMPTS_REACHED' | 'HOMEWORK_NOT_FOUND' | 'HOMEWORK_CLOSED' | 'NOT_AVAILABLE_YET' | 'SUBMISSION_NOT_FOUND' | 'ALREADY_SUBMITTED' | 'IN_PROGRESS_REQUIRES_CONFIRMATION' | 'RESET_FORBIDDEN' | 'RESET_STALE' | 'UNKNOWN'
     ) {
         super(message);
         this.name = 'HomeworkSubmissionError';
@@ -459,19 +460,40 @@ export async function submitHomework(
     const homework = await getHomeworkById(submission.homeworkId);
     const isLate = homework ? isLateSubmission(homework, submission.studentId, now) : submission.isLate;
 
-    // Update submission
-    await updateDoc(submissionRef, {
-        submittedAt: now,
-        resultId,
-        isLate,
-        status: 'submitted' as HomeworkSubmissionStatus,
-        ...(typeof score === 'number' ? { score } : {}),
-        ...(typeof maxScore === 'number' ? { maxScore } : {}),
-        ...(typeof percentage === 'number' ? { percentage } : {}),
-        ...(typeof bandScore === 'number' ? { bandScore } : {}),
-        ...(typeof timeSpent === 'number' ? { timeSpent } : {}),
-        ...(integrity ? { integrity } : {}), // PRD-0036: Anti-cheat integrity data
-        ...(attemptsNullified ? { attemptsNullified: true } : {}), // PRD-0036: Nullify remaining attempts
+
+    const committedSubmission = await runTransaction(db, async (transaction) => {
+        const currentSnapshot = await transaction.get(submissionRef);
+        if (!currentSnapshot.exists()) {
+            throw new HomeworkSubmissionError('Submission not found', 'SUBMISSION_NOT_FOUND');
+        }
+        const current = currentSnapshot.data() as HomeworkSubmission;
+        if (current.status === 'submitted' || current.status === 'graded') {
+            throw new HomeworkSubmissionError('Homework already submitted', 'ALREADY_SUBMITTED');
+        }
+        const assignmentSnapshot = await transaction.get(doc(db, 'homework_assignments', current.homeworkId));
+        const assignment = assignmentSnapshot.exists() ? assignmentSnapshot.data() as HomeworkAssignment : null;
+        const teacherId = assignment?.createdBy;
+        const studentId = current.studentId;
+        const notificationReady = Boolean(assignmentSnapshot.exists())
+            && isTrustedNotificationIdentifier(current.homeworkId)
+            && isTrustedNotificationIdentifier(studentId)
+            && isTrustedNotificationIdentifier(teacherId)
+            && isTrustedNotificationIdentifier(resultId);
+        const updates = {
+            submittedAt: now,
+            resultId,
+            isLate,
+            status: 'submitted' as HomeworkSubmissionStatus,
+            ...(typeof score === 'number' ? { score } : {}),
+            ...(typeof maxScore === 'number' ? { maxScore } : {}),
+            ...(typeof percentage === 'number' ? { percentage } : {}),
+            ...(typeof bandScore === 'number' ? { bandScore } : {}),
+            ...(typeof timeSpent === 'number' ? { timeSpent } : {}),
+            ...(integrity ? { integrity } : {}), // PRD-0036: Anti-cheat integrity data
+            ...(attemptsNullified ? { attemptsNullified: true } : {}), // PRD-0036: Nullify remaining attempts
+        };
+        transaction.update(submissionRef, updates);
+        return { submission: current, teacherId: notificationReady ? teacherId : undefined };
     });
 
     // Update homework stats
@@ -480,35 +502,27 @@ export async function submitHomework(
     // Notify the canonical homework owner that a student submitted work.
     // This belongs at the homework submission seam so every runtime (Writing,
     // THCS, Reading, and generic tests) gets the same teacher event.
-    const authorityHomeworkId = homework?.id === submission.homeworkId ? homework.id : undefined;
-    const teacherRecipientId = homework?.createdBy;
+    const authorityHomeworkId = homework?.id === committedSubmission.submission.homeworkId
+        ? committedSubmission.submission.homeworkId : undefined;
+    const teacherRecipientId = committedSubmission.teacherId;
     if (
         authorityHomeworkId
         && isTrustedNotificationIdentifier(authorityHomeworkId)
         && isTrustedNotificationIdentifier(teacherRecipientId)
     ) {
-        try {
-            const notificationResult = await createTrustedNotification({
-                producerFamily: 'homework',
-                authorityRecordId: resultId,
-                recipientId: teacherRecipientId,
-                operationKey: `homework-submitted:teacher:${resultId}`,
-                type: 'info',
-                title: 'Homework Submitted',
-                message: `${submission.studentName?.trim() || 'A student'} submitted \"${homework.materialTitle || homework.title || 'Homework'}\".`,
-                link: buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: authorityHomeworkId }),
-            }, {
-                workerOrigin: HOMEWORK_SUBMISSION_NOTIFICATION_WORKER_ORIGIN,
+        void (async () => { try {
+            const notificationResult = await notifyCommittedEvent({
+                eventKind: 'homework-submitted', submissionId,
             });
-            if (!notificationResult.success) {
+            if (notificationResult.status !== 'written') {
                 console.warn(
                     '[HomeworkSubmission] Teacher submission notification was not created:',
-                    notificationResult.error || 'unknown_notification_error',
+                    notificationResult.code || 'unknown_notification_error',
                 );
             }
         } catch (error) {
             console.warn('[HomeworkSubmission] Teacher submission notification failed:', error);
-        }
+        } })();
     }
 }
 
@@ -999,19 +1013,17 @@ export async function getAttemptInfo(
  *
  * @param homeworkId - Homework assignment ID
  * @param studentId - Student ID to reset
- * @param homeworkTitle - Title of the homework (for notification)
  * @returns Summary of what was deleted
  */
 export async function resetStudentHomework(
     homeworkId: string,
-    studentId: string,
-    homeworkTitle?: string
-): Promise<{ submissionsDeleted: number; resultsDeleted: number }> {
+    studentId: string
+): Promise<{ submissionsDeleted: number; resultsDeleted: number; resultCleanupComplete: boolean }> {
     // 1. Fetch all submissions for this student + homework
     const submissions = await getStudentSubmissionsForHomework(homeworkId, studentId);
 
     if (submissions.length === 0) {
-        return { submissionsDeleted: 0, resultsDeleted: 0 };
+        return { submissionsDeleted: 0, resultsDeleted: 0, resultCleanupComplete: true };
     }
 
     // 2. Collect linked resultIds
@@ -1028,23 +1040,47 @@ export async function resetStudentHomework(
         s => s.isLate && (s.status === 'submitted' || s.status === 'graded')
     ).length;
 
-    // 4. Get homework for teacher ownership info (needed for backfilling old submissions)
+    // Read the current assignment; legacy source ownership is never stamped.
     const homework = await getHomeworkById(homeworkId);
-    const teacherId = homework?.createdBy;
 
-    // 5. Delete each submission doc from Firestore
-    // For submissions created before teacherId was added, stamp it first so
-    // the security rule (resource.data.teacherId == auth.uid) passes on delete.
-    for (const submission of submissions) {
-        const submissionRef = doc(db, SUBMISSION_COLLECTION, submission.id);
-        if (!submission.teacherId && teacherId) {
-            await updateDoc(submissionRef, { teacherId });
+    // A gated transport must not add an unsupported write to the product reset.
+    // When qualified, the occurrence remains atomic with its proven deletion.
+    const notificationEnabled = Boolean(import.meta.env.VITE_HOMEWORK_NOTIFICATION_URL?.trim());
+    const eventId = crypto.randomUUID();
+    const occurredAt = Date.now();
+    const resetIntentRef = doc(db, 'homework_reset_notification_intents', eventId);
+    await runTransaction(db, async (transaction) => {
+        const assignmentSnapshot = await transaction.get(doc(db, 'homework_assignments', homeworkId));
+        if (!assignmentSnapshot.exists() || assignmentSnapshot.data().createdBy !== auth.currentUser?.uid) {
+            throw new HomeworkSubmissionError('Only the homework owner can reset submissions', 'RESET_FORBIDDEN');
         }
-        await deleteDoc(submissionRef);
-    }
+        const currentSnapshots = await Promise.all(submissions.map((submission) =>
+            transaction.get(doc(db, SUBMISSION_COLLECTION, submission.id))));
+        const firstSnapshot = currentSnapshots[0];
+        if (!firstSnapshot?.exists() || currentSnapshots.some((snapshot, index) => !snapshot.exists()
+            || snapshot.data().homeworkId !== homeworkId
+            || snapshot.data().studentId !== studentId
+            || snapshot.data().teacherId !== auth.currentUser?.uid)) {
+            throw new HomeworkSubmissionError('Homework submissions changed during reset', 'RESET_STALE');
+        }
+        if (notificationEnabled) transaction.set(resetIntentRef, {
+            schemaVersion: 1,
+            eventId,
+            homeworkId,
+            studentId: firstSnapshot.data().studentId,
+            sourceSubmissionId: submissions[0].id,
+            actorUid: auth.currentUser?.uid,
+            occurredAt,
+            ...(firstSnapshot.data().resultId ? { resultId: firstSnapshot.data().resultId } : {}),
+        });
+        currentSnapshots.forEach((snapshot, index) => {
+            transaction.delete(doc(db, SUBMISSION_COLLECTION, submissions[index].id));
+        });
+    });
 
     // 6. Delete each linked test result from RTDB
     let resultsDeleted = 0;
+    let resultCleanupComplete = true;
     if (resultIds.length > 0) {
         const { deleteTestResult } = await import('./testResults.service');
         for (const resultId of resultIds) {
@@ -1052,6 +1088,7 @@ export async function resetStudentHomework(
                 await deleteTestResult(resultId);
                 resultsDeleted++;
             } catch (err) {
+                resultCleanupComplete = false;
                 console.warn(`⚠️ Failed to delete test result ${resultId}:`, err);
                 // Continue with remaining deletions
             }
@@ -1080,8 +1117,8 @@ export async function resetStudentHomework(
         // Non-critical — submissions are already deleted
     }
 
-    // 8. Emit a trusted command for the student notification. The recipient
-    // comes from the canonical submission row, never from the reset request.
+    // 8. Dispatch the saved reset event. Worker content and recipient come
+    // from the Firestore event and assignment, never from this client call.
     const submissionRecipientId = submissions[0]?.studentId;
     const hasConsistentSubmissionRecipient = Boolean(
         submissionRecipientId
@@ -1089,23 +1126,15 @@ export async function resetStudentHomework(
     );
     const authorityHomeworkId = homework?.id === homeworkId ? homework.id : undefined;
     if (
-        hasConsistentSubmissionRecipient
+        notificationEnabled
+        && hasConsistentSubmissionRecipient
         && authorityHomeworkId
         && isTrustedNotificationIdentifier(submissionRecipientId)
         && isTrustedNotificationIdentifier(authorityHomeworkId)
     ) {
-        await createTrustedNotification({
-            producerFamily: 'homework',
-            authorityRecordId: authorityHomeworkId,
-            recipientId: submissionRecipientId,
-            operationKey: `homework-reset:${authorityHomeworkId}`,
-            type: 'warning',
-            title: '\uD83D\uDD04 Homework Reset',
-            message: `Your homework "${homeworkTitle || 'Homework'}" has been reset by your teacher. You can now retake it.`,
-            link: buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId: authorityHomeworkId }),
-        }).catch((err) => {
+        void notifyCommittedEvent({ eventKind: 'homework-reset', eventId }).catch((err) => {
             console.warn('Failed to send homework reset notification:', err);
-            // Non-critical
+            // Delivery is best effort and cannot reject the accepted deletion.
         });
     } else {
         console.warn('Skipped homework reset notification: trusted recipient or authority was unavailable.');
@@ -1118,6 +1147,7 @@ export async function resetStudentHomework(
 
     return {
         submissionsDeleted: submissions.length,
-        resultsDeleted
+        resultsDeleted,
+        resultCleanupComplete,
     };
 }

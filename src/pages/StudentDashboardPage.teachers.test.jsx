@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
+import { ToastContainer } from '../components/modern/ToastNotification';
 import StudentDashboardPage from './StudentDashboardPage';
 import * as notificationService from '../services/notificationService';
 import * as studentShellHooks from '../hooks/useStudentShellData';
 import * as classManager from '../services/classManager';
+import { resolveNotificationDestination } from '../services/notificationDestinationResolver';
+vi.mock('../services/notificationDestinationResolver', () => ({ resolveNotificationDestination: vi.fn() }));
 
 const { mockNavigateTo, mockRefreshClasses, mockRefreshHomeworkData, useMediaQueryMock } = vi.hoisted(() => ({
     mockNavigateTo: vi.fn(),
@@ -15,9 +17,9 @@ const { mockNavigateTo, mockRefreshClasses, mockRefreshHomeworkData, useMediaQue
 }));
 
 const renderWithProviders = (ui) => render(
-    <MantineProvider>
-        <BrowserRouter>{ui}</BrowserRouter>
-    </MantineProvider>,
+    <>
+        <BrowserRouter>{ui}<ToastContainer /></BrowserRouter>
+    </>,
 );
 
 vi.mock('../hooks/useAuth', () => ({
@@ -94,6 +96,7 @@ const makeShellData = (overrides = {}) => ({
 describe('StudentDashboardPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        resolveNotificationDestination.mockResolvedValue({ status: 'blocked', reason: 'unproven-source' });
         useMediaQueryMock.mockReturnValue(false);
         mockRefreshClasses.mockResolvedValue(undefined);
         mockRefreshHomeworkData.mockResolvedValue(undefined);
@@ -215,10 +218,12 @@ describe('StudentDashboardPage', () => {
         });
     });
 
-    it('opens the result slide panel when a result notification is clicked', async () => {
+    it('opens the owned result returned by the shared destination resolver', async () => {
+        resolveNotificationDestination.mockResolvedValue({ status: 'allowed', destination: 'RESULT_DETAIL', params: { resultId: 'result-1' } });
         notificationService.getPaginatedUserNotifications.mockResolvedValue({
             notifications: [{
                 id: 'notif-result',
+                link: '/result/result-1',
                 type: 'success',
                 title: 'Result Ready',
                 message: 'Your result is ready.',
@@ -240,62 +245,6 @@ describe('StudentDashboardPage', () => {
 
         await waitFor(() => {
             expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-1');
-        });
-    });
-
-    it('opens the result slide panel for result-detail links without metadata.resultId', async () => {
-        notificationService.getPaginatedUserNotifications.mockResolvedValue({
-            notifications: [{
-                id: 'notif-result-link',
-                type: 'success',
-                title: 'Writing Test Reviewed',
-                message: 'Your writing result is ready.',
-                link: '/result/result-legacy',
-                read: false,
-                createdAt: Date.now(),
-                metadata: {
-                    writingId: 'writing-1',
-                },
-            }],
-            hasMore: false,
-            lastKey: undefined,
-        });
-
-        renderWithProviders(<StudentDashboardPage />);
-
-        fireEvent.click(await screen.findByText('Writing Test Reviewed'));
-
-        await waitFor(() => {
-            expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-legacy');
-        });
-    });
-
-    it('opens the result slide panel for writing notifications that link to academic record', async () => {
-        notificationService.getPaginatedUserNotifications.mockResolvedValue({
-            notifications: [{
-                id: 'notif-writing-graded',
-                type: 'success',
-                title: 'Writing Graded',
-                message: 'Your teacher graded your essay.',
-                link: '/student/academic-record',
-                read: false,
-                createdAt: Date.now(),
-                metadata: {
-                    submissionId: 'submission-123',
-                    testTitle: 'Writing Mock 1',
-                    overallBand: 6.5,
-                },
-            }],
-            hasMore: false,
-            lastKey: undefined,
-        });
-
-        renderWithProviders(<StudentDashboardPage />);
-
-        fireEvent.click(await screen.findByText('Writing Graded'));
-
-        await waitFor(() => {
-            expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'submission-123');
         });
     });
 

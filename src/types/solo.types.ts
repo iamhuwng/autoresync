@@ -114,6 +114,9 @@ export interface ResultContext {
     /** Primary context type */
     type: ResultContextType;
 
+    /** Explicit teacher chosen by the student for a shared solo attempt. */
+    selectedTeacherId?: string;
+
     /** Source information */
     source: ResultSource;
 
