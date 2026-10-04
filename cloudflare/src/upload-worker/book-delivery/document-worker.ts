@@ -1,3 +1,4 @@
+import { BOOK_SOURCE_MAX_PDF_BYTES, STUDENT_DOCUMENT_MAX_PDF_BYTES } from '../../../../src/types/bookSource.types.ts';
 import type {
   BookDocumentAuthorizationDecision,
   BookDocumentAuthorizedSource,
@@ -19,7 +20,7 @@ import type {
   BookAttemptSourceContextProjection,
 } from '../../../../src/services/book-delivery/attemptSourceContextProjection.types.ts';
 
-const MAX_DOCUMENT_BYTES = 500 * 1024 * 1024;
+const MAX_DOCUMENT_BYTES = STUDENT_DOCUMENT_MAX_PDF_BYTES;
 const MAX_RANGE_HEADER_BYTES = 4_096;
 const STREAM_CHUNK_BYTES = 1024 * 1024;
 
@@ -281,7 +282,7 @@ const parseRange = (value: string | null, total: number): ByteRange => {
   };
 };
 
-const opaqueEtag = async (source: BookSourceVersionStorageIdentity): Promise<string> => {
+export const opaqueBookDocumentEtag = async (source: BookSourceVersionStorageIdentity): Promise<string> => {
   const material = [
     source.storageLocationId,
     source.privateBucketId,
@@ -305,7 +306,7 @@ const responseHeaders = async (
   headers.set('content-type', 'application/pdf');
   headers.set('accept-ranges', 'bytes');
   headers.set('content-length', String(range.end - range.start + 1));
-  headers.set('etag', await opaqueEtag(source));
+  headers.set('etag', await opaqueBookDocumentEtag(source));
   if (range.partial) {
     headers.set('content-range', `bytes ${range.start}-${range.end}/${total}`);
   }
@@ -389,7 +390,12 @@ export const createBookDocumentWorker = (options: BookDocumentWorkerOptions) => 
       sameAuthorizedSource(candidate, authorization.source))) {
       return json({ code: 'authorization-source-mismatch' }, 502, documentCorsHeaders(request));
     }
-    if (!safeIdentity(authorization.source)) return json({ code: 'unsafe-source' }, 502, documentCorsHeaders(request));
+    const maximum = authorization.decision.kind === 'teacher-assembly-authorized'
+      ? (authorization.decision.sourceKey === 'student-document' ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES)
+      : authorization.decision.kind === 'book-document-authorized'
+        ? (authorization.decision.sourceStrategy === 'component_pdfs' ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES)
+        : STUDENT_DOCUMENT_MAX_PDF_BYTES;
+    if (!safeIdentity(authorization.source) || authorization.source.byteSize > maximum) return json({ code: 'unsafe-source' }, 502, documentCorsHeaders(request));
 
     const identity = authorization.source;
     try {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BookDocumentAuthorizationDecision } from '../src/upload-worker/book-delivery/documentAuthorization';
-import { createBookDocumentWorker } from '../src/upload-worker/book-delivery/document-worker';
+import { createBookDocumentWorker, opaqueBookDocumentEtag } from '../src/upload-worker/book-delivery/document-worker';
 import documentWorkerSource from '../src/upload-worker/book-delivery/document-worker.ts?raw';
 import type { BookSourceVersionStorageIdentity } from '../../src/types/bookSource.types';
 
@@ -86,7 +86,8 @@ describe('Ticket #52 private Book PDF responder', () => {
     expect(response.headers.get('content-type')).toBe('application/pdf');
     expect(response.headers.get('content-length')).toBe('32');
     expect(response.headers.get('cache-control')).toBe('private, no-store');
-    expect(response.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/u);
+    expect(response.headers.get('etag')).toBe(await opaqueBookDocumentEtag(identity));
+    expect(response.headers.get('etag')).toBe('"e0a8484696494d9ffef0f0f00f709fbdfb2533414a082a7e127e3850ba4f8d2d"');
     expect(response.headers.get('etag')).not.toContain(identity.providerFileVersionId);
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
     expect(authorized).toHaveBeenCalledTimes(1);
@@ -111,8 +112,24 @@ describe('Ticket #52 private Book PDF responder', () => {
     expect(await reader.read()).toEqual({ done: true, value: undefined });
   });
 
-  it('keeps a 500 MiB response bounded to 1 MiB provider reads', async () => {
-    const byteSize = 500 * 1024 * 1024;
+  it.each([
+    ['full_pdf', 50 * 1024 * 1024],
+    ['component_pdfs', 100 * 1024 * 1024],
+  ] as const)('enforces the %s byte ceiling before provider access', async (sourceStrategy, maximum) => {
+    for (const excess of [0, 1]) {
+      const boundedSource = { ...source, byteSize: maximum + excess };
+      const adapter = { readObjectMetadata: vi.fn(async () => ({ identity: boundedSource, contentType: 'application/pdf' as const })), readBounded: vi.fn() };
+      const authorize = async () => ({ ok: true as const,
+        decision: { ...decision, sourceStrategy, sourceLocations: [boundedSource] }, source: boundedSource });
+      const response = await createBookDocumentWorker({ authorize, provider: adapter }).fetch(request({ method: 'HEAD' }), {});
+      expect(response.status).toBe(excess ? 502 : 200);
+      expect(adapter.readObjectMetadata).toHaveBeenCalledTimes(excess ? 0 : 1);
+      expect(adapter.readBounded).not.toHaveBeenCalled();
+    }
+  });
+
+  it('keeps a 50 MiB response bounded to 1 MiB provider reads', async () => {
+    const byteSize = 50 * 1024 * 1024;
     const largeSource = { ...source, byteSize };
     const lengths: number[] = [];
     const adapter: Pick<SourceProviderPort, 'readObjectMetadata' | 'readBounded'> = {

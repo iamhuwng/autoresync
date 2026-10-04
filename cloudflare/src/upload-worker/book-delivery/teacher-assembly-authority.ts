@@ -1,3 +1,4 @@
+import { BOOK_SOURCE_MAX_PDF_BYTES, STUDENT_DOCUMENT_MAX_PDF_BYTES } from '../../../../src/types/bookSource.types.ts';
 import type {
   BookAssemblyCandidateRecord,
 } from '../../../../src/services/book-assembly/unitAssembly.types.ts';
@@ -7,10 +8,10 @@ import type {
   SourceSetCandidate,
 } from '../../../../src/types/bookAssembly.types.ts';
 import type { BookSourceVersionStorageIdentity } from '../../../../src/types/bookSource.types.ts';
+import { isActiveBookSourceAuthorityProfile } from '../book-source/trusted-source-contract.ts';
 
 const SAFE_ID = /^[A-Za-z0-9._~-]{1,160}$/u;
 const SAFE_OBJECT_KEY = /^(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/u;
-const MAX_DOCUMENT_BYTES = 500 * 1024 * 1024;
 
 /** Exact non-capability route tuple consumed by the trusted 09C seam. */
 export interface TeacherAssemblyDocumentRoute {
@@ -21,6 +22,7 @@ export interface TeacherAssemblyDocumentRoute {
   readonly candidateRevision: number;
   readonly sourceKey: string;
   readonly sourceVersionId: string;
+  readonly studentDocument?: boolean;
   readonly bookRevision: number;
   readonly sourceSetRevision: number;
 }
@@ -90,6 +92,9 @@ export interface TeacherAssemblyAuthorityPorts {
   readonly readSourceVersion: (
     input: Pick<TeacherAssemblyDocumentRoute, 'bookId' | 'sourceVersionId'>,
   ) => Promise<TeacherAssemblySourceVersion | null>;
+  readonly readStudentDocument?: (
+    input: Pick<TeacherAssemblyDocumentRoute, 'bookId' | 'unitKey' | 'candidateId' | 'candidateRevision' | 'bookRevision' | 'sourceSetRevision'>,
+  ) => Promise<TeacherAssemblyAuthorizedSource | null>;
 }
 
 export type TeacherAssemblyAuthorizationFailureCode =
@@ -152,9 +157,8 @@ const validIdentity = (value: unknown): value is TeacherAssemblyIdentity => {
   const record = plain(value);
   return !!record
     && safeId(record.uid)
-    && (record.role === 'teacher' || record.role === 'super_admin')
-    && record.status === 'active'
-    && record.forceReauth !== true;
+    && (isActiveBookSourceAuthorityProfile(record, 'teacher')
+      || isActiveBookSourceAuthorityProfile(record, 'super_admin'));
 };
 
 const validRoute = (value: TeacherAssemblyDocumentRoute | null): value is TeacherAssemblyDocumentRoute =>
@@ -166,6 +170,7 @@ const validRoute = (value: TeacherAssemblyDocumentRoute | null): value is Teache
   && safeRevision(value.candidateRevision, 1)
   && safeId(value.sourceKey)
   && safeId(value.sourceVersionId)
+  && (value.studentDocument === undefined || typeof value.studentDocument === 'boolean')
   && safeRevision(value.bookRevision, 0)
   && safeRevision(value.sourceSetRevision, 0);
 
@@ -185,7 +190,7 @@ export const parseTeacherAssemblyDocumentRoute = (request: Request): TeacherAsse
   const url = new URL(request.url);
   if ([...url.searchParams.keys()].length > 0) return null;
   const pathSegments = url.pathname.split('/');
-  if (pathSegments.length !== 12 || pathSegments[0] !== '') return null;
+  if ((pathSegments.length !== 12 && pathSegments.length !== 11) || pathSegments[0] !== '') return null;
   const rawSegments = pathSegments.slice(1);
   if (rawSegments.some((segment) => segment === '')
     || rawSegments[0] !== 'v1'
@@ -198,9 +203,10 @@ export const parseTeacherAssemblyDocumentRoute = (request: Request): TeacherAsse
     return null;
   }
   if (segments.some((segment) => !safeId(segment))) return null;
+  const combined = segments.length === 10 && segments[7] === 'student-document';
   const candidateRevision = exactRouteNumber(segments[6]!, 1);
-  const sourceSetRevision = exactRouteNumber(segments[9]!, 0);
-  const bookRevision = exactRouteNumber(segments[10]!, 0);
+  const sourceSetRevision = exactRouteNumber(segments[combined ? 8 : 9]!, 0);
+  const bookRevision = exactRouteNumber(segments[combined ? 9 : 10]!, 0);
   if (candidateRevision === null || sourceSetRevision === null || bookRevision === null) return null;
   const route: TeacherAssemblyDocumentRoute = {
     kind: 'teacher-assembly',
@@ -208,8 +214,9 @@ export const parseTeacherAssemblyDocumentRoute = (request: Request): TeacherAsse
     unitKey: segments[4]!,
     candidateId: segments[5]!,
     candidateRevision,
-    sourceKey: segments[7]!,
-    sourceVersionId: segments[8]!,
+    sourceKey: combined ? 'student-document' : segments[7]!,
+    sourceVersionId: combined ? 'student-document' : segments[8]!,
+    studentDocument: combined,
     sourceSetRevision,
     bookRevision,
   };
@@ -222,7 +229,7 @@ const validStorage = (
 ): boolean => source.provider === 'b2'
   && source.providerKind === 'backblaze-b2-s3'
   && source.bookId === route.bookId
-  && source.sourceVersionId === route.sourceVersionId
+  && (route.studentDocument || source.sourceVersionId === route.sourceVersionId)
   && safeId(source.storageLocationId)
   && safeId(source.privateBucketId)
   && safeId(source.providerFileId)
@@ -234,7 +241,7 @@ const validStorage = (
   && /^[a-f0-9]{64}$/u.test(source.checksum.value)
   && Number.isSafeInteger(source.byteSize)
   && source.byteSize > 0
-  && source.byteSize <= MAX_DOCUMENT_BYTES;
+  && source.byteSize <= (route.studentDocument ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES);
 
 const sourceUsedByUnit = (
   manifest: BookAssemblyManifestCandidate,
@@ -324,7 +331,27 @@ export const authorizeTeacherAssemblyDocumentRequest = async (input: {
   if (!manifest
     || manifest.bookId !== route.bookId
     || stable(manifest.sourceSet) !== stable(book.sourceSet)
-    || !sourceUsedByUnit(manifest, route.unitKey, route.sourceKey)) return deny('source-mismatch');
+    || (!route.studentDocument && !sourceUsedByUnit(manifest, route.unitKey, route.sourceKey))) return deny('source-mismatch');
+
+  if (route.studentDocument) {
+    let storage: TeacherAssemblyAuthorizedSource | null;
+    try {
+      storage = await input.ports.readStudentDocument?.(route) ?? null;
+    } catch {
+      return deny('authorization-unavailable');
+    }
+    if (!storage || !validStorage(storage, { ...route, sourceVersionId: storage.sourceVersionId })) {
+      return deny('unsafe-source');
+    }
+    return { ok: true, decision: Object.freeze({
+      kind: 'teacher-assembly-authorized', serverOnly: true, uid: identity.uid,
+      bookId: route.bookId, bookRevision: route.bookRevision,
+      sourceSetRevision: route.sourceSetRevision, unitKey: route.unitKey,
+      candidateId: route.candidateId, candidateRevision: route.candidateRevision,
+      sourceKey: 'student-document', sourceVersionId: storage.sourceVersionId,
+      sourceLocations: Object.freeze([authorizedSource(storage)]) as readonly [TeacherAssemblyAuthorizedSource],
+    }) };
+  }
 
   const sourceEntry = book.sourceSet.sources.find((source) => source.sourceKey === route.sourceKey);
   if (!sourceEntry || sourceEntry.sourceVersionId !== route.sourceVersionId) return deny('source-mismatch');

@@ -76,6 +76,23 @@ const consume = async (body: ReadableStream<Uint8Array>): Promise<Uint8Array> =>
 };
 
 describe('bookDocumentTransport.browser', () => {
+  it('enforces source and combined document byte ceilings before token or network access', () => {
+    const getIdToken = vi.fn();
+    const fetchImpl = vi.fn();
+    for (const combined of [false, true]) {
+      const maximum = (combined ? 100 : 50) * 1024 * 1024;
+      const value = route({
+        ...(combined ? { url: 'https://worker.example/v1/book-delivery/document/bd_' + 'a'.repeat(40) + '-1-student-document', sourceVersionId: undefined } : {}),
+        expectedByteLength: maximum,
+      });
+      const transport = createBookDocumentTransport({ route: value, getIdToken, fetchImpl });
+      transport.destroy();
+      expect(() => createBookDocumentTransport({ route: { ...value, expectedByteLength: maximum + 1 }, getIdToken, fetchImpl })).toThrowError(BookDocumentTransportError);
+    }
+    expect(getIdToken).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('accepts only trusted canonical historical attempt document routes', () => {
     const historicalUrl = 'https://worker.example/v1/book-delivery/historical-document'
       + '/book-1/student-1/attempt-1%3Aresult/opaque-1';
@@ -384,6 +401,28 @@ describe('bookDocumentTransport.browser', () => {
         redirect: 'error',
       }),
     );
+  });
+
+  it('accepts only the trusted combined teacher Assembly student-document terminal', () => {
+    const combined = route({
+      url: 'https://worker.example/v1/book-delivery/teacher-assembly/book-1/unit-1/candidate-1/3/student-document/4/7',
+      sourceVersionId: 'student-document',
+    });
+    expect(() => createBookDocumentTransport({
+      route: combined,
+      getIdToken: async () => 'teacher-token',
+      trustedWorkerOrigins: ['https://worker.example/'],
+    })).not.toThrow();
+    expect(() => createBookDocumentTransport({
+      route: { ...combined, url: combined.url.replace('/student-document/', '/other-document/') },
+      getIdToken: async () => 'teacher-token',
+      trustedWorkerOrigins: ['https://worker.example/'],
+    })).toThrow(new BookDocumentTransportError('invalid_route'));
+    expect(() => createBookDocumentTransport({
+      route: { ...combined, url: combined.url.replace('worker.example', 'attacker.example') },
+      getIdToken: async () => 'teacher-token',
+      trustedWorkerOrigins: ['https://worker.example/'],
+    })).toThrow(new BookDocumentTransportError('invalid_route'));
   });
 
   it('rejects a teacher Assembly projection targeting an untrusted HTTPS origin before token fetch', () => {

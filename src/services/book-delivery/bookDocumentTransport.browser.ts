@@ -1,10 +1,12 @@
+import { BOOK_SOURCE_MAX_PDF_BYTES, STUDENT_DOCUMENT_MAX_PDF_BYTES } from '../../types/bookSource.types';
 import { getAuth } from 'firebase/auth';
 
-const MAX_DOCUMENT_BYTES = 500 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const OPAQUE_DOCUMENT_PATH = /^\/v1\/book-delivery\/document\/[A-Za-z0-9._~-]{1,160}$/u;
+const STUDENT_DOCUMENT_PATH = /^\/v1\/book-delivery\/document\/(?:bd_[0-9a-f]{40}|[A-Za-z0-9][A-Za-z0-9._:@-]*--[A-Za-z0-9][A-Za-z0-9._:@-]*--delivery)-[1-9]\d*-student-document$/u;
 const HISTORICAL_DOCUMENT_PATH = /^\/v1\/book-delivery\/historical-document\/[A-Za-z0-9](?:[A-Za-z0-9._-]|%3A|%40){0,255}\/[A-Za-z0-9](?:[A-Za-z0-9._-]|%3A|%40){0,255}\/[A-Za-z0-9](?:[A-Za-z0-9._-]|%3A|%40){0,255}\/[A-Za-z0-9._~-]{1,160}$/iu;
 const TEACHER_ASSEMBLY_DOCUMENT_PATH = /^\/v1\/book-delivery\/teacher-assembly\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/[1-9]\d*\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/\d+\/\d+$/u;
+const TEACHER_ASSEMBLY_STUDENT_DOCUMENT_PATH = /^\/v1\/book-delivery\/teacher-assembly\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/[A-Za-z0-9._~-]{1,160}\/[1-9]\d*\/student-document\/\d+\/\d+$/u;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$/u;
 const PDF_CONTENT_TYPE = 'application/pdf';
 
@@ -39,7 +41,7 @@ export class BookDocumentTransportError extends Error {
 
 export interface BookDocumentRoute {
   readonly url: string;
-  readonly sourceVersionId: string;
+  readonly sourceVersionId?: string;
   readonly expectedByteLength?: number;
   readonly expectedEtag?: string;
   readonly physicalPageNumber?: number;
@@ -60,7 +62,7 @@ export interface BookDocumentTransportMetadata {
   };
   readonly contentType: 'application/pdf';
   readonly etag: string;
-  readonly sourceVersionId: string;
+  readonly sourceVersionId?: string;
   readonly status: 200 | 206;
 }
 
@@ -136,6 +138,13 @@ const trustedTeacherAssemblyOrigins = (explicit: readonly string[] | undefined):
   return origins;
 };
 
+const routeByteLimit = (route: BookDocumentRoute): number => {
+  const path = new URL(route.url).pathname;
+  return STUDENT_DOCUMENT_PATH.test(path) || TEACHER_ASSEMBLY_STUDENT_DOCUMENT_PATH.test(path)
+    || HISTORICAL_DOCUMENT_PATH.test(path)
+    ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES;
+};
+
 const normalizeRoute = (
   route: BookDocumentRoute,
   trustedOrigins: ReadonlySet<string>,
@@ -155,15 +164,19 @@ const normalizeRoute = (
     || url.hash !== ''
     || (!OPAQUE_DOCUMENT_PATH.test(url.pathname)
       && !HISTORICAL_DOCUMENT_PATH.test(url.pathname)
-      && !TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname))
+      && !TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname)
+      && !TEACHER_ASSEMBLY_STUDENT_DOCUMENT_PATH.test(url.pathname))
     || ((HISTORICAL_DOCUMENT_PATH.test(url.pathname)
-      || TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname))
+      || TEACHER_ASSEMBLY_DOCUMENT_PATH.test(url.pathname)
+      || TEACHER_ASSEMBLY_STUDENT_DOCUMENT_PATH.test(url.pathname))
       && !trustedOrigins.has(url.origin))
-    || !SAFE_ID.test(route.sourceVersionId)
+    || (STUDENT_DOCUMENT_PATH.test(url.pathname)
+      ? route.sourceVersionId !== undefined || route.expectedByteLength === undefined || route.expectedEtag === undefined
+      : typeof route.sourceVersionId !== 'string' || !SAFE_ID.test(route.sourceVersionId))
     || (route.expectedByteLength !== undefined && (
       !Number.isSafeInteger(route.expectedByteLength)
       || route.expectedByteLength < 1
-      || route.expectedByteLength > MAX_DOCUMENT_BYTES
+      || route.expectedByteLength > routeByteLimit(route)
     ))
     || (route.expectedEtag !== undefined && !/^"[A-Fa-f0-9]{64}"$/u.test(route.expectedEtag))
     || (route.physicalPageNumber !== undefined && (
@@ -176,7 +189,7 @@ const normalizeRoute = (
   return { url: url.href, route: Object.freeze({ ...route, url: url.href }) };
 };
 
-const rangeHeader = (range: BookDocumentByteRange | undefined): string | undefined => {
+const rangeHeader = (range: BookDocumentByteRange | undefined, route: BookDocumentRoute): string | undefined => {
   if (range === undefined) return undefined;
   if (range.kind === 'closed') {
     if (
@@ -184,19 +197,19 @@ const rangeHeader = (range: BookDocumentByteRange | undefined): string | undefin
       || !Number.isSafeInteger(range.end)
       || range.start < 0
       || range.end < range.start
-      || range.end >= MAX_DOCUMENT_BYTES
+      || range.end >= routeByteLimit(route)
     ) {
       throw new BookDocumentTransportError('range_not_satisfiable', 416);
     }
     return `bytes=${range.start}-${range.end}`;
   }
   if (range.kind === 'open') {
-    if (!Number.isSafeInteger(range.start) || range.start < 0 || range.start >= MAX_DOCUMENT_BYTES) {
+    if (!Number.isSafeInteger(range.start) || range.start < 0 || range.start >= routeByteLimit(route)) {
       throw new BookDocumentTransportError('range_not_satisfiable', 416);
     }
     return `bytes=${range.start}-`;
   }
-  if (!Number.isSafeInteger(range.suffixLength) || range.suffixLength < 1 || range.suffixLength > MAX_DOCUMENT_BYTES) {
+  if (!Number.isSafeInteger(range.suffixLength) || range.suffixLength < 1 || range.suffixLength > routeByteLimit(route)) {
     throw new BookDocumentTransportError('range_not_satisfiable', 416);
   }
   return `bytes=-${range.suffixLength}`;
@@ -205,7 +218,7 @@ const rangeHeader = (range: BookDocumentByteRange | undefined): string | undefin
 const parseContentLength = (response: Response, route: BookDocumentRoute): number => {
   const value = response.headers.get('content-length');
   const length = value === null ? NaN : Number(value);
-  if (!Number.isSafeInteger(length) || length < 1 || length > MAX_DOCUMENT_BYTES) {
+  if (!Number.isSafeInteger(length) || length < 1 || length > routeByteLimit(route)) {
     throw new BookDocumentTransportError('invalid_metadata', 502);
   }
   if (route.expectedByteLength !== undefined && response.status === 200 && length !== route.expectedByteLength) {
@@ -232,7 +245,7 @@ const parseContentRange = (response: Response, contentLength: number, route: Boo
     || start < 0
     || end < start
     || end >= total
-    || total > MAX_DOCUMENT_BYTES
+    || total > routeByteLimit(route)
     || end - start + 1 !== contentLength
     || (route.expectedByteLength !== undefined && total !== route.expectedByteLength)
   ) {
@@ -274,7 +287,7 @@ const metadata = (
     contentRange: parseContentRange(response, contentLength, route),
     contentType: PDF_CONTENT_TYPE,
     etag,
-    sourceVersionId: route.sourceVersionId,
+    ...(route.sourceVersionId === undefined ? {} : { sourceVersionId: route.sourceVersionId }),
     status: response.status as 200 | 206,
   });
 };
@@ -377,7 +390,7 @@ export const createBookDocumentTransport = (
   ): Promise<Response> => {
     const capturedGeneration = generation;
     const capturedRoute = current;
-    const headerRange = rangeHeader(range);
+    const headerRange = rangeHeader(range, capturedRoute);
     const { controller, timeout } = controllerFor(signal);
     const run = async (forceRefresh: boolean): Promise<Response> => {
       const idToken = await token(getIdToken, forceRefresh);
@@ -476,7 +489,7 @@ export const createBookDocumentTransport = (
   ) => {
     const capturedGeneration = generation;
     const capturedRoute = current;
-    const headerRange = rangeHeader(range);
+    const headerRange = rangeHeader(range, capturedRoute);
     const { controller, timeout } = controllerFor(requestOptions?.signal);
     const run = async (forceRefresh: boolean): Promise<Response> => {
       const idToken = await token(getIdToken, forceRefresh);

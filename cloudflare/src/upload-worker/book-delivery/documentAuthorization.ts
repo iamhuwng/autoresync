@@ -1,3 +1,4 @@
+import { BOOK_SOURCE_MAX_PDF_BYTES, STUDENT_DOCUMENT_MAX_PDF_BYTES } from '../../../../src/types/bookSource.types.ts';
 import { createFirebaseVerifier } from '../firebase-verification.js';
 import type {
   BookDeliveryRepositoryEnv,
@@ -44,6 +45,11 @@ export interface LiveBookDocumentAuthority {
   readonly sourceVersionIds: readonly string[];
   readonly revokedSourceVersionIds: readonly string[];
   readonly sourceLocations: readonly BookDocumentAuthorizedSource[];
+  readonly studentDocument?: {
+    readonly sourceVersionId: string;
+    readonly descriptorRevision: number;
+    readonly descriptorFingerprint: string;
+  };
 }
 
 export type BookDocumentAuthorizationFailureCode =
@@ -124,6 +130,7 @@ export const authorizeBookDocumentRequest = async (input: {
     return { ok: false, code: 'stale-binding' };
   }
   if (binding.context.kind !== 'solo' &&
+      binding.context.kind !== 'public' &&
       binding.context.kind !== 'homework' &&
       binding.context.kind !== 'course' &&
       binding.context.kind !== 'class') {
@@ -144,10 +151,12 @@ export const authorizeBookDocumentRequest = async (input: {
     return { ok: false, code: 'unsafe-source' };
   }
   const authority = await input.readCurrentAuthority(binding);
-  const expectedSourceIds = binding.sourceSet.sources
+  const combined = binding.sourceSet.strategy === 'component_pdfs' ? authority.studentDocument : undefined;
+  const expectedSourceIds = (combined ? [combined.sourceVersionId] : binding.sourceSet.sources
     .map((source) => source.sourceVersionId)
-    .sort();
+    ).sort();
   if (
+    (binding.sourceSet.strategy === 'component_pdfs' && !combined) ||
     authority.publicationStatus !== 'published' ||
     authority.scheduleOpen !== true ||
     authority.revokedSourceVersionIds.length > 0 ||
@@ -172,7 +181,7 @@ export const authorizeBookDocumentRequest = async (input: {
       !/^[a-f0-9]{64}$/u.test(location.checksum.value) ||
       !Number.isSafeInteger(location.byteSize) ||
       location.byteSize < 1 ||
-      location.byteSize > 500 * 1024 * 1024 ||
+      location.byteSize > (combined ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES) ||
       location.provider !== 'b2')
   ) {
     return {
@@ -196,7 +205,7 @@ export const authorizeBookDocumentRequest = async (input: {
       publicationId: binding.book.publicationId,
       publicationRevision: binding.book.publicationRevision,
       sourceStrategy: binding.sourceSet.strategy,
-      sourceVersionIds: binding.sourceSet.sources.map((source) => source.sourceVersionId),
+      sourceVersionIds: expectedSourceIds,
       sourceLocations: authority.sourceLocations,
       scope: binding.scope,
     },

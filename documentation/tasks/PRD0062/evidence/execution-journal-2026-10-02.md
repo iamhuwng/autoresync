@@ -131,6 +131,19 @@ Using the existing authenticated Firebase user contract and the active discovery
 
 ## Source account owner probe — 2026-10-04
 
-The active Worker readback matches the canonical source configuration: `FIREBASE_DB_URL` is `https://temp-a1437-default-rtdb.firebaseio.com`, `BOOK_SOURCE_UPLOAD_ACCOUNT_ID` is `book_b2_primary`, and the deployed binding set contains `BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY` plus the `BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY` secret name. A read-only probe of the exact RTDB path `book_source_upload_accounts/book_b2_primary` returned HTTP 200 with a 1,990-byte JSON object whose redacted shape is `revision`, `capacity`, `operations`, and `assemblyBooks`; `capacity.providerReconciliation` is present with `status: healthy`, `objectCount: 1`, and `totalBytes: 3581`. The node is therefore valid and healthy; no bootstrap or reconciliation mutation was made.
+The active Worker readback matches the canonical source configuration: `FIREBASE_DB_URL` is `https://temp-a1437-default-rtdb.firebaseio.com`, `BOOK_SOURCE_UPLOAD_ACCOUNT_ID` is `book_b2_primary`, and the deployed binding set contains `BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY` plus the `BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY` secret name. A read-only probe of the exact RTDB path `book_source_upload_accounts/book_b2_primary` returned HTTP 200 with a 1,990-byte JSON object whose redacted shape is `revision`, `capacity`, `operations`, and `assemblyBooks`; `capacity.providerReconciliation` is present with `status: healthy`, `objectCount: 1`, and `totalBytes: 3581`. The probe classifies the aggregate node as present, schema-shaped, and reporting a healthy provider reconciliation; it does not prove that the deployed Worker validator accepts every field, that `completedAt` is inside the freshness window, or that the probe used the same credential path as the Worker. No bootstrap or reconciliation mutation was made.
 
-The same disposable authenticated begin request still returns HTTP 503 `account_state_unavailable` before reservation or provider upload. A replacement service-account key could not be created through the available execution surface because the key-creation command was rejected by policy. This leaves a concrete remote secret/token-exchange owner blocker; product code and no-reservation behavior remain unchanged.
+The same disposable authenticated begin request still returns HTTP 503 `account_state_unavailable` before reservation or provider upload. A replacement service-account key could not be created through the available execution surface because the key-creation command was rejected by policy. This leaves an unresolved deployed read/validation/freshness or credential-path blocker; product code and no-reservation behavior remain unchanged.
+
+## Planner status review and diagnosis qualification — 2026-10-04
+
+Live status review found the implementor idle after inspection with no additional
+product change. The end goal remains incomplete. The earlier secret-owner
+conclusion was too strong: the retained probe's aggregate shape and `healthy`
+status do not prove current-validator acceptance, snapshot freshness or the active
+Worker's credential path. Source maps read/validation and provider-reconciliation
+failure to the same public 503. PlanMD and the dashboard now retain these as
+separate hypotheses, with key replacement requiring evidence rather than being
+the assumed prerequisite. D0 purpose-limit correction and other ready §2.9/R2/U/CC
+work remain authorized while Source diagnosis proceeds. This qualification adds
+no product acceptance, remote mutation or new execution gate.
