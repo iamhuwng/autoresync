@@ -708,7 +708,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
   {
     id: 'authentication',
     name: 'Authentication',
-    routes: ['/'],
+    routes: ['/', '/login'],
     actions: [
       'login',
       'logout',

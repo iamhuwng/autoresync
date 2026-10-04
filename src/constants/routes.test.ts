@@ -10,6 +10,7 @@ describe('Route Constants', () => {
   describe('ROUTES Object', () => {
     it('should have all required routes defined', () => {
       expect(ROUTES.LOGIN).toBe('/');
+      expect(ROUTES.LOGIN_PAGE).toBe('/login');
       expect(ROUTES.TEACHER_LOBBY).toBe('/teacher-lobby/:sessionCode');
       expect(ROUTES.STUDENT_TEST).toBe('/student-test/:sessionCode');
       expect(ROUTES.SESSIONS).toBe('/sessions');

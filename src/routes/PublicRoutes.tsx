@@ -30,6 +30,10 @@ export default function PublicRoutes() {
       element: <LoginPage />,
     },
     {
+      path: ROUTES.LOGIN_PAGE,
+      element: <LoginPage />,
+    },
+    {
       path: '/access-denied',
       element: <AccessDeniedPage />,
     },
