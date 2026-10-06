@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { StudentHomeworkItem } from '../hooks/useHomeworkSubmission';
 import { useAuth } from '../hooks/useAuth';
 import { createSubmission } from '../services/homeworkSubmissionService';
@@ -372,6 +372,7 @@ export const StudentHomeworkListPage: React.FC = () => {
     const isMobile = useMediaQuery('(max-width: 768px)');
     const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
     const [activeTab, setActiveTab] = useState<string>('all');
+    const [sortMode, setSortMode] = useState<'latest' | 'dueDate'>('latest');
     const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
 
     const {
@@ -515,7 +516,12 @@ export const StudentHomeworkListPage: React.FC = () => {
         }
     };
 
-    const tabItems = getTabItems();
+    const tabItems = useMemo(() => {
+        const items = getTabItems();
+        return [...items].sort((left, right) => sortMode === 'latest'
+            ? (right.homework.createdAt ?? 0) - (left.homework.createdAt ?? 0)
+            : right.homework.scheduling.dueDate - left.homework.scheduling.dueDate);
+    }, [activeTab, homeworkItems, legacyNotStarted, legacyInProgress, legacyCompleted, legacyOverdue, sortMode]);
     const dueSoonItems = legacyHomeworkItems.filter((item) => {
         const dueDate = item.homework.scheduling?.dueDate;
         if (!dueDate) {
@@ -820,24 +826,18 @@ export const StudentHomeworkListPage: React.FC = () => {
                 </div>
             </div>
 
-            <div
-                className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
-                style={{
-                    display: 'flex',
-                    gap: isMobile ? 16 : 32,
-                    overflowX: 'auto',
-                    padding: '0 0 0',
-                    marginTop: 32,
-                    borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
-                }}
-            >
-                {[
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: isMobile ? 12 : 24, marginTop: 32, borderBottom: `1px solid rgba(171, 179, 183, 0.1)` }}>
+                <div
+                    className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                    style={{ display: 'flex', gap: isMobile ? 16 : 32, overflowX: 'auto', minWidth: 0, flex: 1 }}
+                >
+                    {[
                     { key: 'all', label: `All (${homeworkItems.length})` },
                     { key: 'not_started', label: 'Not Started' },
                     { key: 'in_progress', label: 'In Progress' },
                     { key: 'completed', label: 'Completed' },
                     ...(legacyOverdue.length > 0 ? [{ key: 'overdue', label: 'Overdue' }] : []),
-                ].map((tab) => (
+                    ].map((tab) => (
                     <button
                         key={tab.key}
                         type="button"
@@ -862,7 +862,35 @@ export const StudentHomeworkListPage: React.FC = () => {
                     >
                         {tab.label}
                     </button>
-                ))}
+                    ))}
+                </div>
+                <label style={{ display: 'flex', alignItems: 'stretch', flexShrink: 0 }}>
+                    <select
+                        aria-label="Sort homework"
+                        value={sortMode}
+                        onChange={(event) => {
+                            const nextSort = event.target.value as 'latest' | 'dueDate';
+                            setSortMode(nextSort);
+                            trackAction('sortHomeworkList', { sort: nextSort });
+                        }}
+                        style={{
+                            minHeight: 44,
+                            padding: '0 0 16px',
+                            border: 'none',
+                            borderBottom: '2px solid transparent',
+                            background: 'transparent',
+                            color: studentTokens.textMuted,
+                            cursor: 'pointer',
+                            font: 'inherit',
+                            fontSize: '0.875rem',
+                            fontWeight: 500,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <option value="latest">Latest</option>
+                        <option value="dueDate">Due date (latest first)</option>
+                    </select>
+                </label>
             </div>
 
             <div>{renderCenterContent()}</div>
