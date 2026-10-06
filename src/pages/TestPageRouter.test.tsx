@@ -658,5 +658,19 @@ describe('TestPageRouter', () => {
         sessionCode: 'FMQYME',
       }),
     }));
+    expect(mockNavigateTo).toHaveBeenCalledWith(
+      'STUDENT_WAITING',
+      { gameSessionId: 'FMQYME' },
+      expect.objectContaining({
+        reason: 'reading_v2_student_completed',
+        replace: true,
+        force: true,
+        state: expect.objectContaining({
+          showResults: true,
+          sessionCode: 'FMQYME',
+          resultId: 'result-1',
+        }),
+      }),
+    );
   });
 });
